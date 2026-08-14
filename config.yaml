@@ -58,6 +58,38 @@ gemini:
 
 
 # =========================================================
+#  GÖRSEL (Adım 3)
+#
+#  DİKKAT — BU KISIM PARA HARCIYOR.
+#  Gemini'nin görsel modellerinde ücretsiz kota YOK (limit: 0).
+#  Bu yüzden ayrı, faturalı bir projeye ait ayrı anahtar kullanıyoruz:
+#      GEMINI_API_KEY        -> metin   (faturasız proje, bedava)
+#      GEMINI_IMAGE_API_KEY  -> görsel  (faturalı proje)
+#  Faturalandırma proje bazında; anahtarlar farklı projelerden olmalı.
+# =========================================================
+gorsel:
+  # Denendi (14 Ağu 2026): 2.5-flash sade ve yazı altında daha okunaklı
+  # çıktı, 3.1-flash daha gösterişli ama kalabalık. Ucuz olan işimize
+  # daha uygun — pahalıya geçmek kaliteyi artırmıyor.
+  #   gemini-2.5-flash-image   ~$0.039  [seçili]
+  #   gemini-3.1-flash-image   ~$0.067
+  #   gemini-3-pro-image       ~$0.134
+  model: "gemini-2.5-flash-image"
+
+  # MALİYET EMNİYETİ — günde en fazla kaç görsel üretilebilir.
+  # Normalde 2 (sabah + akşam). "Metni yeniden üret" ve tekrar denemeler
+  # için pay bıraktık. Bu sınır aşılırsa üretim durur ve yedek gradyan
+  # arka plana düşer; fatura kaçmaz.
+  gunluk_azami: 6
+
+  boyut: 1080              # Instagram kare post
+  kenar_bosluk: 80         # yazının kenarlardan uzaklığı (piksel)
+  jpeg_kalite: 90          # Instagram PNG kabul etmiyor, JPEG şart
+  deneme_sayisi: 3
+  zaman_asimi: 180         # görsel üretimi metinden yavaş
+
+
+# =========================================================
 #  HABER KAYNAKLARI
 #  aktif: false yaparsan o kaynak atlanır (silmene gerek yok)
 #  agirlik: haber seçerken önceliği belirler (yüksek = önce)
