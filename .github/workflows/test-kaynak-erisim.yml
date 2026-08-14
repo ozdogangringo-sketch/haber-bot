@@ -7,14 +7,26 @@
 #  Bu bir "test" değil, bir ölçüm. Kaynak patlasa bile job
 #  yeşil kalır — biz sadece tabloyu okumak istiyoruz.
 #
-#  Elle çalıştırılır: Actions sekmesi → bu workflow → "Run workflow"
-#  Otomatik çalışmaz, cron'u yok. Bilerek böyle.
+#  Sonucu data/kaynak-erisim-raporu.txt olarak repo'ya GERİ YAZAR.
+#  Böylece raporu Actions ekranından kopyalamaya gerek kalmaz,
+#  `git pull` ile bilgisayara iner. Adım 6'da veritabanını da
+#  aynı yöntemle geri commit edeceğiz — bu onun provası.
 # =========================================================
 
 name: Kaynak Erişim Teşhisi
 
 on:
-  workflow_dispatch:        # sadece elle tetiklenir
+  workflow_dispatch:          # Actions ekranından elle
+  push:
+    # Sadece teşhisin kendisi değişince otomatik çalışsın.
+    # Her push'ta çalışmasını istemiyoruz.
+    paths:
+      - "scripts/test_kaynak_erisim.py"
+      - ".github/workflows/test-kaynak-erisim.yml"
+
+# Raporu repo'ya geri yazabilmek için yazma izni gerekiyor.
+permissions:
+  contents: write
 
 jobs:
   olc:
@@ -37,4 +49,15 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Kaynaklara eriş ve raporla
-        run: python scripts/test_kaynak_erisim.py
+        # tee: çıktıyı hem ekrana bas hem dosyaya yaz
+        run: python scripts/test_kaynak_erisim.py 2>&1 | tee data/kaynak-erisim-raporu.txt
+
+      - name: Raporu repo'ya geri yaz
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/kaynak-erisim-raporu.txt
+          # Rapor bir öncekiyle birebir aynıysa commit edilecek bir şey yok.
+          git commit -m "Kaynak erişim raporu (GitHub runner IP'si)" \
+            || { echo "Rapor değişmemiş, commit yok."; exit 0; }
+          git push
