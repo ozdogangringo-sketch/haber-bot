@@ -181,10 +181,16 @@ def arkaplan_uret_ai(kategori: str, ayarlar: dict) -> Image.Image:
     raise RuntimeError(f"arka plan üretilemedi: {son_hata}")
 
 
-def arkaplan_uret_yedek(kategori: str, boyut: int) -> Image.Image:
+def arkaplan_uret_yedek(
+    kategori: str, genislik: int, yukseklik: int
+) -> Image.Image:
     """
-    API'siz, bedava yedek arka plan: köşegen gradyan + hafif bulanıklık.
-    AI patlarsa post kaçmasın diye var. Sade ama düzgün durur.
+    API'siz, bedava gradyan arka plan.
+
+    İki yerde kullanılıyor:
+      1. Haber slaytlarında fotoğraf bulunamazsa (asıl kullanım —
+         maliyeti burada kısıyoruz)
+      2. AI kapak üretimi patlarsa yedek olarak
     """
     renkler = {
         "turkiye": ((16, 24, 46), (38, 50, 82)),
@@ -192,12 +198,12 @@ def arkaplan_uret_yedek(kategori: str, boyut: int) -> Image.Image:
     }
     ust, alt = renkler.get(kategori, renkler["turkiye"])
 
-    gorsel = Image.new("RGB", (boyut, boyut), ust)
+    gorsel = Image.new("RGB", (genislik, yukseklik), ust)
     ciz = ImageDraw.Draw(gorsel)
-    for y in range(boyut):
-        oran = y / boyut
+    for y in range(yukseklik):
+        oran = y / yukseklik
         ciz.line(
-            [(0, y), (boyut, y)],
+            [(0, y), (genislik, y)],
             fill=(
                 int(ust[0] + (alt[0] - ust[0]) * oran),
                 int(ust[1] + (alt[1] - ust[1]) * oran),
@@ -255,37 +261,71 @@ def _basligi_yerlestir(metin: str, ciz, alan_genislik: int, alan_yukseklik: int)
     return font, satirlar, int(40 * 1.22)
 
 
+def fotograftan_arkaplan(
+    foto: Image.Image, genislik: int, yukseklik: int
+) -> Image.Image:
+    """
+    Commons'tan gelen fotoğrafı slayt oranına kırpar.
+
+    Kırpma ÜSTTEN hizalı: portrelerde yüz genelde üst yarıda oluyor,
+    ortadan kırpınca çene kesiliyor. Üstten hizalayınca yüz korunuyor
+    ve alt kısım zaten yazı perdesinin altında kalıyor.
+    """
+    hedef_oran = genislik / yukseklik
+    f_genislik, f_yukseklik = foto.size
+    foto_oran = f_genislik / f_yukseklik
+
+    if foto_oran > hedef_oran:
+        # Fotoğraf çok geniş: yanlardan kırp, ortayı koru
+        yeni_genislik = int(f_yukseklik * hedef_oran)
+        sol = (f_genislik - yeni_genislik) // 2
+        foto = foto.crop((sol, 0, sol + yeni_genislik, f_yukseklik))
+    else:
+        # Fotoğraf çok uzun: alttan kırp, üstü (yüzü) koru
+        yeni_yukseklik = int(f_genislik / hedef_oran)
+        ust = int((f_yukseklik - yeni_yukseklik) * 0.12)   # birazcık nefes payı
+        foto = foto.crop((0, ust, f_genislik, ust + yeni_yukseklik))
+
+    return foto.resize((genislik, yukseklik), Image.LANCZOS)
+
+
 def yaziyi_bas(
-    arkaplan: Image.Image, baslik: str, kaynak: str, ayarlar: dict
+    arkaplan: Image.Image, baslik: str, kaynak: str, ayarlar: dict,
+    perde_basi_orani: float = 0.30,
 ) -> Image.Image:
     """Arka planın üstüne başlığı ve kaynak adını yazar."""
     g = ayarlar["gorsel"]
-    boyut = g["boyut"]
+    genislik, yukseklik = g["genislik"], g["yukseklik"]
     kenar = g["kenar_bosluk"]
 
-    gorsel = arkaplan.resize((boyut, boyut), Image.LANCZOS)
+    gorsel = arkaplan.resize((genislik, yukseklik), Image.LANCZOS)
 
-    # Okunabilirlik garantisi: AI arka planı her seferinde farklı çıkıyor,
-    # açık bir yer denk gelirse beyaz yazı kaybolur. Alt yarıya koyu bir
-    # perde çekiyoruz — yazı her koşulda okunsun.
-    perde = Image.new("RGBA", (boyut, boyut), (0, 0, 0, 0))
+    # Okunabilirlik garantisi: arka plan her seferinde farklı — AI görseli,
+    # gerçek fotoğraf veya gradyan olabiliyor. Açık bir yer denk gelirse
+    # beyaz yazı kaybolur. Alt kısma koyu perde çekiyoruz.
+    # Fotoğraflarda perde daha güçlü olmalı: portrenin açık tonları
+    # yazıyı yutuyor.
+    perde = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
     perde_ciz = ImageDraw.Draw(perde)
-    perde_basi = int(boyut * 0.34)
-    for y in range(perde_basi, boyut):
-        oran = (y - perde_basi) / (boyut - perde_basi)
-        perde_ciz.line([(0, y), (boyut, y)], fill=(0, 0, 0, int(200 * oran)))
+    perde_basi = int(yukseklik * perde_basi_orani)
+    for y in range(perde_basi, yukseklik):
+        oran = (y - perde_basi) / (yukseklik - perde_basi)
+        # Karesel artış: üstte yumuşak başlasın, altta tam kapatsın
+        perde_ciz.line(
+            [(0, y), (genislik, y)], fill=(0, 0, 0, int(238 * (oran ** 1.5)))
+        )
     gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
 
     ciz = ImageDraw.Draw(gorsel)
-    alan_genislik = boyut - 2 * kenar
-    alan_yukseklik = int(boyut * 0.46)
+    alan_genislik = genislik - 2 * kenar
+    alan_yukseklik = int(yukseklik * 0.42)
 
     font, satirlar, satir_yuksekligi = _basligi_yerlestir(
         baslik, ciz, alan_genislik, alan_yukseklik
     )
 
     # Alt bilgi satırının üstünde bitecek şekilde yukarıdan hizala
-    alt_bilgi_y = boyut - kenar - 34
+    alt_bilgi_y = yukseklik - kenar - 34
     y = alt_bilgi_y - 46 - satir_yuksekligi * len(satirlar)
 
     for satir in satirlar:
@@ -335,7 +375,7 @@ def gorsel_uret(haber, ayarlar: dict, con=None) -> Path:
         kaynak_tipi = "ai"
     except Exception as e:
         log.warning("AI arka plan olmadı (%s), yedek gradyana düşülüyor", e)
-        arkaplan = arkaplan_uret_yedek(kategori, g["boyut"])
+        arkaplan = arkaplan_uret_yedek(kategori, g["genislik"], g["yukseklik"])
         kaynak_tipi = "yedek"
 
     gorsel = yaziyi_bas(arkaplan, baslik, haber["kaynak"], ayarlar)

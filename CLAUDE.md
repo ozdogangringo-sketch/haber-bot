@@ -50,9 +50,12 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Onay tetikleme | **Cloudflare Worker** → `repository_dispatch` → anında yayın |
 | Görsel hosting | **imgbb** (Instagram public URL zorunlu kılıyor) |
 | Haber teması | Öncelik **Türkiye gündemi**; dünya haberi sadece önem puanı ≥8 ise |
-| Post sıklığı | Günde 2 — sabah + akşam, her turda **tek** post |
-| Sabah turu | 09:00 hazırla → 10:00, 11:00 hatırlat → 12:00 havuza dön |
+| Post biçimi | **CAROUSEL** (kaydırmalı). Kapak + 9 haber = 10 slayt. Instagram sınırı 10. |
+| Slayt oranı | **4:5 dikey (1080x1350)**. Carousel'de tüm slaytlar aynı oranda olmak zorunda. |
+| Post sıklığı | **Günde 1 — akşam turu** (maliyet için 2'den 1'e indirildi) |
 | Akşam turu | 20:00 hazırla → 21:00, 22:00 hatırlat → 23:00 havuza dön |
+| Slayt görseli | Haberde kişi/kurum varsa **Wikimedia Commons**'tan gerçek fotoğraf, yoksa gradyan. AI **sadece kapakta**. |
+| ~~Reels/video~~ | Elendi: müzik API'den eklenemiyor, ayrıca ffmpeg + video barındırma gerekiyordu. |
 | Onay verilmezse | **Haber ELENMEZ**, havuza döner, sonraki turda yeniden yarışır |
 | Bayatlama sınırı | Yayın tarihinden **48 saat** sonra aday olmayı bırakır |
 | "Atla" butonu | Sıradaki haberi önerir, tur başına **5 hak** |
@@ -115,10 +118,40 @@ Cloud projesinde ayrıca "Enable" edilmesi gerekti — anahtar tek başına yetm
 Uçtan uca test: 3/3 haber başarılı, üçü de tam makale metniyle,
 üretilen her iddia kaynak metinde doğrulandı. Detay için Bölüm 7'ye bak.
 
-### SIRADAKİ İŞ: Adım 3 — Görsel üretimi (`src/make_image.py`)
+### Adım 3 — Görsel: BÜYÜK ÖLÇÜDE ÇALIŞIYOR, birleştirme kaldı
 
-Önkoşul: kullanıcının 1080x1080 şablon vermesi (yoksa geçici üret) ve
-Türkçe karakter destekli TTF fontun `assets/fonts/` içine konması.
+Yapıldı ve doğrulandı:
+- `assets/fonts/Inter-Variable.ttf` (Türkçe karakterler gerçek render ile test edildi)
+- `src/make_image.py` — başlık yerleşimi, otomatik satır kırma/punto, okuma perdesi,
+  AI soyut arka plan, bedava gradyan yedeği, **günlük maliyet sayacı**
+- `src/fetch_photo.py` — Wikimedia Commons'tan lisansı uygun fotoğraf
+
+**Commons hakkında öğrenilenler (tekrar keşfetme):**
+- KİŞİ/KURUM aramaları iyi: Trump → Ocak 2025 resmi başkanlık portresi (kamu malı).
+  OLAY aramaları kullanılamaz: "Istanbul earthquake" → 1509 gravürü. Bu yüzden
+  sadece kişi/kurum araması yapılıyor.
+- "Lisansı uygun ilk sonuç" almak YETMİYOR — ilk denemede Trump için lise yıllığı
+  fotoğrafı geldi. `_aday_puani()` ile puanlama şart (istenmeyen kelime listesi,
+  yıl tercihi, çözünürlük, en-boy oranı).
+- Wikimedia iletişim bilgisi içeren User-Agent istiyor + istekler arası bekleme
+  şart, yoksa 429. `_istek()` bunu hallediyor.
+- Lisans etiketlerine körlemesine güvenme: yıllık fotoğrafı "kamu malı" etiketliydi
+  ama ticari bir arşive atıf veriyordu. NC/ND elenmesi `_lisans_uygun_mu()`'da.
+- Tanınmayan kişilerde (ör. sıradan bir milletvekili) fotoğraf bulunmuyor →
+  gradyana düşmek DOĞRU davranış, zorlama.
+
+**KALAN İŞ:**
+1. `generate_text.py` prompt'una `gorsel_konu` alanı ekle (haberdeki ana kişi/kurum,
+   yoksa null). Commons araması bununla beslenecek. Birkaç token, maliyeti yok.
+2. `make_image.py`'ye kapak slaytı üretimi (`kapak_uret`) ekle.
+3. Bir turda 9 slayt üreten üst seviye fonksiyon + test scripti.
+4. Atıf metni (`fetch_photo.atif_metni`) caption'ın sonuna eklenmeli — CC BY için
+   hukuken şart.
+
+### SONRAKİ: Adım 4 — imgbb + Instagram CAROUSEL yayınlama
+
+Carousel akışı tekli posttan farklı: her görsel için `is_carousel_item=true`
+container → sonra `media_type=CAROUSEL` + `children=[id1,id2,...]` → publish.
 
 ---
 

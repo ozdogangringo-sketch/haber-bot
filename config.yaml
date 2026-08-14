@@ -76,13 +76,31 @@ gorsel:
   #   gemini-3-pro-image       ~$0.134
   model: "gemini-2.5-flash-image"
 
-  # MALİYET EMNİYETİ — günde en fazla kaç görsel üretilebilir.
-  # Normalde 2 (sabah + akşam). "Metni yeniden üret" ve tekrar denemeler
-  # için pay bıraktık. Bu sınır aşılırsa üretim durur ve yedek gradyan
-  # arka plana düşer; fatura kaçmaz.
-  gunluk_azami: 6
+  # --- CAROUSEL YAPISI ---
+  # Instagram bir postta EN FAZLA 10 görsele izin veriyor.
+  # Kapak + 9 haber = 10. Bu sınır Instagram'ın, bizim değil.
+  slayt_sayisi: 9          # kapak hariç haber sayısı
+  kapak_var: true
 
-  boyut: 1080              # Instagram kare post
+  # --- MALİYETİ NEREDE HARCIYORUZ ---
+  # AI görsel başına ~$0.039. 10 slaytın hepsini AI yapmak günde $0.39,
+  # ayda ~$11.7 eder. Bunun yerine:
+  #   - haber slaytları: Commons'tan gerçek fotoğraf (bedava) veya gradyan
+  #   - sadece kapak: AI soyut arka plan
+  # Böylece günde 1 görsel, ayda ~$1.17.
+  # haberde_ai'yi true yaparsan maliyet 10 katına çıkar; bilerek yap.
+  kapakta_ai: true
+  haberde_ai: false
+
+  # MALİYET EMNİYETİ — günde en fazla kaç AI görseli üretilebilir.
+  # Günde 1 tur × 1 kapak = 1. Yeniden üretme ve tekrar denemeler için
+  # pay bıraktık. Aşılırsa üretim durur, yedek gradyana düşer, fatura kaçmaz.
+  gunluk_azami: 4
+
+  # Instagram carousel'de TÜM slaytlar aynı en-boy oranında olmalı.
+  # 4:5 dikey seçtik: karaya göre akışta daha çok yer kaplıyor.
+  genislik: 1080
+  yukseklik: 1350
   kenar_bosluk: 80         # yazının kenarlardan uzaklığı (piksel)
   jpeg_kalite: 90          # Instagram PNG kabul etmiyor, JPEG şart
   deneme_sayisi: 3
