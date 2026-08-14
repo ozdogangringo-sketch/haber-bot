@@ -46,7 +46,8 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 |---|---|
 | Çalışma ortamı | **GitHub Actions, private repo** (telefon/Termux fikri elendi) |
 | LLM | **Google Gemini** (ücretsiz kota, kredi kartı istemiyor) |
-| Onay kanalı | **Telegram bot**, inline butonlarla |
+| Onay kanalı | **Telegram bot**, inline butonlarla → **"Daily Brief" GRUBUNA** (özel sohbete değil) |
+| Onay yetkisi | **Gruptaki herkes** onaylayabilir/atlayabilir. Kullanıcı bilerek böyle istedi; kimin bastığını kontrol eden bir kısıt YOK. |
 | Onay tetikleme | **Cloudflare Worker** → `repository_dispatch` → anında yayın |
 | Görsel hosting | **imgbb** (Instagram public URL zorunlu kılıyor) |
 | Haber teması | Öncelik **Türkiye gündemi**; dünya haberi sadece önem puanı ≥8 ise |
@@ -298,6 +299,17 @@ POST /v21.0/<IG_USER_ID>/media_publish  creation_id         → post id
 - `src/telegram_bot.py`: `sendPhoto` + inline keyboard
   (`✅ Yayınla` / `⏭ Atla` / `🔄 Metni yeniden üret`), `editMessageCaption`
   ile sonucu güncelle. `telegram_message_id` DB'ye yazılır.
+- **Onay GRUBA gidiyor** (`TELEGRAM_CHAT_ID=-5501804510`, "Daily Brief").
+  Gruptaki herkes basabilir — kullanıcının açık tercihi, yetki kontrolü yok.
+- **SUPERGROUP TUZAĞI:** Grup şu an normal `group` türünde. Telegram bir
+  grubu supergroup'a yükselttiğinde chat ID DEĞİŞİR ve bot sessizce mesaj
+  atamaz olur. `sendMessage` hata cevabında
+  `parameters.migrate_to_chat_id` alanıyla yeni ID'yi veriyor —
+  `telegram_bot.py` bunu yakalayıp `.env`/DB'yi güncellemeli. Yoksa bir
+  gün onay mesajları gelmez ve sebebi anlaşılmaz.
+- Carousel onayı: tek görsel değil 10 slayt var. `sendMediaGroup` ile
+  hepsini gönderip ayrı bir mesajda butonları koymak gerekebilir —
+  `sendMediaGroup` inline keyboard KABUL ETMİYOR. Adım 5'te çöz.
 - **ÖNEMLİ:** Webhook kurulunca `getUpdates` çalışmaz. Bu bilinçli —
   saat başı job'lar Telegram'ı okumuyor, sadece DB'ye bakıp hatırlatma atıyor.
 - Cloudflare Worker: Telegram webhook'unu alır → `secret_token` header'ını
