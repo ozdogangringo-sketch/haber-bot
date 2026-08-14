@@ -77,25 +77,39 @@ Yol boyunca çözülenler:
   sağlam, 0 bozuk karakter.
 - Zararsız `MarkupResemblesLocatorWarning` susturuldu (log gürültüsüydü).
 
-### Sıradaki iş: Cloudflare / veri merkezi IP ölçümü — ADIM 2'DEN ÖNCE
+### Cloudflare / veri merkezi IP ölçümü — ÖLÇÜLDÜ, SORUN YOK ✅
 
-**Henüz ölçülmedi.** Yukarıdaki 8/8 sonucu kullanıcının ev IP'sinden
-(TurkNet, İstanbul — 95.70.229.210). GitHub Actions veri merkezi IP'si
-kullanıyor ve Cloudflare korumalı siteler oraya 403 dönebilir.
+| Ortam | IP | Sonuç |
+|---|---|---|
+| Ev (TurkNet, İstanbul) | 95.70.229.210 | 8/8 `200 ok` |
+| GitHub runner (Azure, Phoenix US) | 20.168.119.242 | **8/8 `200 ok`** |
 
-Bunun için hazır: `scripts/test_kaynak_erisim.py` (DB'ye dokunmaz, her
-kaynağın HTTP kodunu + gerçekten RSS mi döndüğünü raporlar) ve onu Actions'ta
-elle tetikleyen `.github/workflows/test-kaynak-erisim.yml`.
+Hiçbir kaynak veri merkezi IP'sini engellemiyor. `config.yaml`'de kaynak
+kapatmaya veya alternatif aramaya gerek kalmadı. En yavaş kaynak Anadolu
+Ajansı (3.5 sn) — 15 sn'lik zaman aşımının çok altında.
 
-**Yerel referans çıktı (14 Ağu 2026, ev IP'si): 8/8 kaynak `200 ok`.**
-Actions çıktısını bununla karşılaştır. Sadece orada patlayan varsa sebep IP
-engelidir → `config.yaml`'de `aktif: false` yap veya alternatif kaynak bul.
+**Ama tek ölçüm = garanti değil.** Bu tek bir anda, GitHub'ın IP havuzundaki
+tek bir adresten alındı. Cloudflare engeli aralıklı olabilir ve başka bir
+runner IP'si farklı davranabilir. İyi haber: kaynak izolasyonu zaten test
+edilmiş — bir kaynak patlarsa diğerleri etkilenmiyor, yani risk "bot çöker"
+değil "o turda bir kaynak eksik olur". Yayına geçince ara ara
+`data/kaynak-erisim-raporu.txt`'ye bakmakta fayda var.
 
-Bu ölçüm bitmeden Adım 2'ye geçme — sonucu "GitHub Actions" kararının kendisini
-etkileyebilir.
+Araçlar: `scripts/test_kaynak_erisim.py` (DB'ye dokunmaz) +
+`.github/workflows/test-kaynak-erisim.yml`. Workflow raporu
+`data/kaynak-erisim-raporu.txt` olarak repo'ya geri commit ediyor —
+Adım 6'daki veritabanı commit deseninin çalışan provası bu.
 
-**Beklemede:** Kullanıcının private GitHub repo'su oluşturup push etmesi
-gerekiyor (yerel commit hazır, `main` dalında).
+### GitHub durumu
+
+- Repo: `https://github.com/ozdogangringo-sketch/haber-bot` (**private**, doğrulandı)
+- `main` dalı push edildi, Actions çalışıyor ve repo'ya yazabiliyor.
+- Actions ücretsiz kotası private repo'da 2000 dk/ay. Planlanan cron'lar
+  (günde 2 hazırlama + 7 hatırlatma) kabaca 450-600 dk/ay → sınırın altında.
+
+### SIRADAKİ İŞ: Adım 2 — Gemini ile metin üretimi
+
+Önkoşul: kullanıcının `GEMINI_API_KEY` alması (ai.google.dev, ücretsiz).
 
 ---
 
@@ -274,7 +288,10 @@ Adım 1 hiçbirini gerektirmiyor. Başlarken durumu kullanıcıya sor.
 
 ## 10. Bilinen riskler
 
-- Cloudflare korumalı haber siteleri GitHub runner IP'sine 403 dönebilir → Adım 1'de ölç
+- ~~Cloudflare korumalı siteler GitHub runner IP'sine 403 dönebilir~~ →
+  **ölçüldü, 14 Ağu 2026'da 8/8 temiz.** Tek ölçüm olduğu için ara ara
+  tekrar bakılmalı; kaynak izolasyonu sayesinde en kötü ihtimal
+  "bir kaynak eksik", "bot çöker" değil.
 - Instagram token 60 gün → otomatik yenileme şart
 - Gemini yanlış/taraflı başlık üretebilir → **onay adımı asla kaldırılmasın**
 - Cron gecikmesi 5-30 dk, nadiren atlanır
