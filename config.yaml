@@ -113,6 +113,15 @@ gorsel:
 #                      META_APP_ID, META_APP_SECRET
 # =========================================================
 instagram:
+  # HANGİ HESABA POST ATILACAK — bunu boş bırakma.
+  #
+  # Jetonun birden fazla sayfaya erişimi var (DailyBrief, Animarch Studio,
+  # Edm Yapı). Kod "ilk bulduğu" hesaba yazarsa yanlış hesaba post gider —
+  # ilk denemede tam olarak bu oldu, emlak hesabını seçmişti.
+  # O yüzden hedef hesap adı burada AÇIKÇA yazılı ve kod eşleşme
+  # bulamazsa çalışmayı reddediyor.
+  hesap_kullanici_adi: "dailybrief.co"
+
   # Graph API sürümü. Meta yaklaşık 2 yıl geriye dönük destek veriyor,
   # ama sürüm eskidikçe uç noktalar kapanabiliyor. Kırılırsa burayı
   # güncelle — kodda sürüm gömülü değil.

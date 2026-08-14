@@ -149,27 +149,53 @@ def main():
         print("  Explorer'da izin ekranında sayfayı işaretlemen gerekiyor.")
         return
 
-    bulunan_ig = None
+    # HEDEF HESABI TAHMİN ETME.
+    # Jetonun birden fazla sayfaya erişimi olabiliyor. İlk denemede kod
+    # "son bulduğu" hesabı seçmişti ve o emlak şirketinin hesabıydı —
+    # haberleri oraya atacaktık. Artık config'deki adla eşleşme arıyoruz,
+    # bulamazsak durup soruyoruz.
+    hedef_ad = (ayarlar["instagram"].get("hesap_kullanici_adi") or "").strip().lstrip("@")
+
+    hesaplar = []
     for s in sayfalar:
         ig = s.get("instagram_business_account")
         print(f"\n  Sayfa: {s['name']}  (id: {s['id']})")
         if ig:
-            print(f"    ✓ Instagram bağlı: @{ig.get('username')}  (id: {ig['id']})")
-            bulunan_ig = ig
+            isaret = "  ← HEDEF" if ig.get("username") == hedef_ad else ""
+            print(f"    ✓ Instagram bağlı: @{ig.get('username')}  "
+                  f"(id: {ig['id']}){isaret}")
+            hesaplar.append(ig)
         else:
             print("    ✗ Bu sayfaya bağlı Instagram İŞLETME hesabı yok")
 
-    if not bulunan_ig:
+    if not hesaplar:
         print("\n  ✗ Hiçbir sayfada Instagram işletme hesabı görünmüyor.")
         print("  Sebebi genelde şu ikisinden biri:")
         print("    - Instagram hesabı 'Yaratıcı' türünde (İşletme olmalı)")
         print("    - Hesap sayfaya bağlı değil")
         return
 
+    bulunan_ig = next(
+        (h for h in hesaplar if h.get("username") == hedef_ad), None
+    )
+
+    if not bulunan_ig:
+        print(f"\n  ✗ config.yaml'deki hedef hesap bulunamadı: '{hedef_ad}'")
+        print("  Erişilebilen hesaplar:")
+        for h in hesaplar:
+            print(f"    - {h.get('username')}")
+        print("\n  config.yaml → instagram.hesap_kullanici_adi değerini")
+        print("  yukarıdakilerden biriyle eşleştir. Tahmin etmiyorum:")
+        print("  yanlış hesaba post atmak geri alınması zor bir hata.")
+        return
+
     # ---------------------------------------------------------------
-    cizgi("4) INSTAGRAM HESABI")
+    cizgi("4) HEDEF INSTAGRAM HESABI")
+    # NOT: account_type alanı bu uç noktada yok (denendi, #100 hatası verdi).
+    # Zaten instagram_business_account olarak dönmesi hesabın İşletme
+    # olduğunun kanıtı — kişisel hesaplar bu alanda hiç görünmüyor.
     d = iste(f"/{bulunan_ig['id']}", {
-        "fields": "id,username,name,account_type,followers_count,media_count",
+        "fields": "id,username,name,followers_count,media_count",
         "access_token": jeton,
     })
     if "_hata" in d:
@@ -177,9 +203,10 @@ def main():
     else:
         print(f"  Kullanıcı adı : @{d.get('username')}")
         print(f"  Ad            : {d.get('name')}")
-        print(f"  Hesap türü    : {d.get('account_type', '?')}")
         print(f"  Takipçi       : {d.get('followers_count', '?')}")
         print(f"  Gönderi       : {d.get('media_count', '?')}")
+        print("  Hesap türü    : İşletme (instagram_business_account "
+              "olarak döndüğü için kesin)")
 
     # ---------------------------------------------------------------
     cizgi("5) YAYINLAMA KOTASI")
