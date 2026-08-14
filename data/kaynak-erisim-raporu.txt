@@ -1,0 +1,20 @@
+==============================================================================
+KAYNAK ERİŞİM TEŞHİSİ
+==============================================================================
+IP: 20.168.119.242  |  Konum: Phoenix/US  |  Sağlayıcı: AS8075 Microsoft Corporation
+
+KAYNAK               DURUM      HTTP      KB  HABER     MS  NOT
+------------------------------------------------------------------------------
+TRT Haber            ✓ ok        200    50.1     50    774  
+BBC Türkçe           ✓ ok        200    16.8     20    528  
+Anadolu Ajansı       ✓ ok        200    21.4     30   3565  
+NTV Gündem           ✓ ok        200    67.9     20    408  
+Habertürk Gündem     ✓ ok        200    33.4     30    427  
+Sözcü Gündem         ✓ ok        200    43.6     50    196  
+BBC World            ✓ ok        200    21.3     28     39  
+Al Jazeera           ✓ ok        200    16.6     25     58  
+------------------------------------------------------------------------------
+Çalışan: 8 / 8
+
+Bu çıktıyı, aynı scriptin diğer ortamdaki çıktısıyla karşılaştır.
+Sadece birinde patlayan kaynak varsa sebep IP engeli demektir.
