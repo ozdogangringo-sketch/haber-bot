@@ -74,6 +74,13 @@ EK_KOLONLAR = {
     "gonderim_zamani": "TEXT",
     "hatirlatma_sayisi": "INTEGER NOT NULL DEFAULT 0",
     "ertelenme_sayisi": "INTEGER NOT NULL DEFAULT 0",
+    # Haberin sitesinden çekilen tam gövde metni (Adım 2).
+    # İki işe yarıyor:
+    #   1) Gemini'ye RSS teaser'ı yerine bunu veriyoruz — ölçtük, teaser'la
+    #      model bilgi boşluğunu uyduruyor.
+    #   2) Onay aşamasında kaynak metni görebilesin diye saklıyoruz:
+    #      "modelin yazdığı bu cümle haberde gerçekten var mı?"
+    "makale_metni": "TEXT",
 }
 
 
@@ -140,6 +147,45 @@ def durum_guncelle(con, haber_id: int, durum: str, hata: str | None = None):
     con.execute(
         "UPDATE haberler SET durum = ?, hata_mesaji = ? WHERE id = ?",
         (durum, hata, haber_id),
+    )
+
+
+def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = None):
+    """
+    Gemini'nin ürettiği Instagram metnini kaydeder ve haberi
+    'metin_hazir' durumuna geçirir.
+
+    `uretilen` sözlüğü şunları içermeli:
+        ig_baslik, ig_caption, ig_hashtag (liste), onem_puani (int)
+
+    Hashtag'i veritabanında boşlukla ayrılmış tek metin olarak tutuyoruz
+    ('#' işareti olmadan). Böyle saklamak SQL'de aramayı kolaylaştırıyor;
+    '#' işaretini gösterirken ekliyoruz.
+    """
+    etiketler = uretilen.get("ig_hashtag") or []
+    if isinstance(etiketler, str):
+        etiketler = etiketler.split()
+
+    con.execute(
+        """
+        UPDATE haberler
+           SET ig_baslik    = ?,
+               ig_caption   = ?,
+               ig_hashtag   = ?,
+               onem_puani   = ?,
+               makale_metni = COALESCE(?, makale_metni),
+               durum        = 'metin_hazir',
+               hata_mesaji  = NULL
+         WHERE id = ?
+        """,
+        (
+            uretilen.get("ig_baslik"),
+            uretilen.get("ig_caption"),
+            " ".join(e.lstrip("#") for e in etiketler),
+            uretilen.get("onem_puani"),
+            makale_metni,
+            haber_id,
+        ),
     )
 
 

@@ -107,9 +107,18 @@ Adım 6'daki veritabanı commit deseninin çalışan provası bu.
 - Actions ücretsiz kotası private repo'da 2000 dk/ay. Planlanan cron'lar
   (günde 2 hazırlama + 7 hatırlatma) kabaca 450-600 dk/ay → sınırın altında.
 
-### SIRADAKİ İŞ: Adım 2 — Gemini ile metin üretimi
+### Adım 2 — BİTTİ ✅ (14 Ağu 2026)
 
-Önkoşul: kullanıcının `GEMINI_API_KEY` alması (ai.google.dev, ücretsiz).
+`GEMINI_API_KEY` alındı, `.env`'de duruyor, çalışıyor. Gemini API'nin Google
+Cloud projesinde ayrıca "Enable" edilmesi gerekti — anahtar tek başına yetmedi.
+
+Uçtan uca test: 3/3 haber başarılı, üçü de tam makale metniyle,
+üretilen her iddia kaynak metinde doğrulandı. Detay için Bölüm 7'ye bak.
+
+### SIRADAKİ İŞ: Adım 3 — Görsel üretimi (`src/make_image.py`)
+
+Önkoşul: kullanıcının 1080x1080 şablon vermesi (yoksa geçici üret) ve
+Türkçe karakter destekli TTF fontun `assets/fonts/` içine konması.
 
 ---
 
@@ -126,10 +135,14 @@ haber-bot/
 ├── .github/workflows/
 │   └── test-kaynak-erisim.yml     # ✅ elle tetiklenir (workflow_dispatch)
 ├── src/
-│   ├── db.py                      # ✅ YAZILDI + TEST EDİLDİ
-│   └── fetch_news.py              # ✅ YAZILDI + TEST EDİLDİ
+│   ├── db.py                      # ✅ + metin_kaydet(), makale_metni kolonu
+│   ├── fetch_news.py              # ✅ YAZILDI + TEST EDİLDİ
+│   ├── fetch_article.py           # ✅ makale gövdesi çekici (Adım 2'nin kalbi)
+│   └── generate_text.py           # ✅ Gemini ile IG metni
 ├── scripts/
 │   ├── test_1_rss.py              # ✅ Adım 1 test scripti
+│   ├── test_2_makale_metni.py     # ✅ gövde çekme ölçümü (DB'ye dokunmaz)
+│   ├── test_3_metin_uret.py       # ✅ Adım 2 testi (DB'yi DEĞİŞTİRİR)
 │   └── test_kaynak_erisim.py      # ✅ IP engeli teşhisi (DB'ye dokunmaz)
 ├── assets/fonts/                  # boş — Adım 3'te font ve şablon gelecek
 ├── data/output/                   # boş
@@ -183,18 +196,39 @@ Türkçe karakterler, tarih normalizasyonu, yaş filtresi, tekrar engeli
 
 ## 7. Kalan adımlar
 
-### Adım 2 — Gemini ile metin (`src/generate_text.py`)
-Girdi: `durum='yeni'` haberler. Çıktı: `ig_baslik`, `ig_caption`, `ig_hashtag`,
-`onem_puani` (1-10) → `durum='metin_hazir'`.
+### ✅ Adım 2 — Gemini ile metin (`src/generate_text.py`) — BİTTİ
 
-- Model: `gemini-2.0-flash` veya güncel ücretsiz kota modeli (kullanmadan önce
-  ai.google.dev'den doğrula, model adları değişiyor).
-- **JSON çıktı zorla** (`response_mime_type: application/json` + şema).
-- Prompt Türkçe olmalı; İngilizce dünya haberini Türkçeleştirmeli.
-- Caption 2-3 cümle, hashtag 5-8 adet.
-- `onem_puani` seçim algoritmasının kalbi — prompt'ta net kriter ver
-  (ulusal etki, aciliyet, ilgi çekicilik).
-- Taraflı/spekülatif başlık üretmemesi için prompt'ta açık talimat.
+Girdi: `durum='yeni'` haberler. Çıktı: `ig_baslik`, `ig_caption`, `ig_hashtag`,
+`onem_puani` (1-10) → `durum='metin_hazir'`. Test: `scripts/test_3_metin_uret.py`
+
+**EN ÖNEMLİ BULGU — bunu bozma:**
+RSS özetleri teaser; haberlerin **%76'sının özeti 200 karakterin altında**.
+Bu kadar az bilgiyle üç ayrı Gemini modeli de kaynakta OLMAYAN iddialar
+uydurdu ("suçlamaları reddetti", "konuyu yargıya taşıdı") — üstelik adı geçen
+gerçek bir milletvekili ve cinsel taciz suçlaması hakkında. Yayınlansa iftira.
+
+Çözüm: `src/fetch_article.py` haberin sitesine gidip **tam gövdeyi** çekiyor
+(16/16 kaynakta başarılı, ortalama 10-30 kat daha fazla metin). Tam metinle
+tekrar denendiğinde üretilen her cümle kaynakta doğrulandı.
+
+Gövde çekilemezse RSS özetine düşüyor **ve prompt'a "elindeki bilgi az, tek
+cümle yaz, uydurma" uyarısı ekleniyor** (`AZ_BILGI_UYARISI`). Bu yedek yolu
+kaldırma.
+
+**Telegram onayı bu riski çözmez** — uydurma metin akıcı ve inandırıcı görünür.
+O yüzden `makale_metni` kolonunda kaynak metni saklıyoruz; Adım 5'te onay
+mesajında gösterilmeli ki kullanıcı karşılaştırabilsin.
+
+Diğer notlar:
+- Model `config.yaml` → `gemini.model`. Koda gömülü değil, değiştirmek tek satır.
+- Seçim: `gemini-3.6-flash` (birincil), `gemini-3.5-flash` (yedek).
+  `gemini-3.7-flash` gerçek boyutlu isteklerde 3 denemenin 2'sinde 503 verdi.
+- JSON çıktı `responseSchema` ile zorlanıyor — düz metin dönme sorunu yok.
+- Anahtar URL'ye değil `x-goog-api-key` başlığına konuyor (loga sızmasın).
+- 503/429/500/502/504'te bekleyip tekrar deniyor, sonra yedek modele geçiyor.
+  Gözetimsiz çalışan bir bot için şart.
+- **`gemini-2.0-flash` artık YOK** (eski notlardaki öneri geçersiz). Model
+  adlarını varsaymak yerine `v1beta/models` uç noktasından listele.
 
 **Seçim skoru** (`src/secim.py` veya `run.py` içinde):
 ```

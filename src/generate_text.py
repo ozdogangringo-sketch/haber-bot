@@ -1,0 +1,280 @@
+"""
+generate_text.py — ADIM 2
+durum='yeni' haberleri alır, Gemini ile Instagram metni üretir,
+durum='metin_hazir' yapar.
+
+TASARIMIN EN ÖNEMLİ KARARI — neden makale gövdesini çekiyoruz:
+
+    RSS özetleri "devamı sitemizde" teaser'ları. Ölçtük: haberlerin
+    %76'sının özeti 200 karakterin altında.
+
+    120 karakterlik bir teaser'dan 2-3 cümlelik caption isteyince model
+    aradaki boşluğu UYDURUYOR. Gerçek testte üç ayrı Gemini modeli de
+    kaynakta olmayan iddialar üretti — üstelik adı geçen gerçek bir kişi
+    ve ciddi bir suçlama hakkında. Böyle bir metni yayınlamak iftira olur.
+
+    Aynı haberi makalenin 4000 karakterlik gövdesiyle verdiğimizde
+    modellerin yazdığı her cümle kaynakta doğrulanabilir çıktı.
+
+    Bu yüzden önce fetch_article ile gövdeyi çekiyoruz, ancak
+    çekemezsek RSS özetine düşüyoruz — ve o durumda modele
+    "elindeki bilgi az, kısa yaz, uydurma" diyoruz.
+
+Dışarıdan kullanımı:
+    from src.generate_text import metinleri_uret
+    rapor = metinleri_uret(limit=5)
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import time
+
+import requests
+from dotenv import load_dotenv
+
+from . import db
+from .fetch_article import makale_metni_cek
+from .fetch_news import ayarlari_oku
+
+log = logging.getLogger(__name__)
+
+load_dotenv()
+
+UC_NOKTA = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+# Geçici hatalar — bunlarda tekrar denemek mantıklı.
+# 503 = model yoğun, 429 = kota/hız sınırı, 500/502/504 = sunucu hıçkırığı
+GECICI_HATALAR = {429, 500, 502, 503, 504}
+
+# Gemini'den JSON istiyoruz. Şema vermek, "bazen düz metin döndürme"
+# sorununu tamamen ortadan kaldırıyor.
+CEVAP_SEMASI = {
+    "type": "object",
+    "properties": {
+        "ig_baslik": {"type": "string"},
+        "ig_caption": {"type": "string"},
+        "ig_hashtag": {"type": "array", "items": {"type": "string"}},
+        "onem_puani": {"type": "integer"},
+    },
+    "required": ["ig_baslik", "ig_caption", "ig_hashtag", "onem_puani"],
+}
+
+
+PROMPT = """Sen bir Türk haber Instagram hesabının editörüsün.
+Aşağıdaki haberi Instagram paylaşımına dönüştür.
+
+EN ÖNEMLİ KURAL — BUNU ASLA ÇİĞNEME:
+Sadece aşağıdaki HABER METNİNDE yazan bilgileri kullan. Metinde geçmeyen
+hiçbir iddiayı, sayıyı, ismi, tepkiyi veya sonucu yazma. Emin değilsen o
+cümleyi hiç kurma. Eksik yazmak, uydurmaktan iyidir.
+
+HUKUKİ DİKKAT:
+Suçlama, soruşturma veya dava içeren haberlerde "iddia edildi",
+"öne sürüldü", "hakkında soruşturma başlatıldı" gibi ifadeler kullan.
+Hiç kimseyi suçlu ilan etme. Mahkeme kararı olmadan kesin dille yazma.
+
+DİĞER KURALLAR:
+- Çıktının tamamı Türkçe olacak. Haber İngilizceyse Türkçeye çevir.
+- ig_baslik: en fazla 12 kelime. Çarpıcı ama ABARTISIZ, clickbait yok.
+- ig_caption: 2-3 cümle, haberin özü. Kaynak adını yazma.
+- ig_hashtag: 5-8 adet, Türkçe ve konuyla ilgili, '#' işareti OLMADAN.
+- Taraf tutma, yorum katma, spekülasyon yapma.
+
+onem_puani (1-10) — Türkiye'deki ortalama bir takipçi için önem:
+  * Ulusal etki: kaç kişiyi doğrudan etkiliyor?
+  * Aciliyet: bugün bilinmesi gerekiyor mu?
+  * İlgi çekicilik: insanlar bunu konuşur mu?
+  9-10 = ülke gündemini belirleyen olay
+  7-8  = önemli, çoğu insan bilmek ister
+  4-6  = orta, ilgi alanına göre değişir
+  1-3  = niş veya önemsiz
+
+{bilgi_uyarisi}
+HABER
+Kaynak : {kaynak}
+Başlık : {baslik}
+Metin  : {metin}
+"""
+
+# Gövdeyi çekemediğimizde prompt'un başına eklenen uyarı.
+AZ_BILGI_UYARISI = """DİKKAT — ELİNDEKİ BİLGİ ÇOK AZ:
+Aşağıda haberin tam metni değil, sadece kısa bir özeti var. Bu özet
+cümlenin ortasında kesilmiş olabilir. Bu durumda caption'ı TEK CÜMLE
+yaz ve sadece başlıkta/özette açıkça yazanı tekrarla. Detay uydurma.
+
+"""
+
+
+def _anahtar_al() -> str:
+    anahtar = os.getenv("GEMINI_API_KEY", "").strip()
+    if not anahtar:
+        raise RuntimeError(
+            "GEMINI_API_KEY bulunamadı. .env dosyasına eklemen gerekiyor."
+        )
+    return anahtar
+
+
+def prompt_kur(kaynak: str, baslik: str, metin: str, tam_metin_var: bool) -> str:
+    """Modele gidecek metni hazırlar."""
+    return PROMPT.format(
+        bilgi_uyarisi="" if tam_metin_var else AZ_BILGI_UYARISI,
+        kaynak=kaynak,
+        baslik=baslik,
+        metin=metin,
+    )
+
+
+def gemini_cagir(prompt: str, ayarlar: dict) -> dict:
+    """
+    Gemini'yi çağırır, JSON sonucu döner.
+
+    Geçici hatalarda (503 yoğunluk, 429 kota) bekleyip tekrar dener;
+    birincil model ısrarla patlarsa yedek modele geçer.
+
+    Bu gözetimsiz çalışan bir bot — gece 03:00'te 503 aldığında
+    kimse müdahale edemeyeceği için dayanıklılık şart.
+    """
+    g = ayarlar["gemini"]
+    anahtar = _anahtar_al()
+    modeller = [g["model"], g.get("yedek_model")]
+    son_hata = None
+
+    for model in [m for m in modeller if m]:
+        for deneme in range(1, g["deneme_sayisi"] + 1):
+            try:
+                cevap = requests.post(
+                    UC_NOKTA.format(model=model),
+                    headers={"x-goog-api-key": anahtar},   # URL'ye değil başlığa
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "responseMimeType": "application/json",
+                            "responseSchema": CEVAP_SEMASI,
+                            "temperature": g["sicaklik"],
+                        },
+                    },
+                    timeout=g["zaman_asimi"],
+                )
+            except requests.RequestException as e:
+                son_hata = f"{type(e).__name__}: {e}"
+                log.warning("%s ağ hatası (deneme %d): %s", model, deneme, e)
+                time.sleep(2 * deneme)
+                continue
+
+            if cevap.status_code == 200:
+                return _cevabi_coz(cevap.json())
+
+            son_hata = f"HTTP {cevap.status_code}: {cevap.text[:200]}"
+
+            if cevap.status_code in GECICI_HATALAR:
+                bekle = 2 * deneme          # 2, 4, 6 saniye
+                log.warning("%s geçici hata %d, %d sn sonra tekrar",
+                            model, cevap.status_code, bekle)
+                time.sleep(bekle)
+                continue
+
+            # Kalıcı hata (400 bozuk istek, 403 yetki) — tekrar denemek boşuna
+            log.error("%s kalıcı hata: %s", model, son_hata)
+            break
+
+        log.warning("%s ile olmadı, yedek modele geçiliyor", model)
+
+    raise RuntimeError(f"Gemini çağrısı başarısız: {son_hata}")
+
+
+def _cevabi_coz(veri: dict) -> dict:
+    """Gemini cevabının içinden JSON'u çıkarır ve doğrular."""
+    try:
+        ham = veri["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError) as e:
+        # Güvenlik filtresine takılmış olabilir — sebebi loga yazalım
+        sebep = veri.get("candidates", [{}])[0].get("finishReason", "?")
+        raise RuntimeError(f"Cevap beklenen yapıda değil (finishReason={sebep}): {e}")
+
+    sonuc = json.loads(ham)
+
+    # Şema zorlamasına rağmen puanın aralıkta olduğunu doğrula
+    puan = sonuc.get("onem_puani")
+    if not isinstance(puan, int) or not 1 <= puan <= 10:
+        raise RuntimeError(f"onem_puani geçersiz: {puan!r}")
+
+    for alan in ("ig_baslik", "ig_caption"):
+        if not (sonuc.get(alan) or "").strip():
+            raise RuntimeError(f"{alan} boş geldi")
+
+    return sonuc
+
+
+def tek_haber_uret(haber, ayarlar: dict) -> tuple[dict, str | None]:
+    """
+    Tek bir haber için metin üretir.
+    Döner: (uretilen_sozluk, makale_metni_veya_None)
+    """
+    g = ayarlar["gemini"]
+
+    # Önce makalenin gövdesini çekmeyi dene
+    govde = makale_metni_cek(haber["link"], haber["baslik_orj"])
+    tam_metin_var = bool(govde)
+
+    if govde:
+        metin = govde[: g["azami_makale_uzunlugu"]]
+    else:
+        # Çekemedik: RSS özetiyle idare edeceğiz ama modele bunu söylüyoruz
+        metin = haber["ozet_orj"] or "(özet yok)"
+        log.info("makale gövdesi çekilemedi, RSS özetiyle devam: %s",
+                 haber["link"])
+
+    prompt = prompt_kur(
+        kaynak=haber["kaynak"],
+        baslik=haber["baslik_orj"],
+        metin=metin,
+        tam_metin_var=tam_metin_var,
+    )
+    return gemini_cagir(prompt, ayarlar), govde
+
+
+def metinleri_uret(limit: int = 10, ayarlar: dict | None = None) -> dict:
+    """
+    durum='yeni' haberleri sırayla işler.
+    Bir haber patlarsa diğerleri etkilenmez — o haber 'hata' durumuna geçer.
+
+    Döner: {'basarili': int, 'hatali': int, 'haberler': [...]}
+    """
+    ayarlar = ayarlar or ayarlari_oku()
+    db.kur()
+
+    rapor = {"basarili": 0, "hatali": 0, "tam_metin": 0, "ozet_ile": 0,
+             "haberler": []}
+
+    with db.baglan() as con:
+        bekleyen = db.bekleyenler(con, durum="yeni", limit=limit)
+
+        for haber in bekleyen:
+            satir = {"id": haber["id"], "kaynak": haber["kaynak"],
+                     "baslik_orj": haber["baslik_orj"], "durum": "ok",
+                     "hata": None, "sonuc": None, "kaynak_uzunluk": 0}
+
+            try:
+                uretilen, govde = tek_haber_uret(haber, ayarlar)
+            except Exception as e:
+                satir.update(durum="hata", hata=f"{type(e).__name__}: {e}")
+                db.durum_guncelle(con, haber["id"], "hata", str(e)[:500])
+                con.commit()
+                rapor["hatali"] += 1
+                rapor["haberler"].append(satir)
+                log.error("haber %d başarısız: %s", haber["id"], e)
+                continue
+
+            db.metin_kaydet(con, haber["id"], uretilen, govde)
+            con.commit()
+
+            satir["sonuc"] = uretilen
+            satir["kaynak_uzunluk"] = len(govde) if govde else 0
+            rapor["basarili"] += 1
+            rapor["tam_metin" if govde else "ozet_ile"] += 1
+            rapor["haberler"].append(satir)
+
+    return rapor

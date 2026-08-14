@@ -27,6 +27,37 @@ genel:
 
 
 # =========================================================
+#  GEMINI (Adım 2 — metin üretimi)
+#  API anahtarı BURADA DEĞİL, .env dosyasında (GEMINI_API_KEY).
+# =========================================================
+gemini:
+  # Denenmiş modeller (14 Ağu 2026):
+  #   gemini-3.6-flash  → iyi kalite, ~10 sn, kararlı            [seçili]
+  #   gemini-3.5-flash  → benzer kalite, biraz daha kısa cümleler
+  #   gemini-3.7-flash  → en yeni AMA gerçek boyutlu isteklerde
+  #                       3 denemenin 2'sinde 503 "yoğunluk" verdi.
+  #                       Talep yatışırsa denenebilir.
+  model: "gemini-3.6-flash"
+
+  # Birincil model 503/429 verirse buna düşer.
+  yedek_model: "gemini-3.5-flash"
+
+  # 0 = hep aynı cevap, 1 = daha yaratıcı.
+  # Haber metninde yaratıcılık istemiyoruz ama tamamen robotik de olmasın.
+  sicaklik: 0.6
+
+  # Bir haber için en fazla kaç kez denensin (503 gibi geçici hatalarda)
+  deneme_sayisi: 3
+
+  # Tek bir isteğin zaman aşımı (saniye). Uzun makalelerde 10 sn sürebiliyor.
+  zaman_asimi: 90
+
+  # Makale gövdesinden modele en fazla kaç karakter gönderilsin.
+  # Daha uzunu hem gereksiz hem kotayı yer.
+  azami_makale_uzunlugu: 4000
+
+
+# =========================================================
 #  HABER KAYNAKLARI
 #  aktif: false yaparsan o kaynak atlanır (silmene gerek yok)
 #  agirlik: haber seçerken önceliği belirler (yüksek = önce)
