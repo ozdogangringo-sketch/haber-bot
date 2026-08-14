@@ -338,18 +338,29 @@ Worker tarafı ayrıca: `GITHUB_PAT`, `WEBHOOK_SECRET`.
 
 ## 9. Kullanıcının hazırlık durumu
 
+Güncelleme: 14 Ağustos 2026 — hepsi test edilerek doğrulandı.
+
 | # | Ne | Durum |
 |---|---|---|
-| A | Instagram Business + Facebook Page + Meta App + token | ⏳ bilinmiyor |
-| B | Gemini API key | ⏳ bilinmiyor |
-| C | Telegram bot token + chat ID | ⏳ bilinmiyor |
-| D | imgbb API key | ⏳ bilinmiyor |
-| E | GitHub private repo | ⏳ bilinmiyor |
-| F | 1080x1080 görsel şablon | ❌ henüz yok |
+| A | Instagram Business + FB Page + Meta App + jeton | ✅ **@dailybrief.co**, jeton 13 Eki 2026'ya kadar |
+| B | Gemini API key (metin, ücretsiz proje) | ✅ çalışıyor |
+| B2 | Gemini API key (görsel, **faturalı** proje) | ✅ `GEMINI_IMAGE_API_KEY`, bütçe uyarısı kurulu |
+| C | Telegram bot token + chat ID | ❌ **kalan tek eksik** |
+| D | imgbb API key | ✅ yükleme + genel erişim doğrulandı |
+| E | GitHub private repo | ✅ ozdogangringo-sketch/haber-bot |
+| F | Görsel şablon | ✅ gerek kalmadı — Commons fotoğrafı / gradyan / AI kapak |
 | G | Cloudflare hesabı | ⏳ Adım 5'te |
 | H | GitHub fine-grained PAT | ⏳ Adım 5'te |
 
-Adım 1 hiçbirini gerektirmiyor. Başlarken durumu kullanıcıya sor.
+**DİKKAT — Instagram hesabı seçimi:** Jetonun 3 sayfaya erişimi var
+(DailyBrief, Animarch Studio, Edm Yapı). Hedef hesap `config.yaml` →
+`instagram.hesap_kullanici_adi` ile açıkça belirtiliyor. Kod hesabı
+ASLA tahmin etmemeli — ilk yazdığım script "son bulduğunu" seçmişti ve
+emlak şirketinin hesabını hedeflemişti. Bu korumayı kaldırma.
+
+`.env` anahtarları: `GEMINI_API_KEY`, `GEMINI_IMAGE_API_KEY`,
+`IMGBB_API_KEY`, `IG_USER_ID`, `IG_ACCESS_TOKEN`, `META_APP_ID`,
+`META_APP_SECRET` (+ Telegram'ınkiler eklenecek).
 
 ---
 

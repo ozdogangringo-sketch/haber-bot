@@ -108,6 +108,24 @@ gorsel:
 
 
 # =========================================================
+#  IMGBB (Adım 4a — görsel barındırma)
+#  Anahtar .env'de: IMGBB_API_KEY
+#
+#  Neden var: Instagram görseli dosya olarak kabul etmiyor, herkese
+#  açık bir URL istiyor. Sunucumuz olmadığı için imgbb ara depo.
+# =========================================================
+imgbb:
+  # Yüklenen görsel kaç saniye sonra kendiliğinden silinsin?
+  # Instagram yayında kendi kopyasını aldığı için kısa tutmak güvenli.
+  # 172800 = 2 gün. Onay gecikse bile (akşam hazırla, gece onayla)
+  # rahatça yeter, ama imgbb hesabı çöp doldurmaz.
+  omur_saniye: 172800
+
+  deneme_sayisi: 3
+  zaman_asimi: 120        # 10 görsel yükleneceği için cömert davrandık
+
+
+# =========================================================
 #  INSTAGRAM (Adım 4)
 #  Anahtarlar .env'de: IG_USER_ID, IG_ACCESS_TOKEN,
 #                      META_APP_ID, META_APP_SECRET
