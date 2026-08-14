@@ -1,5 +1,9 @@
 # --- ASLA COMMIT EDİLMEYECEK ---
-.env
+# .env* deseni yedekleri de kapsar (.env.yedek gibi).
+# Sadece .env yazmak yetmiyordu: jeton uzatma scripti yedek bırakıyor
+# ve o yedek desene uymadığı için repo'ya sızabilirdi.
+.env*
+!.env.example
 
 # Python
 __pycache__/

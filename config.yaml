@@ -108,6 +108,25 @@ gorsel:
 
 
 # =========================================================
+#  INSTAGRAM (Adım 4)
+#  Anahtarlar .env'de: IG_USER_ID, IG_ACCESS_TOKEN,
+#                      META_APP_ID, META_APP_SECRET
+# =========================================================
+instagram:
+  # Graph API sürümü. Meta yaklaşık 2 yıl geriye dönük destek veriyor,
+  # ama sürüm eskidikçe uç noktalar kapanabiliyor. Kırılırsa burayı
+  # güncelle — kodda sürüm gömülü değil.
+  api_surumu: "v23.0"
+
+  # Container hazır olana kadar bekleme (carousel'de her görsel için
+  # ayrı container oluşuyor, hepsinin işlenmesi zaman alıyor)
+  hazir_bekleme_saniye: 5
+  hazir_azami_deneme: 12
+
+  zaman_asimi: 60
+
+
+# =========================================================
 #  HABER KAYNAKLARI
 #  aktif: false yaparsan o kaynak atlanır (silmene gerek yok)
 #  agirlik: haber seçerken önceliği belirler (yüksek = önce)
