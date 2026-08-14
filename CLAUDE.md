@@ -61,17 +61,41 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 
 ---
 
-## 4. ŞU ANKİ DURUM
+## 4. ŞU ANKİ DURUM  (güncelleme: 14 Ağustos 2026)
 
-**Adım 1 kodu yazıldı ama kullanıcı henüz çalıştırmadı.**
+**Adım 1 BİTTİ ve kullanıcının makinesinde doğrulandı.** 8/8 kaynak çalışıyor,
+tekrar engeli teyit edildi (2. çalıştırmada 0 yeni, 99 tekrar).
 
-İlk yapılacak: kullanıcıdan `python scripts/test_1_rss.py` çıktısını iste
-(iki kez çalıştırması gerekiyor — ikincisinde `eklenen: 0` olmalı).
+Yol boyunca çözülenler:
+- **PyYAML 6.0.2 → 6.0.3.** Kullanıcı Python 3.14 kurdu; 6.0.2'nin 3.14 için
+  hazır paketi yok, pip derlemeye kalkıp "Visual C++ gerekiyor" hatası verdi.
+- **TRT Haber ayrıştırma hatası.** Feed kendini `encoding="UTF-8"` ilan edip
+  içine UTF-8 olmayan bayt karıştırıyor (TRT'nin kendi hatası). Tek karakter
+  yüzünden 15 haberin tamamı kayboluyordu. `_bozuk_baytlari_onar()` eklendi —
+  **sadece normal ayrıştırma patladığında** devreye giriyor, yani çalışan
+  kaynaklara dokunma riski yok. Doğrulandı: 15/15 başlıkta Türkçe karakterler
+  sağlam, 0 bozuk karakter.
+- Zararsız `MarkupResemblesLocatorWarning` susturuldu (log gürültüsüydü).
 
-**Kritik:** Çıktıda hangi RSS kaynaklarının hata verdiğine bak. Bazı Türk haber
-siteleri Cloudflare arkasında ve **GitHub Actions'ın veri merkezi IP'sinden 403
-dönebilir** (kullanıcının ev IP'sinden çalışsa bile). Bu doğrulanmadan Adım 2'ye
-geçme. Elenen kaynak olursa `config.yaml`'de `aktif: false` yap veya alternatif bul.
+### Sıradaki iş: Cloudflare / veri merkezi IP ölçümü — ADIM 2'DEN ÖNCE
+
+**Henüz ölçülmedi.** Yukarıdaki 8/8 sonucu kullanıcının ev IP'sinden
+(TurkNet, İstanbul — 95.70.229.210). GitHub Actions veri merkezi IP'si
+kullanıyor ve Cloudflare korumalı siteler oraya 403 dönebilir.
+
+Bunun için hazır: `scripts/test_kaynak_erisim.py` (DB'ye dokunmaz, her
+kaynağın HTTP kodunu + gerçekten RSS mi döndüğünü raporlar) ve onu Actions'ta
+elle tetikleyen `.github/workflows/test-kaynak-erisim.yml`.
+
+**Yerel referans çıktı (14 Ağu 2026, ev IP'si): 8/8 kaynak `200 ok`.**
+Actions çıktısını bununla karşılaştır. Sadece orada patlayan varsa sebep IP
+engelidir → `config.yaml`'de `aktif: false` yap veya alternatif kaynak bul.
+
+Bu ölçüm bitmeden Adım 2'ye geçme — sonucu "GitHub Actions" kararının kendisini
+etkileyebilir.
+
+**Beklemede:** Kullanıcının private GitHub repo'su oluşturup push etmesi
+gerekiyor (yerel commit hazır, `main` dalında).
 
 ---
 
@@ -85,11 +109,14 @@ haber-bot/
 ├── .env.example                   # doldurulacak key şablonu
 ├── .gitignore                     # .env, __pycache__, data/output/, logs/
 │                                  #   NOT: data/haber.db BİLEREK ignore edilmedi
+├── .github/workflows/
+│   └── test-kaynak-erisim.yml     # ✅ elle tetiklenir (workflow_dispatch)
 ├── src/
 │   ├── db.py                      # ✅ YAZILDI + TEST EDİLDİ
 │   └── fetch_news.py              # ✅ YAZILDI + TEST EDİLDİ
 ├── scripts/
-│   └── test_1_rss.py              # ✅ Adım 1 test scripti
+│   ├── test_1_rss.py              # ✅ Adım 1 test scripti
+│   └── test_kaynak_erisim.py      # ✅ IP engeli teşhisi (DB'ye dokunmaz)
 ├── assets/fonts/                  # boş — Adım 3'te font ve şablon gelecek
 ├── data/output/                   # boş
 └── logs/                          # boş
