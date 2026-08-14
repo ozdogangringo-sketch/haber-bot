@@ -1,0 +1,248 @@
+"""
+fetch_news.py — ADIM 1
+RSS feed'lerinden haberleri çeker, temizler, SQLite'a yazar.
+
+Dışarıdan kullanımı:
+    from src.fetch_news import haberleri_cek
+    sonuc = haberleri_cek()
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import warnings
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import requests
+import yaml
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
+from dateutil import parser as tarih_ayristirici
+
+from . import db
+
+KOK = Path(__file__).resolve().parent.parent
+CONFIG_YOLU = KOK / "config.yaml"
+
+log = logging.getLogger(__name__)
+
+# Haber siteleri "python-requests" görünce çoğu zaman kapıyı kapatıyor.
+# Normal bir tarayıcı gibi görünüyoruz.
+BASLIKLAR = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
+}
+
+ATOM = "{http://www.w3.org/2005/Atom}"
+
+# Bazı RSS özetleri düz bir URL'den ibaret oluyor. BeautifulSoup böyle bir
+# metin görünce "bu dosya adına benziyor" diye uyarı basıyor. Zararsız ama
+# log'u kirletiyor, özellikle GitHub Actions çıktısında. Susturuyoruz.
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
+
+
+# ----------------------------------------------------------------------
+# Yardımcılar
+# ----------------------------------------------------------------------
+
+def ayarlari_oku() -> dict:
+    with open(CONFIG_YOLU, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def html_temizle(metin: str | None) -> str:
+    """RSS özetleri çoğu zaman HTML etiketi içerir. Düz metne çeviriyoruz."""
+    if not metin:
+        return ""
+    duz = BeautifulSoup(metin, "html.parser").get_text(separator=" ")
+    return " ".join(duz.split())        # fazla boşlukları tekle
+
+
+def tarihi_cevir(ham: str | None) -> str | None:
+    """
+    RSS tarihleri çok farklı formatlarda gelir.
+    Hepsini UTC'ye çevirip ISO 8601 olarak saklıyoruz ki
+    SQL'de karşılaştırabilelim.
+    """
+    if not ham:
+        return None
+    try:
+        t = tarih_ayristirici.parse(ham)
+    except (ValueError, OverflowError, TypeError):
+        return None
+    if t.tzinfo is None:
+        # Saat dilimi yazmamışsa Türkiye saati varsayıyoruz (UTC+3)
+        t = t.replace(tzinfo=timezone(timedelta(hours=3)))
+    return t.astimezone(timezone.utc).isoformat()
+
+
+def _metin(ogeler, *etiketler) -> str | None:
+    """Bir XML düğümünde verilen etiketlerden ilk bulunanın metnini döner."""
+    for etiket in etiketler:
+        bulunan = ogeler.find(etiket)
+        if bulunan is not None:
+            if bulunan.text and bulunan.text.strip():
+                return bulunan.text.strip()
+            # Atom'da <link href="..."/> şeklinde olabiliyor
+            href = bulunan.get("href")
+            if href:
+                return href.strip()
+    return None
+
+
+# ----------------------------------------------------------------------
+# Tek bir feed'i indir + ayrıştır
+# ----------------------------------------------------------------------
+
+def _bozuk_baytlari_onar(xml_bytes: bytes) -> bytes:
+    """
+    Bazı siteler feed'ini "UTF-8" diye ilan edip içine UTF-8 olmayan bozuk
+    bayt karıştırıyor (TRT Haber bunu yapıyor). XML ayrıştırıcı tek bir
+    bozuk karaktere takılıp feed'in TAMAMINI reddediyor.
+
+    Burada bozuk baytları '�' ile değiştirip geri kalan haberleri kurtarıyoruz.
+    Kaybedilen tek şey o bozuk harf; haberin geri kalanı ve diğer tüm
+    haberler sağlam geliyor.
+
+    ÖNEMLİ: Bu fonksiyon sadece normal ayrıştırma zaten patladığında
+    çağrılıyor. Yani hâlihazırda sorunsuz çalışan feed'lere hiç dokunmuyor.
+    """
+    # Feed hangi kodlamayı iddia ediyor? (ilk satırdaki <?xml ... ?> bildirimi)
+    kodlama = "utf-8"
+    eslesme = re.search(rb"""encoding=["']([\w-]+)["']""", xml_bytes[:200])
+    if eslesme:
+        kodlama = eslesme.group(1).decode("ascii", errors="replace")
+
+    try:
+        metin = xml_bytes.decode(kodlama, errors="replace")
+    except LookupError:                 # tanımadığımız bir kodlama adı yazmışlar
+        metin = xml_bytes.decode("utf-8", errors="replace")
+
+    # Metin artık gerçekten UTF-8; bildirimin de bunu söylemesi lazım,
+    # yoksa ayrıştırıcı yine yanlış kodlamayla okumaya çalışır.
+    metin = re.sub(
+        r"""encoding=["'][\w-]+["']""", 'encoding="utf-8"', metin, count=1
+    )
+    return metin.encode("utf-8")
+
+
+def feed_ayristir(xml_bytes: bytes) -> list[dict]:
+    """Ham XML'i haber listesine çevirir. RSS 2.0 ve Atom destekli."""
+    try:
+        kok = ET.fromstring(xml_bytes)
+    except ET.ParseError:
+        # Feed bozuk olabilir: baytları onarıp bir kez daha deniyoruz.
+        # Hâlâ patlarsa hata yukarı gider, kaynak "bozuk" diye raporlanır.
+        kok = ET.fromstring(_bozuk_baytlari_onar(xml_bytes))
+
+    girdiler = kok.findall(".//item")            # RSS 2.0
+    atom = False
+    if not girdiler:
+        girdiler = kok.findall(f".//{ATOM}entry")  # Atom
+        atom = bool(girdiler)
+
+    sonuc = []
+    for g in girdiler:
+        if atom:
+            baslik = _metin(g, f"{ATOM}title")
+            link = _metin(g, f"{ATOM}link", f"{ATOM}id")
+            ozet = _metin(g, f"{ATOM}summary", f"{ATOM}content")
+            tarih = _metin(g, f"{ATOM}published", f"{ATOM}updated")
+        else:
+            baslik = _metin(g, "title")
+            link = _metin(g, "link", "guid")
+            ozet = _metin(g, "description", "summary")
+            tarih = _metin(g, "pubDate", "date")
+
+        if not baslik or not link:
+            continue    # başlığı veya linki olmayan girdi işimize yaramaz
+
+        sonuc.append(
+            {
+                "baslik_orj": " ".join(baslik.split()),
+                "link": link,
+                "ozet_orj": html_temizle(ozet),
+                "yayin_tarihi": tarihi_cevir(tarih),
+            }
+        )
+    return sonuc
+
+
+def feed_indir(url: str, zaman_asimi: int) -> bytes:
+    cevap = requests.get(url, headers=BASLIKLAR, timeout=zaman_asimi)
+    cevap.raise_for_status()
+    return cevap.content
+
+
+# ----------------------------------------------------------------------
+# Ana iş
+# ----------------------------------------------------------------------
+
+def haberleri_cek(ayarlar: dict | None = None) -> dict:
+    """
+    Tüm aktif kaynakları gezer, yeni haberleri veritabanına yazar.
+    Bir kaynak patlarsa diğerleri etkilenmez.
+
+    Döner: {'eklenen': int, 'tekrar': int, 'eski': int, 'kaynaklar': [...]}
+    """
+    ayarlar = ayarlar or ayarlari_oku()
+    genel = ayarlar["genel"]
+    yas_siniri = datetime.now(timezone.utc) - timedelta(hours=genel["haber_yasi_saat"])
+
+    db.kur()
+    rapor = {"eklenen": 0, "tekrar": 0, "eski": 0, "kaynaklar": []}
+
+    with db.baglan() as con:
+        for kaynak in ayarlar["kaynaklar"]:
+            if not kaynak.get("aktif", True):
+                continue
+
+            k_rapor = {"ad": kaynak["ad"], "durum": "ok", "eklenen": 0,
+                       "tekrar": 0, "eski": 0, "hata": None}
+
+            try:
+                ham = feed_indir(kaynak["url"], genel["istek_zaman_asimi"])
+                girdiler = feed_ayristir(ham)
+            except requests.HTTPError as e:
+                k_rapor.update(durum="hata", hata=f"HTTP {e.response.status_code}")
+                log.warning("%s: %s", kaynak["ad"], k_rapor["hata"])
+                rapor["kaynaklar"].append(k_rapor)
+                continue
+            except Exception as e:                      # ağ hatası, bozuk XML vs.
+                k_rapor.update(durum="hata", hata=f"{type(e).__name__}: {e}")
+                log.warning("%s: %s", kaynak["ad"], k_rapor["hata"])
+                rapor["kaynaklar"].append(k_rapor)
+                continue
+
+            for girdi in girdiler[: genel["kaynak_basina_limit"]]:
+                # Çok eski haberleri alma
+                if girdi["yayin_tarihi"]:
+                    t = datetime.fromisoformat(girdi["yayin_tarihi"])
+                    if t < yas_siniri:
+                        k_rapor["eski"] += 1
+                        continue
+
+                girdi.update(
+                    kaynak=kaynak["ad"],
+                    kategori=kaynak["kategori"],
+                    agirlik=kaynak.get("agirlik", 0),
+                )
+
+                if db.haber_ekle(con, girdi):
+                    k_rapor["eklenen"] += 1
+                else:
+                    k_rapor["tekrar"] += 1
+
+            for anahtar in ("eklenen", "tekrar", "eski"):
+                rapor[anahtar] += k_rapor[anahtar]
+            rapor["kaynaklar"].append(k_rapor)
+
+        con.commit()
+
+    return rapor

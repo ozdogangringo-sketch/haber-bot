@@ -1,0 +1,84 @@
+# =========================================================
+#  Haber Botu Ayarları
+#  Burada API key YOK. Key'ler .env dosyasında durur.
+#  Bu dosyayı rahatça git'e commit edebilirsin.
+# =========================================================
+
+genel:
+  zaman_dilimi: "Europe/Istanbul"
+
+  # RSS'ten çekerken: kaç saatten eski haberleri hiç almayalım?
+  haber_yasi_saat: 24
+
+  # Yayınlarken: bir haber kaç saat sonra "artık bayat" sayılsın?
+  # Onay vermediğin haber elenmiyor, havuzda kalıp yeni haberlerle
+  # yarışmaya devam ediyor. Ama 48 saatlik bir haberi paylaşmak
+  # hesabın itibarına zarar verir, o yüzden bir üst sınır lazım.
+  yayin_yasi_siniri_saat: 48
+
+  # Bir turda en fazla kaç kez "Atla" diyebilirsin?
+  tur_basina_atlama_hakki: 5
+
+  # Her çalıştırmada her kaynaktan en fazla kaç haber alalım?
+  kaynak_basina_limit: 15
+
+  # Feed indirirken kaç saniye bekleyelim, sonra pes edelim
+  istek_zaman_asimi: 15
+
+
+# =========================================================
+#  HABER KAYNAKLARI
+#  aktif: false yaparsan o kaynak atlanır (silmene gerek yok)
+#  agirlik: haber seçerken önceliği belirler (yüksek = önce)
+# =========================================================
+kaynaklar:
+
+  # ---------- TÜRKİYE GÜNDEMİ (ana odak) ----------
+  - ad: "TRT Haber"
+    url: "https://www.trthaber.com/sondakika.rss"
+    kategori: "turkiye"
+    agirlik: 10
+    aktif: true
+
+  - ad: "BBC Türkçe"
+    url: "https://feeds.bbci.co.uk/turkce/rss.xml"
+    kategori: "turkiye"
+    agirlik: 10
+    aktif: true
+
+  - ad: "Anadolu Ajansı"
+    url: "https://www.aa.com.tr/tr/rss/default?cat=guncel"
+    kategori: "turkiye"
+    agirlik: 9
+    aktif: true
+
+  - ad: "NTV Gündem"
+    url: "https://www.ntv.com.tr/gundem.rss"
+    kategori: "turkiye"
+    agirlik: 8
+    aktif: true
+
+  - ad: "Habertürk Gündem"
+    url: "https://www.haberturk.com/rss/kategori/gundem.xml"
+    kategori: "turkiye"
+    agirlik: 7
+    aktif: true
+
+  - ad: "Sözcü Gündem"
+    url: "https://www.sozcu.com.tr/feeds-rss-category-gundem"
+    kategori: "turkiye"
+    agirlik: 6
+    aktif: true
+
+  # ---------- DÜNYA GÜNDEMİ (sadece kritik olaylar) ----------
+  - ad: "BBC World"
+    url: "https://feeds.bbci.co.uk/news/world/rss.xml"
+    kategori: "dunya"
+    agirlik: 5
+    aktif: true
+
+  - ad: "Al Jazeera"
+    url: "https://www.aljazeera.com/xml/rss/all.xml"
+    kategori: "dunya"
+    agirlik: 4
+    aktif: true

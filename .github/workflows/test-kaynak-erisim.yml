@@ -1,0 +1,40 @@
+# =========================================================
+#  KAYNAK ERİŞİM TEŞHİSİ
+#
+#  Amaç: Haber kaynaklarının GitHub'ın veri merkezi IP'sinden
+#  erişilebilir olup olmadığını ölçmek.
+#
+#  Bu bir "test" değil, bir ölçüm. Kaynak patlasa bile job
+#  yeşil kalır — biz sadece tabloyu okumak istiyoruz.
+#
+#  Elle çalıştırılır: Actions sekmesi → bu workflow → "Run workflow"
+#  Otomatik çalışmaz, cron'u yok. Bilerek böyle.
+# =========================================================
+
+name: Kaynak Erişim Teşhisi
+
+on:
+  workflow_dispatch:        # sadece elle tetiklenir
+
+jobs:
+  olc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          # Yerelde 3.14 kullanıyoruz ama burada 3.12 tercih ettik:
+          # kütüphanelerin hazır paketleri (wheel) 3.12 için her zaman var,
+          # 3.14 için bazen olmuyor ve derleme gerekiyor.
+          python-version: "3.12"
+          cache: pip
+
+      - name: Kütüphaneleri yükle
+        run: pip install -r requirements.txt
+
+      - name: Kaynaklara eriş ve raporla
+        run: python scripts/test_kaynak_erisim.py

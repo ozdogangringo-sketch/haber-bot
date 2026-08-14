@@ -1,0 +1,16 @@
+# --- ASLA COMMIT EDİLMEYECEK ---
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Üretilen görseller ve loglar
+data/output/
+logs/
+
+# NOT: data/haber.db BİLEREK ignore EDİLMEDİ.
+# GitHub Actions'ta veritabanı her çalıştırmada sıfırlandığı için
+# onu repo'ya geri commit ediyoruz. Adım 6'da anlatacağım.

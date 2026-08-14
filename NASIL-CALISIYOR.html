@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haber Botu — Nasıl Çalışıyor</title>
+<style>
+  :root{
+    --bg:#faf9f7; --card:#ffffff; --ink:#1a1a1a; --soft:#5c5c5c;
+    --line:#e3e0db; --accent:#c05621; --accent-soft:#fdf1e8;
+    --green:#2f7d4f; --green-soft:#eaf5ee; --blue:#2b5f9e; --blue-soft:#eaf1fa;
+    --shadow:0 1px 3px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#161513; --card:#1f1e1c; --ink:#f0eeea; --soft:#a3a09a;
+      --line:#33312e; --accent:#e08a4f; --accent-soft:#2a201a;
+      --green:#6bbd8a; --green-soft:#1a2620; --blue:#7aa9e0; --blue-soft:#1a2130;
+      --shadow:none;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:20px 16px 60px; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    max-width:680px; margin-inline:auto; -webkit-text-size-adjust:100%;
+  }
+  h1{font-size:26px; line-height:1.25; margin:0 0 6px; letter-spacing:-.02em}
+  .sub{color:var(--soft); margin:0 0 32px; font-size:15px}
+  h2{
+    font-size:13px; text-transform:uppercase; letter-spacing:.09em;
+    color:var(--accent); margin:44px 0 14px; font-weight:700;
+  }
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow);
+  }
+  .big{font-size:19px; line-height:1.5; font-weight:500}
+  .part{display:flex; gap:14px; align-items:flex-start}
+  .icon{
+    flex:0 0 42px; height:42px; border-radius:10px; background:var(--accent-soft);
+    display:flex; align-items:center; justify-content:center; font-size:21px;
+  }
+  .part h3{margin:0 0 3px; font-size:16px}
+  .part p{margin:0; color:var(--soft); font-size:14.5px; line-height:1.55}
+  .tag{
+    display:inline-block; font-size:11.5px; letter-spacing:.04em; padding:2px 8px;
+    border-radius:20px; background:var(--blue-soft); color:var(--blue);
+    font-weight:600; margin-left:6px; vertical-align:1px;
+  }
+  .tl{position:relative; padding-left:26px; margin:0}
+  .tl::before{
+    content:""; position:absolute; left:7px; top:8px; bottom:8px;
+    width:2px; background:var(--line);
+  }
+  .ev{position:relative; margin-bottom:20px}
+  .ev::before{
+    content:""; position:absolute; left:-23px; top:6px; width:12px; height:12px;
+    border-radius:50%; background:var(--card); border:2px solid var(--line);
+  }
+  .ev.hit::before{background:var(--accent); border-color:var(--accent)}
+  .ev.win::before{background:var(--green); border-color:var(--green)}
+  .t{font-weight:700; font-size:14px; font-variant-numeric:tabular-nums}
+  .ev p{margin:2px 0 0; font-size:14.5px; color:var(--soft); line-height:1.55}
+  .pool{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(20px,1fr));
+    gap:5px; margin:14px 0 4px;
+  }
+  .dot{aspect-ratio:1; border-radius:4px; background:var(--line)}
+  .dot.sel{background:var(--green); box-shadow:0 0 0 3px var(--green-soft)}
+  code{
+    background:var(--accent-soft); color:var(--accent); padding:1.5px 6px;
+    border-radius:5px; font-size:13.5px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  pre{
+    background:#1c1b19; color:#e8e5e0; padding:14px 16px; border-radius:10px;
+    overflow-x:auto; font-size:13.5px; line-height:1.7; margin:10px 0;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  pre .c{color:#8a857d}
+  .step{display:flex; gap:13px; margin-bottom:18px}
+  .num{
+    flex:0 0 27px; height:27px; border-radius:50%; background:var(--accent);
+    color:#fff; font-weight:700; font-size:14px; display:flex;
+    align-items:center; justify-content:center;
+  }
+  .step h3{margin:2px 0 5px; font-size:16px}
+  .step p{margin:0 0 6px; font-size:14.5px; color:var(--soft)}
+  .note{
+    border-left:3px solid var(--accent); background:var(--accent-soft);
+    padding:12px 15px; border-radius:0 8px 8px 0; font-size:14.5px; margin:16px 0;
+  }
+  .ok{border-left-color:var(--green); background:var(--green-soft)}
+  strong{font-weight:650}
+</style>
+</head>
+<body>
+
+<h1>Haber botu nasıl çalışıyor?</h1>
+<p class="sub">Teknik terim yok. Baştan sona.</p>
+
+<h2>Tek cümlede</h2>
+<div class="card big">
+  Sabah ve akşam, kendi kendine haberleri toplayan → en önemlisini seçen →
+  ona Türkçe başlık ve yazı yazan → görselini hazırlayan →
+  <strong>Telegram'dan sana soran</strong> → sen onaylayınca Instagram'a atan bir sistem.
+</div>
+
+<h2>Parçalar ve ne işe yarıyorlar</h2>
+
+<div class="card part">
+  <div class="icon">⏰</div>
+  <div>
+    <h3>GitHub Actions <span class="tag">ücretsiz</span></h3>
+    <p>Alarm saati + işçi. Belirlediğimiz saatlerde uyanır, işi yapar, tekrar uyur.
+    Senin bilgisayarın ya da telefonun kapalı olsa da çalışır, çünkü iş
+    GitHub'ın makinelerinde dönüyor. Ayda 2000 dakika bedava, biz 420 kullanacağız.</p>
+  </div>
+</div>
+
+<div class="card part">
+  <div class="icon">📡</div>
+  <div>
+    <h3>RSS</h3>
+    <p>Her haber sitesinin makineler için hazırladığı "son haberler" listesi.
+    İnsan için değil, program için yapılmış bir sayfa. Bot bunu okuyup
+    haberleri alıyor. TRT, BBC, AA gibi 8 kaynak koyduk.</p>
+  </div>
+</div>
+
+<div class="card part">
+  <div class="icon">📒</div>
+  <div>
+    <h3>SQLite <span class="tag">senin alanın</span></h3>
+    <p>Defter. Hangi haberi gördük, hangisine yazı yazdık, hangisini paylaştık —
+    hepsi burada. Aynı haberin iki kez paylaşılmasını bu engelliyor.
+    SQL bildiğin için istediğin an açıp sorgu atabilirsin.</p>
+  </div>
+</div>
+
+<div class="card part">
+  <div class="icon">✍️</div>
+  <div>
+    <h3>Gemini <span class="tag">ücretsiz</span></h3>
+    <p>Yazar. Habere Türkçe başlık, 2-3 cümlelik açıklama ve hashtag yazıyor.
+    Bir de <strong>"bu haber 10 üzerinden kaç önemli"</strong> diye puan veriyor —
+    hangi haberin seçileceğini bu puan belirliyor.</p>
+  </div>
+</div>
+
+<div class="card part">
+  <div class="icon">🖼️</div>
+  <div>
+    <h3>Pillow + imgbb</h3>
+    <p>Pillow senin şablonunun üstüne başlığı basıp 1080×1080 görsel üretiyor.
+    imgbb ise o görseli internete koyuyor — çünkü Instagram görseli
+    dosya olarak kabul etmiyor, illa bir internet adresi istiyor.</p>
+  </div>
+</div>
+
+<div class="card part">
+  <div class="icon">💬</div>
+  <div>
+    <h3>Telegram botu</h3>
+    <p>Sana soran kişi. Görseli ve yazıyı gösterip
+    <strong>[Yayınla] [Atla] [Yeniden üret]</strong> butonlarını sunuyor.</p>
+  </div>
+</div>
+
+<div class="card part">
+  <div class="icon">🔔</div>
+  <div>
+    <h3>Cloudflare Worker <span class="tag">ücretsiz</span></h3>
+    <p>Zil. Sen butona bastığın anda GitHub'a "hemen kalk, çalış" diyen
+    minik bir program. Bu olmasaydı onayın bir sonraki saate kadar beklerdi.
+    Onunla saniyeler içinde yayınlanıyor.</p>
+  </div>
+</div>
+
+<div class="card part">
+  <div class="icon">📮</div>
+  <div>
+    <h3>Instagram Graph API</h3>
+    <p>Postayı atan kapı. Instagram'ın resmî yolu. Önce "şu görsel ve şu yazıyla
+    bir gönderi hazırla" diyoruz, sonra "yayınla" diyoruz. İki adım.</p>
+  </div>
+</div>
+
+<h2>Bir günün hikâyesi</h2>
+<div class="card">
+  <div class="tl">
+    <div class="ev hit">
+      <div class="t">09:00 · sabah turu başlar</div>
+      <p>Bot uyanır, 8 haber sitesini tarar, defterdeki bütün haberlerin içinden
+      <strong>en önemli 1 tanesini</strong> seçer. Ona başlık ve yazı yazar,
+      görselini hazırlar ve sana Telegram'dan yollar.</p>
+    </div>
+    <div class="ev">
+      <div class="t">09:04 · sen görürsün</div>
+      <p>Beğenmedin, <strong>[Atla]</strong> dedin → saniyeler içinde sıradaki haber gelir.
+      Bir turda 5 kez atlayabilirsin.</p>
+    </div>
+    <div class="ev win">
+      <div class="t">09:06 · onay</div>
+      <p><strong>[Yayınla]</strong> dedin → post Instagram'a düşer, Telegram'daki mesaj
+      "✅ Yayınlandı" olarak güncellenir. Sabah turu kapanır.</p>
+    </div>
+  </div>
+</div>
+
+<p style="color:var(--soft); font-size:14.5px; margin:22px 0 10px">
+  <strong>Peki cevap vermezsen?</strong> Örneğin toplantıdasın:
+</p>
+
+<div class="card">
+  <div class="tl">
+    <div class="ev hit"><div class="t">09:00</div><p>Haber gönderildi. Sen görmedin.</p></div>
+    <div class="ev"><div class="t">10:00 · hatırlatma</div><p>"⏰ Onay bekliyor — 2 şans kaldı"</p></div>
+    <div class="ev"><div class="t">11:00 · hatırlatma</div><p>"⏰ Son hatırlatma — 1 şans kaldı"</p></div>
+    <div class="ev"><div class="t">12:00 · sabah turu kapanır</div>
+      <p>Haber <strong>silinmez</strong>. Deftere geri döner, akşam yeniden yarışır.</p></div>
+    <div class="ev hit"><div class="t">20:00 · akşam turu başlar</div>
+      <p>Bot yine en önemliyi seçer. Sabahki haber hâlâ en önemliyse yine o gelir.
+      Gün içinde daha büyük bir şey olduysa (deprem gibi) o seçilir.</p></div>
+    <div class="ev"><div class="t">21:00 · 22:00 · hatırlatma</div><p></p></div>
+    <div class="ev"><div class="t">23:00 · akşam turu kapanır</div>
+      <p>Yine cevap yoksa haber yine deftere döner, <strong>ertesi sabah yine yarışır.</strong>
+      48 saati geçince aday olmayı bırakır — 2 günlük haber paylaşmak anlamsız olur.</p></div>
+  </div>
+</div>
+
+<h2>"Havuz" meselesi</h2>
+
+<div class="card">
+  <p style="margin:0 0 4px; font-size:15px">Defterdeki haberler — mesela 200 tane:</p>
+  <div class="pool" id="pool"></div>
+  <p style="margin:10px 0 0; font-size:14.5px; color:var(--soft)">
+    Yeşil olan = o turda seçilen tek haber. Diğer 199'u öylece bekliyor.
+  </p>
+</div>
+
+<div class="note">
+  <strong>Anlaşılmayan kısım muhtemelen buydu:</strong> Bot her turda
+  <strong>sadece 1 haber</strong> seçiyor. Defterde 200 haber olması da,
+  201 olması da hiçbir şeyi değiştirmiyor — nasılsa 1 tanesi seçilecek.
+  <br><br>
+  Bu yüzden "onay vermediğim haber silinmesin" demen sisteme
+  <strong>hiçbir yük getirmiyor.</strong> O haber zaten yüzlerce haberin
+  arasında bekleyen bir tanesi oluyor, sadece bir daha yarışma hakkı kazanıyor.
+  Ne yavaşlatıyor, ne karıştırıyor.
+</div>
+
+<h2>Şu an sen ne yapacaksın</h2>
+
+<p style="color:var(--soft); font-size:15px; margin:0 0 20px">
+  Şu anda sadece <strong>Adım 1</strong> hazır: haberleri toplayıp deftere yazan kısım.
+  Hiçbir şifre, hesap ya da API anahtarı gerekmiyor. Sadece çalıştırıp
+  sonucu bana göndereceksin.
+</p>
+
+<div class="step">
+  <div class="num">1</div>
+  <div>
+    <h3>Zip'i çıkar</h3>
+    <p>Gönderdiğim <code>haber-bot-adim1.zip</code> dosyasını bilgisayarında
+    bir klasöre çıkar. İçinden <code>haber-bot</code> klasörü çıkacak.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">2</div>
+  <div>
+    <h3>Terminali aç, klasöre gir</h3>
+    <p>Mac'te "Terminal", Windows'ta "PowerShell" uygulaması.</p>
+    <pre>cd haber-bot</pre>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">3</div>
+  <div>
+    <h3>Kütüphaneleri kur</h3>
+    <p>Bir kere yapılacak. Projenin ihtiyaç duyduğu 5 küçük paketi indirir.</p>
+    <pre><span class="c"># Mac / Linux</span>
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+<span class="c"># Windows</span>
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt</pre>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">4</div>
+  <div>
+    <h3>Çalıştır — iki kere</h3>
+    <p>Aynı komutu <strong>arka arkaya iki kez</strong> çalıştır.
+    İkincisinde "YENİ" sütununun 0 olması lazım — bu, aynı haberin
+    iki kez paylaşılmayacağının kanıtı.</p>
+    <pre>python scripts/test_1_rss.py</pre>
+  </div>
+</div>
+
+<div class="step">
+  <div class="num">5</div>
+  <div>
+    <h3>Çıktıyı bana gönder</h3>
+    <p>Ekranda çıkan her şeyi kopyalayıp yapıştır. Özellikle
+    <strong>hangi kaynakların hata verdiğine</strong> bakacağım —
+    bazı Türk haber siteleri GitHub'ın sunucularını engelleyebiliyor.
+    Sağlam olanlarla devam ederiz.</p>
+  </div>
+</div>
+
+<div class="note ok">
+  <strong>Takılırsan sorun değil.</strong> Hata mesajını olduğu gibi bana yapıştır,
+  birlikte çözeriz. Python bilmiyor olman burada bir engel değil —
+  kodu ben yazıyorum, sen sadece çalıştırıyorsun.
+</div>
+
+<script>
+  const pool = document.getElementById('pool');
+  for (let i = 0; i < 200; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 73 ? ' sel' : '');
+    pool.appendChild(d);
+  }
+</script>
+
+</body>
+</html>
