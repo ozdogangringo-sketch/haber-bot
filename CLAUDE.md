@@ -383,7 +383,62 @@ kendisi de uyarıyor.
 
 ---
 
-## 10. Bilinen riskler
+## 10. Başka bir bilgisayarda çalışmaya devam etme
+
+Repo her şeyi taşıyor — **`.env` hariç.** O bilerek git'e girmiyor
+(içinde tüm anahtarlar var). Veritabanı `data/haber.db` repo'da,
+yani haber geçmişi de geliyor.
+
+```bash
+# 1) Python kur — python.org/downloads
+#    Kurulumda "Add python.exe to PATH" kutusunu MUTLAKA işaretle.
+#    (3.12 en sorunsuzu; 3.14'te PyYAML derleme sorunu çıkmıştı,
+#     requirements.txt'te çözüldü ama 3.12 hâlâ daha az sürprizli.)
+
+# 2) Git kur — git-scm.com
+
+# 3) Repo'yu klonla (private, GitHub girişi isteyecek)
+git clone https://github.com/ozdogangringo-sketch/haber-bot.git
+cd haber-bot
+
+# 4) Sanal ortam + kütüphaneler
+python -m venv .venv
+.venv\Scripts\activate            # Windows
+pip install -r requirements.txt
+```
+
+**5) `.env` dosyasını taşı.** Bu en kritik adım.
+
+Güvenli yollar: USB bellek, parola yöneticisindeki güvenli not, ya da
+her servisten anahtarları yeniden üretmek.
+
+**Yapma:** e-posta, WhatsApp, sohbet penceresi, bulut not defteri.
+Bunlar anahtarları üçüncü taraflara bırakır.
+
+Anahtarları yeniden üretmek gerekirse:
+- `GEMINI_API_KEY`, `GEMINI_IMAGE_API_KEY` → aistudio.google.com/apikey
+  (dikkat: ikisi FARKLI projelerden — biri faturasız, biri faturalı)
+- `IMGBB_API_KEY` → imgbb.com/api
+- `TELEGRAM_BOT_TOKEN` → @BotFather → `/mybots`
+- `IG_ACCESS_TOKEN` → Graph API Explorer'dan yeniden al, sonra
+  `python scripts/jeton_uzat.py` ile 60 güne çevir
+- `META_APP_ID`, `META_APP_SECRET` → App settings → Basic
+
+**6) Her şeyin çalıştığını doğrula** (sırayla, hepsi zararsız):
+
+```bash
+python scripts/test_1_rss.py                    # RSS + veritabanı
+python scripts/test_kaynak_erisim.py            # kaynak erişimi
+python scripts/test_5_instagram_baglanti.py     # Instagram + jeton
+python scripts/test_2_makale_metni.py           # makale metni çekme
+```
+
+Hepsi yeşilse kaldığın yerden devam edebilirsin. Jeton süresi dolmuşsa
+`test_5` bunu söyler.
+
+---
+
+## 11. Bilinen riskler
 
 - ~~Cloudflare korumalı siteler GitHub runner IP'sine 403 dönebilir~~ →
   **ölçüldü, 14 Ağu 2026'da 8/8 temiz.** Tek ölçüm olduğu için ara ara
