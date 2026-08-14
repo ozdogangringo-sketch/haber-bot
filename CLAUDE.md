@@ -345,7 +345,7 @@ Güncelleme: 14 Ağustos 2026 — hepsi test edilerek doğrulandı.
 | A | Instagram Business + FB Page + Meta App + jeton | ✅ **@dailybrief.co**, jeton 13 Eki 2026'ya kadar |
 | B | Gemini API key (metin, ücretsiz proje) | ✅ çalışıyor |
 | B2 | Gemini API key (görsel, **faturalı** proje) | ✅ `GEMINI_IMAGE_API_KEY`, bütçe uyarısı kurulu |
-| C | Telegram bot token + chat ID | ❌ **kalan tek eksik** |
+| C | Telegram bot token + chat ID | ✅ @dailybriefinstaBot, test mesajı ulaştı |
 | D | imgbb API key | ✅ yükleme + genel erişim doğrulandı |
 | E | GitHub private repo | ✅ ozdogangringo-sketch/haber-bot |
 | F | Görsel şablon | ✅ gerek kalmadı — Commons fotoğrafı / gradyan / AI kapak |
@@ -358,9 +358,16 @@ Güncelleme: 14 Ağustos 2026 — hepsi test edilerek doğrulandı.
 ASLA tahmin etmemeli — ilk yazdığım script "son bulduğunu" seçmişti ve
 emlak şirketinin hesabını hedeflemişti. Bu korumayı kaldırma.
 
-`.env` anahtarları: `GEMINI_API_KEY`, `GEMINI_IMAGE_API_KEY`,
-`IMGBB_API_KEY`, `IG_USER_ID`, `IG_ACCESS_TOKEN`, `META_APP_ID`,
-`META_APP_SECRET` (+ Telegram'ınkiler eklenecek).
+`.env` anahtarlarının HEPSİ dolu ve test edildi: `GEMINI_API_KEY`,
+`GEMINI_IMAGE_API_KEY`, `IMGBB_API_KEY`, `IG_USER_ID`, `IG_ACCESS_TOKEN`,
+`META_APP_ID`, `META_APP_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
+
+**Telegram zamanlama tuzağı:** `scripts/telegram_chat_id_bul.py`
+`getUpdates` kullanıyor. Adım 5'te webhook kurulunca `getUpdates`
+ÇALIŞMAZ (Telegram ikisine aynı anda izin vermiyor). Chat ID zaten
+alındı (6333892758), ama webhook kurulduktan sonra bu scripti
+çalıştırmaya kalkarsan neden boş döndüğünü bilirsin — script bunu
+kendisi de uyarıyor.
 
 ---
 
