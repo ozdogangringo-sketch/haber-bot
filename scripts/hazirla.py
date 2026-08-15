@@ -53,6 +53,7 @@ def kur_gunluk():
 def main() -> int:
     kur_gunluk()
     kuru = "--kuru" in sys.argv
+    metinsiz = "--metinsiz" in sys.argv
 
     ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
     db.kur()
@@ -60,15 +61,24 @@ def main() -> int:
 
     try:
         # --- 1) Yeni haberleri çek ---
-        yeni = fetch_news.hepsini_cek(ayarlar, con)
-        log.info("RSS: %s yeni haber", yeni)
+        # `haberleri_cek` kendi bağlantısını açıyor ve rapor sözlüğü dönüyor.
+        rapor = fetch_news.haberleri_cek(ayarlar)
+        log.info("RSS: %s yeni, %s tekrar, %s bayat",
+                 rapor["eklenen"], rapor["tekrar"], rapor["eski"])
 
         # --- 2) Ön eleme (bedava) + metin üretimi ---
         # Havuzun tamamına metin üretmek kotayı ve süreyi katlıyor;
         # önce ucuz sinyallerle aday sayısını indiriyoruz.
-        adaylar = secim.on_eleme(con, ayarlar)
-        if adaylar:
-            metinleri_uret(ayarlar=ayarlar, haberler=adaylar)
+        #
+        # `--metinsiz`: Gemini'ye hiç gitmeden, metni ZATEN hazır olan
+        # haberlerle tur kurar. Ücretsiz kota dolduğunda (429) turu
+        # tamamen kaçırmak yerine elimizdekiyle devam etmek için.
+        if metinsiz:
+            log.info("--metinsiz: metin üretimi atlandı")
+        else:
+            adaylar = secim.on_eleme(con, ayarlar)
+            if adaylar:
+                metinleri_uret(ayarlar=ayarlar, haberler=adaylar)
 
         # --- 3) Gerçek skorla seçim ---
         secilen = secim.tur_icin_sec(con, ayarlar)

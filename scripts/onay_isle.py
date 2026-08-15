@@ -190,11 +190,16 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
     if komut == "slayt_ai":
         ayarlar = {**ayarlar, "gorsel": {**ayarlar["gorsel"], "haberde_ai": True}}
-    yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar, con=con)
+    yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
 
     yukleme = upload_image.gorsel_yukle(yol, ayarlar)
-    con.execute("UPDATE haberler SET gorsel_url = ?, gorsel_kaynagi = ? WHERE id = ?",
-                (yukleme["url"], katman, haber["id"]))
+    # Atıf da güncelleniyor: katman değişince (Pexels → AI gibi) eski
+    # atıf yanlış kalır ve caption'a yanlış lisans bilgisi girer.
+    con.execute(
+        "UPDATE haberler SET gorsel_url = ?, gorsel_kaynagi = ?, "
+        "gorsel_atif = ?, gorsel_yolu = ? WHERE id = ?",
+        (yukleme["url"], katman, atif, str(yol), haber["id"]),
+    )
     con.commit()
 
     telegram_bot.mesaj_gonder(
