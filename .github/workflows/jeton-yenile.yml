@@ -1,0 +1,61 @@
+# =========================================================
+#  INSTAGRAM JETONUNU YENİLE
+#
+#  Uzun ömürlü jeton 60 gün yaşıyor. Yenilenmezse bot bir sabah
+#  sessizce durur ve sebebi günlerce aranır.
+#
+#  Haftalık çalışıyor ama her hafta yenilemiyor: 10 günden az
+#  kaldıysa devreye giriyor. Haftalık cron bir kez kaçsa bile
+#  ikinci şans kalıyor.
+#
+#  JETON ÖLDÜKTEN SONRA YENİLENEMİYOR — o yüzden erken davranıyoruz.
+#  Ölmüş jeton için Graph API Explorer'dan elle almak gerekiyor.
+#
+#  Pazartesi 09:07 UTC = TR 12:07. Gündüz seçildi: bir sorun çıkarsa
+#  Telegram uyarısı gece yarısı değil, ayaktayken görülsün.
+# =========================================================
+
+name: Jetonu Yenile
+
+on:
+  schedule:
+    - cron: "7 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      zorla:
+        description: "Süre dolmasa da yenile"
+        type: boolean
+        default: false
+
+jobs:
+  yenile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Jetonu kontrol et ve gerekiyorsa yenile
+        env:
+          # Yeni jetonu Secrets'a yazabilmek için "Secrets: write" izinli
+          # PAT gerekiyor; iş akışının kendi GITHUB_TOKEN'ı secret yazamaz.
+          # Adı REPO_PAT çünkü GitHub "GITHUB_" ile başlayan secret adlarını
+          # rezerve tutuyor ve reddediyor.
+          GH_TOKEN: ${{ secrets.REPO_PAT }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ "${{ inputs.zorla }}" = "true" ]; then
+            python scripts/jeton_yenile.py --zorla
+          else
+            python scripts/jeton_yenile.py
+          fi
