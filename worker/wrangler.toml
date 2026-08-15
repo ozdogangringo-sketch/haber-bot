@@ -1,0 +1,23 @@
+# Cloudflare Worker yapılandırması
+#
+# Buraya GİZLİ BİLGİ YAZMA. Bu dosya git'e giriyor.
+# Secret'lar `wrangler secret put` ile ayrıca ekleniyor:
+#     TELEGRAM_BOT_TOKEN
+#     GITHUB_PAT
+#     WEBHOOK_SECRET
+
+name = "haber-bot-onay"
+main = "index.js"
+compatibility_date = "2026-08-15"
+
+# *.workers.dev adresi açık kalsın — Telegram webhook'u buraya vuruyor.
+workers_dev = true
+
+# Preview URL'leri KAPALI. Her deploy ayrı bir önizleme adresi üretiyor;
+# bizim kullanmadığımız ama internete açık duran adresler oluyor.
+# Webhook secret'ı onları da koruyor ama gereksiz yüzeyi hiç açmamak daha iyi.
+preview_urls = false
+
+[vars]
+# Gizli değil, repo adı zaten public bilgi olurdu — yine de private repo.
+GITHUB_REPO = "ozdogangringo-sketch/haber-bot"
