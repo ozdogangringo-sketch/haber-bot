@@ -81,6 +81,26 @@ EK_KOLONLAR = {
     #   2) Onay aşamasında kaynak metni görebilesin diye saklıyoruz:
     #      "modelin yazdığı bu cümle haberde gerçekten var mı?"
     "makale_metni": "TEXT",
+    # --- Adım 3: slayt görselini besleyen alanlar ---
+    # Başlığın altına basılan tek cümlelik özet
+    "slayt_ozet": "TEXT",
+    # Commons araması için kişi/kurum adı (tanınmış biri yoksa boş)
+    "gorsel_konu": "TEXT",
+    # Pexels araması için İngilizce temsili terim
+    "gorsel_temsili": "TEXT",
+    # Sağ üstteki bayrak: ISO 3166-1 alpha-2 kodu + Türkçe ülke adı
+    "ulke_kodu": "TEXT",
+    "ulke_adi": "TEXT",
+    # Görselin hangi katmandan geldiği: commons / pexels / gradyan / ai.
+    # Onay mesajında göstermek ve sonradan "hangi katman ne sıklıkta
+    # tutuyor" diye ölçebilmek için tutuluyor.
+    "gorsel_kaynagi": "TEXT",
+    # Fotoğrafın atıf metni ("Foto: X / Y / CC BY 4.0").
+    # DB'de duruyor çünkü caption yayın ANINDA yeniden kuruluyor: hazırlık
+    # ile onay arasında saatler geçebiliyor ve o sırada süreç ölüyor.
+    # Bellekte tutulsaydı Commons'ın CC BY atfı yayında kaybolurdu — bu
+    # lisans ihlali olurdu.
+    "gorsel_atif": "TEXT",
 }
 
 
@@ -156,7 +176,8 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
     'metin_hazir' durumuna geçirir.
 
     `uretilen` sözlüğü şunları içermeli:
-        ig_baslik, ig_caption, ig_hashtag (liste), onem_puani (int)
+        ig_baslik, ig_caption, ig_hashtag (liste), onem_puani (int),
+        slayt_ozet, gorsel_konu, gorsel_temsili, ulke_kodu, ulke_adi
 
     Hashtag'i veritabanında boşlukla ayrılmış tek metin olarak tutuyoruz
     ('#' işareti olmadan). Böyle saklamak SQL'de aramayı kolaylaştırıyor;
@@ -169,13 +190,18 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
     con.execute(
         """
         UPDATE haberler
-           SET ig_baslik    = ?,
-               ig_caption   = ?,
-               ig_hashtag   = ?,
-               onem_puani   = ?,
-               makale_metni = COALESCE(?, makale_metni),
-               durum        = 'metin_hazir',
-               hata_mesaji  = NULL
+           SET ig_baslik      = ?,
+               ig_caption     = ?,
+               ig_hashtag     = ?,
+               onem_puani     = ?,
+               slayt_ozet     = ?,
+               gorsel_konu    = ?,
+               gorsel_temsili = ?,
+               ulke_kodu      = ?,
+               ulke_adi       = ?,
+               makale_metni   = COALESCE(?, makale_metni),
+               durum          = 'metin_hazir',
+               hata_mesaji    = NULL
          WHERE id = ?
         """,
         (
@@ -183,6 +209,13 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
             uretilen.get("ig_caption"),
             " ".join(e.lstrip("#") for e in etiketler),
             uretilen.get("onem_puani"),
+            uretilen.get("slayt_ozet"),
+            # Gemini boş bırakabiliyor (tanınmış kişi yoksa / ülkesiz haber).
+            # Boş string yerine NULL saklamak SQL'de ayırt etmeyi kolaylaştırır.
+            (uretilen.get("gorsel_konu") or "").strip() or None,
+            (uretilen.get("gorsel_temsili") or "").strip() or None,
+            (uretilen.get("ulke_kodu") or "").strip().lower() or None,
+            (uretilen.get("ulke_adi") or "").strip() or None,
             makale_metni,
             haber_id,
         ),

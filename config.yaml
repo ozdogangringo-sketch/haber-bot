@@ -77,24 +77,36 @@ gorsel:
   model: "gemini-2.5-flash-image"
 
   # --- CAROUSEL YAPISI ---
-  # Instagram bir postta EN FAZLA 10 görsele izin veriyor.
-  # Kapak + 9 haber = 10. Bu sınır Instagram'ın, bizim değil.
-  slayt_sayisi: 9          # kapak hariç haber sayısı
-  kapak_var: true
+  # Instagram bir postta EN FAZLA 10 görsele izin veriyor. Bu sınır
+  # Instagram'ın, bizim değil.
+  #
+  # KAPAK DENENDİ VE ELENDİ (15 Ağu 2026): kapak + 9 haber düzeni
+  # üretildi, örnekleri görüldü. Kapak bir slaytı yiyordu ve karşılığında
+  # yalnızca "günün özeti" kimliği veriyordu. Kullanıcı 10 haberi tercih
+  # etti. `kapak_ciz` / `kapak_uret` kodu make_image.py'de DURUYOR —
+  # fikir değişirse kapak_var'ı true yapmak yeterli, yeniden yazma.
+  slayt_sayisi: 10
+  kapak_var: false
 
   # --- MALİYETİ NEREDE HARCIYORUZ ---
   # AI görsel başına ~$0.039. 10 slaytın hepsini AI yapmak günde $0.39,
-  # ayda ~$11.7 eder. Bunun yerine:
-  #   - haber slaytları: Commons'tan gerçek fotoğraf (bedava) veya gradyan
-  #   - sadece kapak: AI soyut arka plan
-  # Böylece günde 1 görsel, ayda ~$1.17.
-  # haberde_ai'yi true yaparsan maliyet 10 katına çıkar; bilerek yap.
-  kapakta_ai: true
+  # ayda ~$11.7 ederdi. Bunun yerine slaytlar 3 bedava katmandan geliyor:
+  #   1. Commons  — haberde tanınan kişi/kurum varsa (bedava)
+  #   2. Pexels   — yoksa temsili fotoğraf (bedava)
+  #   3. gradyan  — ikisi de bulamazsa (bedava)
+  #
+  # Yani NORMAL BİR GÜNDE AI HİÇ ÇAĞRILMIYOR, aylık görsel maliyeti $0.
+  # AI yalnızca sen Telegram'dan "🎨 Görseli AI ile üret" butonuna
+  # basarsan devreye giriyor — maliyet ancak o zaman doğuyor.
+  # haberde_ai'yi true yaparsan her slayt AI olur; bilerek yap.
+  kapakta_ai: false
   haberde_ai: false
 
   # MALİYET EMNİYETİ — günde en fazla kaç AI görseli üretilebilir.
-  # Günde 1 tur × 1 kapak = 1. Yeniden üretme ve tekrar denemeler için
-  # pay bıraktık. Aşılırsa üretim durur, yedek gradyana düşer, fatura kaçmaz.
+  # Normalde 0 kullanılıyor; bu pay tamamen Telegram'daki elle yeniden
+  # üretme butonu için. Aşılırsa üretim durur, gradyana düşer, post yine
+  # çıkar. Amacı fatura kesmek değil, bir döngü hatasının gece boyunca
+  # binlerce istek atmasını engellemek.
   gunluk_azami: 4
 
   # Instagram carousel'de TÜM slaytlar aynı en-boy oranında olmalı.
@@ -102,6 +114,16 @@ gorsel:
   genislik: 1080
   yukseklik: 1350
   kenar_bosluk: 80         # yazının kenarlardan uzaklığı (piksel)
+
+  # GÜVENLİ ALAN — dikey kenarlarda fazladan pay.
+  # Instagram feed'de 4:5 görsel tam görünüyor, sorun yok. Risk profil
+  # ızgarasında: eskiden 4:5 postlar kareye kırpılıyordu ve 1080x1350'de
+  # bu üstten/alttan 135'er piksel demek. Instagram ızgarayı 2025'te
+  # dikey yaptı, yani bugün kırpılmıyor — ama bayrak (y=80) ve kaynak
+  # satırı (y=1236) tam o sınırın üstündeydi, hiç payımız yoktu.
+  # 150 diyerek ikisini de kırpma çizgisinin içine aldık; başlık ve özet
+  # zaten merkezde olduğu için onlar en baştan güvendeydi.
+  dikey_guvenli_pay: 150
   jpeg_kalite: 90          # Instagram PNG kabul etmiyor, JPEG şart
   deneme_sayisi: 3
   zaman_asimi: 180         # görsel üretimi metinden yavaş
@@ -209,3 +231,53 @@ kaynaklar:
     kategori: "dunya"
     agirlik: 4
     aktif: true
+
+# ----------------------------------------------------------------------
+# İÇERİK FİLTRESİ — Instagram erişim kısıtlamasına karşı
+# ----------------------------------------------------------------------
+# Instagram bazı kelimeleri içeren postların erişimini sessizce düşürüyor
+# ("shadowban"): uyarı gelmez, sadece kimse görmez. Kelimenin ortasına
+# yıldız koymak bunu aşıyor ("intihar" -> "int*har").
+#
+# LİSTE BİLEREK KISA. Aşırı sansürün bedeli var: bir haber hesabında
+# "c*nayet" yazmak amatör duruyor ve Instagram haber değeri taşıyan
+# içeriğe zaten istisna tanıyor. Bu yüzden ölüm, kaza, saldırı, cinayet
+# gibi GÜNDELİK HABER kelimeleri listede YOK. Buraya kelime eklemek
+# serbest ama her ekleme okunabilirlikten götürüyor.
+icerik_filtresi:
+  aktif: true
+
+  # Caption ve hashtag'lerde uygulanır. Slayt görselindeki başlığa
+  # varsayılan olarak DOKUNULMUYOR: Instagram görsel içi metni caption
+  # kadar agresif taramıyor, ama yıldızlı başlık slaytta çok göze batıyor.
+  captionda: true
+  gorselde: false
+
+  # Kelime KÖKÜ yazılır; ekli hâlleri de yakalanır ("intihar" -> "intiharı").
+  yumusatilacak:
+    - intihar
+    - tecavüz
+    - porno
+    - fuhuş
+    - uyuşturucu
+    - kokain
+    - eroin
+    - esrar
+    - taciz
+    - istismar
+    - işkence
+    - katliam
+    - terör
+
+  # Etiketlerde yıldızlama işe yaramaz (kimse "#int*har" aramıyor),
+  # bu yüzden riskli etiketler tamamen ATILIR.
+  yasakli_hashtagler:
+    - intihar
+    - tecavuz
+    - porno
+    - fuhus
+    - uyusturucu
+    - teror
+    - katliam
+    - istismar
+    - taciz

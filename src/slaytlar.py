@@ -1,0 +1,186 @@
+"""
+slaytlar.py — ADIM 3'ün son parçası
+
+Bir turluk carousel'in bütün slaytlarını üretir.
+
+BURADAKİ ASIL İŞ: görsel katmanını seçmek. Her haberin arka planı üç
+bedava kaynaktan gelebiliyor, sırayla deneyip ilk tutanı kullanıyoruz:
+
+    1. Wikimedia Commons  — haberde tanınmış bir kişi/kurum varsa
+    2. Pexels             — yoksa konuyu temsil eden stok fotoğraf
+    3. Gradyan            — ikisi de bulamazsa
+
+Neden sıra bu: Commons gerçek kişinin gerçek fotoğrafını veriyor, en
+bilgilendirici olan o. Ama sadece tanınmış isimlerde tutuyor. Pexels her
+konuda bir şey buluyor ama temsili — "bir otobüs", o otobüs değil.
+Gradyan hiç yanıltmıyor ama hiçbir şey de anlatmıyor.
+
+AI bu zincirde YOK. Normal turda hiç çağrılmıyor, dolayısıyla bir turun
+görsel maliyeti sıfır. AI yalnızca Telegram'dan elle tetiklenince
+devreye giriyor (Adım 5).
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+from PIL import Image
+
+from . import fetch_photo, fetch_stock, make_image
+
+log = logging.getLogger(__name__)
+
+
+def _alan(haber, ad: str) -> str:
+    """
+    Haber kaydından güvenli alan okuma.
+
+    sqlite3.Row'da olmayan bir kolona erişmek IndexError atıyor; eski
+    bir veritabanında yeni kolonlar henüz yokken çökmemek için sarmaladık.
+    """
+    try:
+        return (haber[ad] or "").strip()
+    except (IndexError, KeyError):
+        return ""
+
+
+def arkaplan_sec(haber, ayarlar: dict) -> tuple[Image.Image, str, str]:
+    """
+    Habere arka plan bulur. (görüntü, katman_adı, atıf_metni) döner.
+
+    Katmanlar tek tek denenip ilk tutan alınıyor. Bir katman patlarsa
+    (ağ hatası, kota, bozuk dosya) sonrakine geçiliyor — görsel
+    bulunamadı diye postun kaçmaması gerekiyor.
+    """
+    g = ayarlar["gorsel"]
+    genislik, yukseklik = g["genislik"], g["yukseklik"]
+
+    # --- 1) Commons: tanınmış kişi/kurum ---
+    konu = _alan(haber, "gorsel_konu")
+    if konu:
+        try:
+            sonuc = fetch_photo.konu_icin_fotograf(konu)
+            if sonuc:
+                foto, kayit = sonuc
+                return (
+                    make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                    "commons",
+                    fetch_photo.atif_metni(kayit),
+                )
+            log.info("Commons'ta bulunamadı: %s", konu)
+        except Exception as e:
+            log.warning("Commons katmanı patladı (%s): %s", konu, e)
+
+    # --- 2) Pexels: temsili fotoğraf ---
+    terim = _alan(haber, "gorsel_temsili")
+    if terim:
+        try:
+            sonuc = fetch_stock.konu_icin_fotograf(terim)
+            if sonuc:
+                foto, kayit = sonuc
+                return (
+                    make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                    "pexels",
+                    fetch_stock.atif_metni(kayit),
+                )
+            log.info("Pexels'te bulunamadı: %s", terim)
+        except Exception as e:
+            log.warning("Pexels katmanı patladı (%s): %s", terim, e)
+
+    # --- 3) Gradyan: her zaman çalışır ---
+    return (
+        make_image.arkaplan_uret_yedek(haber["kategori"], genislik, yukseklik),
+        "gradyan",
+        "",
+    )
+
+
+def slayt_uret(haber, ayarlar: dict) -> tuple[Path, str, str]:
+    """
+    Tek bir haberin slaytını üretip diske yazar.
+
+    (dosya_yolu, katman_adı, atıf_metni) döner. Atıf metni caption'ın
+    sonuna eklenecek — Commons'taki CC BY görselleri için bu hukuken şart,
+    Pexels'te zorunlu değil ama veriyoruz.
+    """
+    g = ayarlar["gorsel"]
+    make_image.CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
+
+    arkaplan, katman, atif = arkaplan_sec(haber, ayarlar)
+
+    gorsel = make_image.yaziyi_bas(
+        arkaplan,
+        haber["ig_baslik"] or haber["baslik_orj"],
+        haber["kaynak"],
+        ayarlar,
+        ozet=_alan(haber, "slayt_ozet") or None,
+        # Fotoğraf katmanlarında görsel o olayın belgesi değil; gradyanda
+        # ise ortada fotoğraf yok, ibare anlamsız olurdu.
+        arsiv_ibaresi=katman in ("commons", "pexels"),
+        ulke_kodu=_alan(haber, "ulke_kodu") or None,
+        ulke_adi=_alan(haber, "ulke_adi") or None,
+    )
+
+    yol = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
+    # Instagram PNG kabul etmiyor — JPEG şart
+    gorsel.save(yol, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+    log.info("slayt üretildi [%s] #%s → %s", katman, haber["id"], yol.name)
+    return yol, katman, atif
+
+
+def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
+    """
+    Bir turun bütün slaytlarını üretir.
+
+    Bir haberin slaytı patlarsa o haber atlanıyor, tur devam ediyor —
+    9 haberlik bir carousel tek bir bozuk fotoğraf yüzünden iptal olmasın.
+    `con` verilirse seçilen katman `gorsel_kaynagi` kolonuna yazılıyor;
+    hangi katmanın ne sıklıkta tuttuğunu sonradan ölçebilmek için.
+    """
+    g = ayarlar["gorsel"]
+    sonuclar = []
+
+    for haber in haberler[: g["slayt_sayisi"]]:
+        try:
+            yol, katman, atif = slayt_uret(haber, ayarlar)
+        except Exception as e:
+            log.error("slayt üretilemedi #%s: %s", haber["id"], e)
+            continue
+
+        if con is not None:
+            # Atıf da yazılıyor: caption yayın anında yeniden kuruluyor ve
+            # hazırlık ile onay arasında saatler geçebiliyor. Bellekte
+            # tutulsa Commons'ın CC BY atfı yayında kaybolurdu.
+            con.execute(
+                "UPDATE haberler SET gorsel_yolu = ?, gorsel_kaynagi = ?, "
+                "gorsel_atif = ? WHERE id = ?",
+                (str(yol), katman, atif, haber["id"]),
+            )
+            con.commit()
+
+        sonuclar.append(
+            {"id": haber["id"], "yol": yol, "katman": katman, "atif": atif}
+        )
+
+    return sonuclar
+
+
+def atif_bloku(sonuclar: list[dict]) -> str:
+    """
+    Caption'ın sonuna eklenecek fotoğraf atıflarını hazırlar.
+
+    Aynı atıf birden fazla slaytta çıkabiliyor; tekrarı ayıklıyoruz.
+    Hiç fotoğraf kullanılmadıysa (hepsi gradyan) boş dönüyor ki
+    caption'da sebepsiz bir başlık durmasın.
+    """
+    goruldu, satirlar = set(), []
+    for s in sonuclar:
+        atif = (s.get("atif") or "").strip()
+        if atif and atif not in goruldu:
+            goruldu.add(atif)
+            satirlar.append(atif)
+
+    if not satirlar:
+        return ""
+    return "\n\nGörseller:\n" + "\n".join(satirlar)

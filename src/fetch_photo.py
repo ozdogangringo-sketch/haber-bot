@@ -98,6 +98,19 @@ ISTENMEYEN = (
     "caricature", "statue", "monument", "grave", "yearbook", "school",
     "child", "young", "baby", "wax", "museum", "poster", "book cover",
     "protest sign", "graffiti", "mural", "sticker",
+    # Harita/şema aileleri "map" kelimesini içermeden de geliyor.
+    # Gerçek örnek (15 Ağu 2026): kadın hakları haberine
+    # "2021 Taliban Offensive - Situation on 25 July" haritası geldi —
+    # dosya adında "map" yok, o yüzden eski liste yakalayamadı.
+    "situation on", "offensive", "territorial", "areas of control",
+    "timeline", "infographic", "election results", "order of battle",
+    "casualties", "deployment",
+    # Şema/belge ailesi. Harita elendikten sonra aynı habere bu kez
+    # "Government of the Islamic Emirate of Afghanistan" organizasyon
+    # şeması geldi — teknik olarak fotoğraf, ama okunmayan bir kutu
+    # yığını slaytta anlamsız duruyor.
+    "government of", "structure", "organigram", "org chart", "hierarchy",
+    "flowchart", "schematic", "family tree", "list of", "coat of",
 )
 
 # Dosya adında bunlar geçiyorsa büyük ihtimalle iyi bir portre.
@@ -121,7 +134,39 @@ def _lisans_uygun_mu(lisans: str) -> bool:
     return any(iyi in l for iyi in UYGUN_LISANSLAR)
 
 
-def _aday_puani(baslik: str, genislik: int, yukseklik: int) -> int:
+def _sadelestir(metin: str) -> str:
+    """
+    Türkçe karakterleri Latin karşılığına indirger ve küçük harfe çevirir.
+
+    Commons dosya adları Latin harfle yazılıyor: Akın Gürlek'in fotoğrafı
+    orada "Gurlek speech in 2026" adıyla duruyor. Ham karşılaştırma
+    yapınca DOĞRU portreler eleniyordu — Erdoğan/Erdogan da öyle.
+    """
+    esler = str.maketrans("ğĞüÜşŞıİöÖçÇâÂîÎûÛ", "gGuUsSiIoOcCaAiIuU")
+    return metin.translate(esler).casefold()
+
+
+def _isim_tutuyor_mu(baslik: str, konu: str) -> bool:
+    """
+    Bulunan dosyanın gerçekten aranan kişiye ait olup olmadığını denetler.
+
+    Commons'ın araması gevşek: "İSKİ" araması "Iski Kocsis Tibor" adlı
+    Macar bir sanatçının portresini getirdi ve baraj haberinin arkasına
+    o kondu. Aranan isim birden fazla kelimeyse SOYADI dosya adında
+    geçmeli — geçmiyorsa bambaşka birini bulmuşuz demektir.
+
+    Tek kelimelik aramalarda bu denetim yapılamıyor (kıyas edecek soyadı
+    yok), o yüzden serbest bırakıyoruz; asıl koruma orada Gemini'ye
+    "kurum adı yazma" demek.
+    """
+    parcalar = [p for p in konu.split() if len(p) > 2]
+    if len(parcalar) < 2:
+        return True
+    return _sadelestir(parcalar[-1]) in _sadelestir(baslik)
+
+
+def _aday_puani(baslik: str, genislik: int, yukseklik: int,
+                konu: str = "") -> int:
     """
     Aday fotoğrafı puanlar. Yüksek puan = daha iyi haber görseli.
     Negatif dönerse aday elenir.
@@ -132,6 +177,9 @@ def _aday_puani(baslik: str, genislik: int, yukseklik: int) -> int:
     b = baslik.lower()
 
     if any(kotu in b for kotu in ISTENMEYEN):
+        return -1
+
+    if konu and not _isim_tutuyor_mu(baslik, konu):
         return -1
 
     puan = 0
@@ -178,7 +226,16 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20) -> dict | None:
     Döner: {'url', 'lisans', 'sanatci', 'baslik', 'genislik', 'yukseklik'}
     veya None.
     """
-    if not konu or not konu.strip():
+    konu = (konu or "").strip()
+    if not konu:
+        return None
+
+    # İkinci savunma hattı: kısaltmalar Commons'ta yanlış eşleşiyor
+    # (İSKİ -> Macar sanatçı, TRT -> rastgele pavyon fotoğrafı) ve tek
+    # kelime oldukları için soyadı denetiminden de kaçıyorlar. Gemini'ye
+    # zaten "kurum yazma" dedik; bu, o kural delinirse diye duruyor.
+    if len(konu.split()) == 1 and konu.isupper():
+        log.info("kısaltma Commons'a sorulmuyor: %s", konu)
         return None
 
     parametreler = {
@@ -223,7 +280,7 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20) -> dict | None:
             continue
 
         baslik = (sayfa.get("title") or "")[5:]      # "File:" önekini at
-        puan = _aday_puani(baslik, genislik, yukseklik)
+        puan = _aday_puani(baslik, genislik, yukseklik, konu)
         if puan < 0:
             continue
 

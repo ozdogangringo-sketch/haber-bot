@@ -42,7 +42,7 @@ import requests
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from . import db
+from . import db, fetch_flag
 
 log = logging.getLogger(__name__)
 load_dotenv()
@@ -57,6 +57,7 @@ GECICI_HATALAR = {429, 500, 502, 503, 504}
 
 # Inter değişken fontunun eksen sırası: [Optical size, Weight]
 EKSEN_BASLIK = [32.0, 800.0]      # kalın, büyük punto için
+EKSEN_OZET = [20.0, 450.0]        # başlık altı özet — ince, okunur
 EKSEN_KUCUK = [14.0, 600.0]       # alt bilgi satırı
 
 # Kategoriye göre renk paleti + arka plan istemi.
@@ -79,7 +80,7 @@ PALETLER = {
 }
 
 ISTEM_SABLONU = (
-    "Abstract background for a news graphic, square format. "
+    "Abstract background for a news graphic, vertical format. "
     "{palet}. "
     "Strictly abstract: no people, no faces, no text, no letters, no numbers, "
     "no logos, no flags, no maps, no buildings, no recognisable objects. "
@@ -133,6 +134,19 @@ def _gorsel_anahtari() -> str:
     return anahtar
 
 
+def _en_boy_orani(g: dict) -> str:
+    """
+    Slayt boyutunu Gemini'nin beklediği "4:5" biçimine çevirir.
+
+    Gemini yalnızca belirli oranları kabul ediyor; en yakınına yuvarlıyoruz.
+    Böylece config'de boyut değişirse istem kendiliğinden uyum sağlar.
+    """
+    destekli = {"1:1": 1.0, "4:5": 0.8, "3:4": 0.75, "9:16": 0.5625,
+                "5:4": 1.25, "4:3": 1.333, "16:9": 1.778}
+    oran = g["genislik"] / g["yukseklik"]
+    return min(destekli, key=lambda ad: abs(destekli[ad] - oran))
+
+
 def arkaplan_uret_ai(kategori: str, ayarlar: dict) -> Image.Image:
     """Gemini'den soyut arka plan ister. Başaramazsa exception fırlatır."""
     g = ayarlar["gorsel"]
@@ -150,7 +164,11 @@ def arkaplan_uret_ai(kategori: str, ayarlar: dict) -> Image.Image:
                     "contents": [{"parts": [{"text": istem}]}],
                     "generationConfig": {
                         "responseModalities": ["IMAGE"],
-                        "imageConfig": {"aspectRatio": "1:1"},
+                        # Slayt oranı ne ise onu iste. Sabit "1:1" bırakılırsa
+                        # kare görsel 4:5'e kırpılıyor ve kenarlardan kayıp
+                        # oluyor — üstelik AI'ın kompozisyonu ortaya kurduğu
+                        # için tam da vurgulu kısım kesiliyordu.
+                        "imageConfig": {"aspectRatio": _en_boy_orani(g)},
                     },
                 },
                 timeout=g["zaman_asimi"],
@@ -217,6 +235,19 @@ def arkaplan_uret_yedek(
 # Yazı katmanı
 # ----------------------------------------------------------------------
 
+def _buyuk_harf(metin: str) -> str:
+    """
+    Türkçeye uygun büyük harf çevirimi.
+
+    Python'un `.upper()` metodu 'i' harfini 'I' yapıyor, oysa Türkçede
+    doğrusu 'İ'. İlk denemede ülke adı "TÜRKIYE" çıktı — bir haber
+    hesabında bu hatayı yapmak kötü görünür. Aynı şekilde 'ı' da 'I'
+    olmalı, Python bunu zaten doğru yapıyor ama açıkça yazmak
+    davranışı ileride tahmin edilebilir kılıyor.
+    """
+    return metin.replace("i", "İ").replace("ı", "I").upper()
+
+
 def _font(punto: int, eksenler: list[float]) -> ImageFont.FreeTypeFont:
     f = ImageFont.truetype(str(FONT_YOLU), punto)
     try:
@@ -261,6 +292,41 @@ def _basligi_yerlestir(metin: str, ciz, alan_genislik: int, alan_yukseklik: int)
     return font, satirlar, int(40 * 1.22)
 
 
+def _ozeti_yerlestir(metin: str, ciz, alan_genislik: int, azami_satir: int = 4):
+    """
+    Başlık altındaki özet satırını böler. Başlıktan farklı olarak punto
+    sabit: özet her slaytta aynı boyda olmalı, yoksa carousel kayarken
+    yazı boyu zıplıyor gibi görünür.
+    """
+    font = _font(34, EKSEN_OZET)
+    satirlar = _satirlara_bol(metin, font, alan_genislik, ciz)
+    if len(satirlar) > azami_satir:
+        satirlar = satirlar[:azami_satir]
+        satirlar[-1] = satirlar[-1].rstrip(" ,;:") + "…"
+    return font, satirlar, int(34 * 1.42)
+
+
+def _perde_taban_alfa(arkaplan: Image.Image, kutu: tuple) -> int:
+    """
+    Yazının oturacağı kutudaki ortalama parlaklığa bakıp perdenin ne kadar
+    koyu olması gerektiğini söyler.
+
+    Neden gerekli: sabit perde her arka planda aynı işi görmüyor. Koyu
+    gradyanda gereğinden fazlaydı, açık gri bir duvar fotoğrafında ise
+    yetersiz kaldı — ilk denemede başlığın üst satırı fotoğrafın içinde
+    eridi. Perdeyi arka plana göre ayarlamak bunu kökten çözüyor.
+    """
+    parca = arkaplan.convert("L").crop(kutu)
+    ortalama = sum(parca.get_flattened_data()) / max(1, parca.width * parca.height)
+    # Ölçüldü: gradyan arka planın yazı bölgesi ~43, açık bir portre ~123.
+    # 55'in altı zaten yeterince koyu, orada perde çizmek gradyanın üstünde
+    # görünür bir bant bırakıyordu — o yüzden 0'a düşüyor.
+    #   43  -> 0    (gradyan: perde yok, temiz kalır)
+    #   123 -> 130  (portre: başlık ayrışır)
+    #   200 -> 232  (parlak arka plan: güçlü perde)
+    return max(0, min(245, int((ortalama - 55) * 1.63)))
+
+
 def fotograftan_arkaplan(
     foto: Image.Image, genislik: int, yukseklik: int
 ) -> Image.Image:
@@ -289,66 +355,365 @@ def fotograftan_arkaplan(
     return foto.resize((genislik, yukseklik), Image.LANCZOS)
 
 
+def _bayragi_bas(
+    gorsel: Image.Image, ulke_kodu: str, ulke_adi: str, kenar: int
+) -> Image.Image:
+    """
+    Sağ üst köşeye ülke flaması basar: sağ kenara yapışık, sol ucu
+    kırlangıç kuyruğu (içe doğru V çentik).
+
+    NEDEN FLAMA, DÜZ BAYRAK DEĞİL:
+        Önce bayrağı düz bir dikdörtgen olarak basıp altına ülke adı
+        yazmıştık; sade kaldı ve açık fotoğraflarda yazı zeminden zor
+        ayrıldı. Flamanın kendi koyu zemini olduğu için hem her arka
+        planda aynı netlikte okunuyor hem de üst şeride karakter katıyor.
+
+    Yükseklik SABİT, genişlik değişken:
+        Bayrak oranları ülkeye göre farklı (İsviçre kare, Nepal üçgen).
+        Genişliği sabitleseydik bazı bayraklar ezilirdi. Bunun yerine
+        bayrak yüksekliğini sabitleyip genişliği orana göre hesaplıyoruz;
+        flama da içeriğe göre uzuyor.
+
+    Görüntüyü DEĞİŞTİRİP döner (alpha_composite yeni nesne üretiyor).
+    """
+    bayrak = fetch_flag.bayrak_al(ulke_kodu)
+    if bayrak is None:
+        return gorsel
+
+    b_yuk = 54
+    b_gen = max(1, int(bayrak.width * b_yuk / bayrak.height))
+    bayrak = bayrak.resize((b_gen, b_yuk), Image.LANCZOS)
+    kose_maske = Image.new("L", (b_gen, b_yuk), 0)
+    ImageDraw.Draw(kose_maske).rounded_rectangle(
+        [0, 0, b_gen - 1, b_yuk - 1], radius=5, fill=255
+    )
+    bayrak.putalpha(kose_maske)
+
+    font = _font(19, EKSEN_KUCUK)
+    metin = _buyuk_harf(ulke_adi or "")
+    olcum = ImageDraw.Draw(gorsel)
+    metin_genislik = olcum.textlength(metin, font=font) if metin else 0
+
+    # Dikey istif: bayrak üstte, ülke adı altında. Flamanın genişliğini
+    # ikisinden hangisi genişse o belirliyor — "Çin" ile "Birleşik Krallık"
+    # aynı şablonda düzgün otursun diye.
+    ust_pay, ara, alt_pay = 9, 6, 9
+    yazi_yuk = 19 if metin else 0
+    icerik_gen = int(max(b_gen, metin_genislik))
+    yukseklik = ust_pay + b_yuk + (ara + yazi_yuk if metin else 0) + alt_pay
+
+    uc_payi = 38                      # sol uçtaki V çentik için ayrılan yer
+    ic_sol, ic_sag = 22, 28
+    genislik = uc_payi + ic_sol + icerik_gen + ic_sag
+
+    x1 = gorsel.width                 # sağ kenara yapışık
+    x0 = x1 - genislik
+    y0 = kenar - 10
+    y1 = y0 + yukseklik
+    orta_y = (y0 + y1) / 2
+
+    # Kırlangıç kuyruğu: sol kenarın bir noktası içeri giriyor.
+    # Kırılım flamanın geometrik ortasında DEĞİL — bayrakla ülke adı
+    # arasındaki boşluğun hizasında. Böylece çentik içerikteki ayrımı
+    # takip ediyor; ortada olunca bayrağın üstüne denk gelip keyfi
+    # duruyordu. Ülke adı yoksa ortaya düşüyor.
+    kirilim_y = (y0 + ust_pay + b_yuk + ara / 2) if metin else orta_y
+    nokta = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0 + uc_payi, kirilim_y)]
+
+    golge = Image.new("RGBA", gorsel.size, (0, 0, 0, 0))
+    ImageDraw.Draw(golge).polygon(
+        [(px, py + 4) for px, py in nokta], fill=(0, 0, 0, 120)
+    )
+    gorsel = Image.alpha_composite(
+        gorsel.convert("RGBA"), golge.filter(ImageFilter.GaussianBlur(9))
+    )
+
+    katman = Image.new("RGBA", gorsel.size, (0, 0, 0, 0))
+    ImageDraw.Draw(katman).polygon(nokta, fill=(13, 18, 32, 214))
+    gorsel = Image.alpha_composite(gorsel, katman).convert("RGB")
+
+    # Bayrak ve yazı, içerik alanında yatayda ortalanıyor
+    icerik_x = x0 + uc_payi + ic_sol
+    gorsel.paste(
+        bayrak,
+        (int(icerik_x + (icerik_gen - b_gen) / 2), int(y0 + ust_pay)),
+        bayrak,
+    )
+
+    if metin:
+        ImageDraw.Draw(gorsel).text(
+            (
+                icerik_x + (icerik_gen - metin_genislik) / 2,
+                y0 + ust_pay + b_yuk + ara,
+            ),
+            metin, font=font, fill=(240, 244, 252),
+        )
+    return gorsel
+
+
 def yaziyi_bas(
     arkaplan: Image.Image, baslik: str, kaynak: str, ayarlar: dict,
-    perde_basi_orani: float = 0.30,
+    ozet: str | None = None,
+    arsiv_ibaresi: bool = False,
+    ulke_kodu: str = "",
+    ulke_adi: str = "",
 ) -> Image.Image:
-    """Arka planın üstüne başlığı ve kaynak adını yazar."""
+    """
+    Arka planın üstüne başlığı, varsa özeti ve alt bilgiyi yazar.
+
+    SIRA ÖNEMLİ: önce yazının nereye oturacağını ölçüyoruz, perdeyi
+    ondan sonra çiziyoruz. Eski hâlinde perde sabit bir orandan (%30)
+    başlıyordu ve karesel arttığı için başlığın üst satırları perdenin
+    daha şeffaf bölgesine denk geliyordu — açık bir fotoğrafta yazı
+    okunmuyordu. Perdeyi yazıya göre konumlandırınca sorun kalmıyor.
+    """
+    g = ayarlar["gorsel"]
+    genislik, yukseklik = g["genislik"], g["yukseklik"]
+    kenar = g["kenar_bosluk"]
+
+    # Dikeyde kenara en yakın öğeler (bayrak, kaynak satırı) kırpma
+    # riskine karşı içeri alınıyor; yatayda böyle bir kırpma yok.
+    dikey_kenar = max(kenar, g.get("dikey_guvenli_pay", kenar))
+
+    gorsel = arkaplan.resize((genislik, yukseklik), Image.LANCZOS)
+    ciz = ImageDraw.Draw(gorsel)
+    alan_genislik = genislik - 2 * kenar
+
+    # --- 1) Ölçüm: bloklar nereye oturacak? (alttan yukarı doğru) ---
+    alt_bilgi_y = yukseklik - dikey_kenar - 34
+
+    ozet_font, ozet_satirlari, ozet_satir_y = None, [], 0
+    if ozet:
+        ozet_font, ozet_satirlari, ozet_satir_y = _ozeti_yerlestir(
+            ozet, ciz, alan_genislik
+        )
+    ozet_yuksekligi = ozet_satir_y * len(ozet_satirlari)
+
+    # Özet varsa başlığa daha az yer kalıyor — sığdırma buna göre yapılmalı,
+    # yoksa ikisi üst üste biner.
+    baslik_alani = int(yukseklik * 0.42) - ozet_yuksekligi
+    font, satirlar, satir_yuksekligi = _basligi_yerlestir(
+        baslik, ciz, alan_genislik, baslik_alani
+    )
+
+    ozet_ust = alt_bilgi_y - 44 - ozet_yuksekligi
+    baslik_ust = ozet_ust - (26 if ozet else 0) - satir_yuksekligi * len(satirlar)
+
+    # --- 2) Perde: tam olarak yazı bloğunu koruyacak şekilde ---
+    taban = _perde_taban_alfa(gorsel, (0, baslik_ust, genislik, yukseklik))
+
+    # Geçiş payı sabit olamaz: perde ne kadar koyuysa yumuşamak için o kadar
+    # uzun mesafe gerekiyor. 190 piksel sabitken açık pembe bir arka planda
+    # perde düz siyah bir blok gibi başlıyordu.
+    perde_basi = max(0, baslik_ust - (190 + taban))
+
+    # taban 0 ise arka plan zaten yeterince koyu (gradyan böyle) — perde
+    # çizmek orada görünür bir bant bırakıyor, o yüzden hiç çizmiyoruz.
+    if taban > 0:
+        perde = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+        perde_ciz = ImageDraw.Draw(perde)
+        gecis = max(1, baslik_ust - perde_basi)
+        for y in range(perde_basi, yukseklik):
+            if y < baslik_ust:
+                # Yumuşak giriş: perdenin başladığı yer keskin çizgi olmasın
+                alfa = int(taban * ((y - perde_basi) / gecis) ** 2)
+            else:
+                # Yazı bölgesi: taban garanti, aşağı indikçe biraz daha koyu
+                derinlik = (y - baslik_ust) / max(1, yukseklik - baslik_ust)
+                alfa = int(taban + (250 - taban) * derinlik * 0.55)
+            perde_ciz.line([(0, y), (genislik, y)], fill=(0, 0, 0, min(250, alfa)))
+
+        gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
+        ciz = ImageDraw.Draw(gorsel)
+
+    # --- 3) Yazı ---
+    y = baslik_ust
+    for satir in satirlar:
+        # Hafif gölge: açık arka planda bile kenarları ayrışsın
+        ciz.text((kenar + 2, y + 2), satir, font=font, fill=(0, 0, 0))
+        ciz.text((kenar, y), satir, font=font, fill=(255, 255, 255))
+        y += satir_yuksekligi
+
+    y = ozet_ust
+    for satir in ozet_satirlari:
+        ciz.text((kenar, y), satir, font=ozet_font, fill=(220, 226, 238))
+        y += ozet_satir_y
+
+    # Kaynak adı — telif değil, şeffaflık için: haber nereden geldi
+    kucuk = _font(26, EKSEN_KUCUK)
+    alt_metin = _buyuk_harf(kaynak)
+    if arsiv_ibaresi:
+        # Fotoğraf konuyla ilgili ama o olayın kendisi olmayabiliyor
+        # (Commons'ta "Hakan Fidan" araması Brüksel'deki bir toplantıyı
+        # getirdi, haber ise Mısır ziyaretiydi). Bunu yazmak hem dürüst
+        # hem de "yanlış görsel kullandı" eleştirisine karşı koruma.
+        alt_metin += "   ·   ARŞİV GÖRSELİ"
+    ciz.text((kenar, alt_bilgi_y), alt_metin, font=kucuk, fill=(198, 206, 222))
+
+    # Sol üstte ince vurgu çizgisi — hesaba tutarlı bir imza katsın
+    ciz.rectangle(
+        [kenar, dikey_kenar, kenar + 92, dikey_kenar + 7],
+        fill=(226, 170, 88),
+    )
+
+    if ulke_kodu:
+        gorsel = _bayragi_bas(gorsel, ulke_kodu, ulke_adi, dikey_kenar)
+
+    return gorsel
+
+
+# ----------------------------------------------------------------------
+# Kapak slaytı
+# ----------------------------------------------------------------------
+
+AYLAR = ["OCAK", "ŞUBAT", "MART", "NİSAN", "MAYIS", "HAZİRAN",
+         "TEMMUZ", "AĞUSTOS", "EYLÜL", "EKİM", "KASIM", "ARALIK"]
+
+
+def tarih_metni(gun: date | None = None) -> str:
+    """
+    '15 AĞUSTOS 2026' üretir.
+
+    Python'un locale'ine güvenmiyoruz: GitHub runner'da Türkçe locale
+    kurulu değil, `strftime('%B')` orada 'August' döner.
+    """
+    gun = gun or date.today()
+    return f"{gun.day} {AYLAR[gun.month - 1]} {gun.year}"
+
+
+def kapak_ciz(
+    arkaplan: Image.Image,
+    ayarlar: dict,
+    basliklar: list[str] | None = None,
+    ust_yazi: str = "GÜNÜN GÜNDEMİ",
+    gun: date | None = None,
+) -> Image.Image:
+    """
+    Carousel'in ilk slaytı.
+
+    `basliklar` verilirse manşetler madde madde listelenir — takipçi
+    kaydırmadan önce içeride ne olduğunu görür. Verilmezse sade kapak
+    çıkar (sadece tarih + başlık).
+    """
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
     kenar = g["kenar_bosluk"]
 
     gorsel = arkaplan.resize((genislik, yukseklik), Image.LANCZOS)
+    alan_genislik = genislik - 2 * kenar
 
-    # Okunabilirlik garantisi: arka plan her seferinde farklı — AI görseli,
-    # gerçek fotoğraf veya gradyan olabiliyor. Açık bir yer denk gelirse
-    # beyaz yazı kaybolur. Alt kısma koyu perde çekiyoruz.
-    # Fotoğraflarda perde daha güçlü olmalı: portrenin açık tonları
-    # yazıyı yutuyor.
-    perde = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
-    perde_ciz = ImageDraw.Draw(perde)
-    perde_basi = int(yukseklik * perde_basi_orani)
-    for y in range(perde_basi, yukseklik):
-        oran = (y - perde_basi) / (yukseklik - perde_basi)
-        # Karesel artış: üstte yumuşak başlasın, altta tam kapatsın
-        perde_ciz.line(
-            [(0, y), (genislik, y)], fill=(0, 0, 0, int(238 * (oran ** 1.5)))
-        )
-    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
+    # Kapakta yazı her yere yayıldığı için perde tüm görsele uygulanıyor,
+    # haber slaytlarındaki gibi sadece alta değil.
+    taban = _perde_taban_alfa(gorsel, (0, 0, genislik, yukseklik))
+    if taban > 0:
+        perde = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, int(taban * 0.85)))
+        gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
 
     ciz = ImageDraw.Draw(gorsel)
-    alan_genislik = genislik - 2 * kenar
-    alan_yukseklik = int(yukseklik * 0.42)
 
-    font, satirlar, satir_yuksekligi = _basligi_yerlestir(
-        baslik, ciz, alan_genislik, alan_yukseklik
-    )
-
-    # Alt bilgi satırının üstünde bitecek şekilde yukarıdan hizala
-    alt_bilgi_y = yukseklik - kenar - 34
-    y = alt_bilgi_y - 46 - satir_yuksekligi * len(satirlar)
-
-    for satir in satirlar:
-        # Hafif gölge: açık arka planda bile kenarları ayrışsın
-        ciz.text((kenar + 2, y + 2), satir, font=font, fill=(0, 0, 0, 160))
-        ciz.text((kenar, y), satir, font=font, fill=(255, 255, 255))
-        y += satir_yuksekligi
-
-    # Kaynak adı — telif değil, şeffaflık için: haber nereden geldi
-    kucuk = _font(26, EKSEN_KUCUK)
+    # --- Üst blok: tarih ---
+    ciz.rectangle([kenar, kenar, kenar + 92, kenar + 7], fill=(226, 170, 88))
     ciz.text(
-        (kenar, alt_bilgi_y),
-        kaynak.upper(),
-        font=kucuk,
-        fill=(198, 206, 222),
-    )
-
-    # Sol üstte ince vurgu çizgisi — hesaba tutarlı bir imza katsın
-    ciz.rectangle(
-        [kenar, kenar, kenar + 92, kenar + 7],
+        (kenar, kenar + 34),
+        tarih_metni(gun),
+        font=_font(30, EKSEN_KUCUK),
         fill=(226, 170, 88),
     )
+
+    # --- Ana yazı: tarihin hemen altında, üst blokta ---
+    # Haber slaytlarında yazı altta toplanıyor (fotoğrafın yüzünü açıkta
+    # bırakmak için), ama kapakta fotoğraf yok. Başlığı da alta koyunca
+    # üst yarı tamamen boş kalıyordu; yukarı alınca sayfa dengeleniyor.
+    font, satirlar, satir_yuksekligi = _basligi_yerlestir(
+        ust_yazi, ciz, alan_genislik, int(yukseklik * 0.26)
+    )
+    y = kenar + 104
+    for satir in satirlar:
+        ciz.text((kenar + 2, y + 2), satir, font=font, fill=(0, 0, 0))
+        ciz.text((kenar, y), satir, font=font, fill=(255, 255, 255))
+        y += satir_yuksekligi
+    baslik_alti = y
+
+    # --- Manşet listesi (varsa) — alttan yukarı doğru yerleşiyor ---
+    alt_bilgi_y = yukseklik - kenar - 34
+
+    if basliklar:
+        madde_font = _font(31, EKSEN_OZET)
+        satir_y = int(31 * 1.34)
+        bloklar = [
+            _satirlara_bol(b, madde_font, alan_genislik - 34, ciz)[:2]
+            for b in basliklar
+        ]
+
+        # Liste başlığa dayanırsa alttan madde atıyoruz. Manşetler önem
+        # sırasında geldiği için kırpılması gereken hep en az önemlisi.
+        while bloklar:
+            toplam = sum(len(b) * satir_y + 18 for b in bloklar)
+            if alt_bilgi_y - 30 - toplam > baslik_alti + 30:
+                break
+            bloklar.pop()
+
+        y = alt_bilgi_y - 30 - sum(len(b) * satir_y + 18 for b in bloklar)
+        for satirlar in bloklar:
+            # Küçük amber nokta: madde işareti yerine, listeyi hizalar
+            ciz.ellipse(
+                [kenar, y + 13, kenar + 9, y + 22], fill=(226, 170, 88)
+            )
+            for satir in satirlar:
+                ciz.text((kenar + 26, y), satir, font=madde_font,
+                         fill=(226, 231, 242))
+                y += satir_y
+            y += 18
+
+    # --- Alt bilgi: hesap adı + kaydırma daveti ---
+    kucuk = _font(26, EKSEN_KUCUK)
+    hesap = ayarlar.get("instagram", {}).get("hesap_kullanici_adi", "")
+    if hesap:
+        ciz.text((kenar, alt_bilgi_y), f"@{hesap}", font=kucuk,
+                 fill=(198, 206, 222))
+
+    davet = "KAYDIR  →"
+    ciz.text(
+        (genislik - kenar - ciz.textlength(davet, font=kucuk), alt_bilgi_y),
+        davet, font=kucuk, fill=(226, 170, 88),
+    )
     return gorsel
+
+
+def kapak_uret(
+    basliklar: list[str],
+    ayarlar: dict,
+    con=None,
+    ai_kullan: bool | None = None,
+) -> Path:
+    """
+    Kapak slaytını üretip diske yazar.
+
+    `ai_kullan` verilmezse config'deki `kapakta_ai` geçerli. AI patlarsa
+    ya da günlük sayaç dolmuşsa gradyana düşer — post kaçmasın.
+    """
+    g = ayarlar["gorsel"]
+    CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
+    if ai_kullan is None:
+        ai_kullan = g.get("kapakta_ai", True)
+
+    try:
+        if not ai_kullan:
+            raise RuntimeError("kapakta_ai kapalı")
+        if con is not None:
+            _gunluk_sayac_artir(con, g["gunluk_azami"])
+        arkaplan = arkaplan_uret_ai("turkiye", ayarlar)
+        kaynak_tipi = "ai"
+    except Exception as e:
+        log.info("kapak AI'sız üretiliyor (%s)", e)
+        arkaplan = arkaplan_uret_yedek("turkiye", g["genislik"], g["yukseklik"])
+        kaynak_tipi = "gradyan"
+
+    gorsel = kapak_ciz(arkaplan, ayarlar, basliklar)
+    yol = CIKTI_KLASORU / "kapak.jpg"
+    gorsel.save(yol, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+    log.info("kapak üretildi (%s): %s", kaynak_tipi, yol)
+    return yol
 
 
 # ----------------------------------------------------------------------

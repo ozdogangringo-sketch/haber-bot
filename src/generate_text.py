@@ -58,8 +58,22 @@ CEVAP_SEMASI = {
         "ig_caption": {"type": "string"},
         "ig_hashtag": {"type": "array", "items": {"type": "string"}},
         "onem_puani": {"type": "integer"},
+        # Slaytta başlığın altına basılan kısa cümle
+        "slayt_ozet": {"type": "string"},
+        # Commons araması için kişi/kurum. Yoksa boş string.
+        "gorsel_konu": {"type": "string"},
+        # Pexels araması için İngilizce temsili terim.
+        "gorsel_temsili": {"type": "string"},
+        # Slaytın sağ üstündeki bayrak için ISO 3166-1 alpha-2 kodu
+        "ulke_kodu": {"type": "string"},
+        # Bayrağın altına yazılan Türkçe ülke adı
+        "ulke_adi": {"type": "string"},
     },
-    "required": ["ig_baslik", "ig_caption", "ig_hashtag", "onem_puani"],
+    "required": [
+        "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
+        "slayt_ozet", "gorsel_konu", "gorsel_temsili",
+        "ulke_kodu", "ulke_adi",
+    ],
 }
 
 
@@ -79,9 +93,70 @@ Hiç kimseyi suçlu ilan etme. Mahkeme kararı olmadan kesin dille yazma.
 DİĞER KURALLAR:
 - Çıktının tamamı Türkçe olacak. Haber İngilizceyse Türkçeye çevir.
 - ig_baslik: en fazla 12 kelime. Çarpıcı ama ABARTISIZ, clickbait yok.
+  BÜYÜK HARF KURALI: normal cümle yazımı kullan — yalnızca ilk kelime ve
+  özel adlar büyük harfle başlasın ("Ankara'da toplu ulaşım ücretlerine
+  zam yapıldı"). Her Kelimeyi Büyük Harfle Başlatma. Bu bir tutarlılık
+  kuralı: aynı carousel'de iki üslup yan yana gelince özensiz duruyor.
+  Sonuna nokta koyma.
 - ig_caption: 2-3 cümle, haberin özü. Kaynak adını yazma.
 - ig_hashtag: 5-8 adet, Türkçe ve konuyla ilgili, '#' işareti OLMADAN.
 - Taraf tutma, yorum katma, spekülasyon yapma.
+
+GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
+
+- slayt_ozet: TEK cümle, en fazla 18 kelime. Başlıkta OLMAYAN somut bir
+  bilgi ver (sayı, oran, sonuç, kim söyledi). Başlığı farklı kelimelerle
+  tekrar etme — slaytta ikisi alt alta görünüyor.
+
+- gorsel_konu: SADECE GERÇEK BİR İNSANIN ADI VE SOYADI. Başka hiçbir şey.
+  (örn: "Hakan Fidan", "Ekrem İmamoğlu")
+
+  KURUM, ÖRGÜT, ŞEHİR, KISALTMA YAZMA — burası en kritik kural.
+  Ölçüldü (15 Ağu 2026): kurum adları fotoğraf arşivinde yanlış eşleşiyor
+  ve haberle ilgisiz görsel geliyor. Gerçek örnekler:
+      "İSKİ"    -> Macar bir sanatçının portresi ("Iski Kocsis Tibor")
+      "Taliban" -> 2021 askeri harekat haritası
+      "Ankara Büyükşehir Belediyesi" -> Ankara Kalesi manzarası
+  Bunlar bir haber hesabında yayınlanamaz. Kurumu tarif etmek istiyorsan
+  gorsel_temsili alanını kullan; orası bu iş için zaten var ve iyi çalışıyor.
+
+  Kişi Wikipedia'da sayfası olacak kadar tanınmış değilse BOŞ BIRAK.
+  Sıradan vatandaş veya yerel yetkili adı yazma — arşivde fotoğrafı yok.
+  Haberin merkezinde tanınmış bir insan yoksa BOŞ BIRAKMAK DOĞRU CEVAPTIR.
+
+- gorsel_temsili: Konuyu temsil eden İNGİLİZCE stok fotoğraf arama terimi.
+  Ölçüldü (15 Ağu 2026), şu kurallara uy:
+    * YAKIN PLAN NESNE iste, geniş mekân isteme. Geniş mekân fotoğrafları
+      hep bir ülkeye ait oluyor ve tabelaları yabancı dilde çıkıyor —
+      Türkiye haberinde İspanyolca hastane tabelası özensiz görünüyor.
+        KÖTÜ: "hospital corridor"   ->  İYİ: "stethoscope close up"
+        KÖTÜ: "city bus stop"       ->  İYİ: "turkish lira coins close up"
+    * 3-6 kelime yeter. Sonuna "close up" eklemek işe yarıyor.
+    * İnsan yüzü içeren sahne isteme — tanımadığımız biri haberle
+      ilişkilendirilmiş görünür.
+    * Doğa ve doku sahneleri de nötr olduğu için iyi çalışıyor
+      (kuraklık haberinde "dry cracked earth" gibi).
+
+- ulke_kodu / ulke_adi: Haberin GEÇTİĞİ ülke — haberi yayınlayan kaynağın
+  ülkesi değil. BBC'nin Belçika'daki bir olayı aktardığı haberde ülke
+  Belçika'dır, İngiltere değil.
+    ulke_kodu: ISO 3166-1 alpha-2, KÜÇÜK harf ("tr", "us", "be")
+    ulke_adi : Türkçe ülke adı ("Türkiye", "ABD", "Belçika")
+  Birden fazla ülke geçiyorsa olayın YAŞANDIĞI ülkeyi seç.
+
+  ÜLKESİ OLMAYAN HABERDE İKİSİNİ DE BOŞ BIRAK. Zorlama ülke atama.
+  Bir coğrafyaya bağlı olmayan haberler var: bilim buluşu, teknoloji,
+  küresel bir araştırma, borsa/kripto, uzay. Bunlarda bayrak basmak
+  yanlış bir yer bilgisi vermek olur — boş bırakmak DOĞRU cevaptır.
+
+  Haber uluslararası bir KURULUŞUN kendi kararı/açıklamasıysa, ülke
+  yerine kuruluş kodunu yazabilirsin. Tanınan kodlar yalnızca şunlar:
+    nato, un, eu, who, unesco, unicef, opec, oic, africanunion,
+    arableague, commonwealth, redcross
+  ulke_adi'na Türkçe adını yaz ("NATO", "Birleşmiş Milletler",
+  "Avrupa Birliği", "Dünya Sağlık Örgütü").
+  Listede olmayan bir kuruluş için BOŞ bırak — spor kulübü, şirket,
+  siyasi parti kodu YAZMA, onların logoları tescilli marka.
 
 onem_puani (1-10) — Türkiye'deki ortalama bir takipçi için önem:
   * Ulusal etki: kaç kişiyi doğrudan etkiliyor?
