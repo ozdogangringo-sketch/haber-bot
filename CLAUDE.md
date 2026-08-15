@@ -261,16 +261,25 @@ tamamen alakasız bir hata veriyor — bu hatayı bir kez ayıkladık.
 `jeton-yenile.yml` (pazartesi TR 12:07), `test-kaynak-erisim.yml`.
 10 secret eklendi.
 
-**Adım 7 (jeton):** `src/refresh_token.py` + `scripts/jeton_yenile.py`.
-Jeton 13 Eki 2026'da doluyor; 10 gün kala otomatik yenileniyor.
-⚠️ **Jeton ÖLDÜKTEN sonra `fb_exchange_token` çalışmıyor** — Graph API
-Explorer'dan elle almak gerekir. Erken davranma sebebi bu.
+**Adım 7 (jeton) — SÜRESİZ SAYFA JETONUNA GEÇİLDİ ✅**
 
-⚠️ **AÇIK EKSİK:** PAT'in `Secrets: write` izni YOK (403 ölçüldü).
-Yenilenen jeton GitHub Secrets'a yazılamıyor. Sessiz kalmıyor —
-Telegram'a uyarı gidiyor — ama tam otomatiklik için
-github.com/settings/personal-access-tokens → `haber-bot-worker` →
-Secrets: Read and write verilmeli.
+⚠️ **USER JETONUNA GERİ DÖNME.** 15 Ağu 2026'da ölçüldü: uzun ömürlü
+USER jetonunu `fb_exchange_token` ile yeniden takas etmek **yeni bir 60
+gün VERMİYOR**. Jeton değişiyor (farklı değer) ama `expires_at` aynı
+kalıyor — süre orijinal girişe bağlı. Otomatik yenileme kurulmuş olsa
+bile bot Ekim'de duracaktı. Bu test edilmeseydi anlaşılmazdı.
+
+Çözüm: `/me/accounts` ile alınan **SAYFA jetonu süresiz**
+(`expires_at = 0`) ve `instagram_content_publish` dahil tüm izinleri
+taşıyor. Yayın için çalıştığı doğrulandı (hesap + kota, ikisi de 200).
+`.env` ve GitHub Secrets'taki `IG_ACCESS_TOKEN` artık bu.
+
+Sayfa jetonu yine de ölebilir: Facebook parolası değişirse, uygulama
+izni geri çekilirse, sayfa yöneticiliği kalkarsa. Haftalık kontrol bu
+yüzden duruyor — yenilemek için değil, öldüğünü ERKEN haber vermek için.
+
+PAT'e `Secrets: write` izni verildi (403 → 200 doğrulandı), yani jeton
+bir gün süreli hale gelirse otomatik yazma da çalışır.
 
 ⚠️ Secret adı `REPO_PAT`, `GITHUB_PAT` DEĞİL: GitHub `GITHUB_` ile
 başlayan secret adlarını rezerve tutuyor ve 422 ile reddediyor.

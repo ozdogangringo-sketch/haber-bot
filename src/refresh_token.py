@@ -2,17 +2,26 @@
 refresh_token.py — ADIM 7
 Instagram jetonunu süresi dolmadan yeniler.
 
-NEDEN KRİTİK:
-    Uzun ömürlü jeton 60 gün yaşıyor. Yenilenmezse bot bir sabah sessizce
-    durur ve sebebi "her şey çalışıyordu" diye aranır. Bu, gözetimsiz
-    çalışan bir sistemde en sinsi arıza türü.
+⚠️ ARTIK SAYFA (PAGE) JETONU KULLANIYORUZ — USER JETONUNA GERİ DÖNME.
 
-NASIL YENİLENİYOR:
-    Facebook'un `fb_exchange_token` akışı: elindeki geçerli uzun ömürlü
-    jetonu verip yenisini alıyorsun, saat sıfırlanıyor. Jeton ÖLDÜKTEN
-    sonra bu çalışmıyor — o yüzden erken davranıyoruz (varsayılan 10 gün
-    kala). Ölmüş jetonu yenilemenin yolu yok, Graph API Explorer'dan
-    elle almak gerekir.
+    15 Ağu 2026'da ölçüldü: uzun ömürlü USER jetonunu `fb_exchange_token`
+    ile yeniden takas etmek YENİ BİR 60 GÜN VERMİYOR. Jeton değişiyor
+    (farklı değer) ama `expires_at` aynı kalıyor — süre orijinal girişe
+    bağlı. Yani otomatik yenileme kurulmuş olsa bile bot yine duracaktı.
+
+    Çözüm: uzun ömürlü USER jetonundan türetilen SAYFA jetonu SÜRESİZ
+    (`expires_at = 0`) ve `instagram_content_publish` dahil tüm izinleri
+    taşıyor. `.env` ve GitHub Secrets'taki IG_ACCESS_TOKEN artık bu.
+
+    Sayfa jetonu şu durumlarda yine de ölebilir: Facebook parolası
+    değişirse, uygulama izni geri çekilirse, ya da sayfa yöneticiliği
+    kalkarsa. O yüzden haftalık kontrol duruyor — yenilemek için değil,
+    öldüğünü ERKEN haber vermek için.
+
+NASIL YENİLENİYOR (süreli bir jetona geri dönülürse):
+    Facebook'un `fb_exchange_token` akışı. Jeton ÖLDÜKTEN sonra
+    çalışmıyor, o yüzden 10 gün kala devreye giriyor. Ölmüş jetonu
+    kurtarmanın yolu yok, Graph API Explorer'dan elle almak gerekir.
 
 YENİ JETON NEREYE YAZILIYOR:
     İki yere: `.env` (yerel çalıştırma) ve GitHub Actions Secrets (uzak).
