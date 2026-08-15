@@ -1,0 +1,66 @@
+# =========================================================
+#  ONAY KOMUTUNU İŞLE
+#
+#  Cloudflare Worker `repository_dispatch` ile tetikliyor.
+#  Telegram'da bir butona basıldığında çalışan job budur.
+#
+#  Worker yalnızca doğrulanmış komutları gönderiyor; buraya
+#  keyfi bir event_type gelemiyor.
+# =========================================================
+
+name: Onay Komutunu İşle
+
+on:
+  repository_dispatch:
+    types: [telegram_onay]
+
+# Aynı anda iki komut işlenmesin: "yayınla" ile "iptal" çakışırsa
+# veritabanı tutarsız kalır. Sıraya alıyoruz, iptal ETMİYORUZ —
+# yarıda kesilen bir yayın çift post riski doğurur.
+concurrency:
+  group: onay-islem
+  cancel-in-progress: false
+
+jobs:
+  isle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # veritabanını geri commit etmek için
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Komutu uygula
+        env:
+          KOMUT: ${{ github.event.client_payload.komut }}
+          MESAJ_ID: ${{ github.event.client_payload.mesaj_id }}
+          BASAN: ${{ github.event.client_payload.basan }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_API_KEY: ${{ secrets.GEMINI_IMAGE_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/onay_isle.py
+
+      - name: Veritabanını kaydet
+        # Runner her çalıştırmada sıfırlanıyor; commit etmezsek haber
+        # geçmişi ve "yayınlandı" işaretleri kaybolur, aynı haber
+        # ertesi gün tekrar yayınlanır.
+        # `always()`: komut patlasa bile o ana kadarki durum kaydedilmeli.
+        if: always()
+        run: |
+          git config user.name "haber-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/haber.db assets/flags || true
+          git diff --staged --quiet || git commit -m "Onay işlendi: ${{ github.event.client_payload.komut }}"
+          git push || (git pull --rebase && git push)

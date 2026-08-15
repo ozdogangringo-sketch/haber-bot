@@ -1,0 +1,72 @@
+# =========================================================
+#  AKŞAM TURUNU HAZIRLA
+#
+#  RSS → metin → görsel → imgbb → Telegram onayı.
+#  YAYINLAMAZ; yalnızca hazırlar ve gruba sorar.
+#
+#  SAAT DİLİMİ TUZAĞI: cron UTC çalışıyor. Türkiye UTC+3 ve yaz
+#  saati uygulaması YOK, yani fark yıl boyunca sabit 3 saat.
+#      TR 20:07  ->  UTC 17:07
+#
+#  Dakika neden :07: GitHub cron'ları tam saat başlarında yoğun
+#  oluyor ve 5-30 dakika gecikebiliyor. Sapa bir dakika daha çabuk
+#  başlıyor.
+# =========================================================
+
+name: Turu Hazırla
+
+on:
+  schedule:
+    - cron: "7 17 * * *"      # TR 20:07
+  workflow_dispatch:           # Actions ekranından elle de çalıştırılabilir
+    inputs:
+      kuru:
+        description: "Kuru çalışma (Telegram'a GÖNDERME, sadece üret)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: tur-hazirla
+  cancel-in-progress: false
+
+jobs:
+  hazirla:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Turu hazırla
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_API_KEY: ${{ secrets.GEMINI_IMAGE_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ "${{ inputs.kuru }}" = "true" ]; then
+            python scripts/hazirla.py --kuru
+          else
+            python scripts/hazirla.py
+          fi
+
+      - name: Veritabanını kaydet
+        if: always()
+        run: |
+          git config user.name "haber-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/haber.db assets/flags || true
+          git diff --staged --quiet || git commit -m "Tur hazırlandı $(date -u +%Y-%m-%d)"
+          git push || (git pull --rebase && git push)

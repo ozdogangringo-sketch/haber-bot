@@ -51,16 +51,31 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Onay tetikleme | **Cloudflare Worker** → `repository_dispatch` → anında yayın |
 | Görsel hosting | **imgbb** (Instagram public URL zorunlu kılıyor) |
 | Haber teması | Öncelik **Türkiye gündemi**; dünya haberi sadece önem puanı ≥8 ise |
-| Post biçimi | **CAROUSEL** (kaydırmalı). Kapak + 9 haber = 10 slayt. Instagram sınırı 10. |
+| Post biçimi | **CAROUSEL** (kaydırmalı). **Kapak YOK, 10 haber** = 10 slayt. Instagram sınırı 10. |
+| ~~Kapak slaytı~~ | **DENENDİ VE ELENDİ (15 Ağu 2026).** Kapak+9 haber düzeni üretilip gösterildi; kullanıcı 10 haberi tercih etti. `kapak_ciz`/`kapak_uret` kodu `make_image.py`'de DURUYOR — fikir değişirse `kapak_var: true` yeterli, yeniden yazma. |
 | Slayt oranı | **4:5 dikey (1080x1350)**. Carousel'de tüm slaytlar aynı oranda olmak zorunda. |
+| Güvenli alan | `dikey_guvenli_pay: 150`. Feed'de 4:5 tam görünüyor; risk profil ızgarasının kareye kırpması (üst/alt 135px). Instagram ızgarayı 2025'te dikey yaptı ama bayrak ve kaynak satırı tam sınırdaydı, içeri alındı. |
 | Post sıklığı | **Günde 1 — akşam turu** (maliyet için 2'den 1'e indirildi) |
 | Akşam turu | 20:00 hazırla → 21:00, 22:00 hatırlat → 23:00 havuza dön |
-| Slayt görseli | Haberde kişi/kurum varsa **Wikimedia Commons**'tan gerçek fotoğraf, yoksa gradyan. AI **sadece kapakta**. |
+| Slayt görseli | **3 katman, sırayla:** Commons (**yalnızca KİŞİ**) → Pexels (temsili) → gradyan. **Normal turda AI HİÇ çağrılmıyor, görsel maliyeti $0.** |
+| Commons kuralı | **`gorsel_konu`ya SADECE kişi adı yazılır, kurum/örgüt/şehir ASLA.** Ölçüldü: "İSKİ"→Macar sanatçı portresi, "Taliban"→askeri harita, "Ankara Büyükşehir"→kale manzarası. Bunlar yayınlanamaz. Kurumu Pexels temsil ediyor ve iyi çalışıyor. |
+| Caption | Tek post, 10 haber → `src/caption.py`. Tarih + numaralı manşet listesi + kaynaklar + atıf + hashtag. Sınır 2200 karakter / 30 hashtag; aşarsa sırayla hashtag → atıf → son maddeler kırpılır. |
+| Atıf politikası | Commons atıfları **tek tek** yazılır (CC BY hukuken şart). Pexels'ler **tek satırda** toplanır — lisansı atıf istemiyor, 9 ayrı satır 700 karakter yiyordu. |
+| İçerik filtresi | Instagram shadowban'ine karşı `src/filtre.py`: riskli kelimeler yıldızlanır ("taciz"→"tac*z"), kısıtlı hashtag'ler **tamamen atılır** (etikette yıldız işe yaramaz). Liste `config.yaml`'de ve **bilerek kısa** — ölüm/kaza/cinayet gibi gündelik haber kelimeleri YOK, aşırı sansür amatör gösteriyor. |
+| Haber sitesi fotoğrafı | **KULLANILMIYOR.** Kullanıcı istedi, telif riski anlatıldı, vazgeçildi. Ajans fotoğrafı (AA/Reuters/AFP) ticari lisanslı; "kaynak belirtmek" izin yerine geçmiyor, Instagram telif şikayeti hesabı kapattırabilir. |
+| Beğenilmeyen görsel | Telegram'a **`🎨 Görseli AI ile üret`** butonu eklenecek. Varsayılan bedava katman; AI maliyeti ancak kullanıcı basarsa oluşuyor. |
+| Slayt yazısı | Başlık + altında küçük puntoyla **tek cümlelik özet** (`slayt_ozet`). |
+| Ülke flaması | Sağ üstte, sağ kenara yapışık **kırlangıç kuyruklu flama**: bayrak üstte (54px), ülke adı altında (19 punto). V çentiğinin kırılımı flamanın ortasında değil, **bayrak/yazı ayrımının hizasında**. |
+| Ülkesiz haber | **Flama basılmaz.** Bilim, teknoloji, uzay, borsa gibi coğrafyaya bağlı olmayan haberlerde `ulke_kodu` boş bırakılır — zorlama ülke atamak yanlış yer bilgisi vermek olur. |
+| Kuruluş bayrağı | `ulke_kodu` yerine kuruluş kodu yazılabilir: `nato, un, eu, who, unesco, unicef, opec, oic, africanunion, arableague, commonwealth, redcross`. Commons'tan çekilir. **Spor kulübü / şirket / parti logosu YOK** — tescilli marka, haber sitesi fotoğrafıyla aynı gerekçe. |
+| Arşiv ibaresi | Fotoğraf kullanılan slaytlarda alt bilgiye `· ARŞİV GÖRSELİ` ekleniyor — görsel o olayın belgesi değil. |
 | ~~Reels/video~~ | Elendi: müzik API'den eklenemiyor, ayrıca ffmpeg + video barındırma gerekiyordu. |
 | Onay verilmezse | **Haber ELENMEZ**, havuza döner, sonraki turda yeniden yarışır |
 | Bayatlama sınırı | Yayın tarihinden **48 saat** sonra aday olmayı bırakır |
-| "Atla" butonu | Sıradaki haberi önerir, tur başına **5 hak** |
-| Ekstra buton | **"🔄 Metni yeniden üret"** — aynı haber için Gemini'yi tekrar çalıştırır |
+| ~~"Atla" butonu~~ | **GEÇERSİZ.** Tek-haber tasarımından kalmaydı; carousel'de 10 haber var, "sıradakini öner" anlamsız. Yerine aşağıdaki menü geldi. |
+| Onay butonları | İki katmanlı menü (15 Ağu 2026): **Ana menü** → `✅ Yayınla` / `🔄 Metinleri yeniden üret` / `🎨 Bir slaytın görselini değiştir` / `❌ Bu turu atla`. **Slayt menüsü** → 1-10 arası seçim → `🔀 Başka fotoğraf (bedava)` / `🎨 AI ile üret (~$0.04)`. |
+| Menü gezinme nerede | **Worker'da, GitHub'da değil.** Actions'ı uyandırmak 30+ saniye sürüyor, menü açmak anında olmalı. Yalnızca gerçek eylemler (`yayinla`, `iptal`, `metin_yenile`, `slayt_ai:N`, `slayt_foto:N`) `repository_dispatch` ile GitHub'a gidiyor. |
+| ⚠️ Menü ikilemesi | Buton düzeni **iki yerde** tanımlı: `src/telegram_bot.py` ve `worker/index.js`. Birini değiştirirsen diğerini de değiştir. Slayt sayısı `callback_data`'ya gömülü (`slayt_menu:10`) — Worker'ın turda kaç slayt olduğunu bilmesinin başka yolu yok. |
 | Secrets | `.env` (yerel) + GitHub Actions Secrets (uzak). Koda gömülmez. |
 
 ---
@@ -141,13 +156,85 @@ Yapıldı ve doğrulandı:
 - Tanınmayan kişilerde (ör. sıradan bir milletvekili) fotoğraf bulunmuyor →
   gradyana düşmek DOĞRU davranış, zorlama.
 
-**KALAN İŞ:**
-1. `generate_text.py` prompt'una `gorsel_konu` alanı ekle (haberdeki ana kişi/kurum,
-   yoksa null). Commons araması bununla beslenecek. Birkaç token, maliyeti yok.
-2. `make_image.py`'ye kapak slaytı üretimi (`kapak_uret`) ekle.
-3. Bir turda 9 slayt üreten üst seviye fonksiyon + test scripti.
-4. Atıf metni (`fetch_photo.atif_metni`) caption'ın sonuna eklenmeli — CC BY için
-   hukuken şart.
+### 15 Ağustos 2026 — macOS'a taşındı, görsel katmanı genişletildi
+
+**Ortam:** Proje Windows'tan MacBook'a taşındı (`/Users/macbook/Dogukan/instabot`).
+Zip iç içe açıldığı için klasör `instabot/haber-bot/haber-bot/` olmuştu, kök dizine
+düzleştirildi. Windows'ta üretilmiş `.venv` (içinde `Scripts\`) macOS'ta çalışmıyordu,
+silinip yeniden kuruldu. Python 3.14.7, 12 paketin hepsi hazır tekerlekle geldi.
+
+Taşıma sonrası doğrulandı: RSS 8/8, makale gövdesi 16/16, Gemini iki anahtar da
+geçerli, Instagram jetonu sağlam (@dailybrief.co, kota 0/100), font Türkçe render.
+
+**YENİ: Pexels katmanı** (`src/fetch_stock.py`)
+
+Commons sadece kişi/kurum aramalarında iyi; "Ankara'da zam" gibi haberlerde
+gradyandan başka seçenek yoktu. Pexels temsili fotoğraf sağlıyor: ticari kullanıma
+açık, atıf zorunlu değil, anahtar bedava, kota 25.000 istek/saat (bize günde ~9).
+
+**PEXELS ARAMA KURALI — ölçüldü, prompt'a yazıldı:**
+Geniş mekân fotoğrafları hep bir ülkeye ait ve tabelaları yabancı dilde çıkıyor.
+Türkiye haberinde İspanyolca hastane tabelası özensiz görünüyor.
+```
+KÖTÜ "hospital corridor" -> İspanyolca tabelalar (Camas, SALIDA)
+KÖTÜ "city bus stop"     -> Kiril alfabeli tabelalar
+KÖTÜ "courthouse"        -> Latince kitabe (DOMVS IVSTITIAE)
+İYİ  "stethoscope close up", "turkish lira coins close up", "judge gavel close up"
+İYİ  doğa/doku sahneleri ("dry cracked earth") — coğrafi olarak nötr
+```
+Kural: **yakın plan nesne iste, geniş mekân isteme.** İnsan yüzü de isteme.
+
+**Görsel tasarımında düzeltilenler:**
+- **Perde artık arka plana göre ayarlanıyor** (`_perde_taban_alfa`). Eskiden sabit
+  bir orandan (%30) başlayıp karesel artıyordu; başlığın üst satırları perdenin
+  şeffaf bölgesine denk geldiği için açık bir fotoğrafta yazı eriyordu. Artık önce
+  yazının yeri ölçülüyor, perde ona göre çiziliyor. Ölçüm: gradyanın yazı bölgesi
+  parlaklığı ~43 (perde çizilmiyor, bant bırakıyordu), açık portre ~123.
+- **Türkçe büyük harf** (`_buyuk_harf`). Python'un `.upper()` metodu "Türkiye"yi
+  "TÜRKIYE" yapıyordu. Bir haber hesabında bu hata kötü görünür.
+- Geçiş payı sabit değil: perde koyulaştıkça uzuyor (`190 + taban`), yoksa açık
+  zeminde düz siyah blok gibi başlıyordu.
+
+### Adım 3 — BİTTİ ✅ (15 Ağu 2026)
+
+Klasör düzleştirildi: proje artık `/Users/macbook/Dogukan/instabot` **kökünde**
+(zip iç içe açıldığı için `instabot/haber-bot/haber-bot/` olmuştu; CLAUDE.md
+otomatik yüklenmiyordu). Windows'ta üretilmiş `.venv` silinip yeniden kuruldu.
+
+Uçtan uca doğrulandı: 10 haber → metin → 10 slayt → caption. Görsel maliyeti $0.
+
+**Yazılan/tamamlanan modüller:**
+- `src/slaytlar.py` — katman seçici + tur üretici (`tur_uret`, `arkaplan_sec`)
+- `src/caption.py` — carousel'in tek açıklaması (2200 karakter / 30 hashtag yönetimi)
+- `src/secim.py` — iki aşamalı haber seçimi
+- `src/filtre.py` — Instagram shadowban kelime/etiket filtresi
+- `src/fetch_stock.py` — Pexels katmanı
+- `src/fetch_flag.py` — ülke + kuruluş bayrakları
+- `scripts/test_6_tur_gorsel.py` — bir turun tamamını üretir, maliyeti sıfır
+- `scripts/anahtar_ekle.py` — `.env`'e anahtar ekler (getpass; terminal
+  geçmişine sızmaz). `.env` gizli dosya olduğu için kullanıcı Finder'da bulamıyordu.
+
+**COMMONS'IN YANLIŞ FOTOĞRAF SORUNU — dört katmanlı çözüm, hiçbirini kaldırma:**
+
+İlk turda 6 Commons görselinin en az 3'ü yayınlanamazdı (Macar sanatçı portresi,
+askeri harita, kale manzarası). Kök sebep: `gorsel_konu`ya kurum adı yazılması.
+
+1. **Prompt:** `gorsel_konu` yalnızca kişi adı-soyadı. En etkili katman bu.
+2. **Kısaltma engeli** (`fetch_photo.fotograf_ara`): tek kelimelik ve tamamı
+   büyük harf olan konu Commons'a hiç sorulmuyor (İSKİ, TRT, ECOWAS).
+3. **Soyadı doğrulaması** (`_isim_tutuyor_mu`): iki+ kelimelik aramada soyadı
+   dosya adında geçmeli.
+4. **Şema/harita elemesi** (`ISTENMEYEN`): "situation on", "government of",
+   "org chart" vb. `map` kelimesi geçmeyen harita/şemaları da yakalar.
+
+⚠️ **TÜRKÇE KARAKTER TUZAĞI:** Soyadı doğrulaması ilk hâlinde DOĞRU portreleri
+eliyordu — Commons dosya adları Latin harfle yazılıyor ("Erdoğan" dosyada
+"Erdogan", "Gürlek" → "Gurlek"). `_sadelestir()` bunu çözüyor. Bu fonksiyona
+dokunursan Commons katmanı sessizce hiç çalışmaz hâle gelir.
+
+**Katman dağılımı (10 haberlik gerçek tur):** 1 Commons, 9 Pexels, 0 gradyan.
+Pexels'in baskın olması beklenen — günlük haberlerin çoğunda merkezde
+tanınmış bir isim yok.
 
 ### SONRAKİ: Adım 4 — imgbb + Instagram CAROUSEL yayınlama
 
@@ -169,18 +256,34 @@ haber-bot/
 ├── .github/workflows/
 │   └── test-kaynak-erisim.yml     # ✅ elle tetiklenir (workflow_dispatch)
 ├── src/
-│   ├── db.py                      # ✅ + metin_kaydet(), makale_metni kolonu
-│   ├── fetch_news.py              # ✅ YAZILDI + TEST EDİLDİ
+│   ├── db.py                      # ✅ 30 kolon, otomatik migration
+│   ├── fetch_news.py              # ✅ RSS/Atom
 │   ├── fetch_article.py           # ✅ makale gövdesi çekici (Adım 2'nin kalbi)
-│   └── generate_text.py           # ✅ Gemini ile IG metni
+│   ├── generate_text.py           # ✅ Gemini ile IG metni + görsel alanları
+│   ├── secim.py                   # ✅ iki aşamalı haber seçimi
+│   ├── make_image.py              # ✅ slayt çizimi (+ kullanılmayan kapak kodu)
+│   ├── fetch_photo.py             # ✅ Commons katmanı (4 kat filtreli)
+│   ├── fetch_stock.py             # ✅ Pexels katmanı
+│   ├── fetch_flag.py              # ✅ ülke + kuruluş bayrağı, önbellekli
+│   ├── slaytlar.py                # ✅ katman seçici + tur üretici
+│   ├── caption.py                 # ✅ carousel'in tek açıklaması
+│   ├── filtre.py                  # ✅ shadowban kelime/etiket filtresi
+│   └── upload_image.py            # ✅ imgbb (Adım 4a)
 ├── scripts/
-│   ├── test_1_rss.py              # ✅ Adım 1 test scripti
+│   ├── test_1_rss.py              # ✅ RSS + veritabanı
 │   ├── test_2_makale_metni.py     # ✅ gövde çekme ölçümü (DB'ye dokunmaz)
-│   ├── test_3_metin_uret.py       # ✅ Adım 2 testi (DB'yi DEĞİŞTİRİR)
-│   └── test_kaynak_erisim.py      # ✅ IP engeli teşhisi (DB'ye dokunmaz)
-├── assets/fonts/                  # boş — Adım 3'te font ve şablon gelecek
-├── data/output/                   # boş
-└── logs/                          # boş
+│   ├── test_3_metin_uret.py       # ✅ Gemini metin (DB'yi DEĞİŞTİRİR, kota yer)
+│   ├── test_4_gorsel.py           # ✅ tek slayt
+│   ├── test_5_instagram_baglanti.py # ✅ jeton + hesap doğrulama
+│   ├── test_6_tur_gorsel.py       # ✅ BİR TURUN TAMAMI — maliyeti sıfır
+│   ├── test_kaynak_erisim.py      # ✅ IP engeli teşhisi (DB'ye dokunmaz)
+│   ├── anahtar_ekle.py            # ✅ .env'e anahtar ekler (gizli giriş)
+│   ├── jeton_uzat.py              # ✅ IG jetonunu 60 güne çevirir
+│   └── telegram_chat_id_bul.py    # ✅ (webhook kurulunca ÇALIŞMAZ)
+├── assets/fonts/Inter-Variable.ttf  # ✅ Türkçe karakterler test edildi
+├── assets/flags/                  # ✅ indirilen bayrak önbelleği (repoya girer)
+├── data/output/                   # üretilen slaytlar (.gitignore'da)
+└── logs/
 ```
 
 Dokümanlar (kullanıcıya gönderildi, referans): `00-YOL-HARITASI.md`,
@@ -211,6 +314,26 @@ herhangi bir yerde → hata
 ozet_orj, yayin_tarihi, cekilme_zamani, ig_baslik, ig_caption, ig_hashtag,
 onem_puani, gorsel_yolu, gorsel_url, tur, telegram_message_id, gonderim_zamani,
 hatirlatma_sayisi, ertelenme_sayisi, durum, ig_post_id, hata_mesaji`
+
+### `secim.py` — tavuk-yumurta sorunu
+Seçim skoru `onem_puani`ye dayanıyor ama o puanı Gemini üretiyor. Havuzdaki
+234 haberin hepsine metin ürettirmek kotayı ve turu (234 makale indirmek)
+katlıyor. İki aşama:
+1. `on_eleme()` — **LLM yok, bedava.** Yaş + kaynak ağırlığı + kategori ile
+   havuzu slayt sayısının 2.5 katına indirir (10 slayt → 25 aday).
+2. `tur_icin_sec()` — yalnızca adaylara metin üretildikten sonra gerçek skorla
+   en iyi 10'u alır.
+
+Elenen haberler ya bayat ya düşük ağırlıklı kaynaktan; ikisi de asıl skorda
+zaten dibe düşecekti.
+
+### `caption.py`
+Instagram sınırları **ölçüldü ve uyulması zorunlu**: 2200 karakter, 30 hashtag,
+ilk ~125 karakter sonrası "daha fazla" arkasına gizleniyor (o yüzden tarih ve
+ilk manşet en başta). Sınır aşılırsa kesme sırası: hashtag → atıf → son
+maddeler. Manşetler en değerli kısım, en son onlara dokunuluyor.
+
+Gerçek turda ölçülen: **1086/2200 karakter, 30/30 hashtag.** Rahat sığıyor.
 
 ### `fetch_news.py`
 - `feedparser` **kullanılmıyor** — `requests` + `xml.etree.ElementTree` +
