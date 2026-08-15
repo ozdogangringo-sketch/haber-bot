@@ -113,9 +113,24 @@ ISTENMEYEN = (
     "flowchart", "schematic", "family tree", "list of", "coat of",
 )
 
-# Dosya adında bunlar geçiyorsa büyük ihtimalle iyi bir portre.
-TERCIH_EDILEN = ("official portrait", "portrait", "resmi", "press", "summit",
-                 "meeting", "speech", "conference", "visit")
+# TEK KİŞİLİK kare işaretleri — bunlar aranan kişiyi yalnız gösteriyor.
+TEK_KISI = ("official portrait", "portrait", "resmi portre", "headshot",
+            "speech", "press conference", "interview")
+
+# ÇOK KİŞİLİK kare işaretleri — ELEME DEĞİL, puan düşürme.
+#
+# Neden gerekli: eski listede "meeting", "summit", "conference", "visit"
+# ÖDÜLLENDİRİLİYORDU. Sonuç: Bakan Göktaş haberine, kendisinin Bangladeşli
+# bir yetkiliyle OIC konferansındaki fotoğrafı geldi — haber taciz
+# iddiasıyla ilgiliydi, karede ise tanımadığımız ikinci bir kişi ve
+# tamamen başka bir olay vardı. Bir haber görselinde bu yanıltıcı.
+#
+# Eleme değil düşürme, çünkü kişinin arşivde yalnızca grup fotoğrafı
+# olabiliyor; hiç fotoğraf olmamasındansa düşük puanla o kalsın, ama
+# tek kişilik bir kare varsa hep o kazansın.
+COK_KISI = (" and ", " with ", " meets", "meeting", "summit", "delegation",
+            "ceremony", "signing", "group photo", "handshake", "visit to",
+            "receives", "welcomes", "bilateral")
 
 
 def _metni_temizle(ham: str) -> str:
@@ -184,8 +199,25 @@ def _aday_puani(baslik: str, genislik: int, yukseklik: int,
 
     puan = 0
 
-    # Tercih edilen türler
-    puan += sum(20 for iyi in TERCIH_EDILEN if iyi in b)
+    # Tek kişilik kare tercih ediliyor
+    puan += sum(35 for iyi in TEK_KISI if iyi in b)
+
+    # Çok kişilik kare cezalandırılıyor ama elenmiyor: kişinin arşivde
+    # başka fotoğrafı olmayabilir, gradyana düşmektense bu iyidir.
+    puan -= sum(30 for kotu in COK_KISI if kotu in b)
+
+    # Aranan kişiden BAŞKA bir tam isim daha geçiyorsa karede muhtemelen
+    # iki kişi var. Dosya adındaki büyük harfle başlayan ardışık kelime
+    # çiftlerini sayıyoruz ("Zahid Hossain and Mahinur Ozdemir Goktas").
+    if konu:
+        kelimeler = baslik.replace("_", " ").split()
+        isim_ciftleri = sum(
+            1 for i in range(len(kelimeler) - 1)
+            if kelimeler[i][:1].isupper() and kelimeler[i + 1][:1].isupper()
+            and len(kelimeler[i]) > 2 and len(kelimeler[i + 1]) > 2
+        )
+        if isim_ciftleri >= 3:
+            puan -= 25
 
     # Yeni tarihli olsun: dosya adındaki yılı yakala
     yillar = [int(y) for y in re.findall(r"(19\d{2}|20\d{2})", baslik)]

@@ -85,6 +85,13 @@ Sadece aşağıdaki HABER METNİNDE yazan bilgileri kullan. Metinde geçmeyen
 hiçbir iddiayı, sayıyı, ismi, tepkiyi veya sonucu yazma. Emin değilsen o
 cümleyi hiç kurma. Eksik yazmak, uydurmaktan iyidir.
 
+SAYILAR — KAYNAKTAKİ GİBİ YAZ, YUVARLAMA:
+Kaynakta "2 milyar 841 milyon lira" yazıyorsa aynen öyle yaz.
+"2,8 milyar" diye yuvarlama — matematiksel olarak doğru olsa bile
+okuyucu rakamı senin verdiğin haliyle alıntılıyor ve kaynakla
+karşılaştırıldığında tutmuyor. Otomatik doğrulama da bunu uydurma
+sanıp uyarı üretiyor. Tarih, oran, kişi sayısı için de aynı kural.
+
 HUKUKİ DİKKAT:
 Suçlama, soruşturma veya dava içeren haberlerde "iddia edildi",
 "öne sürüldü", "hakkında soruşturma başlatıldı" gibi ifadeler kullan.

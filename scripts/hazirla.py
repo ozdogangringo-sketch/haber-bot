@@ -32,7 +32,7 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, fetch_news, secim, slaytlar,
+    caption, db, dogrula, fetch_news, secim, slaytlar,
     telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -116,10 +116,18 @@ def main() -> int:
                 print(f"  [{s['katman']:<8}] {s['yol']}")
             return 0
 
-        # --- 7) Onaya sun ---
+        # --- 7) Doğruluk denetimi + onaya sun ---
+        # Uydurma metin akıcı ve inandırıcı göründüğü için insan onayı tek
+        # başına yetmiyor. Bu süzgeç "kaynakta karşılığı olmayan sayı/isim"
+        # arayıp onay mesajının başına uyarı koyuyor — kullanıcı neye
+        # bakacağını onaylamadan ÖNCE görsün.
+        uyari, isaretli = dogrula.turu_dogrula(secilen)
+        if isaretli:
+            log.warning("%s slayt doğrulama uyarısı aldı", isaretli)
+
         urller = [y["url"] for y in yuklemeler]
         telegram_bot.slaytlari_gonder(urller)
-        mesaj_id = telegram_bot.onay_iste(metin, len(urller))
+        mesaj_id = telegram_bot.onay_iste(metin, len(urller), uyari=uyari)
 
         for haber in secilen:
             con.execute(
