@@ -236,7 +236,46 @@ dokunursan Commons katmanı sessizce hiç çalışmaz hâle gelir.
 Pexels'in baskın olması beklenen — günlük haberlerin çoğunda merkezde
 tanınmış bir isim yok.
 
-### SONRAKİ: Adım 4 — imgbb + Instagram CAROUSEL yayınlama
+### Adım 4, 5, 6, 7 — BİTTİ ✅ (15 Ağu 2026)
+
+**Adım 4a (imgbb):** 10 görsel 10.8 saniyede yükleniyor, hepsi public
+`image/jpeg`. `hepsini_yukle()` biri patlarsa tamamını iptal ediyor —
+eksik slaytla post atmak hiç atmamaktan kötü.
+
+**Adım 4b (Instagram):** `src/instagram.py`. Hesap doğrulaması ve kota
+okuması gerçek API'yle test edildi (@dailybrief.co, 0/100). Yanlış hesap
+koruması da test edildi: `edmyapi` yazılınca yayını reddediyor.
+⚠️ **GET'te parametreler query string'e gider.** Gövdede gönderilince
+Graph API onları hiç okumuyor ve `(#200) Provide valid app ID` gibi
+tamamen alakasız bir hata veriyor — bu hatayı bir kez ayıkladık.
+
+**Adım 5 (Telegram + Worker):**
+- Worker canlı: `https://haber-bot-onay.ezanplus.workers.dev`
+- Webhook kurulu, yalnızca `callback_query` iletiliyor
+- Güvenlik test edildi: parolasız/yanlış parolalı istek 401, geçersiz
+  komut GitHub'a geçmiyor (`slayt_ai:99`, `../../etc` reddedildi)
+- Cloudflare hesabı: ozdogandogukan@gmail.com
+
+**Adım 6 (Actions):** 5 workflow aktif — `hazirla.yml` (TR 20:07),
+`hatirlat.yml` (TR 21:07/22:07/23:07), `yayinla.yml` (repository_dispatch),
+`jeton-yenile.yml` (pazartesi TR 12:07), `test-kaynak-erisim.yml`.
+10 secret eklendi.
+
+**Adım 7 (jeton):** `src/refresh_token.py` + `scripts/jeton_yenile.py`.
+Jeton 13 Eki 2026'da doluyor; 10 gün kala otomatik yenileniyor.
+⚠️ **Jeton ÖLDÜKTEN sonra `fb_exchange_token` çalışmıyor** — Graph API
+Explorer'dan elle almak gerekir. Erken davranma sebebi bu.
+
+⚠️ **AÇIK EKSİK:** PAT'in `Secrets: write` izni YOK (403 ölçüldü).
+Yenilenen jeton GitHub Secrets'a yazılamıyor. Sessiz kalmıyor —
+Telegram'a uyarı gidiyor — ama tam otomatiklik için
+github.com/settings/personal-access-tokens → `haber-bot-worker` →
+Secrets: Read and write verilmeli.
+
+⚠️ Secret adı `REPO_PAT`, `GITHUB_PAT` DEĞİL: GitHub `GITHUB_` ile
+başlayan secret adlarını rezerve tutuyor ve 422 ile reddediyor.
+
+### Referans: Adım 4 — imgbb + Instagram CAROUSEL akışı
 
 Carousel akışı tekli posttan farklı: her görsel için `is_carousel_item=true`
 container → sonra `media_type=CAROUSEL` + `children=[id1,id2,...]` → publish.
