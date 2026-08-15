@@ -99,7 +99,40 @@ Hiç kimseyi suçlu ilan etme. Mahkeme kararı olmadan kesin dille yazma.
 
 DİĞER KURALLAR:
 - Çıktının tamamı Türkçe olacak. Haber İngilizceyse Türkçeye çevir.
-- ig_baslik: en fazla 12 kelime. Çarpıcı ama ABARTISIZ, clickbait yok.
+- ig_baslik: en fazla 12 kelime.
+
+  ★ EN ÖNEMLİ KURAL — BAŞLIK HABERİN SONUCUNU SÖYLEMELİ ★
+  Bu bir haber hesabı, tıklama tuzağı değil. Takipçiye link vermiyoruz,
+  okuyacağı başka bir yer yok. Slaytı kaydırıp geçen kişi haberi
+  ÖĞRENMİŞ olmalı. Konuyu duyurup sonucu saklamak, tam da clickbait
+  sayfalarının yaptığı şey — bizim yapmadığımız şey.
+
+  Kendine şunu sor: "Bu başlığı okuyan biri NE OLDUĞUNU biliyor mu?"
+  Cevap hayırsa başlık yanlıştır.
+
+  ŞU KALIPLARI KULLANMA — hepsi konuyu söyleyip sonucu saklıyor:
+      "...'a ilişkin açıklama"      "...'a dair açıklama"
+      "...hakkında konuştu"          "...değerlendirdi"
+      "...anlattı"                   "...ele aldı"
+      "...mesaj verdi"               "...görüş bildirdi"
+      "...gündeme getirdi"           "...dikkat çekti"
+
+  KÖTÜ  → "Bakan Göktaş'tan taciz iddialarına ilişkin açıklama"
+  İYİ   → "Bakan Göktaş: Taciz iddiaları vahim, süreci takip edeceğiz"
+
+  KÖTÜ  → "Afgan kadınlar Taliban yönetimindeki yılları anlattı"
+  İYİ   → "Afgan kadınlar 6. sınıftan sonra okula gidemiyor"
+
+  KÖTÜ  → "Bakan Fidan Mısır ziyaretini değerlendirdi"
+  İYİ   → "Türkiye ve Mısır ticareti artıracak anlaşmalara imza attı"
+
+  Biri konuşuyorsa NE DEDİĞİNİ yaz. Bir karar alındıysa KARARIN NE
+  OLDUĞUNU yaz. Bir sayı varsa SAYIYI yaz.
+
+  ABARTMA DA YOK: "şok", "bomba", "herkesi şaşırttı", "işte o an" gibi
+  ifadeler kullanma. Sonucu düz ve net söylemek zaten yeterince ilgi
+  çekici — abartı güveni düşürür.
+
   BÜYÜK HARF KURALI: normal cümle yazımı kullan — yalnızca ilk kelime ve
   özel adlar büyük harfle başlasın ("Ankara'da toplu ulaşım ücretlerine
   zam yapıldı"). Her Kelimeyi Büyük Harfle Başlatma. Bu bir tutarlılık
@@ -114,6 +147,10 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
 - slayt_ozet: TEK cümle, en fazla 18 kelime. Başlıkta OLMAYAN somut bir
   bilgi ver (sayı, oran, sonuç, kim söyledi). Başlığı farklı kelimelerle
   tekrar etme — slaytta ikisi alt alta görünüyor.
+
+  Başlık + özet birlikte okunduğunda takipçi o haberi ÖĞRENMİŞ olmalı.
+  Başka kaynağa gitmesine gerek kalmamalı; zaten link vermiyoruz.
+  Özet, başlıkta yer kalmayan ikinci en önemli bilgiyi taşısın.
 
 - gorsel_konu: SADECE GERÇEK BİR İNSANIN ADI VE SOYADI. Başka hiçbir şey.
   (örn: "Hakan Fidan", "Ekrem İmamoğlu")
@@ -318,9 +355,19 @@ def tek_haber_uret(haber, ayarlar: dict) -> tuple[dict, str | None]:
     return gemini_cagir(prompt, ayarlar), govde
 
 
-def metinleri_uret(limit: int = 10, ayarlar: dict | None = None) -> dict:
+def metinleri_uret(limit: int = 10, ayarlar: dict | None = None,
+                   haberler: list | None = None) -> dict:
     """
-    durum='yeni' haberleri sırayla işler.
+    Haberlere Instagram metni ürettirir.
+
+    `haberler` verilirse YALNIZCA onlar işlenir. Verilmezse durum='yeni'
+    havuzundan `limit` kadarı alınır.
+
+    Liste parametresi şart: `secim.on_eleme()` havuzu tazelik ve kaynak
+    ağırlığına göre süzüp aday listesi çıkarıyor. Liste geçirilemezse
+    havuzdan rastgele haberler işlenir ve ön elemenin anlamı kalmaz —
+    hem kota boşa gider hem seçim bozulur.
+
     Bir haber patlarsa diğerleri etkilenmez — o haber 'hata' durumuna geçer.
 
     Döner: {'basarili': int, 'hatali': int, 'haberler': [...]}
@@ -332,7 +379,10 @@ def metinleri_uret(limit: int = 10, ayarlar: dict | None = None) -> dict:
              "haberler": []}
 
     with db.baglan() as con:
-        bekleyen = db.bekleyenler(con, durum="yeni", limit=limit)
+        bekleyen = (
+            list(haberler) if haberler is not None
+            else db.bekleyenler(con, durum="yeni", limit=limit)
+        )
 
         for haber in bekleyen:
             satir = {"id": haber["id"], "kaynak": haber["kaynak"],

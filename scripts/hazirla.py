@@ -68,7 +68,7 @@ def main() -> int:
         # önce ucuz sinyallerle aday sayısını indiriyoruz.
         adaylar = secim.on_eleme(con, ayarlar)
         if adaylar:
-            metinleri_uret(con, adaylar, ayarlar)
+            metinleri_uret(ayarlar=ayarlar, haberler=adaylar)
 
         # --- 3) Gerçek skorla seçim ---
         secilen = secim.tur_icin_sec(con, ayarlar)

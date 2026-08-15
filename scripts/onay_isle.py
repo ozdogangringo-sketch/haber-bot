@@ -123,7 +123,7 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id) -> int:
         (mesaj_id,),
     )
     con.commit()
-    metinleri_uret(con, haberler, ayarlar)
+    metinleri_uret(ayarlar=ayarlar, haberler=haberler)
 
     taze = turu_getir(con, mesaj_id)
     sonuclar = slaytlar.tur_uret(taze, ayarlar, con)
@@ -181,7 +181,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     if komut == "slayt_metin":
         con.execute("UPDATE haberler SET durum = 'yeni' WHERE id = ?", (haber["id"],))
         con.commit()
-        metinleri_uret(con, [haber], ayarlar)
+        metinleri_uret(ayarlar=ayarlar, haberler=[haber])
         con.execute("UPDATE haberler SET durum = 'onay_bekliyor' WHERE id = ?",
                     (haber["id"],))
         con.commit()

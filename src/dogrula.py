@@ -85,6 +85,53 @@ def _ozel_isimler(metin: str) -> list[str]:
     return bulunan
 
 
+# Konuyu duyurup SONUCU saklayan kalıplar.
+#
+# Neden denetliyoruz: takipçiye link vermiyoruz, okuyacağı başka yer yok.
+# "Bakan X'ten Y'ye ilişkin açıklama" diyen bir slayt kaydırılıp geçildiğinde
+# kişi hiçbir şey öğrenmemiş oluyor — tam da clickbait sayfalarının yaptığı
+# şey. Prompt bunu yasaklıyor ama model ara sıra yine düşüyor; bu süzgeç
+# yakalayıp onay mesajında uyarıyor.
+ICI_BOS_KALIPLAR = (
+    "ilişkin açıklama", "dair açıklama", "ilişkin konuştu", "hakkında konuştu",
+    "değerlendirdi", "anlattı", "ele aldı", "mesaj verdi", "görüş bildirdi",
+    "gündeme getirdi", "dikkat çekti", "açıklama yaptı", "açıklamalarda bulundu",
+    "değerlendirmede bulundu", "konuşma yaptı",
+)
+
+# Abartı/tıklama tuzağı işaretleri.
+ABARTI_KALIPLAR = (
+    "şok", "bomba", "herkesi şaşırttı", "işte o an", "olay oldu",
+    "gündemi salladı", "inanılmaz", "şaşkına çevirdi", "ağzı açık kaldı",
+)
+
+
+def basligi_denetle(baslik: str) -> list[str]:
+    """
+    Başlık haberin sonucunu söylüyor mu diye bakar.
+
+    Türkçe `İ` tuzağı: "İlişkin".lower() Python'da "i̇lişkin" üretiyor
+    (noktalı i) ve düz karşılaştırma tutmuyor. _sadelestir() bunu
+    çözdüğü için karşılaştırmayı onun üzerinden yapıyoruz.
+    """
+    if not baslik:
+        return []
+    sade = _sadelestir(baslik)
+    sorunlar = []
+
+    for kalip in ICI_BOS_KALIPLAR:
+        if _sadelestir(kalip).strip() in sade:
+            sorunlar.append(f"içi boş kalıp: '{kalip}'")
+            break
+
+    for kalip in ABARTI_KALIPLAR:
+        if _sadelestir(kalip).strip() in sade:
+            sorunlar.append(f"abartı: '{kalip}'")
+            break
+
+    return sorunlar
+
+
 def haberi_dogrula(haber) -> dict:
     """
     Tek bir haberin üretilen metnini kaynağıyla karşılaştırır.
@@ -113,11 +160,15 @@ def haberi_dogrula(haber) -> dict:
         if _kok(isim) and _kok(isim) not in kaynak_sade
     })
 
+    baslik_sorunlari = basligi_denetle(haber["ig_baslik"] or "")
+
     return {
-        "temiz": not (eksik_sayilar or eksik_isimler) and bool(kaynak),
+        "temiz": not (eksik_sayilar or eksik_isimler or baslik_sorunlari)
+                 and bool(kaynak),
         "kaynak_var": bool(kaynak),
         "eksik_sayilar": eksik_sayilar,
         "eksik_isimler": eksik_isimler,
+        "baslik_sorunlari": baslik_sorunlari,
     }
 
 
@@ -142,13 +193,15 @@ def turu_dogrula(haberler: list) -> tuple[str, int]:
             ayrinti.append("sayı: " + ", ".join(sonuc["eksik_sayilar"][:4]))
         if sonuc["eksik_isimler"]:
             ayrinti.append("isim: " + ", ".join(sonuc["eksik_isimler"][:3]))
+        ayrinti.extend(sonuc["baslik_sorunlari"])
         satirlar.append(f"  {sira}. slayt — {'; '.join(ayrinti)}")
 
     if not satirlar:
         return "", 0
 
     return (
-        "⚠️ KAYNAKTA DOĞRULANAMAYAN AYRINTILAR\n"
+        "⚠️ DENETİM UYARISI\n"
         + "\n".join(satirlar)
-        + "\n(Yuvarlama da olabilir — ilgili slaytın kaynak metnine bak.)"
+        + "\n(Sayı uyarısı yuvarlama olabilir; içi boş kalıp uyarısında "
+          "başlık haberin sonucunu söylemiyor demektir.)"
     ), len(satirlar)
