@@ -72,6 +72,19 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
     baglanti = instagram.post_baglantisi(post_id, ayarlar)
 
+    # Story postla birlikte gidiyor. Ayrı bir onay istemiyoruz: içeriği
+    # zaten onayladığın haberlerin listesi, yeni bir karar noktası değil.
+    # Story patlarsa post yine yayında kalmalı — o yüzden hata yutuluyor.
+    story_notu = ""
+    story_url = next((h["story_url"] for h in haberler if h["story_url"]), None)
+    if story_url:
+        try:
+            instagram.story_yayinla(story_url, ayarlar)
+            story_notu = "\n📱 Story de paylaşıldı"
+        except Exception as e:
+            log.warning("story yayınlanamadı: %s", e)
+            story_notu = f"\n⚠️ Story paylaşılamadı: {type(e).__name__}"
+
     con.execute(
         "UPDATE haberler SET durum = 'yayinlandi', ig_post_id = ? "
         "WHERE telegram_message_id = ?",
@@ -81,7 +94,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
 
     telegram_bot.sonucu_yaz(
         mesaj_id,
-        f"✅ YAYINLANDI — {len(urller)} slayt\n"
+        f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}\n"
         f"Onaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",
     )

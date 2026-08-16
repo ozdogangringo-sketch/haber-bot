@@ -212,6 +212,35 @@ def carousel_yayinla(
     return post_id
 
 
+def story_yayinla(gorsel_url: str, ayarlar: dict) -> str:
+    """
+    Story yayınlar, story id'sini döner.
+
+    KISITLAR (Instagram'ın, bizim değil):
+      * Sticker EKLENEMİYOR — link, mention, anket, "kaydır" oku hiçbiri
+        API'den konulamıyor. Story düz görsel olarak gidiyor, bu yüzden
+        tek başına anlamlı olmak zorunda (postu işaret edemiyoruz).
+      * 9:16 (1080x1920) bekleniyor. 4:5 gönderilirse Instagram kırpıyor
+        ya da bant ekliyor; ikisi de kötü duruyor.
+      * 24 saat sonra kendiliğinden kayboluyor.
+
+    Story yayını post kotasından SAYILIYOR (24 saatte 100), ama günde
+    3 post + 3 story bile sınırın çok altında.
+    """
+    hesap = hesabi_dogrula(ayarlar)
+
+    d = _istek("POST", f"/{_kullanici_id()}/media", ayarlar,
+               media_type="STORIES", image_url=gorsel_url)
+    container = d["id"]
+    _container_bekle(container, ayarlar)
+
+    d = _istek("POST", f"/{_kullanici_id()}/media_publish", ayarlar,
+               creation_id=container)
+    story_id = d["id"]
+    log.info("story yayınlandı (@%s): %s", hesap["username"], story_id)
+    return story_id
+
+
 def post_baglantisi(post_id: str, ayarlar: dict) -> str:
     """Yayınlanan postun permalink'i — Telegram'da göstermek için."""
     try:

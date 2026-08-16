@@ -563,6 +563,143 @@ def yaziyi_bas(
 
 
 # ----------------------------------------------------------------------
+# Story (9:16)
+# ----------------------------------------------------------------------
+
+# Story ölçüleri Instagram'ın standardı, config'den gelmiyor: post 4:5,
+# story 9:16 ve ikisi aynı anda üretiliyor.
+STORY_GENISLIK, STORY_YUKSEKLIK = 1080, 1920
+
+# Story'de üstte profil bilgisi, altta yanıt kutusu var; oralara denk
+# gelen içerik ya görünmüyor ya da parmakla kapanıyor.
+STORY_GUVENLI_PAY = 260
+
+
+def story_kapak(
+    basliklar: list[str], ayarlar: dict, gun: date | None = None
+) -> Image.Image:
+    """
+    Akşam turunun story'si: günün manşet listesi.
+
+    NEDEN LİSTE: Instagram Graph API story'ye link/sticker eklemeye izin
+    vermiyor — "postu gör" diyemiyoruz. O yüzden story tek başına anlamlı
+    olmalı: gören kişi postu açmasa bile gündemi öğrenmiş oluyor.
+
+    `kapak_ciz` yerine ayrı fonksiyon çünkü 9:16'nın ihtiyacı farklı:
+    dikey alan çok daha uzun (liste ortalanmalı, yoksa arada boşluk
+    kalıyor) ve "KAYDIR →" daveti story'de anlamsız.
+    """
+    genislik, yukseklik = STORY_GENISLIK, STORY_YUKSEKLIK
+    kenar = ayarlar["gorsel"]["kenar_bosluk"]
+
+    gorsel = arkaplan_uret_yedek("turkiye", genislik, yukseklik)
+    ciz = ImageDraw.Draw(gorsel)
+    alan_genislik = genislik - 2 * kenar
+
+    # --- Üst blok ---
+    y = STORY_GUVENLI_PAY
+    ciz.rectangle([kenar, y, kenar + 92, y + 7], fill=(226, 170, 88))
+    ciz.text((kenar, y + 30), tarih_metni(gun),
+             font=_font(30, EKSEN_KUCUK), fill=(226, 170, 88))
+
+    b_font = _font(76, EKSEN_BASLIK)
+    ciz.text((kenar + 2, y + 76 + 2), "GÜNÜN GÜNDEMİ", font=b_font,
+             fill=(0, 0, 0))
+    ciz.text((kenar, y + 76), "GÜNÜN GÜNDEMİ", font=b_font,
+             fill=(255, 255, 255))
+    ust_alt = y + 76 + 96
+
+    # --- Alt bilgi ---
+    alt_bilgi_y = yukseklik - STORY_GUVENLI_PAY
+    hesap = ayarlar.get("instagram", {}).get("hesap_kullanici_adi", "")
+
+    # --- Manşet listesi: kalan alanda dikeyde ortalı ---
+    madde_font = _font(34, EKSEN_OZET)
+    satir_y = int(34 * 1.34)
+    bloklar = [
+        _satirlara_bol(b, madde_font, alan_genislik - 36, ciz)[:2]
+        for b in basliklar
+    ]
+
+    kullanilabilir = alt_bilgi_y - 40 - ust_alt
+    while bloklar:
+        toplam = sum(len(x) * satir_y + 20 for x in bloklar)
+        if toplam <= kullanilabilir:
+            break
+        bloklar.pop()          # sığmayan en az önemli maddeden atıyoruz
+
+    toplam = sum(len(x) * satir_y + 20 for x in bloklar)
+    y = ust_alt + max(0, (kullanilabilir - toplam) // 2)
+
+    for satirlar in bloklar:
+        ciz.ellipse([kenar, y + 14, kenar + 10, y + 24], fill=(226, 170, 88))
+        for satir in satirlar:
+            ciz.text((kenar + 28, y), satir, font=madde_font,
+                     fill=(226, 231, 242))
+            y += satir_y
+        y += 20
+
+    if hesap:
+        ciz.text((kenar, alt_bilgi_y), f"@{hesap}",
+                 font=_font(28, EKSEN_KUCUK), fill=(198, 206, 222))
+
+    return gorsel
+
+
+def story_haber(
+    baslik: str, ozet: str, kaynak: str, ayarlar: dict,
+    arkaplan: Image.Image | None = None,
+    kategori: str = "turkiye",
+    son_dakika: bool = False,
+    ulke_kodu: str | None = None,
+    ulke_adi: str | None = None,
+) -> Image.Image:
+    """
+    Tek haberin story hâli — son dakika için.
+
+    Fotoğraf verilirse kullanılıyor (son dakika slaytının arka planı),
+    yoksa gradyan. Yerleşim `yaziyi_bas` ile aynı mantıkta ama story
+    ölçüsünde ve daha geniş güvenli payla.
+    """
+    story_ayarlar = {
+        **ayarlar,
+        "gorsel": {
+            **ayarlar["gorsel"],
+            "genislik": STORY_GENISLIK,
+            "yukseklik": STORY_YUKSEKLIK,
+            "dikey_guvenli_pay": STORY_GUVENLI_PAY,
+        },
+    }
+
+    if arkaplan is None:
+        arkaplan = arkaplan_uret_yedek(kategori, STORY_GENISLIK, STORY_YUKSEKLIK)
+    else:
+        arkaplan = fotograftan_arkaplan(
+            arkaplan, STORY_GENISLIK, STORY_YUKSEKLIK
+        )
+
+    gorsel = yaziyi_bas(
+        arkaplan, baslik, kaynak, story_ayarlar,
+        ozet=ozet or None,
+        arsiv_ibaresi=False,
+        ulke_kodu=ulke_kodu,
+        ulke_adi=ulke_adi,
+    )
+
+    if son_dakika:
+        ciz = ImageDraw.Draw(gorsel)
+        kenar = ayarlar["gorsel"]["kenar_bosluk"]
+        f = _font(26, EKSEN_KUCUK)
+        etiket = "SON DAKİKA"
+        g = ciz.textlength(etiket, font=f)
+        y = STORY_GUVENLI_PAY
+        ciz.rectangle([kenar, y, kenar + g + 30, y + 46], fill=(198, 60, 52))
+        ciz.text((kenar + 15, y + 10), etiket, font=f, fill=(255, 255, 255))
+
+    return gorsel
+
+
+# ----------------------------------------------------------------------
 # Son dakika: detay slaytı
 # ----------------------------------------------------------------------
 

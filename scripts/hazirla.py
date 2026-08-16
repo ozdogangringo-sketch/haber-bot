@@ -32,7 +32,7 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, dogrula, fetch_news, secim, slaytlar,
+    caption, db, dogrula, fetch_news, make_image, secim, slaytlar,
     telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -112,6 +112,23 @@ def main() -> int:
             )
         con.commit()
 
+        # --- 5b) Story görseli ---
+        # Şimdi üretiliyor ki yayın anında beklemeyelim; onay ile yayın
+        # arasında saatler geçebiliyor ve o an hız önemli.
+        story_url = None
+        try:
+            story_gorsel = make_image.story_kapak(
+                [h["ig_baslik"] or h["baslik_orj"] for h in secilen], ayarlar
+            )
+            story_yol = make_image.CIKTI_KLASORU / "story-kapak.jpg"
+            story_gorsel.save(story_yol, "JPEG",
+                              quality=ayarlar["gorsel"]["jpeg_kalite"])
+            story_url = upload_image.gorsel_yukle(story_yol, ayarlar)["url"]
+            log.info("story görseli hazır")
+        except Exception as e:
+            # Story ikincil; patlarsa post yine çıkmalı.
+            log.warning("story görseli üretilemedi: %s", e)
+
         # --- 6) Caption ---
         metin = caption.caption_kur(secilen, sonuclar, ayarlar=ayarlar)
         log.info("caption: %s karakter", len(metin))
@@ -156,9 +173,10 @@ def main() -> int:
         for haber in secilen:
             con.execute(
                 "UPDATE haberler SET durum = 'onay_bekliyor', "
-                "telegram_message_id = ?, gonderim_zamani = datetime('now') "
-                "WHERE id = ?",
-                (mesaj_id, haber["id"]),
+                "telegram_message_id = ?, gonderim_zamani = datetime('now'), "
+                "story_url = ? WHERE id = ?",
+                (mesaj_id, story_url if haber is secilen[0] else None,
+                 haber["id"]),
             )
         con.commit()
         log.info("onay bekleniyor (message_id=%s)", mesaj_id)

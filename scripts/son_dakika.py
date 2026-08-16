@@ -35,7 +35,7 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, dogrula, fetch_news, secim, slaytlar,
+    caption, db, dogrula, fetch_news, make_image, secim, slaytlar,
     telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -185,6 +185,27 @@ def main() -> int:
         )
         urller = [y["url"] for y in yuklemeler]
 
+        # Story: haberin 9:16 hâli. 1. slaytın fotoğrafını yeniden
+        # kullanıyoruz — aynı görsel iki orana ayrı ayrı kırpılıyor.
+        story_url = None
+        try:
+            from PIL import Image
+            foto = None
+            if taze["gorsel_kaynagi"] in ("commons", "pexels"):
+                foto = Image.open(sonuclar[0]["yol"]).convert("RGB")
+            sg = make_image.story_haber(
+                taze["ig_baslik"] or taze["baslik_orj"],
+                taze["slayt_ozet"] or "",
+                taze["kaynak"], ayarlar,
+                arkaplan=foto, kategori=taze["kategori"], son_dakika=True,
+                ulke_kodu=taze["ulke_kodu"], ulke_adi=taze["ulke_adi"],
+            )
+            sy = make_image.CIKTI_KLASORU / f"story-{taze['id']}.jpg"
+            sg.save(sy, "JPEG", quality=ayarlar["gorsel"]["jpeg_kalite"])
+            story_url = upload_image.gorsel_yukle(sy, ayarlar)["url"]
+        except Exception as e:
+            log.warning("story görseli üretilemedi: %s", e)
+
         metin = caption.son_dakika_caption(taze, sonuclar, ayarlar)
         uyari, isaretli = dogrula.turu_dogrula([taze])
 
@@ -209,9 +230,9 @@ def main() -> int:
 
         con.execute(
             "UPDATE haberler SET durum = 'onay_bekliyor', son_dakika = 1, "
-            "telegram_message_id = ?, gorsel_url = ?, "
+            "telegram_message_id = ?, gorsel_url = ?, story_url = ?, "
             "gonderim_zamani = datetime('now') WHERE id = ?",
-            (mesaj_id, urller[0], aday["id"]),
+            (mesaj_id, urller[0], story_url, aday["id"]),
         )
         con.commit()
         sayaci_artir(con)
