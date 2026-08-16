@@ -65,6 +65,10 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Haber sitesi fotoğrafı | **KULLANILMIYOR.** Kullanıcı istedi, telif riski anlatıldı, vazgeçildi. Ajans fotoğrafı (AA/Reuters/AFP) ticari lisanslı; "kaynak belirtmek" izin yerine geçmiyor, Instagram telif şikayeti hesabı kapattırabilir. |
 | Beğenilmeyen görsel | Telegram'a **`🎨 Görseli AI ile üret`** butonu eklenecek. Varsayılan bedava katman; AI maliyeti ancak kullanıcı basarsa oluşuyor. |
 | Slayt yazısı | Başlık + altında küçük puntoyla **tek cümlelik özet** (`slayt_ozet`). |
+| ★ Başlık kuralı | **Başlık haberin SONUCUNU söylemek zorunda.** Takipçiye link vermiyoruz, okuyacağı başka yer yok — slaytı kaydırıp geçen kişi haberi ÖĞRENMİŞ olmalı. "…ilişkin açıklama", "…değerlendirdi", "…anlattı" gibi 15 kalıp prompt'ta YASAK; `dogrula.basligi_denetle()` yakalayıp uyarıyor. Abartı ("şok", "bomba") da yasak — güveni düşürüyor. Ölçüldü: "Bakan Göktaş'tan taciz iddialarına ilişkin açıklama" → "…iddialarının vahim olduğunu belirtti". |
+| Telegram komutları | `/durum` (havuz + onay bekleyen + son yayın), `/tur` (elle tur kur), `/yardim`. Buton menüsü yalnızca açık onay mesajı varken işe yarıyordu; tur kapanınca elde tutamak kalmıyordu. `/yardim` Worker'da anında cevaplanıyor. |
+| İşlem geri bildirimi | Butona basıldığı an Worker butonları kaldırıp `⏳ Yayınlanıyor…` yazıyor. Actions 40-90 sn sürüyor; o sessizlikte insan ikinci kez basıyordu ve "yayınla"da bu **çift post** demekti. Menü iş bitince (ve hata durumunda) geri konuyor, yoksa tur kilitleniyor. |
+| Onay mesajı içeriği | Sıra: denetim uyarısı → özet tablo (sıra no + katman simgesi + başlık) → caption. Katman simgeleri: 📷 Commons (gerçek) · 🖼 Pexels (temsili) · ▪️ gradyan · 🎨 AI. Albümdeki her fotoğrafta da kendi numarası yazılı. |
 | Ülke flaması | Sağ üstte, sağ kenara yapışık **kırlangıç kuyruklu flama**: bayrak üstte (54px), ülke adı altında (19 punto). V çentiğinin kırılımı flamanın ortasında değil, **bayrak/yazı ayrımının hizasında**. |
 | Ülkesiz haber | **Flama basılmaz.** Bilim, teknoloji, uzay, borsa gibi coğrafyaya bağlı olmayan haberlerde `ulke_kodu` boş bırakılır — zorlama ülke atamak yanlış yer bilgisi vermek olur. |
 | Kuruluş bayrağı | `ulke_kodu` yerine kuruluş kodu yazılabilir: `nato, un, eu, who, unesco, unicef, opec, oic, africanunion, arableague, commonwealth, redcross`. Commons'tan çekilir. **Spor kulübü / şirket / parti logosu YOK** — tescilli marka, haber sitesi fotoğrafıyla aynı gerekçe. |
@@ -80,7 +84,53 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 
 ---
 
-## 4. ŞU ANKİ DURUM  (güncelleme: 14 Ağustos 2026)
+## 4. ŞU ANKİ DURUM
+
+### 🟢 BOT YAYINDA — 16 Ağustos 2026
+
+Tüm adımlar bitti. Sistem kendi başına çalışıyor ve **gerçek postlar
+yayınlandı**:
+
+| Tarih | Post |
+|---|---|
+| 15 Ağu 19:04 | instagram.com/p/DcEmOj8m2cG |
+| 16 Ağu 17:58 | instagram.com/p/DcHDZDbEhQF |
+
+16 Ağustos turu **tamamen otomatikti**: cron 17:31'de hazırladı (7 dk),
+Telegram'a düştü, onaylandı, 17:58'de yayınlandı.
+
+**Günlük maliyet: $0.** Normal turda AI hiç çağrılmıyor (Commons/Pexels/
+gradyan bedava), Gemini metin ücretsiz kotada, jeton süresiz.
+
+---
+
+### ⚠️ İKİ TUZAK — YENİ OTURUM BUNLARI BİLMELİ
+
+**1. Veritabanının sahibi GitHub, yerel değil.**
+
+Her job sonunda `data/haber.db` repoya commit ediliyor. Yerelde
+`hazirla.py` çalıştırırsan yerel DB ilerler, GitHub'daki geride kalır ve
+iki taraf ayrışır. Bu bir kez yaşandı: Telegram butonu GitHub'daki DB'ye
+baktığı için "bu onay mesajına bağlı haber bulunamadı" hatası verdi.
+Ayrıca hatırlatma job'ı artık var olmayan bir turu işaret etti.
+
+Kural: **yerelde denemek gerekiyorsa `--kuru` kullan** (üretir, Telegram'a
+göndermez, DB'ye durum yazmaz). Gerçek tur yerelde çalıştırıldıysa
+bitince DB hemen commit+push edilmeli. Push çakışırsa hangi tarafın
+güncel olduğuna BAK — yayın kaydı hangisindeyse o doğrudur.
+
+**2. Gemini ücretsiz kotası bitebiliyor (429).**
+
+Yoğun test edilen bir günde kota doldu ve tur yarıda kaldı. `hazirla.py
+--metinsiz` bunun için var: Gemini'ye hiç gitmeden, metni ZATEN hazır
+haberlerle tur kurar. Turu tamamen kaçırmaktansa elimizdekiyle devam.
+
+Kota hatası alan haberler `durum='hata'` oluyor; bu haberin kusuru değil,
+`durum='yeni'` yapılıp havuza döndürülmeli.
+
+---
+
+### Geçmiş notlar (güncelleme: 14 Ağustos 2026)
 
 **Adım 1 BİTTİ ve kullanıcının makinesinde doğrulandı.** 8/8 kaynak çalışıyor,
 tekrar engeli teyit edildi (2. çalıştırmada 0 yeni, 99 tekrar).
@@ -303,8 +353,16 @@ haber-bot/
 │                                  #   NOT: data/haber.db BİLEREK ignore edilmedi
 ├── .github/workflows/
 │   └── test-kaynak-erisim.yml     # ✅ elle tetiklenir (workflow_dispatch)
+├── worker/                        # ✅ Cloudflare Worker (Adım 5)
+│   ├── index.js                   #   buton + /komut → GitHub dispatch
+│   ├── wrangler.toml              #   secret YOK, git'e girer
+│   └── KURULUM.md                 #   sıfırdan kurulum adımları
 ├── src/
-│   ├── db.py                      # ✅ 30 kolon, otomatik migration
+│   ├── db.py                      # ✅ 31 kolon, otomatik migration
+│   ├── dogrula.py                 # ✅ DOĞRULUK DENETİMİ (aşağıda anlatıldı)
+│   ├── instagram.py               # ✅ carousel yayınlama + hesap koruması
+│   ├── telegram_bot.py            # ✅ onay mesajı, özet tablo, menüler
+│   ├── refresh_token.py           # ✅ jeton ömrü (artık süresiz sayfa jetonu)
 │   ├── fetch_news.py              # ✅ RSS/Atom
 │   ├── fetch_article.py           # ✅ makale gövdesi çekici (Adım 2'nin kalbi)
 │   ├── generate_text.py           # ✅ Gemini ile IG metni + görsel alanları
@@ -318,6 +376,14 @@ haber-bot/
 │   ├── filtre.py                  # ✅ shadowban kelime/etiket filtresi
 │   └── upload_image.py            # ✅ imgbb (Adım 4a)
 ├── scripts/
+│   ├── hazirla.py                 # ✅ TURUN TAMAMI (RSS→metin→slayt→Telegram)
+│   │                              #    --kuru: Telegram'a göndermez, DB'ye yazmaz
+│   │                              #    --metinsiz: Gemini'ye hiç gitmez
+│   ├── onay_isle.py               # ✅ Telegram buton/komut işleyici
+│   ├── hatirlat.py                # ✅ onaylanmayan turu hatırlat / havuza dön
+│   ├── jeton_yenile.py            # ✅ jeton ömrü kontrolü (--sadece-bak zararsız)
+│   ├── webhook_kur.py             # ✅ Telegram webhook kur/kaldır/durum
+│   ├── test_0_butunluk.py         # ✅ ÖNCE BUNU ÇALIŞTIR (aşağıda anlatıldı)
 │   ├── test_1_rss.py              # ✅ RSS + veritabanı
 │   ├── test_2_makale_metni.py     # ✅ gövde çekme ölçümü (DB'ye dokunmaz)
 │   ├── test_3_metin_uret.py       # ✅ Gemini metin (DB'yi DEĞİŞTİRİR, kota yer)
@@ -363,6 +429,38 @@ ozet_orj, yayin_tarihi, cekilme_zamani, ig_baslik, ig_caption, ig_hashtag,
 onem_puani, gorsel_yolu, gorsel_url, tur, telegram_message_id, gonderim_zamani,
 hatirlatma_sayisi, ertelenme_sayisi, durum, ig_post_id, hata_mesaji`
 
+### `test_0_butunluk.py` — ÖNCE BUNU ÇALIŞTIR
+
+Scriptleri **çalıştırmadan** ayrıştırıp her `modul.fonksiyon()` çağrısının
+gerçekten var olduğunu ve argümanların imzaya uyduğunu denetler. Ağa
+çıkmaz, DB'ye dokunmaz, para harcamaz.
+
+**Neden var:** üç kez aynı hataya düşüldü — `fetch_news.hepsini_cek`
+(yok), `metinleri_uret(con, ...)` (yanlış imza), `slayt_uret(..., con=con)`
+(öyle bir parametre yok). Üçü de sözdizimi açısından geçerliydi, diğer
+testler geçiyordu, ama ilk gerçek çalıştırmada patladılar. Python modül
+çağrısını ancak o satır çalışınca çözümlüyor; gözetimsiz bir botta bu
+"gece yarısı job patlar, sabah fark edilir" demek.
+
+Kod değiştirdikten sonra ilk çalıştırılacak şey budur.
+
+### `dogrula.py` — uydurma ve içi boş başlık denetimi
+
+Onay mesajı gönderilmeden ÖNCE çalışıp uyarıları mesajın başına koyuyor.
+İki ayrı şeye bakıyor:
+
+1. **Kaynakta doğrulanamayan sayı/isim.** Üretilen metindeki sayılar ve
+   özel adlar makale gövdesinde geçiyor mu? Geçmiyorsa işaretleniyor.
+   Yuvarlama olabilir, o yüzden uyarı — otomatik eleme değil.
+2. **İçi boş başlık kalıpları** (`basligi_denetle`). "…ilişkin açıklama",
+   "…değerlendirdi", "…anlattı" gibi konuyu duyurup sonucu saklayan 15
+   kalıp + abartı kalıpları.
+
+⚠️ **TÜRKÇE `İ` TUZAĞI:** `"İlişkin".lower()` Python'da `"i̇lişkin"`
+üretiyor (noktalı i) ve düz karşılaştırma TUTMUYOR. İlk yazımda tarama
+sessizce hiçbir şey yakalamıyor, her şey "temiz" görünüyordu.
+Karşılaştırma `_sadelestir()` üzerinden yapılmalı.
+
 ### `secim.py` — tavuk-yumurta sorunu
 Seçim skoru `onem_puani`ye dayanıyor ama o puanı Gemini üretiyor. Havuzdaki
 234 haberin hepsine metin ürettirmek kotayı ve turu (234 makale indirmek)
@@ -399,7 +497,15 @@ Türkçe karakterler, tarih normalizasyonu, yaş filtresi, tekrar engeli
 
 ---
 
-## 7. Kalan adımlar
+## 7. Adımların referansı
+
+> **Bütün adımlar BİTTİ (16 Ağu 2026).** Aşağısı artık "yapılacaklar"
+> değil, her adımın nasıl çalıştığının referansı. Bir şey bozulduğunda
+> ilgili bölüme bak.
+>
+> **Gerçekten kalan tek iş:** günlük işleyişi izlemek. Bot çalışıyor;
+> ara sıra `data/kaynak-erisim-raporu.txt`'ye ve Telegram'daki hata
+> bildirimlerine bakmak yeterli.
 
 ### ✅ Adım 2 — Gemini ile metin (`src/generate_text.py`) — BİTTİ
 
@@ -532,8 +638,9 @@ Güncelleme: 14 Ağustos 2026 — hepsi test edilerek doğrulandı.
 | D | imgbb API key | ✅ yükleme + genel erişim doğrulandı |
 | E | GitHub private repo | ✅ ozdogangringo-sketch/haber-bot |
 | F | Görsel şablon | ✅ gerek kalmadı — Commons fotoğrafı / gradyan / AI kapak |
-| G | Cloudflare hesabı | ⏳ Adım 5'te |
-| H | GitHub fine-grained PAT | ⏳ Adım 5'te |
+| G | Cloudflare hesabı | ✅ ozdogandogukan@gmail.com, Worker canlı |
+| H | GitHub fine-grained PAT | ✅ `Contents: write` + `Secrets: write` |
+| I | Pexels API key | ✅ `PEXELS_API_KEY`, bedava kota 200 istek/saat |
 
 **DİKKAT — Instagram hesabı seçimi:** Jetonun 3 sayfaya erişimi var
 (DailyBrief, Animarch Studio, Edm Yapı). Hedef hesap `config.yaml` →
