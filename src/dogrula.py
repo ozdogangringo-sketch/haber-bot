@@ -132,6 +132,62 @@ def basligi_denetle(baslik: str) -> list[str]:
     return sorunlar
 
 
+# Kaynakta suçlama/soruşturma olduğunu gösteren ifadeler.
+SUCLAMA_ISARETI = (
+    "iddia", "öne sürül", "şüpheli", "gözaltına", "soruşturma",
+    "savcılık", "hakkında dava", "suçlam", "tutuklama talebi",
+)
+
+# Üretilen metinde ihtiyat korunduğunu gösteren ifadeler.
+IHTIYAT_ISARETI = (
+    "iddia", "öne sürül", "şüpheli", "soruşturma", "gözaltı",
+    "savcılık", "hakkında dava", "suçlam", "tutukland", "yargılan",
+    "belirtil", "bildiril", "açıklad", "duyur",
+)
+
+
+def _atifli_mi(baslik: str) -> bool:
+    """
+    Başlık bir kaynağa atıfla mı başlıyor? ("BM:", "Erdoğan:", "Bakan X:")
+
+    Atıflı başlıkta iddia zaten birine dayandırılmış oluyor; ihtiyat
+    denetimi orada yanlış alarm veriyor. Ölçüldü: 3 uyarının 2'si bu
+    yüzden çıkmıştı.
+    """
+    return bool(re.match(r"^[^:]{2,40}:", baslik or ""))
+
+
+def suclama_dili_denetle(haber) -> list[str]:
+    """
+    Kaynakta suçlama/soruşturma varsa, üretilen metinde ihtiyat dili
+    korunmuş mu?
+
+    NEDEN AYRI BİR DENETİM: sayı ve isim denetimi bunu yakalayamıyor.
+    Kaynakta "hakkında soruşturma başlatıldı" yazarken üretilen metin
+    "suç örgütü elebaşı" diyebiliyor — bütün sayılar ve isimler kaynakla
+    birebir uyuyor, ama dil kesinleşmiş oluyor. Mahkeme kararı olmadan
+    kesin dille yazmak iftira riski.
+
+    Ölçüldü (16 Ağu 2026): suçlama içeren 10 haberin 3'ünde ihtiyat
+    düşmüştü; ikisi atıflı başlıktı (yanlış alarm), biri gerçek riskti.
+    """
+    kaynak = _sadelestir(haber["makale_metni"] or "")
+    if not kaynak or not any(_sadelestir(k) in kaynak for k in SUCLAMA_ISARETI):
+        return []
+
+    baslik = haber["ig_baslik"] or ""
+    if _atifli_mi(baslik):
+        return []
+
+    uretilen = _sadelestir(
+        f"{baslik} {haber['slayt_ozet'] or ''} {haber['ig_caption'] or ''}"
+    )
+    if any(_sadelestir(k) in uretilen for k in IHTIYAT_ISARETI):
+        return []
+
+    return ["suçlama kesin dille yazılmış — kaynakta ihtiyat var, metinde yok"]
+
+
 def haberi_dogrula(haber) -> dict:
     """
     Tek bir haberin üretilen metnini kaynağıyla karşılaştırır.
@@ -161,14 +217,16 @@ def haberi_dogrula(haber) -> dict:
     })
 
     baslik_sorunlari = basligi_denetle(haber["ig_baslik"] or "")
+    suclama_sorunlari = suclama_dili_denetle(haber)
 
     return {
-        "temiz": not (eksik_sayilar or eksik_isimler or baslik_sorunlari)
-                 and bool(kaynak),
+        "temiz": not (eksik_sayilar or eksik_isimler or baslik_sorunlari
+                      or suclama_sorunlari) and bool(kaynak),
         "kaynak_var": bool(kaynak),
         "eksik_sayilar": eksik_sayilar,
         "eksik_isimler": eksik_isimler,
         "baslik_sorunlari": baslik_sorunlari,
+        "suclama_sorunlari": suclama_sorunlari,
     }
 
 
@@ -194,6 +252,7 @@ def turu_dogrula(haberler: list) -> tuple[str, int]:
         if sonuc["eksik_isimler"]:
             ayrinti.append("isim: " + ", ".join(sonuc["eksik_isimler"][:3]))
         ayrinti.extend(sonuc["baslik_sorunlari"])
+        ayrinti.extend(sonuc["suclama_sorunlari"])
         satirlar.append(f"  {sira}. slayt — {'; '.join(ayrinti)}")
 
     if not satirlar:
