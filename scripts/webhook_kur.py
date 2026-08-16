@@ -94,9 +94,12 @@ def kur(url: str) -> int:
         "setWebhook",
         url=url,
         secret_token=gizli,
-        # Yalnızca buton basımlarını istiyoruz. Grup sohbetindeki her
-        # mesajı Worker'a taşımanın anlamı yok, boşuna istek olurdu.
-        allowed_updates=["callback_query"],
+        # Buton basımları + yazılı komutlar (/durum, /tur, /yardim).
+        # `message` de dinleniyor çünkü buton menüsü yalnızca açık bir
+        # onay mesajı varken işe yarıyor; tur kapandığında elde tutamak
+        # kalmıyordu. Worker komut olmayan mesajları hemen eleyip
+        # GitHub'a taşımıyor, o yüzden grup sohbeti maliyet doğurmuyor.
+        allowed_updates=["callback_query", "message"],
         drop_pending_updates=True,
     )
     if not d.get("ok"):
@@ -104,7 +107,9 @@ def kur(url: str) -> int:
         return 1
 
     print(f"\n✓ webhook kuruldu: {url}")
-    print("  Yalnızca buton basımları (callback_query) iletilecek.")
+    print("  İletilecek: buton basımları (callback_query) + mesajlar (message).")
+    print("  Mesajlar /durum, /tur, /yardim komutları için gerekli;")
+    print("  Worker komut olmayanları hemen eleyip GitHub'a taşımıyor.")
     print("\n⚠️ getUpdates artık ÇALIŞMAZ — telegram_chat_id_bul.py boş döner.")
     print("   Bu beklenen davranış, arıza değil.\n")
     return durum()

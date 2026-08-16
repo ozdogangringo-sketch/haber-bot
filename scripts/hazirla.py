@@ -135,9 +135,23 @@ def main() -> int:
         if isaretli:
             log.warning("%s slayt doğrulama uyarısı aldı", isaretli)
 
+        # Slaytlar en güncel hâliyle okunuyor: tur_uret sırasında
+        # gorsel_kaynagi yazıldı, özet tablosu onu gösterecek.
+        taze = list(con.execute(
+            "SELECT * FROM haberler WHERE telegram_message_id IS NULL "
+            "AND id IN ({})".format(",".join(str(h["id"]) for h in secilen))
+        ))
+        sira_ile = {h["id"]: h for h in taze}
+        secilen = [sira_ile.get(h["id"], h) for h in secilen]
+
         urller = [y["url"] for y in yuklemeler]
-        telegram_bot.slaytlari_gonder(urller)
-        mesaj_id = telegram_bot.onay_iste(metin, len(urller), uyari=uyari)
+        telegram_bot.slaytlari_gonder(
+            urller, [h["ig_baslik"] or h["baslik_orj"] for h in secilen]
+        )
+        ozet = telegram_bot.tur_ozeti(secilen, isaretli)
+        mesaj_id = telegram_bot.onay_iste(
+            metin, len(urller), uyari=uyari, ozet=ozet
+        )
 
         for haber in secilen:
             con.execute(

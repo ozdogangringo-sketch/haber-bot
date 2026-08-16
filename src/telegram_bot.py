@@ -213,34 +213,99 @@ def slayt_islem_menusu(sira: int, adet: int) -> dict:
 # Gönderim
 # ----------------------------------------------------------------------
 
-def slaytlari_gonder(gorsel_urlleri: list[str], baslik: str = "") -> list[int]:
+# Görselin hangi katmandan geldiğini tek bakışta gösteren simgeler.
+# Onay verirken en çok merak edilen şey bu: "bu fotoğraf gerçek mi,
+# temsili mi?" Commons gerçek kişinin fotoğrafı, Pexels temsili.
+KATMAN_SIMGE = {
+    "commons": "📷",
+    "pexels": "🖼",
+    "gradyan": "▪️",
+    "ai": "🎨",
+}
+
+
+def slaytlari_gonder(
+    gorsel_urlleri: list[str], basliklar: list[str] | None = None
+) -> list[int]:
     """
     Slaytları albüm olarak gönderir. Mesaj id'lerini döner.
 
     URL veriyoruz, dosya değil: görseller zaten imgbb'de duruyor ve
     Telegram'ın kendisi indiriyor — 10 dosyayı ikinci kez yüklemenin
     anlamı yok.
+
+    Her fotoğrafa kendi sıra numarası yazılıyor. Bunsuz "3. slaytı
+    değiştir" demek için albümdeki fotoğrafları tek tek saymak
+    gerekiyordu.
     """
-    medya = [{"type": "photo", "media": url} for url in gorsel_urlleri]
-    if baslik:
-        # Albüm başlığı yalnızca ilk öğede görünüyor. 1024 karakter sınırı
-        # var; asıl caption ayrı mesajda gidiyor, bu sadece kısa bir etiket.
-        medya[0]["caption"] = baslik[:1024]
+    medya = []
+    for sira, url in enumerate(gorsel_urlleri, start=1):
+        oge = {"type": "photo", "media": url}
+        if basliklar and sira <= len(basliklar):
+            # Telegram albümde her öğenin kendi başlığını taşıyabiliyor;
+            # fotoğrafa dokununca görünüyor. 1024 karakter sınırı var.
+            oge["caption"] = f"{sira}. {basliklar[sira - 1]}"[:1024]
+        else:
+            oge["caption"] = f"{sira}."
+        medya.append(oge)
 
     sonuc = _istek("sendMediaGroup", chat_id=_sohbet_id(), media=medya)
     return [m["message_id"] for m in sonuc]
 
 
-def onay_iste(caption: str, slayt_adedi: int, uyari: str = "") -> int:
+def tur_ozeti(haberler: list, uyari_sayisi: int = 0) -> str:
     """
-    Caption'ı ve onay butonlarını gönderir. message_id döner.
+    Onay mesajının başına konan özet tablo.
+
+    Neden gerekli: caption Instagram'a gidecek metin, onay vermek için
+    yetmiyor. Karar verirken bakılan şeyler ayrı — kaç slayt var, görsel
+    nereden geldi, denetim ne dedi. Bunlar caption'da yok.
+    """
+    satirlar = []
+    for sira, haber in enumerate(haberler, start=1):
+        katman = (haber["gorsel_kaynagi"] or "gradyan").strip()
+        simge = KATMAN_SIMGE.get(katman, "▫️")
+        baslik = (haber["ig_baslik"] or haber["baslik_orj"] or "").strip()
+        satirlar.append(f"{sira:>2} {simge} {baslik[:58]}")
+
+    durum = ("✅ denetim temiz" if not uyari_sayisi
+             else f"⚠️ {uyari_sayisi} slaytta uyarı — aşağıya bak")
+
+    return (
+        f"📋 {len(haberler)} slayt  ·  {durum}\n"
+        f"📷 gerçek foto · 🖼 temsili · ▪️ gradyan · 🎨 AI\n\n"
+        + "\n".join(satirlar)
+    )
+
+
+def foto_gonder(url: str, aciklama: str = "") -> int:
+    """
+    Tek fotoğraf gönderir.
+
+    Slayt görseli değiştirildiğinde kullanılıyor: yeni görseli link
+    olarak vermek yerine göstermek gerekiyor, yoksa beğenip beğenmediğini
+    anlamak için tarayıcı açman lazım.
+    """
+    sonuc = _istek("sendPhoto", chat_id=_sohbet_id(), photo=url,
+                   caption=aciklama[:1024])
+    return sonuc["message_id"]
+
+
+def onay_iste(caption: str, slayt_adedi: int, uyari: str = "",
+              ozet: str = "") -> int:
+    """
+    Özeti, caption'ı ve onay butonlarını gönderir. message_id döner.
 
     Bu id `telegram_message_id` olarak saklanmalı — sonuç yazılırken
     düzenlenecek mesaj bu.
+
+    Sıralama bilinçli: önce denetim uyarısı (varsa hemen görülmeli),
+    sonra özet tablo (karar burada veriliyor), en sonda caption
+    (Instagram'a gidecek metin, doğrulaması en az acil olan).
     """
-    metin = caption
-    if uyari:
-        metin = f"{uyari}\n\n{caption}"
+    parcalar = [p for p in (uyari, ozet) if p]
+    parcalar.append("— Instagram açıklaması —\n" + caption)
+    metin = "\n\n".join(parcalar)
     # sendMessage sınırı 4096; caption ~1100 olduğu için pay bol.
     sonuc = _istek(
         "sendMessage",
@@ -256,6 +321,25 @@ def menuyu_degistir(message_id: int, menu: dict) -> None:
     """Mesajın butonlarını değiştirir (metne dokunmaz)."""
     _istek("editMessageReplyMarkup", chat_id=_sohbet_id(),
            message_id=message_id, reply_markup=menu)
+
+
+def mesaji_guncelle(message_id: int, metin: str, menu: dict) -> None:
+    """
+    Mesajın hem metnini hem butonlarını değiştirir.
+
+    Worker butona basıldığı anda butonları kaldırıp "⏳ İşleniyor"
+    yazıyor. İş bitip tur devam ediyorsa (slayt değişimi gibi) menü geri
+    konmalı, yoksa tur kilitlenir.
+    """
+    try:
+        _istek("editMessageText", chat_id=_sohbet_id(), message_id=message_id,
+               text=metin[:4096], reply_markup=menu,
+               disable_web_page_preview=True)
+    except RuntimeError as e:
+        # "message is not modified" hatası zararsız: metin zaten aynıysa
+        # Telegram düzenlemeyi reddediyor.
+        if "not modified" not in str(e):
+            raise
 
 
 def sonucu_yaz(message_id: int, metin: str) -> None:

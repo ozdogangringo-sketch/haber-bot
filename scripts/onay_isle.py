@@ -31,11 +31,15 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, instagram, slaytlar, telegram_bot, upload_image,
+    caption, db, dogrula, instagram, slaytlar, telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
 
 log = logging.getLogger("onay")
+
+# Ayarlar main() içinde okunuyor ama menuyu_geri_koy() gibi yardımcılar da
+# ihtiyaç duyuyor; parametre zincirini uzatmamak için burada tutuluyor.
+_ayarlar_onbellek: dict = {}
 
 
 def turu_getir(con, mesaj_id: int) -> list:
@@ -133,10 +137,17 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id) -> int:
                     "WHERE id = ?", (yukleme["url"], haber["id"]))
     con.commit()
 
-    telegram_bot.slaytlari_gonder([y["url"] for y in yuklemeler])
+    telegram_bot.slaytlari_gonder(
+        [y["url"] for y in yuklemeler],
+        [h["ig_baslik"] or h["baslik_orj"] for h in taze],
+    )
     metin = caption.caption_kur(taze, sonuclar, ayarlar=ayarlar)
-    yeni_id = telegram_bot.onay_iste(metin, len(yuklemeler),
-                                     uyari="🔄 Metinler yeniden üretildi")
+    uyari, isaretli = dogrula.turu_dogrula(taze)
+    yeni_id = telegram_bot.onay_iste(
+        metin, len(yuklemeler),
+        uyari=(uyari or "🔄 Metinler yeniden üretildi"),
+        ozet=telegram_bot.tur_ozeti(taze, isaretli),
+    )
     con.execute("UPDATE haberler SET telegram_message_id = ? "
                 "WHERE telegram_message_id = ?", (yeni_id, mesaj_id))
     con.commit()
@@ -202,9 +213,90 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     )
     con.commit()
 
-    telegram_bot.mesaj_gonder(
-        f"🖼 {sira}. slayt yenilendi (katman: {katman}).\n{yukleme['url']}"
+    # Yeni görseli GÖSTERİYORUZ, link vermiyoruz: beğenip beğenmediğine
+    # karar vermek için tarayıcı açmak gerekmemeli.
+    simge = telegram_bot.KATMAN_SIMGE.get(katman, "▫️")
+    telegram_bot.foto_gonder(
+        yukleme["url"],
+        f"{simge} {sira}. slayt yenilendi — {katman}\n"
+        f"{taze['ig_baslik'] or ''}",
     )
+    return 0
+
+
+def menuyu_geri_koy(con, mesaj_id: int) -> None:
+    """
+    Onay mesajını yeniden düzenleyip butonları geri koyar.
+
+    Worker, butona basıldığı anda butonları kaldırıp "⏳ İşleniyor"
+    yazıyor (çift basmayı engellemek için). İş bitince menüyü geri
+    koymazsak tur kilitleniyor — ne yayınlanabiliyor ne atlanabiliyor.
+
+    Metin de tazeleniyor: slayt görseli değişmiş olabilir, özet
+    tablodaki katman simgesi güncel olmalı.
+    """
+    haberler = turu_getir(con, mesaj_id)
+    if not haberler:
+        return
+    try:
+        uyari, isaretli = dogrula.turu_dogrula(haberler)
+        ozet = telegram_bot.tur_ozeti(haberler, isaretli)
+        metin = caption.caption_kur(
+            haberler, _sonuclari_kur(haberler), ayarlar=_ayarlar_onbellek
+        )
+        parcalar = [p for p in (uyari, ozet) if p]
+        parcalar.append("— Instagram açıklaması —\n" + metin)
+        telegram_bot.mesaji_guncelle(
+            mesaj_id, "\n\n".join(parcalar),
+            telegram_bot.ana_menu(len(haberler)),
+        )
+    except Exception as e:
+        log.warning("menü geri konamadı: %s", e)
+
+
+def durum_bildir(con, ayarlar) -> int:
+    """
+    /durum komutunun cevabı: bot şu an ne durumda?
+
+    Telegram'dan sorulabilmesi önemli — aksi halde "acaba tur hazırlandı
+    mı, onay bekleyen var mı" sorusunun cevabı yalnızca GitHub Actions
+    kayıtlarında oluyor ve telefondan bakmak zor.
+    """
+    sayim = dict(con.execute(
+        "SELECT durum, COUNT(*) FROM haberler GROUP BY durum"
+    ).fetchall())
+
+    bekleyen = list(con.execute(
+        "SELECT * FROM haberler WHERE durum IN ('onay_bekliyor','ertelendi') "
+        "ORDER BY onem_puani DESC"
+    ))
+
+    son = con.execute(
+        "SELECT ig_post_id, MAX(gonderim_zamani) z, COUNT(*) n FROM haberler "
+        "WHERE durum = 'yayinlandi' AND ig_post_id IS NOT NULL"
+    ).fetchone()
+
+    satirlar = [
+        "📊 BOT DURUMU",
+        "",
+        f"Havuzda bekleyen haber : {sayim.get('yeni', 0)}",
+        f"Metni hazır            : {sayim.get('metin_hazir', 0)}",
+        f"Yayınlanmış            : {sayim.get('yayinlandi', 0)}",
+    ]
+
+    if bekleyen:
+        satirlar += [
+            "",
+            f"⏳ ONAY BEKLEYEN TUR VAR — {len(bekleyen)} slayt",
+            "Onay mesajı yukarıda; görmüyorsan /tur ile yenisini kurabilirsin.",
+        ]
+    else:
+        satirlar += ["", "✅ Onay bekleyen tur yok."]
+
+    if son and son["z"]:
+        satirlar += ["", f"Son yayın: {son['z']} (UTC)"]
+
+    telegram_bot.mesaj_gonder("\n".join(satirlar))
     return 0
 
 
@@ -221,14 +313,25 @@ def main() -> int:
         log.error("KOMUT veya MESAJ_ID eksik")
         return 1
 
+    global _ayarlar_onbellek
     ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    _ayarlar_onbellek = ayarlar
     db.kur()
     con = db.baglan()
+
+    # /durum haberlerden bağımsız çalışıyor — onay bekleyen tur olmasa da
+    # cevap vermeli, zaten "bir şey var mı?" diye sorulan komut bu.
+    if komut == "durum":
+        return durum_bildir(con, ayarlar)
 
     haberler = turu_getir(con, mesaj_id)
     if not haberler:
         log.error("mesaj_id=%s için haber bulunamadı", mesaj_id)
-        telegram_bot.mesaj_gonder("⚠️ Bu onay mesajına bağlı haber bulunamadı.")
+        telegram_bot.mesaj_gonder(
+            "⚠️ Bu onay mesajına bağlı haber bulunamadı.\n"
+            "Tur kapanmış ya da veritabanı bu turu görmüyor olabilir. "
+            "/durum yazarak güncel duruma bakabilirsin."
+        )
         return 1
 
     try:
@@ -242,7 +345,11 @@ def main() -> int:
             return metin_yenile(con, ayarlar, haberler, mesaj_id)
         if ":" in komut:
             ad, sira = komut.split(":", 1)
-            return slayt_islemi(con, ayarlar, haberler, ad, int(sira), mesaj_id)
+            sonuc = slayt_islemi(con, ayarlar, haberler, ad, int(sira), mesaj_id)
+            # Slayt işlemleri turu bitirmiyor; Worker butonları kaldırdığı
+            # için menüyü geri koymazsak onay verilemez hale gelir.
+            menuyu_geri_koy(con, mesaj_id)
+            return sonuc
 
         log.error("bilinmeyen komut: %s", komut)
         return 1
@@ -251,6 +358,9 @@ def main() -> int:
         log.exception("komut işlenemedi")
         telegram_bot.hata_bildir(f"Komut işlenemedi: {komut}",
                                  f"{type(e).__name__}: {e}")
+        # Worker butonları kaldırmıştı; hata sonrası geri koymazsak tur
+        # kilitlenir ve elle müdahale gerekir.
+        menuyu_geri_koy(con, mesaj_id)
         return 1
 
 
