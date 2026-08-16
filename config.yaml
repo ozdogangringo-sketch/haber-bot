@@ -32,6 +32,20 @@ genel:
   # 3 post eder; Instagram için sağlıklı aralık, takipçi yorulmuyor.
   son_dakika_gunluk_azami: 2
 
+  # --- GECE (TR 23:00-07:00) ---
+  # Gece farklı davranıyor çünkü onaylayacak kimse uyanık değil.
+  # Gündüzki 1 saatlik ömür gece anlamsız: 03:00'te hazırlanan post
+  # 04:00'te kendiliğinden iptal olurdu.
+  #
+  # Eşik 9: gece yalnızca "ülke gündemini belirleyen" seviyedeki
+  # olaylar (deprem, büyük saldırı). Sebep: gece hazırlanan post
+  # sabaha kalıyor, yani 5-8 saatlik bir haber oluyor. Bu gecikmeyi
+  # ancak gerçekten büyük bir olay hak ediyor.
+  gece_puan_esigi: 9
+
+  # Gece hazırlanan post saat kaça kadar onay bekleyebilir (TR).
+  gece_onay_biter_saat: 8
+
   # Her çalıştırmada her kaynaktan en fazla kaç haber alalım?
   kaynak_basina_limit: 15
 

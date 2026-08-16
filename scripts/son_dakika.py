@@ -48,6 +48,61 @@ OMUR_DAKIKA = 60
 # Haber kaç saatten eskiyse artık "son dakika" sayılmaz.
 TAZELIK_SAAT = 3
 
+# TR saatiyle gece aralığı. UTC+3 sabit (yaz saati yok).
+GECE_BASI_TR, GECE_SONU_TR = 23, 7
+
+
+def _tr_saat() -> int:
+    """Şu anki TR saati. Türkiye UTC+3, yaz saati uygulaması yok."""
+    return (datetime.now(timezone.utc) + timedelta(hours=3)).hour
+
+
+def gece_mi() -> bool:
+    saat = _tr_saat()
+    return saat >= GECE_BASI_TR or saat < GECE_SONU_TR
+
+
+def gecerli_esik(ayarlar: dict) -> int:
+    """
+    Gece eşiği daha yüksek.
+
+    Sebep: gece hazırlanan post sabaha kalıyor, yani onaylandığında
+    5-8 saatlik bir haber oluyor. Bu gecikmeyi ancak gerçekten büyük
+    bir olay hak ediyor — sıradan bir haber akşam turuna kalsın.
+    """
+    g = ayarlar["genel"]
+    if gece_mi():
+        return g.get("gece_puan_esigi", 9)
+    return g.get("son_dakika_puan_esigi", 8)
+
+
+def omru_bitti_mi(gonderim: str, ayarlar: dict) -> bool:
+    """
+    Bu tur düşürülmeli mi?
+
+    Gündüz: 1 saat. Gece: sabah `gece_onay_biter_saat`e kadar bekler —
+    gündüzki 1 saatlik ömür gece anlamsız, kimse uyanık değil.
+    """
+    try:
+        t = datetime.fromisoformat(gonderim).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return False
+
+    simdi = datetime.now(timezone.utc)
+    gonderim_tr = t + timedelta(hours=3)
+    gece_hazirlanmis = (gonderim_tr.hour >= GECE_BASI_TR
+                        or gonderim_tr.hour < GECE_SONU_TR)
+
+    if not gece_hazirlanmis:
+        return simdi - t > timedelta(minutes=OMUR_DAKIKA)
+
+    # Gece hazırlanmış: sabah saatine kadar yaşasın
+    bitis_saat = ayarlar["genel"].get("gece_onay_biter_saat", 8)
+    simdi_tr = simdi + timedelta(hours=3)
+    if simdi_tr.date() > gonderim_tr.date() or gonderim_tr.hour < GECE_SONU_TR:
+        return simdi_tr.hour >= bitis_saat
+    return False
+
 
 def _bugun_anahtari() -> str:
     return "son_dakika_" + datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -61,24 +116,22 @@ def sayaci_artir(con) -> None:
     db.ayar_yaz(con, _bugun_anahtari(), bugunku_sayi(con) + 1)
 
 
-def suresi_gecmisi_iptal_et(con) -> None:
+def suresi_gecmisi_iptal_et(con, ayarlar: dict) -> None:
     """
     1 saati dolmuş, onaylanmamış son dakika turunu düşürür.
 
     Haber ELENMİYOR — havuza dönüyor ve akşam turunda yeniden yarışıyor.
     Sadece "son dakika" olarak yayınlanma hakkını kaybediyor.
     """
-    sinir = (datetime.now(timezone.utc)
-             - timedelta(minutes=OMUR_DAKIKA)).strftime("%Y-%m-%d %H:%M:%S")
-
     bekleyen = list(con.execute(
-        "SELECT DISTINCT telegram_message_id FROM haberler "
+        "SELECT DISTINCT telegram_message_id, gonderim_zamani FROM haberler "
         "WHERE son_dakika = 1 AND durum = 'onay_bekliyor' "
-        "AND gonderim_zamani IS NOT NULL AND gonderim_zamani < ?",
-        (sinir,),
+        "AND gonderim_zamani IS NOT NULL"
     ))
 
     for satir in bekleyen:
+        if not omru_bitti_mi(satir["gonderim_zamani"], ayarlar):
+            continue
         mesaj_id = satir["telegram_message_id"]
         con.execute(
             "UPDATE haberler SET durum = 'yeni', son_dakika = 0, "
@@ -89,9 +142,8 @@ def suresi_gecmisi_iptal_et(con) -> None:
         try:
             telegram_bot.sonucu_yaz(
                 mesaj_id,
-                f"⌛️ Son dakika postu {OMUR_DAKIKA} dakikada onaylanmadı, "
-                f"iptal edildi.\nHaber elenmedi — akşam turunda yeniden "
-                f"değerlendirilecek.",
+                "⌛️ Son dakika postu onaylanmadı, iptal edildi.\n"
+                "Haber elenmedi — akşam turunda yeniden değerlendirilecek.",
             )
         except Exception as e:
             log.warning("iptal mesajı yazılamadı: %s", e)
@@ -106,7 +158,7 @@ def aday_bul(con, ayarlar: dict):
     metin ürettirmek kotayı yakar; akşam turu zaten adaylara metin
     üretiyor, buradaki iş onların arasından fırlayanı seçmek.
     """
-    esik = ayarlar["genel"].get("son_dakika_puan_esigi", 8)
+    esik = gecerli_esik(ayarlar)
     sinir = (datetime.now(timezone.utc)
              - timedelta(hours=TAZELIK_SAAT)).isoformat()
 
@@ -138,7 +190,7 @@ def main() -> int:
 
     try:
         # --- 1) Süresi geçmiş turu düşür ---
-        suresi_gecmisi_iptal_et(con)
+        suresi_gecmisi_iptal_et(con, ayarlar)
 
         # --- 2) Zaten onay bekleyen son dakika varsa yenisini kurma ---
         acik = con.execute(

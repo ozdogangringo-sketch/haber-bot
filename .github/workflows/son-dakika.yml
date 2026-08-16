@@ -8,22 +8,32 @@
 #  haber yoksa ~1 dakikada sessizce çıkar.
 #
 #  KOTA: private repo 2000 dk/ay. Ölçüldü:
-#      boş kontrol   ~1.2 dk  × 24/gün = ~29 dk/gün
-#      akşam turu    ~4-7 dk
-#      onay job'ları ~1 dk
-#    toplam ~1100-1400 dk/ay → sınırın altında ama payı büyük değil.
-#    Sıkışırsa cron'u "0 */2 * * *" yapıp yarıya indir.
+#      boş kontrol ~1.2 dk × 20 kontrol/gün (16 gündüz + 4 gece)
+#      akşam turu  ~4-7 dk,  onay job'ları ~1 dk
+#    toplam ~1170 dk/ay (%58). Sıkışırsa gündüz cron'unu
+#    "5 4-19/2 * * *" yapıp yarıya indir.
 #
-#  Gece 00-06 arası (UTC 21-03) çalışmıyor: o saatte hem haber akışı
-#  duruyor hem de onaylayacak kimse uyanık olmuyor. 1 saatlik onay
-#  ömrü yüzünden zaten iptal olurdu.
+#  ⚠️ Sınır aşılırsa Actions TAMAMEN durur — akşam turu da çalışmaz.
+#
+#  GECE FARKLI DAVRANIYOR (17 Ağu 2026):
+#    gündüz TR 07-23  -> saat başı, eşik 8, onay ömrü 1 saat
+#    gece  TR 23-07   -> 2 saatte bir, eşik 9, onay sabah 08:00'e kadar
+#
+#  Gece neden farklı: onaylayacak kimse uyanık değil. Gündüzki 1
+#  saatlik ömür gece anlamsız — 03:00'te hazırlanan post 04:00'te
+#  iptal olurdu. Ömür sabaha uzatıldı, ama karşılığında eşik 9'a
+#  çıktı: sabaha kalan post 5-8 saatlik bir haber oluyor ve bu
+#  gecikmeyi ancak gerçekten büyük bir olay hak ediyor.
 # =========================================================
 
 name: Son Dakika Kontrolü
 
 on:
   schedule:
-    - cron: "5 4-20 * * *"     # UTC 04:05-20:05 = TR 07:05-23:05
+    # UTC 04:05-19:05 = TR 07:05-22:05, saat başı (gündüz)
+    - cron: "5 4-19 * * *"
+    # UTC 20:05,22:05,00:05,02:05 = TR 23:05,01:05,03:05,05:05 (gece)
+    - cron: "5 20,22,0,2 * * *"
   workflow_dispatch:
     inputs:
       kuru:
