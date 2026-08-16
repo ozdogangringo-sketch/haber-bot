@@ -55,7 +55,9 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | ~~Kapak slaytı~~ | **DENENDİ VE ELENDİ (15 Ağu 2026).** Kapak+9 haber düzeni üretilip gösterildi; kullanıcı 10 haberi tercih etti. `kapak_ciz`/`kapak_uret` kodu `make_image.py`'de DURUYOR — fikir değişirse `kapak_var: true` yeterli, yeniden yazma. |
 | Slayt oranı | **4:5 dikey (1080x1350)**. Carousel'de tüm slaytlar aynı oranda olmak zorunda. |
 | Güvenli alan | `dikey_guvenli_pay: 150`. Feed'de 4:5 tam görünüyor; risk profil ızgarasının kareye kırpması (üst/alt 135px). Instagram ızgarayı 2025'te dikey yaptı ama bayrak ve kaynak satırı tam sınırdaydı, içeri alındı. |
-| Post sıklığı | **Günde 1 — akşam turu** (maliyet için 2'den 1'e indirildi) |
+| Post sıklığı | **Günde 1 akşam turu + en fazla 2 son dakika** = günde en çok 3 post |
+| Son dakika (16 Ağu 2026) | Gün içi tekil post, **2 slayt**: 1'inci dikkat çeker (fotoğraf+başlık+özet), 2'nci anlatır (sade zemin + 60-80 kelime detay). Eşik `onem_puani >= 8`, günde en fazla 2, TR 07:05-23:05 arası saat başı kontrol. Detay slaytında **bilerek fotoğraf yok** — metin ağırlıklı olduğu için fotoğraf üstünde okunmuyor, perde koyulaştıkça zaten görünmez oluyor. |
+| Son dakika onayı | **Onay ŞART ama 1 saatte onaylanmazsa kendiliğinden iptal.** Bayat bir "son dakika" postu atmak hiç atmamaktan kötü. Onaylanmayan haber ELENMEZ, akşam turunda normal haber olarak yeniden yarışır. Otomatik yayın bilerek REDDEDİLDİ: son dakika haberleri en çok düzeltilen haberler, kaynak 20 dk sonra sayıyı değiştiriyor. |
 | Akşam turu | 20:00 hazırla → 21:00, 22:00 hatırlat → 23:00 havuza dön |
 | Slayt görseli | **3 katman, sırayla:** Commons (**yalnızca KİŞİ**) → Pexels (temsili) → gradyan. **Normal turda AI HİÇ çağrılmıyor, görsel maliyeti $0.** |
 | Commons kuralı | **`gorsel_konu`ya SADECE kişi adı yazılır, kurum/örgüt/şehir ASLA.** Ölçüldü: "İSKİ"→Macar sanatçı portresi, "Taliban"→askeri harita, "Ankara Büyükşehir"→kale manzarası. Bunlar yayınlanamaz. Kurumu Pexels temsil ediyor ve iyi çalışıyor. |
@@ -118,6 +120,16 @@ Kural: **yerelde denemek gerekiyorsa `--kuru` kullan** (üretir, Telegram'a
 göndermez, DB'ye durum yazmaz). Gerçek tur yerelde çalıştırıldıysa
 bitince DB hemen commit+push edilmeli. Push çakışırsa hangi tarafın
 güncel olduğuna BAK — yayın kaydı hangisindeyse o doğrudur.
+
+**1b. GitHub Actions kotası artık sıkı.**
+
+Ölçüldü (16 Ağu 2026): akşam turu + onay job'ları ~210 dk/ay. Son dakika
+saat başı kontrolü **+1080 dk/ay** getiriyor → toplam ~1290 / 2000 dk
+(%65). Sığıyor ama pay az. Sıkışırsa `son-dakika.yml` cron'unu
+`"0 */2 * * *"` yap, yarıya iner.
+
+Diğer servisler rahat: Gemini %7, Instagram 1/100, Pexels 481/25.000,
+Cloudflare 10/100.000.
 
 **2. Gemini ücretsiz kotası bitebiliyor (429).**
 
@@ -455,6 +467,18 @@ Onay mesajı gönderilmeden ÖNCE çalışıp uyarıları mesajın başına koyu
 2. **İçi boş başlık kalıpları** (`basligi_denetle`). "…ilişkin açıklama",
    "…değerlendirdi", "…anlattı" gibi konuyu duyurup sonucu saklayan 15
    kalıp + abartı kalıpları.
+3. **Suçlama dili** (`suclama_dili_denetle`). Kaynakta "soruşturma /
+   iddia / şüpheli" varken üretilen metin kesin dille yazılmışsa uyarır.
+   Ölçüldü: suçlama içeren 10 haberin 3'ünde ihtiyat düşmüştü; biri
+   gerçek riskti ("iade edilen SUÇ ÖRGÜTÜ ELEBAŞI" — kırmızı bülten
+   suçluluk değil). Sayı/isim denetimi bunu yakalayamıyor: her şey
+   kaynakla uyuyor, sadece dil kesinleşmiş oluyor.
+   Atıflı başlıklar ("BM:", "Savcılık:") hariç — iddia zaten birine
+   dayandırılmış oluyor.
+
+**NE YAKALAMIYOR (bilinçli sınır):** anlam kayması. "reddetti" ile
+"kabul etti" aynı sayı ve isimleri taşıyor; ayırmak için ikinci bir LLM
+çağrısı gerekir. Bunu yakalayan tek şey insan onayı.
 
 ⚠️ **TÜRKÇE `İ` TUZAĞI:** `"İlişkin".lower()` Python'da `"i̇lişkin"`
 üretiyor (noktalı i) ve düz karşılaştırma TUTMUYOR. İlk yazımda tarama
