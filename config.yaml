@@ -19,6 +19,19 @@ genel:
   # Bir turda en fazla kaç kez "Atla" diyebilirsin?
   tur_basina_atlama_hakki: 5
 
+  # --- SON DAKİKA (gün içi tekil postlar) ---
+  # Akşam turu günün 10 haberini toplu veriyor; son dakika tek haberi
+  # çıktığı anda veriyor (2 slayt: haber + ayrıntı).
+  #
+  # Eşik 8: "önemli, çoğu insan bilmek ister" seviyesi. 9 yapılırsa
+  # neredeyse hiç tetiklenmez, 7 yapılırsa "son dakika" etiketi değer
+  # kaybeder — her önemli haber son dakika değildir.
+  son_dakika_puan_esigi: 8
+
+  # Günde en fazla kaç son dakika postu. Akşam turuyla birlikte günde
+  # 3 post eder; Instagram için sağlıklı aralık, takipçi yorulmuyor.
+  son_dakika_gunluk_azami: 2
+
   # Her çalıştırmada her kaynaktan en fazla kaç haber alalım?
   kaynak_basina_limit: 15
 

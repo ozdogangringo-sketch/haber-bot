@@ -101,6 +101,9 @@ EK_KOLONLAR = {
     # Bellekte tutulsaydı Commons'ın CC BY atfı yayında kaybolurdu — bu
     # lisans ihlali olurdu.
     "gorsel_atif": "TEXT",
+    # Bu haber "son dakika" olarak mı sunuldu? Akşam turundan ayırmak
+    # için: son dakika turunun 1 saatlik ömrü var, akşam turunun yok.
+    "son_dakika": "INTEGER DEFAULT 0",
 }
 
 

@@ -563,6 +563,92 @@ def yaziyi_bas(
 
 
 # ----------------------------------------------------------------------
+# Son dakika: detay slaytı
+# ----------------------------------------------------------------------
+
+def detay_slayti(
+    baslik: str, detay: str, kaynak: str, ayarlar: dict,
+    kategori: str = "turkiye",
+    ulke_kodu: str | None = None,
+    ulke_adi: str | None = None,
+) -> Image.Image:
+    """
+    Son dakika postunun 2. slaytı: haberin ayrıntısı.
+
+    NEDEN FOTOĞRAF YOK: bu slayt metin ağırlıklı, 60-80 kelime taşıyor.
+    Fotoğraf üstüne bu kadar yazı okunmuyor — perde koyulaştıkça fotoğraf
+    zaten görünmez oluyor, yani fotoğrafın bir faydası kalmıyor ama
+    okunabilirlikten götürüyor. Sade gradyan hem okunaklı hem tutarlı.
+
+    1. slayt dikkat çekiyor, bu slayt bilgi veriyor. İşbölümü bilinçli.
+    """
+    g = ayarlar["gorsel"]
+    genislik, yukseklik = g["genislik"], g["yukseklik"]
+    kenar = g["kenar_bosluk"]
+    dikey_kenar = max(kenar, g.get("dikey_guvenli_pay", kenar))
+
+    gorsel = arkaplan_uret_yedek(kategori, genislik, yukseklik)
+    ciz = ImageDraw.Draw(gorsel)
+    alan_genislik = genislik - 2 * kenar
+
+    # --- Üst: SON DAKİKA etiketi ---
+    etiket_font = _font(24, EKSEN_KUCUK)
+    etiket = "SON DAKİKA"
+    metin_g = ciz.textlength(etiket, font=etiket_font)
+    ciz.rectangle(
+        [kenar, dikey_kenar, kenar + metin_g + 28, dikey_kenar + 42],
+        fill=(198, 60, 52),
+    )
+    ciz.text((kenar + 14, dikey_kenar + 9), etiket, font=etiket_font,
+             fill=(255, 255, 255))
+
+    y = dikey_kenar + 76
+
+    # --- Başlık: küçük punto, bu slaytın yıldızı değil ---
+    b_font = _font(46, EKSEN_BASLIK)
+    b_satirlar = _satirlara_bol(baslik, b_font, alan_genislik, ciz)[:3]
+    for satir in b_satirlar:
+        ciz.text((kenar, y), satir, font=b_font, fill=(255, 255, 255))
+        y += int(46 * 1.2)
+
+    # --- Ayırıcı çizgi ---
+    y += 22
+    ciz.rectangle([kenar, y, kenar + 92, y + 5], fill=(226, 170, 88))
+    y += 40
+
+    # --- Detay metni: asıl içerik ---
+    # Punto metnin uzunluğuna göre seçiliyor; kısa metinde iri, uzun
+    # metinde küçük. Sabit punto uzun metni taşırıyordu.
+    alt_bilgi_y = yukseklik - dikey_kenar - 34
+    kullanilabilir = alt_bilgi_y - 40 - y
+
+    for punto in (52, 48, 44, 40, 36, 32, 28):
+        d_font = _font(punto, EKSEN_OZET)
+        d_satirlar = _satirlara_bol(detay, d_font, alan_genislik, ciz)
+        satir_y = int(punto * 1.5)
+        if satir_y * len(d_satirlar) <= kullanilabilir:
+            break
+
+    # Metin bloğunu kalan alanda dikeyde ortalıyoruz. Üste yapıştırınca
+    # kısa metinlerde altta koca bir boşluk kalıyordu.
+    blok = satir_y * len(d_satirlar)
+    y += max(0, (kullanilabilir - blok) // 2)
+
+    for satir in d_satirlar:
+        ciz.text((kenar, y), satir, font=d_font, fill=(226, 231, 242))
+        y += satir_y
+
+    # --- Alt bilgi ---
+    ciz.text((kenar, alt_bilgi_y), _buyuk_harf(kaynak),
+             font=_font(26, EKSEN_KUCUK), fill=(198, 206, 222))
+
+    if ulke_kodu:
+        gorsel = _bayragi_bas(gorsel, ulke_kodu, ulke_adi, dikey_kenar)
+
+    return gorsel
+
+
+# ----------------------------------------------------------------------
 # Kapak slaytı
 # ----------------------------------------------------------------------
 

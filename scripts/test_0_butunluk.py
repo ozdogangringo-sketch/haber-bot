@@ -36,6 +36,7 @@ DENETLENEN = [
     "scripts/hatirlat.py",
     "scripts/jeton_yenile.py",
     "scripts/test_6_tur_gorsel.py",
+    "scripts/son_dakika.py",
 ]
 
 

@@ -95,6 +95,50 @@ def atif_bloku(sonuclar: list[dict]) -> str:
     return "\n".join(satirlar)
 
 
+def son_dakika_caption(
+    haber, sonuclar: list[dict] | None = None,
+    ayarlar: dict | None = None,
+) -> str:
+    """
+    Son dakika postunun açıklaması — tek haber, akşam turundan farklı.
+
+    Akşam turunda 10 manşet listeleniyor; burada tek haber var, o yüzden
+    liste yerine haberin kendisi anlatılıyor. Yapı: SON DAKİKA etiketi +
+    başlık + açıklama + kaynak + atıf + hashtag.
+    """
+    sonuclar = sonuclar or []
+    f = (ayarlar or {}).get("icerik_filtresi", {})
+
+    baslik = (haber["ig_baslik"] or haber["baslik_orj"] or "").strip()
+    govde = (haber["ig_caption"] or haber["slayt_ozet"] or "").strip()
+
+    if f.get("aktif") and f.get("captionda", True):
+        kelimeler = f.get("yumusatilacak", [])
+        baslik = filtre.metni_yumusat(baslik, kelimeler)
+        govde = filtre.metni_yumusat(govde, kelimeler)
+
+    etiketler = _hashtaglari_birlestir([haber])
+    if f.get("aktif") and f.get("captionda", True):
+        etiketler = filtre.hashtaglari_ele(
+            etiketler, f.get("yasakli_hashtagler", [])
+        )
+
+    parcalar = [
+        f"🔴 SON DAKİKA · {tarih_metni()}",
+        baslik,
+        govde,
+        f"Kaynak: {haber['kaynak']}",
+    ]
+    atif = atif_bloku(sonuclar)
+    if atif:
+        parcalar.append(atif)
+    if etiketler:
+        parcalar.append(" ".join(f"#{e}" for e in etiketler))
+
+    metin = "\n\n".join(p for p in parcalar if p).strip()
+    return metin[:AZAMI_KARAKTER]
+
+
 def caption_kur(
     haberler: list,
     sonuclar: list[dict] | None = None,

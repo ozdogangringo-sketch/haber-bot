@@ -1,0 +1,81 @@
+# =========================================================
+#  SON DAKİKA KONTROLÜ
+#
+#  Gün içinde saat başı bakar: puanı eşiği geçen taze bir haber
+#  çıktıysa 2 slaytlık post hazırlayıp onaya sunar.
+#
+#  ÇOĞU ÇALIŞTIRMA HİÇBİR ŞEY YAPMAZ — bu normaldir. Eşiği geçen
+#  haber yoksa ~1 dakikada sessizce çıkar.
+#
+#  KOTA: private repo 2000 dk/ay. Ölçüldü:
+#      boş kontrol   ~1.2 dk  × 24/gün = ~29 dk/gün
+#      akşam turu    ~4-7 dk
+#      onay job'ları ~1 dk
+#    toplam ~1100-1400 dk/ay → sınırın altında ama payı büyük değil.
+#    Sıkışırsa cron'u "0 */2 * * *" yapıp yarıya indir.
+#
+#  Gece 00-06 arası (UTC 21-03) çalışmıyor: o saatte hem haber akışı
+#  duruyor hem de onaylayacak kimse uyanık olmuyor. 1 saatlik onay
+#  ömrü yüzünden zaten iptal olurdu.
+# =========================================================
+
+name: Son Dakika Kontrolü
+
+on:
+  schedule:
+    - cron: "5 4-20 * * *"     # UTC 04:05-20:05 = TR 07:05-23:05
+  workflow_dispatch:
+    inputs:
+      kuru:
+        description: "Kuru çalışma (Telegram'a GÖNDERME)"
+        type: boolean
+        default: false
+
+# Akşam turuyla aynı anda çalışırsa ikisi de aynı havuza yazar.
+# Sıraya alıyoruz; iptal ETMİYORUZ, yarıda kesilen tur veritabanını
+# tutarsız bırakır.
+concurrency:
+  group: tur-hazirla
+  cancel-in-progress: false
+
+jobs:
+  kontrol:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Son dakika var mı?
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_API_KEY: ${{ secrets.GEMINI_IMAGE_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ "${{ inputs.kuru }}" = "true" ]; then
+            python scripts/son_dakika.py --kuru
+          else
+            python scripts/son_dakika.py
+          fi
+
+      - name: Veritabanını kaydet
+        if: always()
+        run: |
+          git config user.name "haber-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/haber.db assets/flags || true
+          git diff --staged --quiet || git commit -m "Son dakika kontrolü $(date -u +%Y-%m-%dT%H:%M)"
+          git push || (git pull --rebase && git push)

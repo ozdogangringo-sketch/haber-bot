@@ -166,6 +166,58 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
     return sonuclar
 
 
+def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
+    """
+    Son dakika postunun iki slaytını üretir.
+
+    Slayt 1: normal haber slaytı (fotoğraf + başlık + özet) — dikkat çeker
+    Slayt 2: detay slaytı (sade zemin + uzun açıklama) — bilgi verir
+
+    Instagram carousel en az 2 görsel istediği için 2 zaten alt sınır.
+    İşbölümü bilinçli: birincisi akışta durdurur, ikincisi haberi anlatır.
+    """
+    g = ayarlar["gorsel"]
+    make_image.CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
+
+    # --- Slayt 1: normal haber slaytı ---
+    yol1, katman, atif = slayt_uret(haber, ayarlar)
+
+    # --- Slayt 2: detay ---
+    # ig_caption zaten haberin 2-3 cümlelik özü; ayrı bir alan üretmek
+    # yerine onu kullanıyoruz (ek Gemini çağrısı = ek kota).
+    detay = (_alan(haber, "ig_caption")
+             or _alan(haber, "slayt_ozet")
+             or _alan(haber, "ozet_orj"))
+
+    gorsel2 = make_image.detay_slayti(
+        haber["ig_baslik"] or haber["baslik_orj"],
+        detay,
+        haber["kaynak"],
+        ayarlar,
+        kategori=haber["kategori"],
+        ulke_kodu=_alan(haber, "ulke_kodu") or None,
+        ulke_adi=_alan(haber, "ulke_adi") or None,
+    )
+    yol2 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}-detay.jpg"
+    gorsel2.save(yol2, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+
+    log.info("son dakika slaytları üretildi #%s [%s + detay]",
+             haber["id"], katman)
+
+    if con is not None:
+        con.execute(
+            "UPDATE haberler SET gorsel_yolu = ?, gorsel_kaynagi = ?, "
+            "gorsel_atif = ? WHERE id = ?",
+            (str(yol1), katman, atif, haber["id"]),
+        )
+        con.commit()
+
+    return [
+        {"id": haber["id"], "yol": yol1, "katman": katman, "atif": atif},
+        {"id": haber["id"], "yol": yol2, "katman": "detay", "atif": ""},
+    ]
+
+
 def atif_bloku(sonuclar: list[dict]) -> str:
     """
     Caption'ın sonuna eklenecek fotoğraf atıflarını hazırlar.
