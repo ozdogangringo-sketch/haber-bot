@@ -46,6 +46,28 @@ genel:
   # Gece hazırlanan post saat kaça kadar onay bekleyebilir (TR).
   gece_onay_biter_saat: 8
 
+  # GECE OTOMATİK YAYIN (17 Ağu 2026)
+  # Gece kimse uyanık değil; büyük bir olayda hesabın sabaha kadar
+  # sessiz kalması kötü. İnsan onayının yerine DÖRT KATMAN kondu
+  # (src/otomatik_onay.py):
+  #   1. deterministik denetim (sayı/isim/başlık/suçlama dili)
+  #   2. ikinci kaynak teyidi  (başka kaynak da veriyor mu?)
+  #   3. LLM çapraz denetim    (anlam kayması — ayrı, bağımsız çağrı)
+  #   4. riskli kategori engeli (ölüm/suçlama/savaş otomatik çıkmaz)
+  #
+  # ŞÜPHEDE REDDET: dördü de geçmek zorunda, biri tereddüt ederse
+  # haber sabaha bırakılıp insana soruluyor.
+  #
+  # false yaparsan gece de insan onayı beklenir (eski davranış).
+  gece_otomatik_yayin: true
+
+  # İkinci kaynak teyidi hangi ağırlıktan itibaren GEREKMESİN.
+  # TRT Haber ve BBC Türkçe 10, Anadolu Ajansı 9 — kurumsal yayıncı,
+  # kendi teyit süreçleri var. Ölçüldü: aynı olayı iki kaynağın aynı
+  # şekilde vermesi nadir (136 haberlik havuzda tek eşleşme yok), o
+  # yüzden muafiyet olmadan bu katman her şeyi reddediyordu.
+  tek_basina_yeterli_agirlik: 9
+
   # Her çalıştırmada her kaynaktan en fazla kaç haber alalım?
   kaynak_basina_limit: 15
 

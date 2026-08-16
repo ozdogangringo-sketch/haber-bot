@@ -97,6 +97,17 @@ Suçlama, soruşturma veya dava içeren haberlerde "iddia edildi",
 "öne sürüldü", "hakkında soruşturma başlatıldı" gibi ifadeler kullan.
 Hiç kimseyi suçlu ilan etme. Mahkeme kararı olmadan kesin dille yazma.
 
+DEĞİŞEN SAYILAR — ÖLÜ/YARALI SAYISINDA "EN AZ" KULLAN:
+Deprem, kaza, saldırı gibi haberlerde can kaybı saatlik güncelleniyor.
+"47 kişi öldü" yarım saat sonra YANLIŞ olur; "en az 47 kişi hayatını
+kaybetti" olmaz — sayı artsa bile ifade doğru kalır.
+  KÖTÜ: "Depremde 47 kişi hayatını kaybetti"
+  İYİ : "Depremde en az 47 kişi hayatını kaybetti"
+  İYİ : "Ölü sayısı 47'ye yükseldi"   (yükseldi = o anki durum)
+Aynı kural yaralı, kayıp, gözaltı, tahliye sayıları için de geçerli.
+Kaynak "en az" demiyorsa bile sen "en az" yaz — sayının artabileceği
+her durumda bu daha doğru.
+
 DİĞER KURALLAR:
 - Çıktının tamamı Türkçe olacak. Haber İngilizceyse Türkçeye çevir.
 - ig_baslik: en fazla 12 kelime.

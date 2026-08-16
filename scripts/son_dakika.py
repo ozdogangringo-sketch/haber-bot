@@ -35,8 +35,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, dogrula, fetch_news, make_image, secim, slaytlar,
-    telegram_bot, upload_image,
+    caption, db, dogrula, fetch_news, instagram, make_image, otomatik_onay,
+    secim, slaytlar, telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
 
@@ -227,6 +227,8 @@ def main() -> int:
 
         log.info("aday: [%s] %s", aday["onem_puani"], aday["ig_baslik"])
 
+        katman_raporu: list[str] = []
+
         # --- 5) İki slaytı üret ---
         sonuclar = slaytlar.son_dakika_uret(aday, ayarlar, con)
         taze = con.execute("SELECT * FROM haberler WHERE id = ?",
@@ -271,13 +273,63 @@ def main() -> int:
                 print(f"  [{s['katman']:<8}] {s['yol']}")
             return 0
 
-        # --- 6) Onaya sun ---
+        # --- 6a) GECE: dört katmanlı denetimden geçerse otomatik yayınla ---
+        #
+        # Gece kimse uyanık değil; büyük bir olayda hesabın sabaha kadar
+        # sessiz kalması kötü. Ama insan onayını kaldırmak doğruluk
+        # güvencesini kaldırıyor, o yüzden yerine dört katman kondu.
+        # ŞÜPHEDE REDDET: biri bile tereddüt ederse sabaha bırakılıyor.
+        if gece_mi() and ayarlar["genel"].get("gece_otomatik_yayin", False):
+            uygun, katman_raporu = otomatik_onay.otomatik_yayinlanabilir(
+                con, taze, ayarlar
+            )
+            for satir in katman_raporu:
+                log.info("  %s", satir)
+
+            if uygun:
+                post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
+                baglanti = instagram.post_baglantisi(post_id, ayarlar)
+                if story_url:
+                    try:
+                        instagram.story_yayinla(story_url, ayarlar)
+                    except Exception as e:
+                        log.warning("story yayınlanamadı: %s", e)
+
+                con.execute(
+                    "UPDATE haberler SET durum = 'yayinlandi', son_dakika = 1, "
+                    "ig_post_id = ?, gorsel_url = ?, story_url = ?, "
+                    "gonderim_zamani = datetime('now') WHERE id = ?",
+                    (post_id, urller[0], story_url, aday["id"]),
+                )
+                con.commit()
+                sayaci_artir(con)
+
+                # Sabah görmek için: ne yayınlandı, hangi denetimlerden
+                # geçti. Beğenilmezse Instagram'dan silinebilir.
+                telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
+                telegram_bot.mesaj_gonder(
+                    "🌙 GECE OTOMATİK YAYINLANDI\n"
+                    f"{taze['ig_baslik']}\n\n"
+                    + "\n".join(katman_raporu)
+                    + f"\n\n{baglanti or post_id}\n\n"
+                    "Uygun bulmazsan Instagram'dan silebilirsin."
+                )
+                log.info("gece otomatik yayınlandı: %s", post_id)
+                return 0
+
+            log.info("otomatik yayın reddedildi, sabaha bırakılıyor")
+
+        # --- 6b) Onaya sun ---
         telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
         mesaj_id = telegram_bot.onay_iste(
             metin, len(urller),
             uyari=(uyari or ""),
             ozet=(f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {taze['onem_puani']}/10\n"
-                  f"⌛️ {OMUR_DAKIKA} dakika içinde onaylanmazsa iptal olur."),
+                  + ("🌙 Gece: sabah 08:00'e kadar bekler\n"
+                     if gece_mi() else
+                     f"⌛️ {OMUR_DAKIKA} dakika içinde onaylanmazsa iptal olur\n")
+                  + ("\n".join(katman_raporu) if gece_mi() and katman_raporu
+                     else "")),
         )
 
         con.execute(
