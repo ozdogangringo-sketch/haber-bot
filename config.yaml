@@ -372,6 +372,13 @@ sosyal:
   # kalıyor, yalnızca Telegram sonucuna not düşülüyor.
   facebooka_da_at: true
 
+  # Threads'e de paylaşılsın mı?
+  # ⚠️ AYRI JETON: Instagram/Facebook jetonu Threads'te ÇALIŞMIYOR.
+  # graph.threads.net kendi API'si ve kendi yetkilendirmesi var.
+  # .env'de THREADS_ACCESS_TOKEN + THREADS_USER_ID gerekiyor.
+  # Anahtar yoksa paylaşım sessizce atlanıyor, tur düşmüyor.
+  threadse_de_at: true
+
   # Slaytların alt bilgisinde gösterilen kanal ikonları
   kanallar:
     - instagram

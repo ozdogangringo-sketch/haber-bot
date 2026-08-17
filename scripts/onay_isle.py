@@ -33,7 +33,7 @@ import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
     caption, db, db_senkron, dogrula, facebook, instagram, slaytlar,
-    telegram_bot, upload_image,
+    telegram_bot, threads, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
 
@@ -135,6 +135,19 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
             log.warning("Facebook paylaşılamadı: %s", e)
             fb_notu = f"\n⚠️ Facebook'a gitmedi: {type(e).__name__}"
 
+    # Threads: ayrı jeton istiyor. Anahtar yoksa sessizce atlanıyor —
+    # jeton alınmadan önce de kod güvenle çalışsın diye.
+    th_notu = ""
+    if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
+            and threads.kullanilabilir_mi()):
+        try:
+            th_id = threads.yayinla(urller, metin)
+            th_notu = "\n🧵 Threads'e de paylaşıldı"
+            log.info("Threads: %s", th_id)
+        except Exception as e:
+            log.warning("Threads paylaşılamadı: %s", e)
+            th_notu = f"\n⚠️ Threads'e gitmedi: {type(e).__name__}"
+
     con.execute(
         "UPDATE haberler SET durum = 'yayinlandi', ig_post_id = ? "
         "WHERE telegram_message_id = ?",
@@ -144,7 +157,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
 
     telegram_bot.sonucu_yaz(
         mesaj_id,
-        f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}\n"
+        f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}{th_notu}\n"
         f"Onaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",
     )

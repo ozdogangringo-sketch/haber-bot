@@ -37,7 +37,7 @@ import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
     caption, db, db_senkron, dogrula, facebook, fetch_news, instagram,
-    make_image, otomatik_onay,
+    make_image, otomatik_onay, threads,
     secim, slaytlar, telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -326,6 +326,12 @@ def main() -> int:
                             facebook.story_yayinla(story_url, ayarlar)
                     except Exception as e:
                         log.warning("Facebook paylaşılamadı: %s", e)
+                if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
+                        and threads.kullanilabilir_mi()):
+                    try:
+                        threads.yayinla(urller, metin)
+                    except Exception as e:
+                        log.warning("Threads paylaşılamadı: %s", e)
 
                 con.execute(
                     "UPDATE haberler SET durum = 'yayinlandi', son_dakika = 1, "
