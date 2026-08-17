@@ -65,8 +65,19 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
         return 0
 
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
+
+    # Son dakika turu TEK haberden 2 slayt üretiyor (haber + ayrıntı).
+    # İkincisi ayrı kolonda duruyor; buraya eklenmezse elde tek görsel
+    # kalıyor ve Instagram carousel'i reddediyor.
+    for h in haberler:
+        if h["detay_url"]:
+            urller.append(h["detay_url"])
+
     if len(urller) < 2:
-        raise RuntimeError(f"yayın için en az 2 görsel gerekli, {len(urller)} var")
+        raise RuntimeError(
+            f"yayın için en az 2 görsel gerekli, {len(urller)} var. "
+            f"Tur bozuk görünüyor — /tur ile yenisini kurabilirsin."
+        )
 
     metin = caption.caption_kur(haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
     post_id = instagram.carousel_yayinla(urller, metin, ayarlar)

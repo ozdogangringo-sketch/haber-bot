@@ -297,9 +297,10 @@ def main() -> int:
 
                 con.execute(
                     "UPDATE haberler SET durum = 'yayinlandi', son_dakika = 1, "
-                    "ig_post_id = ?, gorsel_url = ?, story_url = ?, "
+                    "ig_post_id = ?, gorsel_url = ?, detay_url = ?, story_url = ?, "
                     "gonderim_zamani = datetime('now') WHERE id = ?",
-                    (post_id, urller[0], story_url, aday["id"]),
+                    (post_id, urller[0], urller[1] if len(urller) > 1 else None,
+                     story_url, aday["id"]),
                 )
                 con.commit()
                 sayaci_artir(con)
@@ -334,9 +335,10 @@ def main() -> int:
 
         con.execute(
             "UPDATE haberler SET durum = 'onay_bekliyor', son_dakika = 1, "
-            "telegram_message_id = ?, gorsel_url = ?, story_url = ?, "
-            "gonderim_zamani = datetime('now') WHERE id = ?",
-            (mesaj_id, urller[0], story_url, aday["id"]),
+            "telegram_message_id = ?, gorsel_url = ?, detay_url = ?, "
+            "story_url = ?, gonderim_zamani = datetime('now') WHERE id = ?",
+            (mesaj_id, urller[0], urller[1] if len(urller) > 1 else None,
+             story_url, aday["id"]),
         )
         con.commit()
         sayaci_artir(con)

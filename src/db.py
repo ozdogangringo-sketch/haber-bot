@@ -107,6 +107,12 @@ EK_KOLONLAR = {
     # Turun story görselinin imgbb adresi. Turun İLK haberine yazılıyor;
     # story tur başına tek olduğu için her satıra kopyalamaya gerek yok.
     "story_url": "TEXT",
+    # Son dakika postunun İKİNCİ slaytı (detay sayfası).
+    # Ayrı kolon şart: `gorsel_url` tek adres tutuyor ve son dakika
+    # turu 2 slayt üretiyor. Bu kolon olmadan ikinci slayt yayın
+    # anında kayboluyor ve Instagram "carousel en az 2 görsel ister"
+    # diye reddediyor — 17 Ağu 2026 sabahı tam olarak bu oldu.
+    "detay_url": "TEXT",
 }
 
 
