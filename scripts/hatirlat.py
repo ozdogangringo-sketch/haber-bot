@@ -36,6 +36,28 @@ log = logging.getLogger("hatirlat")
 # UTC 20:00 = TR 23:00 — gece yarısı post atmanın anlamı yok.
 HAVUZA_DON_SAATI_UTC = 20
 
+# ⚠️ TAZE TUR KAPATILMAZ. Tur bu süreden yeniyse, saat geç olsa bile
+# havuza döndürmüyoruz — yalnızca hatırlatıyoruz.
+#
+# 17 Ağu 2026: akşam turu bir arıza yüzünden elle TR 22:56'da kuruldu ve
+# 11 dakika sonraki hatırlatma job'ı onu "onay gelmedi" diye kapatacaktı.
+# Kullanıcıya onaylaması için 11 dakika tanımak yanlış; normal 20:07
+# turunda 3 saatlik pay var, elle kurulan turda yok.
+TAZE_TUR_DAKIKA = 90
+
+
+def _tur_yasi_dakika(haber) -> float | None:
+    """Tur Telegram'a düşeli kaç dakika oldu? Bilinmiyorsa None."""
+    ham = haber["gonderim_zamani"]
+    if not ham:
+        return None
+    try:
+        # `datetime('now')` ile yazılıyor, yani UTC ve saat dilimi eki yok.
+        gonderim = datetime.fromisoformat(ham).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return (datetime.now(timezone.utc) - gonderim).total_seconds() / 60
+
 
 def bekleyen_tur(con):
     """Onay bekleyen en son turu döner."""
@@ -68,8 +90,13 @@ def main() -> int:
     mesaj_id = haberler[0]["telegram_message_id"]
     simdi = datetime.now(timezone.utc)
 
-    # --- Gece: havuza döndür ---
-    if simdi.hour >= HAVUZA_DON_SAATI_UTC:
+    # --- Gece: havuza döndür (ama taze turu değil) ---
+    yas = _tur_yasi_dakika(haberler[0])
+    taze = yas is not None and yas < TAZE_TUR_DAKIKA
+    if taze:
+        log.info("tur %.0f dakikalık, kapatılmıyor", yas)
+
+    if simdi.hour >= HAVUZA_DON_SAATI_UTC and not taze:
         con.execute(
             "UPDATE haberler SET durum = 'yeni', telegram_message_id = NULL "
             "WHERE telegram_message_id = ?",
