@@ -167,7 +167,41 @@ henüz push edilmemişti. Yayın job'ı checkout yaptığında turu göremedi:
 Workflow sonundaki commit adımı YERİNDE DURUYOR — birinci katman
 patlarsa yedek.
 
-**2. Gemini ücretsiz kotası bitebiliyor (429).**
+**1d. ⚠️ `git pull --rebase` REPOYU KİLİTLİYOR — aynı akşam tekrarladı.**
+
+17 Ağu 2026, 20:54'te akşam turu Telegram'a düştü ama veritabanı
+GitHub'a HİÇ yazılamadı; onaya basılınca yine "bu onay mesajına bağlı
+haber bulunamadı" geldi. 1c'deki çözüm bu sefer yetmedi çünkü sorun
+zamanlama değil, **git'in kendisiydi.**
+
+Zincir:
+1. `hazirla` 17:40'ta `main` dalında başladı, 14 dakika sürdü.
+2. 17:46'da kullanıcı bir **son dakika** haberini onayladı. Onay job'ı
+   AYRI bir concurrency grubundaydı (`onay-islem`), araya girdi ve
+   `data/haber.db`'yi push etti.
+3. 17:54'te turun push'u reddedildi (uzak ilerlemişti).
+4. Yedek olarak yazılmış `git pull --rebase` çalıştı → `haber.db`
+   **ikili dosya, birleştirilemez** → rebase çakıştı ve YARIM KALDI.
+5. Repo **detached HEAD**'de kilitlendi. Sonraki her `git push`
+   "You are not currently on a branch" verdi — `hemen_kaydet()` de,
+   workflow sonundaki yedek adım da. Turun 10 haberi kayboldu,
+   sıfırdan hazırlamak gerekti.
+
+Üç katmanlı çözüm:
+1. **Tek concurrency grubu: `veritabani`.** Veritabanına yazan dört
+   workflow (`hazirla`, `son-dakika`, `yayinla`, `hatirlat`) artık aynı
+   grupta, aynı anda çalışamıyorlar. Asıl çözüm bu — ikili bir dosyada
+   birleştirme diye bir şey yok, tek gerçek çare çakıştırmamak.
+   **Yeni workflow DB'ye yazıyorsa bu gruba koy.**
+2. **`git push origin HEAD:main`.** Düz `git push` bulunulan dala
+   bağımlı; refspec vermek detached HEAD'de bile çalışıyor.
+3. `db_senkron._birlestir()` çakışan rebase'i kendisi çözüyor
+   (`--theirs` = bizim taze turumuz), çözemezse `rebase --abort` ile
+   temizliyor. Repo asla yarım rebase'de bırakılmıyor.
+
+⚠️ **`git pull --rebase`'i bu repoda çıplak kullanma.** Yerelde de
+geçerli: `haber.db` her turda değiştiği için çakışma kuraldır, istisna
+değil.
 
 Yoğun test edilen bir günde kota doldu ve tur yarıda kaldı. `hazirla.py
 --metinsiz` bunun için var: Gemini'ye hiç gitmeden, metni ZATEN hazır
