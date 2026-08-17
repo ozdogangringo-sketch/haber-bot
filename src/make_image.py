@@ -611,7 +611,67 @@ def _ikon_facebook(ciz, x, y, boy, renk):
     ciz.text((x + (boy - g) / 2, y + boy * 0.12), "f", font=f, fill=renk)
 
 
-IKONLAR = {"instagram": _ikon_instagram, "x": _ikon_x, "facebook": _ikon_facebook}
+def _ikon_threads(ciz, x, y, boy, renk):
+    """
+    Threads: üstte sağa, altta sola dolanan iki kavis ve dikey gövde.
+
+    Resmî logo SVG ve Pillow SVG okumuyor; Unicode'da da karşılığı yok
+    (ölçüldü, fontta "NO GLYPH" çıkıyor). Diğer ikonlarda olduğu gibi
+    tanınabilir bir sadeleştirme çiziliyor. Ayırt edici yanı ilmeğin
+    KAPALI OLMAMASI — kapatılırsa "@" işaretine benziyor.
+    """
+    k = max(2, boy // 10)
+    # Alt ilmek: sağ alttan başlayıp sola dolanıyor, sağ tarafı açık.
+    ciz.arc([x + boy * 0.16, y + boy * 0.36, x + boy * 0.84, y + boy * 0.96],
+            start=300, end=200, fill=renk, width=k)
+    # Üst kavis: sola açılıp sağa kıvrılan kanca.
+    ciz.arc([x + boy * 0.16, y + boy * 0.04, x + boy * 0.84, y + boy * 0.64],
+            start=170, end=40, fill=renk, width=k)
+    # Dikey gövde: iki kavsi birleştiriyor, harfi ayakta tutan çizgi.
+    ciz.line([(x + boy * 0.5, y + boy * 0.18), (x + boy * 0.5, y + boy * 0.66)],
+             fill=renk, width=k)
+
+
+IKONLAR = {"instagram": _ikon_instagram, "x": _ikon_x,
+           "facebook": _ikon_facebook, "threads": _ikon_threads}
+
+# İndirilmiş gerçek logolar (scripts/logo_indir.py). Elle çizim yalnızca
+# dosya yoksa devreye giriyor.
+LOGO_KLASORU = Path(__file__).resolve().parent.parent / "assets" / "icons"
+_logo_onbellek: dict[tuple[str, int], Image.Image] = {}
+
+
+def _logo_maskesi(ad: str, boy: int):
+    """
+    Logonun alfa kanalını maske olarak döner, yoksa None.
+
+    NEDEN MASKE: logolar kendi renklerinde (Instagram gradyanı, Facebook
+    mavisi) geliyor ama alt bilgideki her şey tek renk. Alfayı maske alıp
+    istediğimiz rengi basınca logo alt bilgiye uyuyor.
+
+    Önbellek: bir turda 10 slayt çiziliyor ve her slayt aynı 4 logoyu
+    istiyor; diskten 40 kez okumanın anlamı yok.
+    """
+    anahtar = (ad, boy)
+    if anahtar in _logo_onbellek:
+        return _logo_onbellek[anahtar]
+
+    yol = LOGO_KLASORU / f"{ad}.png"
+    if not yol.exists():
+        return None
+    try:
+        logo = Image.open(yol).convert("RGBA")
+        # En-boy oranı korunuyor: X logosu kare değil (330x299) ve
+        # zorla kareye oturtulursa eziliyor.
+        oran = min(boy / logo.width, boy / logo.height)
+        yeni = (max(1, int(logo.width * oran)), max(1, int(logo.height * oran)))
+        maske = logo.resize(yeni, Image.LANCZOS).split()[-1]
+    except Exception as e:
+        log.warning("logo okunamadı (%s): %s", ad, e)
+        return None
+
+    _logo_onbellek[anahtar] = maske
+    return maske
 
 
 def kanal_ikonlari_bas(gorsel, ayarlar, y_merkez: int, renk=(150, 160, 180)):
@@ -620,6 +680,9 @@ def kanal_ikonlari_bas(gorsel, ayarlar, y_merkez: int, renk=(150, 160, 180)):
 
     Sağ kenardan başlayıp sola doğru diziliyor; sol tarafta kaynak adı
     duruyor ve ona çarpmaması gerekiyor.
+
+    Önce indirilmiş gerçek logo aranıyor, bulunamazsa elle çizime
+    düşülüyor — logo dosyaları silinse bile slayt üretimi durmuyor.
     """
     kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar") or []
     if not kanallar:
@@ -632,10 +695,17 @@ def kanal_ikonlari_bas(gorsel, ayarlar, y_merkez: int, renk=(150, 160, 180)):
     x = g["genislik"] - g["kenar_bosluk"] - boy
 
     for ad in reversed(kanallar):
-        fn = IKONLAR.get(ad)
-        if fn:
-            fn(ciz, x, y_merkez - boy // 2, boy, renk)
-            x -= ara
+        maske = _logo_maskesi(ad, boy)
+        if maske is not None:
+            # Dikeyde ortala: X logosu kare olmadığı için gerekiyor.
+            ust = y_merkez - maske.height // 2
+            sol = x + (boy - maske.width) // 2
+            gorsel.paste(renk, (sol, ust), maske)
+        elif ad in IKONLAR:
+            IKONLAR[ad](ciz, x, y_merkez - boy // 2, boy, renk)
+        else:
+            continue
+        x -= ara
     return gorsel
 
 
