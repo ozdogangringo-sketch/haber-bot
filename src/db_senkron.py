@@ -30,6 +30,12 @@ import subprocess
 
 log = logging.getLogger(__name__)
 
+DAL = "main"
+
+# Çakışmada BİZİM sürümümüzün kazanacağı dosyalar. İkili dosyalar
+# birleştirilemiyor; birini seçmek zorundayız.
+BIZIM_KAZANIR = ("data/haber.db",)
+
 
 def _calistir(*komut: str, saniye: int = 60) -> tuple[bool, str]:
     try:
@@ -37,6 +43,57 @@ def _calistir(*komut: str, saniye: int = 60) -> tuple[bool, str]:
         return s.returncode == 0, (s.stderr or s.stdout).strip()
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
+
+
+def _push() -> tuple[bool, str]:
+    """
+    Açık refspec ile iter: `HEAD:main`.
+
+    Neden düz `git push` değil: 17 Ağu 2026'da akşam turu `main`
+    dalında başladı ama iş bitiminde detached HEAD'deydi ve push
+    "You are not currently on a branch" ile düştü. Turun veritabanı
+    GitHub'a hiç yazılamadı, onaya basılınca "haber bulunamadı"
+    hatası geldi.
+
+    `HEAD:main` detached HEAD'de de çalışıyor — hangi commit'te
+    olduğumuzu değil, nereye iteceğimizi söylüyoruz.
+    """
+    return _calistir("git", "push", "origin", f"HEAD:{DAL}", saniye=120)
+
+
+def _birlestir() -> None:
+    """
+    Uzaktaki değişikliği üstümüze alır, çakışmayı kendisi çözer.
+
+    ⚠️ `git pull --rebase` TEK BAŞINA KULLANILMAMALI. `data/haber.db`
+    ikili bir dosya; iki job aynı anda yazdığında rebase çakışıyor ve
+    YARIM KALIYOR — repo detached HEAD'de kilitleniyor, sonraki her
+    git komutu patlıyor. Akşam turunu bu düşürdü.
+
+    Burada çakışma sessizce çözülüyor: ikili dosyada birleştirme diye
+    bir şey yok, birini seçmek zorundayız ve elimizdeki taze tur daha
+    değerli. Kaybedilen, o arada başka bir job'ın yazdığı satırlar —
+    çakışmayı asıl önleyen şey workflow'lardaki ortak `concurrency`
+    grubu, burası son emniyet supabı.
+    """
+    _calistir("git", "fetch", "origin", DAL, saniye=90)
+
+    tamam, _ = _calistir("git", "rebase", f"origin/{DAL}")
+    if tamam:
+        return
+
+    # Rebase sırasında "theirs" = yeniden uygulanan commit, yani BİZİM
+    # değişikliğimiz. Sezgiye ters ama doğrusu bu.
+    for dosya in BIZIM_KAZANIR:
+        _calistir("git", "checkout", "--theirs", "--", dosya)
+        _calistir("git", "add", dosya)
+
+    tamam, cikti = _calistir("git", "-c", "core.editor=true", "rebase", "--continue")
+    if not tamam:
+        # Çözemediysek yarım rebase'i temizle. Detached HEAD'de kalmak
+        # push'u da, sonraki job'ları da bozuyor.
+        log.warning("db_senkron: rebase çözülemedi, iptal ediliyor: %s", cikti[:200])
+        _calistir("git", "rebase", "--abort")
 
 
 def hemen_kaydet(mesaj: str) -> bool:
@@ -62,12 +119,11 @@ def hemen_kaydet(mesaj: str) -> bool:
         log.warning("db_senkron: commit başarısız: %s", cikti[:200])
         return False
 
-    tamam, cikti = _calistir("git", "push", saniye=120)
+    tamam, cikti = _push()
     if not tamam:
-        # Başka bir job araya girmiş olabilir — bir kez rebase deneyip
-        # tekrar itiyoruz.
-        _calistir("git", "pull", "--rebase", saniye=120)
-        tamam, cikti = _calistir("git", "push", saniye=120)
+        # Başka bir job araya girmiş olabilir — üstüne alıp tekrar itiyoruz.
+        _birlestir()
+        tamam, cikti = _push()
 
     if tamam:
         log.info("db_senkron: veritabanı push edildi")
