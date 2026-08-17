@@ -21,6 +21,11 @@ NEDEN VAR:
     python scripts/gecmisi_paylas.py           # gerçekten paylaşır
 
     --bekleme N   turlar arası saniye (varsayılan 60)
+    --adet N      yalnızca ilk N turu paylaş (kronolojik sırayla)
+
+`--adet` neden var: paylaşım geri alınamıyor, elle silmek gerekiyor.
+Önce tek tur atıp Threads'te nasıl göründüğüne bakmak, sonra kalanına
+devam etmek daha güvenli.
 """
 
 import json
@@ -99,6 +104,61 @@ def gorseller_saglam_mi(urller: list[str]) -> tuple[bool, int]:
     return saglam == len(urller) and saglam > 0, saglam
 
 
+def halkalari_kur(tur: dict, ayarlar: dict) -> list[dict]:
+    """
+    Turu Threads zincirine çevirir: her görsel bir halka.
+
+    ANA HALKA (akışta görünen tek gönderi bu): tarih başlığı + ilk
+    haberin manşeti + hashtag'ler. Hashtag'i sonraki halkalara koymanın
+    anlamı yok, onları yalnızca zinciri açan görüyor.
+
+    AKŞAM TURU : her haber kendi slaytıyla bir halka.
+    SON DAKİKA : ilk halka haberin kendisi, sonraki halkalar ayrıntı
+                 sayfaları. Ayrıntı sayfalarının metni `detay_metni`nin
+                 paragraflarından geliyor — slaytta zaten yazıyor ama
+                 Threads okuyucusu metni okur, görsele bakmayabilir.
+    """
+    haberler = tur["haberler"]
+    gun = _tur_gunu(tur["zaman"])
+    baslik = "Son dakika" if tur["son_dakika"] else "Günün gündemi"
+
+    # Ana halkanın üst satırı + hashtag'ler için mevcut kurucuyu tek
+    # haberle çağırıyoruz; sınırı da o hallediyor.
+    ana_metin = caption.kisa_metin_kur(
+        haberler[:1], caption.THREADS_AZAMI, gun=gun,
+        ayarlar=ayarlar, baslik=baslik,
+    )
+
+    halkalar = [{"metin": ana_metin, "gorsel_url": tur["urller"][0]}]
+
+    if tur["son_dakika"]:
+        # Ayrıntı sayfaları: paragrafları sırayla dağıt.
+        paragraflar = [p.strip() for p in
+                       (haberler[0]["detay_metni"] or "").split("\n\n")
+                       if p.strip()]
+        # `detay_metni` sonradan eklendi; eski son dakika kayıtlarında yok.
+        # O turlarda caption'a düşüyoruz — metinsiz bir gönderi Threads'te
+        # yavan duruyor, orada asıl okunan şey metin.
+        if not paragraflar and haberler[0]["ig_caption"]:
+            paragraflar = [haberler[0]["ig_caption"].strip()]
+
+        for i, url in enumerate(tur["urller"][1:]):
+            metin = paragraflar[i] if i < len(paragraflar) else ""
+            if not metin:
+                # Söyleyecek sözü olmayan halkayı hiç eklemiyoruz.
+                continue
+            halkalar.append({"metin": metin, "gorsel_url": url})
+    else:
+        # Akşam turu: görseller haberlerle birebir sırada.
+        for sira, (haber, url) in enumerate(
+                zip(haberler[1:], tur["urller"][1:]), start=2):
+            manset = (haber["ig_baslik"] or haber["baslik_orj"]).strip()
+            halkalar.append({"metin": f"{sira}. {manset}",
+                             "gorsel_url": url})
+
+    return halkalar
+
+
 def _tur_gunu(zaman: str):
     """Turun kendi tarihi — paylaşım metninde bugünün tarihi yazmasın."""
     try:
@@ -151,28 +211,34 @@ def main() -> int:
         print("\nPaylaşılacak tur yok.")
         return 0
 
+    if "--adet" in sys.argv:
+        adet = int(sys.argv[sys.argv.index("--adet") + 1])
+        if adet < len(paylasilacak):
+            print(f"\n(--adet {adet}: ilk {adet} tur alınıyor, "
+                  f"{len(paylasilacak) - adet} tur sonraya kalıyor)")
+            paylasilacak = paylasilacak[:adet]
+
     print(f"\n{len(paylasilacak)} tur paylaşılacak"
           f"{' (KURU ÇALIŞMA)' if kuru else ''}:\n")
     print("=" * 68)
 
     for sira, tur in enumerate(paylasilacak, 1):
-        metin = caption.kisa_metin_kur(
-            tur["haberler"], caption.THREADS_AZAMI,
-            gun=_tur_gunu(tur["zaman"]), ayarlar=ayarlar,
-            baslik="Son dakika" if tur["son_dakika"] else "Günün gündemi",
-        )
+        halkalar = halkalari_kur(tur, ayarlar)
         print(f"\n[{sira}/{len(paylasilacak)}] {tur['zaman'][:16]}  "
-              f"{len(tur['urller'])} görsel  {len(metin)} karakter")
+              f"{len(halkalar)} halkalı zincir")
         print("-" * 68)
-        print(metin)
+        for i, halka in enumerate(halkalar, 1):
+            etiket = "ANA" if i == 1 else f"↳{i}"
+            ozet = (halka["metin"] or "(metinsiz)").replace("\n", " ⏎ ")
+            print(f"  {etiket:4} {ozet[:88]}")
         print("-" * 68)
 
         if kuru:
             continue
 
         try:
-            post_id = threads.yayinla(tur["urller"], metin)
-            print(f"✓ Threads'e paylaşıldı: {post_id}")
+            post_id = threads.zincir_yayinla(halkalar)
+            print(f"✓ Threads zinciri yayınlandı: {post_id}")
         except Exception as e:
             # Bir tur patlasa da diğerleri denensin.
             print(f"✗ paylaşılamadı: {type(e).__name__}: {e}")

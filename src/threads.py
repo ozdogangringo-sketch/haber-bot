@@ -211,6 +211,72 @@ def yayinla(gorsel_urlleri: list[str], metin: str) -> str:
     return d["id"]
 
 
+def zincir_yayinla(halkalar: list[dict]) -> str:
+    """
+    Haberleri ZİNCİR olarak paylaşır. Ana gönderinin id'sini döner.
+
+    `halkalar`: [{"metin": str, "gorsel_url": str | None}, ...]
+    İlk halka ana gönderi, kalanlar sırayla ONA DEĞİL, BİR ÖNCEKİNE
+    yanıt olarak bağlanıyor.
+
+    NEDEN ZİNCİR, NEDEN CAROUSEL DEĞİL:
+        Threads metin platformu ve adı da bundan geliyor — uzun anlatım
+        tek gönderiye sıkıştırılmaz, kendi gönderine yanıt yazarak
+        zincir kurulur. 10 slaytlık carousel Instagram dili; Threads'te
+        yabancı duruyor ve 500 karakterlik sınır yüzünden metin de
+        kırpılıyordu.
+
+    NEDEN HER HALKA BİR ÖNCEKİNE:
+        Hepsini ana gönderiye bağlarsak Threads onları sıradan yanıtlar
+        gibi diziyor ve SIRA GARANTİ DEĞİL — 7. haber 3.'den önce
+        görünebilir. Ardışık bağlamak okuma sırasını koruyor.
+
+    HATA POLİTİKASI:
+        Ana gönderi patlarsa zincir hiç kurulmuyor (istisna fırlıyor).
+        Ara halka patlarsa zincir O NOKTADA KESİLİYOR ama o ana kadarki
+        gönderiler yayında kalıyor — yarım zincir, hiç gönderi
+        olmamasından iyi. Kesinti loga yazılıyor.
+    """
+    if not halkalar:
+        raise ValueError("paylaşılacak halka yok")
+
+    kullanici = _kullanici()
+    onceki_id = None
+    ana_id = None
+
+    for sira, halka in enumerate(halkalar, 1):
+        # Aralık ZORUNLU — açıklaması CONTAINER_ARASI_SANIYE'de.
+        if sira > 1:
+            time.sleep(CONTAINER_ARASI_SANIYE)
+
+        parametreler = {"text": halka["metin"][:500]}
+        if halka.get("gorsel_url"):
+            parametreler["media_type"] = "IMAGE"
+            parametreler["image_url"] = halka["gorsel_url"]
+        else:
+            parametreler["media_type"] = "TEXT"
+        if onceki_id:
+            parametreler["reply_to_id"] = onceki_id
+
+        try:
+            d = _istek("POST", f"/{kullanici}/threads", **parametreler)
+            _container_bekle(d["id"])
+            d = _istek("POST", f"/{kullanici}/threads_publish",
+                       creation_id=d["id"])
+        except Exception as e:
+            if ana_id is None:
+                raise
+            log.warning("Threads zinciri %d. halkada kesildi: %s", sira, e)
+            return ana_id
+
+        onceki_id = d["id"]
+        if ana_id is None:
+            ana_id = onceki_id
+        log.info("Threads zincir %d/%d yayınlandı", sira, len(halkalar))
+
+    return ana_id
+
+
 def jetonu_yenile() -> tuple[str, int]:
     """
     Jetonu 60 gün daha uzatır. `(yeni_jeton, kalan_gun)` döner.
