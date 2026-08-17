@@ -114,12 +114,21 @@ def _alt_kod(cevap) -> int | None:
         return None
 
 
-def _istek(yontem: str, yol: str, **parametreler) -> dict:
+def _istek(yontem: str, yol: str, tekrar: bool = True, **parametreler) -> dict:
+    """
+    Threads API çağrısı.
+
+    ⚠️ `tekrar=False` PUBLISH İÇİN ŞART. Publish idempotent DEĞİL:
+    container yayınlanınca tükeniyor. Cevap gecikir de tekrar denersek
+    ikinci çağrı "Medya Bulunamadı" (4279009) alıyor — 18 Ağu 2026'da
+    tam olarak bu oldu ve zincir koptu. Container oluşturmak ise
+    zararsız, orada tekrar açık kalıyor.
+    """
     url = f"{TABAN}{yol}"
     parametreler["access_token"] = _jeton()
 
     son_hata = None
-    for deneme in range(1, AZAMI_DENEME + 1):
+    for deneme in range(1, (AZAMI_DENEME if tekrar else 1) + 1):
         try:
             if yontem.upper() == "GET":
                 cevap = requests.get(url, params=parametreler,
@@ -226,6 +235,37 @@ def yayinla(gorsel_urlleri: list[str], metin: str) -> str:
     return d["id"]
 
 
+def _halka_yayinla(kullanici: str, parametreler: dict) -> str:
+    """
+    Tek bir gönderiyi container'dan publish'e kadar götürür, id'sini döner.
+
+    ⚠️ TEKRAR HALKANIN TAMAMINI KAPSIYOR, tek tek isteklerini değil.
+    Sebep: publish tüketilmiş bir container'a ikinci kez çağrılamıyor
+    ("Medya Bulunamadı", 4279009). Bir deneme patlarsa o container'ı
+    kurtarmaya çalışmak yerine BAŞTAN, taze container'la deniyoruz.
+
+    18 Ağu 2026'da eski tasarım şöyle kırılmıştı: container üretiliyor,
+    hazır olduğu doğrulanıyor, publish geçici bir medya hatası alıyor,
+    istek katmanı publish'i tekrar deniyor ve container çoktan
+    tüketilmiş oluyordu.
+    """
+    son_hata = None
+    for deneme in range(1, 4):
+        try:
+            d = _istek("POST", f"/{kullanici}/threads", **parametreler)
+            _container_bekle(d["id"])
+            # tekrar=False: publish idempotent değil.
+            p = _istek("POST", f"/{kullanici}/threads_publish",
+                       tekrar=False, creation_id=d["id"])
+            return p["id"]
+        except Exception as e:
+            son_hata = e
+            log.warning("halka denemesi %s/3 başarısız: %s", deneme, str(e)[:160])
+            if deneme < 3:
+                time.sleep(MEDYA_BEKLEME_SANIYE)
+    raise RuntimeError(f"halka yayınlanamadı: {son_hata}")
+
+
 def zincir_yayinla(halkalar: list[dict]) -> str:
     """
     Haberleri ZİNCİR olarak paylaşır. Ana gönderinin id'sini döner.
@@ -282,17 +322,14 @@ def zincir_yayinla(halkalar: list[dict]) -> str:
             parametreler["reply_to_id"] = onceki_id
 
         try:
-            d = _istek("POST", f"/{kullanici}/threads", **parametreler)
-            _container_bekle(d["id"])
-            d = _istek("POST", f"/{kullanici}/threads_publish",
-                       creation_id=d["id"])
+            yeni_id = _halka_yayinla(kullanici, parametreler)
         except Exception as e:
             if ana_id is None:
                 raise
             log.warning("Threads zinciri %d. halkada kesildi: %s", sira, e)
             return ana_id, sira - 1
 
-        onceki_id = d["id"]
+        onceki_id = yeni_id
         if ana_id is None:
             ana_id = onceki_id
         log.info("Threads zincir %d/%d yayınlandı", sira, len(halkalar))
