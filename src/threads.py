@@ -56,6 +56,19 @@ GECICI_ALT_KODLAR = {2207003, 2207032, 2207052}
 # görselin karşı tarafça indirilmesinde.
 MEDYA_BEKLEME_SANIYE = 15
 
+# ⚠️ CAROUSEL CONTAINER'LARI ARASINDA BEKLEMEK ZORUNLU.
+#
+# Threads art arda gelen medya isteklerini reddediyor. ÖLÇÜLDÜ
+# (18 Ağu 2026, aynı 6 görsel, aynı hesap):
+#     aralıksız      -> 1/6 başarılı (2207003 ve 2207052 hataları)
+#     5 sn aralıklı  -> 6/6 başarılı
+#
+# Instagram aynı tempoya sorunsuz dayanıyor, bu yüzden Instagram'dan
+# kopyalanan akış burada patlıyordu. Retry mantığı hatayı kurtarıyordu
+# ama her görselde 15+ saniye kaybettiriyordu; aralık koymak hem daha
+# hızlı hem daha temiz.
+CONTAINER_ARASI_SANIYE = 5
+
 
 def kullanilabilir_mi() -> bool:
     """
@@ -176,6 +189,9 @@ def yayinla(gorsel_urlleri: list[str], metin: str) -> str:
     # --- Carousel ---
     cocuklar = []
     for i, url in enumerate(gorsel_urlleri, 1):
+        # Aralık ZORUNLU — açıklaması CONTAINER_ARASI_SANIYE'de.
+        if i > 1:
+            time.sleep(CONTAINER_ARASI_SANIYE)
         d = _istek("POST", f"/{kullanici}/threads",
                    media_type="IMAGE", image_url=url,
                    is_carousel_item="true")
