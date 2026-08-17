@@ -322,6 +322,8 @@ def main() -> int:
                 if (ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"):
                     try:
                         facebook.albüm_yayinla(urller, metin, ayarlar)
+                        if story_url:
+                            facebook.story_yayinla(story_url, ayarlar)
                     except Exception as e:
                         log.warning("Facebook paylaşılamadı: %s", e)
 

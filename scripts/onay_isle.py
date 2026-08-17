@@ -123,6 +123,14 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
             fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
             fb_notu = "\n📘 Facebook'a da paylaşıldı"
             log.info("Facebook: %s", fb_id)
+            # Aynı story görseli Facebook'a da gidiyor; ayrı üretim yok,
+            # ikisi de 9:16.
+            if story_url:
+                try:
+                    facebook.story_yayinla(story_url, ayarlar)
+                    fb_notu += " (story dahil)"
+                except Exception as e:
+                    log.warning("Facebook story olmadı: %s", e)
         except Exception as e:
             log.warning("Facebook paylaşılamadı: %s", e)
             fb_notu = f"\n⚠️ Facebook'a gitmedi: {type(e).__name__}"

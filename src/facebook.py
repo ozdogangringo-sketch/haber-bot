@@ -114,6 +114,29 @@ def albüm_yayinla(gorsel_urlleri: list[str], metin: str,
     return d["id"]
 
 
+def story_yayinla(gorsel_url: str, ayarlar: dict) -> str:
+    """
+    Facebook sayfa story'si paylaşır.
+
+    İKİ AŞAMA: Instagram'daki gibi doğrudan URL kabul etmiyor.
+      1. Fotoğraf `published=false` ile yükleniyor -> photo_id
+      2. `/photo_stories` çağrısında o id story'ye çevriliyor
+
+    Instagram story'siyle aynı kısıtlar: sticker/link eklenemiyor,
+    24 saat sonra kayboluyor, 9:16 bekleniyor. Bizim story görseli
+    zaten 9:16 olduğu için ek üretim gerekmiyor — aynı dosya
+    Instagram'a da Facebook'a da gidiyor.
+    """
+    d = _istek("POST", "/me/photos", ayarlar,
+               url=gorsel_url, published="false")
+    foto_id = d["id"]
+
+    d = _istek("POST", "/me/photo_stories", ayarlar, photo_id=foto_id)
+    story_id = d.get("post_id") or d.get("id") or foto_id
+    log.info("Facebook story yayınlandı: %s", story_id)
+    return story_id
+
+
 def post_baglantisi(post_id: str) -> str:
     """Facebook post bağlantısı — Telegram sonucunda göstermek için."""
     return f"https://www.facebook.com/{post_id}"
