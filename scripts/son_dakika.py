@@ -234,31 +234,23 @@ def main() -> int:
         taze = con.execute("SELECT * FROM haberler WHERE id = ?",
                            (aday["id"],)).fetchone()
 
+        # Story carousel'e girmiyor, ayrı yükleniyor.
+        carousel = [s for s in sonuclar if s["katman"] != "story"]
+        story_slayt = next((s for s in sonuclar if s["katman"] == "story"), None)
+
         yuklemeler = upload_image.hepsini_yukle(
-            [s["yol"] for s in sonuclar], ayarlar
+            [s["yol"] for s in carousel], ayarlar
         )
         urller = [y["url"] for y in yuklemeler]
 
-        # Story: haberin 9:16 hâli. 1. slaytın fotoğrafını yeniden
-        # kullanıyoruz — aynı görsel iki orana ayrı ayrı kırpılıyor.
         story_url = None
-        try:
-            from PIL import Image
-            foto = None
-            if taze["gorsel_kaynagi"] in ("commons", "pexels"):
-                foto = Image.open(sonuclar[0]["yol"]).convert("RGB")
-            sg = make_image.story_haber(
-                taze["ig_baslik"] or taze["baslik_orj"],
-                taze["slayt_ozet"] or "",
-                taze["kaynak"], ayarlar,
-                arkaplan=foto, kategori=taze["kategori"], son_dakika=True,
-                ulke_kodu=taze["ulke_kodu"], ulke_adi=taze["ulke_adi"],
-            )
-            sy = make_image.CIKTI_KLASORU / f"story-{taze['id']}.jpg"
-            sg.save(sy, "JPEG", quality=ayarlar["gorsel"]["jpeg_kalite"])
-            story_url = upload_image.gorsel_yukle(sy, ayarlar)["url"]
-        except Exception as e:
-            log.warning("story görseli üretilemedi: %s", e)
+        if story_slayt:
+            try:
+                story_url = upload_image.gorsel_yukle(
+                    story_slayt["yol"], ayarlar
+                )["url"]
+            except Exception as e:
+                log.warning("story yüklenemedi: %s", e)
 
         metin = caption.son_dakika_caption(taze, sonuclar, ayarlar)
         uyari, isaretli = dogrula.turu_dogrula([taze])

@@ -180,7 +180,24 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
     make_image.CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
     # --- Slayt 1: normal haber slaytı ---
-    yol1, katman, atif = slayt_uret(haber, ayarlar)
+    # Arka planı BURADA seçiyoruz çünkü story'de de aynı HAM fotoğraf
+    # lazım. `slayt_uret` yalnızca yazılmış slaytı döndürüyor; story'yi
+    # ondan üretmeye kalkmak yazının üstüne yazı basmak oluyor —
+    # 17 Ağu 2026'da yayınlanan story'de tam olarak bu oldu.
+    ham_arkaplan, katman, atif = arkaplan_sec(haber, ayarlar)
+
+    gorsel1 = make_image.yaziyi_bas(
+        ham_arkaplan.copy(),
+        haber["ig_baslik"] or haber["baslik_orj"],
+        haber["kaynak"],
+        ayarlar,
+        ozet=_alan(haber, "slayt_ozet") or None,
+        arsiv_ibaresi=katman in ("commons", "pexels"),
+        ulke_kodu=_alan(haber, "ulke_kodu") or None,
+        ulke_adi=_alan(haber, "ulke_adi") or None,
+    )
+    yol1 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
+    gorsel1.save(yol1, "JPEG", quality=g["jpeg_kalite"], optimize=True)
 
     # --- Slayt 2: detay ---
     # ig_caption zaten haberin 2-3 cümlelik özü; ayrı bir alan üretmek
@@ -201,7 +218,30 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
     yol2 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}-detay.jpg"
     gorsel2.save(yol2, "JPEG", quality=g["jpeg_kalite"], optimize=True)
 
-    log.info("son dakika slaytları üretildi #%s [%s + detay]",
+    # --- Story (9:16): HAM arka planla, slaytla değil ---
+    yol3 = None
+    try:
+        story = make_image.story_haber(
+            haber["ig_baslik"] or haber["baslik_orj"],
+            _alan(haber, "slayt_ozet"),
+            haber["kaynak"],
+            ayarlar,
+            # Gradyan katmanında ham arka planı geçmiyoruz: story kendi
+            # ölçüsünde yeni bir gradyan üretsin, 4:5'liği esnetmesin.
+            arkaplan=(ham_arkaplan.copy()
+                      if katman in ("commons", "pexels") else None),
+            kategori=haber["kategori"],
+            son_dakika=True,
+            ulke_kodu=_alan(haber, "ulke_kodu") or None,
+            ulke_adi=_alan(haber, "ulke_adi") or None,
+        )
+        yol3 = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+        story.save(yol3, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+    except Exception as e:
+        # Story ikincil; patlarsa post yine çıkmalı.
+        log.warning("story görseli üretilemedi: %s", e)
+
+    log.info("son dakika slaytları üretildi #%s [%s + detay + story]",
              haber["id"], katman)
 
     if con is not None:
@@ -212,10 +252,16 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
         )
         con.commit()
 
-    return [
+    sonuc = [
         {"id": haber["id"], "yol": yol1, "katman": katman, "atif": atif},
         {"id": haber["id"], "yol": yol2, "katman": "detay", "atif": ""},
     ]
+    if yol3:
+        # Story carousel'e GİRMİYOR; ayrı işaretli, çağıran taraf ayırıyor.
+        sonuc.append(
+            {"id": haber["id"], "yol": yol3, "katman": "story", "atif": ""}
+        )
+    return sonuc
 
 
 def atif_bloku(sonuclar: list[dict]) -> str:
