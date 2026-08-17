@@ -39,9 +39,14 @@ HAVUZA_DON_SAATI_UTC = 20
 
 def bekleyen_tur(con):
     """Onay bekleyen en son turu döner."""
+    # SON DAKİKA TURLARI HARİÇ: onların kendi ömrü var (gündüz 1 saat,
+    # gece sabaha kadar) ve son_dakika.py onları kendisi düşürüyor.
+    # Buraya karışırsa aynı tur iki yerden yönetilmiş oluyor ve
+    # hatırlatma, birazdan iptal olacak bir turu işaret ediyor.
     return list(con.execute(
         "SELECT * FROM haberler WHERE durum IN ('onay_bekliyor', 'ertelendi') "
         "AND telegram_message_id IS NOT NULL "
+        "AND (son_dakika IS NULL OR son_dakika = 0) "
         "ORDER BY onem_puani DESC, yayin_tarihi DESC"
     ))
 

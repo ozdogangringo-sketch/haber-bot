@@ -197,11 +197,35 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id) -> int:
 
 
 def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
-    """Tek bir slayta müdahale eder."""
-    if not 1 <= sira <= len(haberler):
-        telegram_bot.mesaj_gonder(f"⚠️ {sira}. slayt yok (turda {len(haberler)} slayt var).")
+    """
+    Tek bir slayta müdahale eder.
+
+    SON DAKİKA TURUNDA SLAYT ≠ HABER: tek haberden 2-5 slayt üretiliyor
+    (1 haber + 1-4 ayrıntı sayfası). Menü slayt sayısına göre kuruluyor
+    ama burada haber listesine bakılıyordu; "3. slaytı değiştir" deyince
+    "bu slayt yok" hatası veriyordu.
+
+    Son dakika turunda bütün slaytlar aynı haberden geldiği için hangi
+    numaraya basılırsa basılsın o haber üzerinde işlem yapıyoruz.
+    """
+    son_dakika_turu = len(haberler) == 1 and haberler[0]["son_dakika"]
+
+    if son_dakika_turu:
+        haber = haberler[0]
+        if komut in ("slayt_foto", "slayt_ai") and sira > 1:
+            # Ayrıntı sayfalarında fotoğraf yok, sade zemin var.
+            telegram_bot.mesaj_gonder(
+                f"ℹ️ {sira}. slayt ayrıntı sayfası — orada fotoğraf yok, "
+                f"sade zemin kullanılıyor. Fotoğrafı 1. slaytta değiştirebilirsin."
+            )
+            return 0
+    elif not 1 <= sira <= len(haberler):
+        telegram_bot.mesaj_gonder(
+            f"⚠️ {sira}. slayt yok (turda {len(haberler)} slayt var)."
+        )
         return 0
-    haber = haberler[sira - 1]
+    else:
+        haber = haberler[sira - 1]
 
     if komut == "slayt_kaynak":
         # Uydurma denetimi: modelin yazdığı cümle kaynakta var mı?
@@ -215,6 +239,12 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         return 0
 
     if komut == "slayt_sil":
+        if son_dakika_turu:
+            telegram_bot.mesaj_gonder(
+                "ℹ️ Son dakika turu tek haberden oluşuyor; slayt çıkarılamaz. "
+                "Beğenmediysen '❌ Bu turu atla' diyebilirsin."
+            )
+            return 0
         kalan = len(haberler) - 1
         if kalan < 2:
             telegram_bot.mesaj_gonder(

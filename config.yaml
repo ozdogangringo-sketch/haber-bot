@@ -5,7 +5,10 @@
 # =========================================================
 
 genel:
-  zaman_dilimi: "Europe/Istanbul"
+  # NOT: zaman dilimi ayarı YOK. Türkiye UTC+3 ve yaz saati uygulaması
+  # kaldırıldı, yani fark yıl boyunca sabit. Kod bunu doğrudan
+  # kullanıyor (son_dakika._tr_saat). Kütüphaneye bağımlılık eklemenin
+  # anlamı yok — DST olsaydı gerekirdi.
 
   # RSS'ten çekerken: kaç saatten eski haberleri hiç almayalım?
   haber_yasi_saat: 24
@@ -15,9 +18,6 @@ genel:
   # yarışmaya devam ediyor. Ama 48 saatlik bir haberi paylaşmak
   # hesabın itibarına zarar verir, o yüzden bir üst sınır lazım.
   yayin_yasi_siniri_saat: 48
-
-  # Bir turda en fazla kaç kez "Atla" diyebilirsin?
-  tur_basina_atlama_hakki: 5
 
   # --- SON DAKİKA (gün içi tekil postlar) ---
   # Akşam turu günün 10 haberini toplu veriyor; son dakika tek haberi
@@ -145,7 +145,10 @@ gorsel:
   # etti. `kapak_ciz` / `kapak_uret` kodu make_image.py'de DURUYOR —
   # fikir değişirse kapak_var'ı true yapmak yeterli, yeniden yazma.
   slayt_sayisi: 10
-  kapak_var: false
+  # kapak_var ayarı KALDIRILDI — kapak elendi ve kod bu ayarı okumuyordu.
+  # Kapak kodu (kapak_ciz/kapak_uret) make_image.py'de duruyor ve şu an
+  # yalnızca STORY için kullanılıyor. Carousel'e kapak dönerse
+  # hazirla.py'de açıkça çağrılması gerekir.
 
   # --- MALİYETİ NEREDE HARCIYORUZ ---
   # AI görsel başına ~$0.039. 10 slaytın hepsini AI yapmak günde $0.39,
@@ -310,7 +313,11 @@ icerik_filtresi:
   # varsayılan olarak DOKUNULMUYOR: Instagram görsel içi metni caption
   # kadar agresif taramıyor, ama yıldızlı başlık slaytta çok göze batıyor.
   captionda: true
-  gorselde: false
+  # NOT: "gorselde" ayarı KALDIRILDI. Slayt görsellerindeki başlığa
+  # filtre uygulanmıyor ve uygulanması da istenmiyor: Instagram görsel
+  # içi metni caption kadar agresif taramıyor, ama yıldızlı başlık
+  # slaytta çok göze batıyor. Fikir değişirse slaytlar.py'de
+  # filtre.metni_yumusat() çağrısı eklenmeli.
 
   # Kelime KÖKÜ yazılır; ekli hâlleri de yakalanır ("intihar" -> "intiharı").
   yumusatilacak:
