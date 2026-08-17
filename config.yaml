@@ -187,7 +187,9 @@ gorsel:
   # zaten merkezde olduğu için onlar en baştan güvendeydi.
   dikey_guvenli_pay: 150
   # Alt bilgideki sosyal kanal ikonlarının boyu (piksel)
-  kanal_ikon_boyu: 26
+  # 26'da alt bilgide gözden kaçıyordu (kullanıcı fark etmedi).
+  # 26/34/42 karşılaştırıldı; 34 fark ediliyor ama kaynak adını ezmiyor.
+  kanal_ikon_boyu: 34
   jpeg_kalite: 90          # Instagram PNG kabul etmiyor, JPEG şart
   deneme_sayisi: 3
   zaman_asimi: 180         # görsel üretimi metinden yavaş

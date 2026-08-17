@@ -333,8 +333,11 @@ def main() -> int:
                         # halkalar ayrıntı sayfaları. Threads'in 500
                         # karakter sınırı tek gönderiye sığdırmaya izin
                         # vermiyor.
+                        # tarihli=False: haber ŞU AN oluyor, Threads
+                        # gönderinin yaşını zaten gösteriyor.
                         halkalar = caption.threads_halkalari(
-                            [taze], urller, son_dakika=True, ayarlar=ayarlar
+                            [taze], urller, son_dakika=True,
+                            ayarlar=ayarlar, tarihli=False,
                         )
                         th_id, th_adet = threads.zincir_yayinla(halkalar)
                         if th_adet < len(halkalar):

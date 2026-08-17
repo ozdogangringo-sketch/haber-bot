@@ -157,6 +157,7 @@ def kisa_metin_kur(
     gun: date | None = None,
     ayarlar: dict | None = None,
     baslik: str = "Günün gündemi",
+    tarihli: bool = True,
 ) -> str:
     """
     Dar karakter sınırı olan kanallar için gündemi yeniden kurar.
@@ -173,7 +174,14 @@ def kisa_metin_kur(
     (Threads için `sinir=THREADS_AZAMI`. X kapatıldı ama `x_paylas` de
      aynı işi 280 ile yapıyor — mantık tek yerde dursun diye burada.)
     """
-    bas = f"{tarih_metni(gun)}  ·  {baslik}\n\n"
+    # ⚠️ CANLI SON DAKİKADA TARİH YAZILMIYOR (`tarihli=False`).
+    # Threads gönderinin kendi zaman damgasını zaten gösteriyor ("2sa"),
+    # üstüne tarih koymak hem tekrar hem de "son dakika" hissini
+    # zayıflatıyor. Akşam turunda tarih KALIYOR: orada vaat günlük bir
+    # derleme. Arşiv paylaşımında da kalıyor — eski haberi tarihsiz
+    # paylaşmak okuyucuya güncel sanıp yanlış bilgi vermek olur.
+    bas = (f"{tarih_metni(gun)}  ·  {baslik}\n\n" if tarihli
+           else f"{baslik}\n\n")
 
     ham_etiketler = _hashtaglari_birlestir(haberler, azami=3)
     f = (ayarlar or {}).get("icerik_filtresi", {})
@@ -221,6 +229,7 @@ def threads_halkalari(
     son_dakika: bool = False,
     gun: date | None = None,
     ayarlar: dict | None = None,
+    tarihli: bool = True,
 ) -> list[dict]:
     """
     Turu Threads zincirine çevirir: her görsel bir halka.
@@ -243,9 +252,16 @@ def threads_halkalari(
     if not haberler or not urller:
         return []
 
-    baslik = "Son dakika" if son_dakika else "Günün gündemi"
+    if son_dakika:
+        # Tarihsiz hâlde başlık tek başına duruyor; kırmızı nokta ve
+        # büyük harf onu akışta ayırt edilir kılıyor.
+        baslik = "🔴 SON DAKİKA" if not tarihli else "Son dakika"
+    else:
+        baslik = "Günün gündemi"
+
     ana_metin = kisa_metin_kur(haberler[:1], THREADS_AZAMI, gun=gun,
-                               ayarlar=ayarlar, baslik=baslik)
+                               ayarlar=ayarlar, baslik=baslik,
+                               tarihli=tarihli)
     halkalar = [{"metin": ana_metin, "gorsel_url": urller[0]}]
 
     if son_dakika:
