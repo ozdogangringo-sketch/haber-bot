@@ -195,6 +195,40 @@ def yayinla(gorsel_urlleri: list[str], metin: str) -> str:
     return d["id"]
 
 
+def jetonu_yenile() -> tuple[str, int]:
+    """
+    Jetonu 60 gün daha uzatır. `(yeni_jeton, kalan_gun)` döner.
+
+    ⚠️ THREADS'TE SÜRESİZ JETON YOK. Instagram'da `/me/accounts` ile
+    alınan sayfa jetonu süresiz (`expires_at = 0`) ve o yüzden orada
+    yenileme yalnızca "öldü mü?" kontrolü. Threads'te öyle bir seçenek
+    yok: jeton kullanıcıya ait ve 60 günde ölüyor. Yenilenmezse Threads
+    paylaşımı sessizce durur — `kullanilabilir_mi()` True dönmeye devam
+    eder, hata ancak yayın anında çıkar.
+
+    ⚠️ JETON EN AZ 24 SAATLİK OLMALI. Yeni üretilmiş bir jetonu
+    yenilemeye çalışmak hata veriyor. Haftalık cron'da bu hiç sorun
+    değil, ama jeton alındığı gün elle çalıştırırsan patlar.
+
+    Yenileme uç noktası sürüm ekisiz: `graph.threads.net/refresh_access_token`.
+    """
+    cevap = requests.get(
+        "https://graph.threads.net/refresh_access_token",
+        params={"grant_type": "th_refresh_token", "access_token": _jeton()},
+        timeout=ZAMAN_ASIMI,
+    )
+    if cevap.status_code != 200:
+        raise RuntimeError(
+            f"Threads jetonu yenilenemedi (HTTP {cevap.status_code}): "
+            f"{cevap.text[:300]}"
+        )
+    d = cevap.json()
+    yeni = d.get("access_token", "")
+    if not yeni:
+        raise RuntimeError(f"cevapta access_token yok: {str(d)[:200]}")
+    return yeni, int(d.get("expires_in", 0)) // 86400
+
+
 def post_baglantisi(post_id: str) -> str:
     """Threads post bağlantısı — Telegram sonucunda göstermek için."""
     try:

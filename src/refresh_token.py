@@ -114,20 +114,26 @@ def jetonu_yenile(ayarlar: dict) -> str:
     return yeni
 
 
-def env_guncelle(yeni: str) -> bool:
-    """Yerel .env dosyasını günceller. Actions'ta .env yok, False döner."""
+def env_guncelle(yeni: str, ad: str = "IG_ACCESS_TOKEN") -> bool:
+    """
+    Yerel .env dosyasını günceller. Actions'ta .env yok, False döner.
+
+    `ad` parametresi Threads için eklendi: onun jetonu ayrı bir anahtarda
+    (`THREADS_ACCESS_TOKEN`) duruyor ve aynı yenileme akışını kullanıyor.
+    """
     if not ENV_YOLU.exists():
         return False
     satirlar = ENV_YOLU.read_text(encoding="utf-8").splitlines()
     for i, satir in enumerate(satirlar):
-        if satir.split("=", 1)[0].strip() == "IG_ACCESS_TOKEN":
-            satirlar[i] = f"IG_ACCESS_TOKEN={yeni}"
+        if satir.split("=", 1)[0].strip() == ad:
+            satirlar[i] = f"{ad}={yeni}"
             ENV_YOLU.write_text("\n".join(satirlar) + "\n", encoding="utf-8")
             return True
     return False
 
 
-def github_secret_guncelle(yeni: str, repo: str) -> bool:
+def github_secret_guncelle(yeni: str, repo: str,
+                           ad: str = "IG_ACCESS_TOKEN") -> bool:
     """
     Yeni jetonu GitHub Actions Secrets'a yazar.
 
@@ -141,7 +147,7 @@ def github_secret_guncelle(yeni: str, repo: str) -> bool:
     """
     try:
         sonuc = subprocess.run(
-            ["gh", "secret", "set", "IG_ACCESS_TOKEN", "--repo", repo],
+            ["gh", "secret", "set", ad, "--repo", repo],
             input=yeni, text=True, capture_output=True, timeout=120,
         )
         if sonuc.returncode == 0:

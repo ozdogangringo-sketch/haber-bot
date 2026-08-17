@@ -53,6 +53,11 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Threads jetonu Instagram'ınkinden farklı olarak SÜRESİZ DEĞİL:
+          # 60 günde ölüyor ve yenilenmezse Threads paylaşımı sessizce
+          # durur. Bu iş akışı onu da her hafta tazeliyor.
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
         run: |
           if [ "${{ inputs.zorla }}" = "true" ]; then
             python scripts/jeton_yenile.py --zorla
