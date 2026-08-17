@@ -145,6 +145,22 @@ saat başı kontrolü **+1080 dk/ay** getiriyor → toplam ~1290 / 2000 dk
 Diğer servisler rahat: Gemini %7, Instagram 1/100, Pexels 481/25.000,
 Cloudflare 10/100.000.
 
+**1c. YARIŞ DURUMU — onay, veritabanı push'undan önce gelebiliyor.**
+
+17 Ağu 2026, 16:53'te yaşandı: son dakika turu Telegram'a düştü,
+16:54'te onaylandı, ama turu hazırlayan job'ın veritabanı commit'i
+henüz push edilmemişti. Yayın job'ı checkout yaptığında turu göremedi:
+"⚠️ Bu onay mesajına bağlı haber bulunamadı".
+
+İki katmanlı çözüm (`src/db_senkron.py`):
+1. `hemen_kaydet()` — Telegram mesajı gider gitmez veritabanı
+   commit+push ediliyor, workflow sonundaki adım beklenmiyor.
+2. `uzaktan_tazele()` — yayın job'ı turu bulamazsa en güncel
+   veritabanını çekip bir kez daha bakıyor.
+
+Workflow sonundaki commit adımı YERİNDE DURUYOR — birinci katman
+patlarsa yedek.
+
 **2. Gemini ücretsiz kotası bitebiliyor (429).**
 
 Yoğun test edilen bir günde kota doldu ve tur yarıda kaldı. `hazirla.py

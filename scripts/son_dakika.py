@@ -36,7 +36,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, dogrula, fetch_news, instagram, make_image, otomatik_onay,
+    caption, db, db_senkron, dogrula, fetch_news, instagram, make_image,
+    otomatik_onay,
     secim, slaytlar, telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -335,6 +336,12 @@ def main() -> int:
         )
         con.commit()
         sayaci_artir(con)
+
+        # Onay butonu GitHub'daki veritabanına bakıyor. Workflow'un
+        # sonundaki commit adımını beklersek kullanıcı o aralıkta
+        # onayladığında yayın job'ı turu göremiyor — 17 Ağu 2026'da
+        # tam olarak bu oldu. O yüzden hemen kaydediyoruz.
+        db_senkron.hemen_kaydet("Son dakika onaya sunuldu")
 
         log.info("son dakika onaya sunuldu (message_id=%s)", mesaj_id)
         return 0

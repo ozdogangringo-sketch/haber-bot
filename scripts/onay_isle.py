@@ -32,7 +32,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, dogrula, instagram, slaytlar, telegram_bot, upload_image,
+    caption, db, db_senkron, dogrula, instagram, slaytlar, telegram_bot,
+    upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
 
@@ -396,6 +397,19 @@ def main() -> int:
         return durum_bildir(con, ayarlar)
 
     haberler = turu_getir(con, mesaj_id)
+
+    # YARIŞ DURUMU KORUMASI: turu hazırlayan job veritabanını henüz
+    # push etmemiş olabilir. Bu job checkout'u ondan önce yapmışsa turu
+    # göremiyor. Bir kez en güncel hâli çekip tekrar bakıyoruz.
+    if not haberler:
+        log.warning("tur bulunamadı, güncel veritabanı çekiliyor…")
+        if db_senkron.uzaktan_tazele():
+            con.close()
+            con = db.baglan()
+            haberler = turu_getir(con, mesaj_id)
+            if haberler:
+                log.info("tur güncel veritabanında bulundu")
+
     if not haberler:
         log.error("mesaj_id=%s için haber bulunamadı", mesaj_id)
         telegram_bot.mesaj_gonder(
