@@ -42,6 +42,20 @@ TABAN = "https://graph.threads.net/v1.0"
 GECICI_HATALAR = {429, 500, 502, 503, 504}
 ZAMAN_ASIMI = 60
 
+# ⚠️ HTTP KODUNA BAKMAK YETMİYOR — Instagram'daki tuzağın aynısı.
+#
+# 2207052 "An unknown error occurred" HTTP 400 ile geliyor ve kalıcı bir
+# hata gibi duruyor. 17 Ağu 2026'da kurulum sırasında ölçüldü: aynı
+# görsel için 4 deneme üst üste bu hatayı verdi, sonra kendiliğinden
+# geçti ve İKİ farklı barındırıcıdan görsel sorunsuz yüklendi.
+# Görselde kusur yoktu (JPEG, 1080x1350, 170 KB) — Threads'in medya
+# işleme tarafı hazır değildi.
+GECICI_ALT_KODLAR = {2207003, 2207032, 2207052}
+
+# Medya hatasında daha uzun bekleniyor: sorun bizim isteğimizde değil,
+# görselin karşı tarafça indirilmesinde.
+MEDYA_BEKLEME_SANIYE = 15
+
 
 def kullanilabilir_mi() -> bool:
     """
@@ -68,6 +82,14 @@ def _kullanici() -> str:
     return k
 
 
+def _alt_kod(cevap) -> int | None:
+    """Threads hata cevabından `error_subcode`'u çıkarır."""
+    try:
+        return cevap.json().get("error", {}).get("error_subcode")
+    except Exception:
+        return None
+
+
 def _istek(yontem: str, yol: str, **parametreler) -> dict:
     url = f"{TABAN}{yol}"
     parametreler["access_token"] = _jeton()
@@ -92,6 +114,12 @@ def _istek(yontem: str, yol: str, **parametreler) -> dict:
         son_hata = f"HTTP {cevap.status_code}: {cevap.text[:300]}"
         if cevap.status_code in GECICI_HATALAR:
             time.sleep(2 * deneme)
+            continue
+
+        if _alt_kod(cevap) in GECICI_ALT_KODLAR:
+            log.warning("Threads medya hatası, %s sn sonra tekrar (%s/3)",
+                        MEDYA_BEKLEME_SANIYE, deneme)
+            time.sleep(MEDYA_BEKLEME_SANIYE * deneme)
             continue
         break
 
