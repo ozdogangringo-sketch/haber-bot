@@ -329,15 +329,17 @@ def main() -> int:
                 if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
                         and threads.kullanilabilir_mi()):
                     try:
-                        # Threads'in sınırı 500; son dakika caption'ı
-                        # genelde kısa ama detaylı haberlerde aşabiliyor.
-                        threads.yayinla(
-                            urller,
-                            caption.kisa_metin_kur(
-                                [taze], caption.THREADS_AZAMI,
-                                ayarlar=ayarlar, baslik="Son dakika"
-                            ),
+                        # Zincir: ana halka haberin kendisi, sonraki
+                        # halkalar ayrıntı sayfaları. Threads'in 500
+                        # karakter sınırı tek gönderiye sığdırmaya izin
+                        # vermiyor.
+                        halkalar = caption.threads_halkalari(
+                            [taze], urller, son_dakika=True, ayarlar=ayarlar
                         )
+                        th_id, th_adet = threads.zincir_yayinla(halkalar)
+                        if th_adet < len(halkalar):
+                            log.warning("Threads zinciri yarım: %s/%s halka",
+                                        th_adet, len(halkalar))
                     except Exception as e:
                         log.warning("Threads paylaşılamadı: %s", e)
 

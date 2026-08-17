@@ -379,6 +379,33 @@ def mesaj_gonder(metin: str) -> int:
     return sonuc["message_id"]
 
 
+def paylasim_bildir(kanal: str, basarili: bool, ayrinti: str = "",
+                    baglanti: str = "") -> None:
+    """
+    Bir kanala paylaşım yapıldığında (ya da yapılamadığında) haber verir.
+
+    NEDEN AYRI BİR BİLDİRİM: yayın sonucu şimdiye kadar yalnızca onay
+    mesajının içinde özetleniyordu. Ama artık paylaşım Telegram'dan
+    tetiklenmeyen yerlerden de olabiliyor — gece otomatik yayını, elle
+    çalıştırılan geçmiş paylaşımı — ve o durumlarda hiçbir bildirim
+    gitmiyordu. 18 Ağu 2026'da bir Threads zinciri yarım kaldı ve bu
+    ancak elle bakılınca fark edildi.
+
+    Bildirim gönderilemezse yutuluyor: haber verememek, işi durdurmayı
+    gerektirmez.
+    """
+    try:
+        simge = "✅" if basarili else "⚠️"
+        satirlar = [f"{simge} {kanal}"]
+        if ayrinti:
+            satirlar.append(ayrinti)
+        if baglanti:
+            satirlar.append(baglanti)
+        mesaj_gonder("\n".join(satirlar))
+    except Exception as e:
+        log.warning("paylaşım bildirimi gönderilemedi: %s", e)
+
+
 def hata_bildir(baslik: str, ayrinti: str = "") -> None:
     """
     Bir job patladığında haber verir (Adım 7).

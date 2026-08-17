@@ -154,15 +154,22 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
             and threads.kullanilabilir_mi()):
         try:
-            # Threads'in sınırı 500; tam caption'ı göndermek onu bir
-            # haberin ortasında kesiyor.
-            th_id = threads.yayinla(
-                urller,
-                caption.kisa_metin_kur(haberler, caption.THREADS_AZAMI,
-                                       ayarlar=ayarlar),
+            # ZİNCİR olarak gidiyor, carousel olarak değil: Threads metin
+            # platformu, sınırı 500 karakter ve uzun anlatım zincirle
+            # yapılıyor. Tam caption'ı tek gönderiye sıkıştırmak onu bir
+            # haberin ortasında kesiyordu.
+            halkalar = caption.threads_halkalari(
+                haberler, urller,
+                son_dakika=bool(haberler[0]["son_dakika"]), ayarlar=ayarlar,
             )
-            th_notu = "\n🧵 Threads'e de paylaşıldı"
-            log.info("Threads: %s", th_id)
+            th_id, th_adet = threads.zincir_yayinla(halkalar)
+            if th_adet == len(halkalar):
+                th_notu = f"\n🧵 Threads'e de paylaşıldı ({th_adet} halka)"
+            else:
+                # Yarım zinciri "paylaşıldı" diye yazmak hatayı gizler.
+                th_notu = (f"\n⚠️ Threads zinciri yarım kaldı: "
+                           f"{th_adet}/{len(halkalar)} halka")
+            log.info("Threads: %s (%s/%s halka)", th_id, th_adet, len(halkalar))
         except Exception as e:
             log.warning("Threads paylaşılamadı: %s", e)
             th_notu = f"\n⚠️ Threads'e gitmedi: {type(e).__name__}"

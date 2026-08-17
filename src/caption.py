@@ -215,6 +215,62 @@ def kisa_metin_kur(
     return bas + "\n".join(satirlar) + kuyruk
 
 
+def threads_halkalari(
+    haberler: list,
+    urller: list[str],
+    son_dakika: bool = False,
+    gun: date | None = None,
+    ayarlar: dict | None = None,
+) -> list[dict]:
+    """
+    Turu Threads zincirine çevirir: her görsel bir halka.
+
+    `[{"metin": str, "gorsel_url": str}, ...]` döner; ilk eleman ana
+    gönderi, kalanlar sırayla ona zincirlenecek yanıtlar.
+
+    ANA HALKA akışta görünen tek gönderi: tarih + ilk manşet + hashtag.
+    Hashtag'i sonraki halkalara koymanın anlamı yok, onları yalnızca
+    zinciri açan görüyor.
+
+    AKŞAM TURU : her haber kendi slaytıyla bir halka.
+    SON DAKİKA : ilk halka haberin kendisi, sonrakiler ayrıntı sayfaları;
+                 metinleri `detay_metni` paragraflarından geliyor.
+
+    NEDEN CAROUSEL DEĞİL: Threads metin platformu, 500 karakter sınırı
+    var ve uzun anlatım zincirle yapılıyor. 10 slaytlık carousel oranın
+    dili değil, üstelik metin de kırpılıyordu.
+    """
+    if not haberler or not urller:
+        return []
+
+    baslik = "Son dakika" if son_dakika else "Günün gündemi"
+    ana_metin = kisa_metin_kur(haberler[:1], THREADS_AZAMI, gun=gun,
+                               ayarlar=ayarlar, baslik=baslik)
+    halkalar = [{"metin": ana_metin, "gorsel_url": urller[0]}]
+
+    if son_dakika:
+        paragraflar = [p.strip() for p in
+                       (haberler[0]["detay_metni"] or "").split("\n\n")
+                       if p.strip()]
+        # `detay_metni` sonradan eklendi; eski kayıtlarda yok. Metinsiz
+        # bir gönderi Threads'te yavan duruyor — orada okunan şey metin.
+        if not paragraflar and haberler[0]["ig_caption"]:
+            paragraflar = [haberler[0]["ig_caption"].strip()]
+
+        for i, url in enumerate(urller[1:]):
+            metin = paragraflar[i] if i < len(paragraflar) else ""
+            if not metin:
+                continue          # söyleyecek sözü yoksa halka eklemiyoruz
+            halkalar.append({"metin": metin, "gorsel_url": url})
+    else:
+        for sira, (haber, url) in enumerate(zip(haberler[1:], urller[1:]),
+                                            start=2):
+            manset = (haber["ig_baslik"] or haber["baslik_orj"]).strip()
+            halkalar.append({"metin": f"{sira}. {manset}", "gorsel_url": url})
+
+    return halkalar
+
+
 def caption_kur(
     haberler: list,
     sonuclar: list[dict] | None = None,

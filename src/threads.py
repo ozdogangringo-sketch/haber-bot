@@ -56,18 +56,29 @@ GECICI_ALT_KODLAR = {2207003, 2207032, 2207052}
 # görselin karşı tarafça indirilmesinde.
 MEDYA_BEKLEME_SANIYE = 15
 
-# ⚠️ CAROUSEL CONTAINER'LARI ARASINDA BEKLEMEK ZORUNLU.
+# ⚠️ GÖRSEL İSTEKLERİ ARASINDA BEKLEMEK ZORUNLU.
 #
 # Threads art arda gelen medya isteklerini reddediyor. ÖLÇÜLDÜ
-# (18 Ağu 2026, aynı 6 görsel, aynı hesap):
-#     aralıksız      -> 1/6 başarılı (2207003 ve 2207052 hataları)
-#     5 sn aralıklı  -> 6/6 başarılı
+# (18 Ağu 2026, aynı hesap, aynı görseller):
+#     aralıksız       ->  1/6 başarılı (2207003 / 2207052)
+#     5 sn aralıklı   ->  6/6 başarılı  (yalnızca container üretilirken)
+#     zincirde 5 sn   ->  1. halkadan sonrası TAMAMEN düştü
+#     12 sn aralıklı  ->  6/6 başarılı  (düz gönderi de, yanıt da)
 #
-# Instagram aynı tempoya sorunsuz dayanıyor, bu yüzden Instagram'dan
-# kopyalanan akış burada patlıyordu. Retry mantığı hatayı kurtarıyordu
-# ama her görselde 15+ saniye kaybettiriyordu; aralık koymak hem daha
-# hızlı hem daha temiz.
-CONTAINER_ARASI_SANIYE = 5
+# Zincir daha ağır: her halka hem container hem publish çağırıyor,
+# publish de karşı tarafta medya işleme başlatıyor. Carousel'e yeten
+# 5 saniye burada yetmedi.
+#
+# ⚠️ Bekleme süresini uzatmak TEK BAŞINA yetmiyor — 10/20/30 sn denendi,
+# sonuçlar sırasıyla hata/başarı/hata çıktı. Threads'in medya tarafı
+# kararsız; asıl güvence retry (GECICI_ALT_KODLAR). Aralık, retry'a
+# düşme sıklığını azaltıyor.
+CONTAINER_ARASI_SANIYE = 15
+
+# Medya tarafı kararsız olduğu için 3 deneme yetmiyordu; 10 halkalı bir
+# zincir 1. halkadan sonra tamamen düştü. 5 deneme × 15 sn = en kötü
+# ihtimalle halka başına ~75 saniye, ama zincirin kesilmemesi daha değerli.
+AZAMI_DENEME = 5
 
 
 def kullanilabilir_mi() -> bool:
@@ -108,7 +119,7 @@ def _istek(yontem: str, yol: str, **parametreler) -> dict:
     parametreler["access_token"] = _jeton()
 
     son_hata = None
-    for deneme in range(1, 4):
+    for deneme in range(1, AZAMI_DENEME + 1):
         try:
             if yontem.upper() == "GET":
                 cevap = requests.get(url, params=parametreler,
@@ -130,9 +141,13 @@ def _istek(yontem: str, yol: str, **parametreler) -> dict:
             continue
 
         if _alt_kod(cevap) in GECICI_ALT_KODLAR:
-            log.warning("Threads medya hatası, %s sn sonra tekrar (%s/3)",
-                        MEDYA_BEKLEME_SANIYE, deneme)
-            time.sleep(MEDYA_BEKLEME_SANIYE * deneme)
+            # SABİT bekleme, artan değil. Bu bir hız sınırı değil,
+            # karşı tarafın kararsızlığı: 10/20/30 sn denendi ve sonuç
+            # sırasıyla hata/başarı/hata çıktı. Beklemeyi uzatmak değil,
+            # daha çok denemek işe yarıyor.
+            log.warning("Threads medya hatası, %s sn sonra tekrar (%s/%s)",
+                        MEDYA_BEKLEME_SANIYE, deneme, AZAMI_DENEME)
+            time.sleep(MEDYA_BEKLEME_SANIYE)
             continue
         break
 
@@ -231,11 +246,19 @@ def zincir_yayinla(halkalar: list[dict]) -> str:
         gibi diziyor ve SIRA GARANTİ DEĞİL — 7. haber 3.'den önce
         görünebilir. Ardışık bağlamak okuma sırasını koruyor.
 
+    DÖNÜŞ: `(ana_gonderi_id, yayinlanan_halka_sayisi)`
+
+    ⚠️ SAYIYI MUTLAKA KONTROL ET. İlk sürüm kesintide yalnızca `ana_id`
+    dönüyordu ve çağıran taraf bunu başarı sanıp "zincir yayınlandı"
+    yazıyordu. 18 Ağu 2026'da tam olarak bu oldu: 10 halkalı zincirin
+    yalnızca ANA gönderisi yayınlandı, kalan 9'u medya hatasına takıldı,
+    ekranda "✓ yayınlandı" göründü. Yarım işi başarı diye raporlamak,
+    hatayı hiç görmemekten kötü.
+
     HATA POLİTİKASI:
-        Ana gönderi patlarsa zincir hiç kurulmuyor (istisna fırlıyor).
-        Ara halka patlarsa zincir O NOKTADA KESİLİYOR ama o ana kadarki
-        gönderiler yayında kalıyor — yarım zincir, hiç gönderi
-        olmamasından iyi. Kesinti loga yazılıyor.
+        Ana gönderi patlarsa istisna fırlıyor (zincir hiç kurulmuyor).
+        Ara halka patlarsa zincir O NOKTADA KESİLİYOR, o ana kadarki
+        gönderiler yayında kalıyor ve sayı gerçeği söylüyor.
     """
     if not halkalar:
         raise ValueError("paylaşılacak halka yok")
@@ -267,14 +290,14 @@ def zincir_yayinla(halkalar: list[dict]) -> str:
             if ana_id is None:
                 raise
             log.warning("Threads zinciri %d. halkada kesildi: %s", sira, e)
-            return ana_id
+            return ana_id, sira - 1
 
         onceki_id = d["id"]
         if ana_id is None:
             ana_id = onceki_id
         log.info("Threads zincir %d/%d yayınlandı", sira, len(halkalar))
 
-    return ana_id
+    return ana_id, len(halkalar)
 
 
 def jetonu_yenile() -> tuple[str, int]:
