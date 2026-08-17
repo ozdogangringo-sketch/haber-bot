@@ -380,8 +380,12 @@ sosyal:
   threadse_de_at: true
 
   # Slaytların alt bilgisinde gösterilen kanal ikonları
+  # ⚠️ X BİLEREK LİSTEDE YOK (18 Ağu 2026). Kod ve anahtarlar hazır ama
+  # X API artık kredi bazlı: hesapta ücretsiz kota $0 ve post atmak para
+  # istiyor. Sahip olmadığımız bir kanalın logosunu basmak yanlış olur.
+  # Tekrar açılırsa buraya `- x` eklemek yeterli, logosu assets/icons'ta
+  # duruyor.
   kanallar:
     - instagram
-    - x
     - threads
     - facebook
