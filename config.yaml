@@ -186,6 +186,8 @@ gorsel:
   # 150 diyerek ikisini de kırpma çizgisinin içine aldık; başlık ve özet
   # zaten merkezde olduğu için onlar en baştan güvendeydi.
   dikey_guvenli_pay: 150
+  # Alt bilgideki sosyal kanal ikonlarının boyu (piksel)
+  kanal_ikon_boyu: 26
   jpeg_kalite: 90          # Instagram PNG kabul etmiyor, JPEG şart
   deneme_sayisi: 3
   zaman_asimi: 180         # görsel üretimi metinden yavaş
@@ -347,3 +349,21 @@ icerik_filtresi:
     - katliam
     - istismar
     - taciz
+
+# ----------------------------------------------------------------------
+# SOSYAL KANALLAR
+# ----------------------------------------------------------------------
+# Slaytların alt bilgisinde küçük ikonlar olarak gösteriliyor:
+# "bu içerik şu kanallarda da var" demek için.
+#
+# İkonlar resmi logoların birebir kopyası DEĞİL, kodla çizilen
+# tanınabilir sadeleştirmeler (src/make_image.py). Sebep: resmi logolar
+# SVG ve Pillow SVG okumuyor; dönüştürmek GitHub runner'da riskli bir
+# sistem bağımlılığı gerektiriyor.
+#
+# Listeden çıkarmak yeterli — kanal kapanırsa ikonu da kaybolur.
+sosyal:
+  kanallar:
+    - instagram
+    - x
+    - facebook

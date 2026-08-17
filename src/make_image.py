@@ -551,6 +551,10 @@ def yaziyi_bas(
         alt_metin += "   ·   ARŞİV GÖRSELİ"
     ciz.text((kenar, alt_bilgi_y), alt_metin, font=kucuk, fill=(198, 206, 222))
 
+    # Sosyal kanal ikonları sağ altta: "bu içerik şu kanallarda da var".
+    gorsel = kanal_ikonlari_bas(gorsel, ayarlar, alt_bilgi_y + 13)
+    ciz = ImageDraw.Draw(gorsel)
+
     # Sol üstte ince vurgu çizgisi — hesaba tutarlı bir imza katsın
     ciz.rectangle(
         [kenar, dikey_kenar, kenar + 92, dikey_kenar + 7],
@@ -560,6 +564,78 @@ def yaziyi_bas(
     if ulke_kodu:
         gorsel = _bayragi_bas(gorsel, ulke_kodu, ulke_adi, dikey_kenar)
 
+    return gorsel
+
+
+# ----------------------------------------------------------------------
+# Sosyal kanal ikonları
+# ----------------------------------------------------------------------
+#
+# NEDEN ELLE ÇİZİLİYOR:
+#   Resmi logolar SVG; Pillow SVG okumuyor ve dönüştürmek sistem
+#   bağımlılığı istiyor (GitHub runner'da riskli). Unicode sembolleri
+#   de denendi — Inter fontunda yoklar, "NO GLYPH" kutusu çıkıyor.
+#
+# MARKA NOTU: bunlar resmi logoların birebir kopyası DEĞİL, tanınabilir
+# sadeleştirmeler. "Bizi şurada da bulun" amaçlı kullanım nominatif
+# kullanım sayılıyor; logoyu değiştirmemek ve kendi markanmış gibi
+# göstermemek şartı burada zaten sağlanıyor.
+
+def _ikon_instagram(ciz, x, y, boy, renk):
+    """Yuvarlak köşeli kare + mercek + vizör noktası."""
+    r = boy // 4
+    ciz.rounded_rectangle([x, y, x + boy, y + boy], radius=r,
+                          outline=renk, width=max(2, boy // 11))
+    m = boy // 4
+    ciz.ellipse([x + m, y + m, x + boy - m, y + boy - m],
+                outline=renk, width=max(2, boy // 12))
+    n = max(2, boy // 10)
+    ciz.ellipse([x + boy - m + 1, y + m // 2, x + boy - m + 1 + n,
+                 y + m // 2 + n], fill=renk)
+
+
+def _ikon_x(ciz, x, y, boy, renk):
+    """X: iki çapraz kalın çizgi."""
+    k = max(2, boy // 8)
+    p = boy // 8
+    ciz.line([(x + p, y + p), (x + boy - p, y + boy - p)], fill=renk, width=k)
+    ciz.line([(x + boy - p, y + p), (x + p, y + boy - p)], fill=renk, width=k)
+
+
+def _ikon_facebook(ciz, x, y, boy, renk):
+    """Daire içinde 'f' — harf fontta var, çizmeye gerek yok."""
+    ciz.ellipse([x, y, x + boy, y + boy], outline=renk,
+                width=max(2, boy // 11))
+    f = _font(int(boy * 0.72), [14.0, 700.0])
+    g = ciz.textlength("f", font=f)
+    ciz.text((x + (boy - g) / 2, y + boy * 0.12), "f", font=f, fill=renk)
+
+
+IKONLAR = {"instagram": _ikon_instagram, "x": _ikon_x, "facebook": _ikon_facebook}
+
+
+def kanal_ikonlari_bas(gorsel, ayarlar, y_merkez: int, renk=(150, 160, 180)):
+    """
+    Slaytın alt bilgisine sosyal kanal ikonlarını basar.
+
+    Sağ kenardan başlayıp sola doğru diziliyor; sol tarafta kaynak adı
+    duruyor ve ona çarpmaması gerekiyor.
+    """
+    kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar") or []
+    if not kanallar:
+        return gorsel
+
+    ciz = ImageDraw.Draw(gorsel)
+    g = ayarlar["gorsel"]
+    boy = g.get("kanal_ikon_boyu", 26)
+    ara = boy + 14
+    x = g["genislik"] - g["kenar_bosluk"] - boy
+
+    for ad in reversed(kanallar):
+        fn = IKONLAR.get(ad)
+        if fn:
+            fn(ciz, x, y_merkez - boy // 2, boy, renk)
+            x -= ara
     return gorsel
 
 
@@ -643,6 +719,10 @@ def story_kapak(
     if hesap:
         ciz.text((kenar, alt_bilgi_y), f"@{hesap}",
                  font=_font(28, EKSEN_KUCUK), fill=(198, 206, 222))
+
+    gecici = {**ayarlar, "gorsel": {**ayarlar["gorsel"],
+              "genislik": genislik, "kenar_bosluk": kenar}}
+    gorsel = kanal_ikonlari_bas(gorsel, gecici, alt_bilgi_y + 14)
 
     return gorsel
 
@@ -978,6 +1058,12 @@ def detay_slayti(
         gen = ciz.textlength(gosterge, font=kucuk)
         ciz.text((genislik - kenar - gen, alt_bilgi_y), gosterge,
                  font=kucuk, fill=(198, 206, 222))
+        # İkonlar sayfa göstergesinin soluna kayıyor, üstüne binmesin.
+        gecici = {**ayarlar, "gorsel": {**g,
+                  "kenar_bosluk": kenar + int(gen) + 24}}
+        gorsel = kanal_ikonlari_bas(gorsel, gecici, alt_bilgi_y + 13)
+    else:
+        gorsel = kanal_ikonlari_bas(gorsel, ayarlar, alt_bilgi_y + 13)
 
     if ulke_kodu:
         gorsel = _bayragi_bas(gorsel, ulke_kodu, ulke_adi, dikey_kenar)
