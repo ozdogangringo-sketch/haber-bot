@@ -44,6 +44,20 @@ load_dotenv()
 TABAN = "https://graph.facebook.com"
 GECICI_HATALAR = {429, 500, 502, 503, 504}
 
+# ⚠️ HTTP KODUNA BAKMAK YETMİYOR — bazı geçici hatalar 400 ile geliyor.
+#
+# 2207003 "Medyanın indirilmesi çok uzun sürüyor": Instagram görseli
+# imgbb'den kendisi çekiyor ve o çekme zaman aşımına uğruyor. Cevapta
+# `is_transient: false` yazıyor ama YALAN — aynı URL saniyeler sonra
+# sorunsuz iniyor. 17 Ağu 2026'da akşam turu 2. container'da bunun
+# yüzünden düştü, hiç tekrar denenmeden.
+GECICI_ALT_KODLAR = {2207003, 2207032, 2207052}
+
+# Medya indirme hatasında daha uzun bekliyoruz: sorun bizim isteğimizde
+# değil, imgbb ile Instagram arasındaki aktarımda. 2 saniye sonra tekrar
+# sormak aynı yükün üstüne binmek oluyor.
+MEDYA_BEKLEME_SANIYE = 15
+
 
 def _jeton() -> str:
     j = os.getenv("IG_ACCESS_TOKEN", "").strip()
@@ -57,6 +71,15 @@ def _kullanici_id() -> str:
     if not k:
         raise RuntimeError("IG_USER_ID bulunamadı (.env)")
     return k
+
+
+def _alt_kod(cevap) -> int | None:
+    """Graph API hata cevabından `error_subcode`'u çıkarır."""
+    try:
+        return cevap.json().get("error", {}).get("error_subcode")
+    except Exception:
+        # Hata cevabı JSON olmayabilir; o zaman alt kod da yoktur.
+        return None
 
 
 def _istek(yontem: str, yol: str, ayarlar: dict, **parametreler) -> dict:
@@ -96,6 +119,12 @@ def _istek(yontem: str, yol: str, ayarlar: dict, **parametreler) -> dict:
         son_hata = f"HTTP {cevap.status_code}: {cevap.text[:300]}"
         if cevap.status_code in GECICI_HATALAR:
             time.sleep(2 * deneme)
+            continue
+
+        if _alt_kod(cevap) in GECICI_ALT_KODLAR:
+            log.warning("medya indirme hatası, %s sn sonra tekrar (%s/3)",
+                        MEDYA_BEKLEME_SANIYE, deneme)
+            time.sleep(MEDYA_BEKLEME_SANIYE * deneme)
             continue
         break
 
