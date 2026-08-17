@@ -162,11 +162,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     )
     con.commit()
 
+    # `bildir=True`: sonuç ayrıca yeni mesaj olarak da gidiyor. Yalnızca
+    # onay mesajını düzenlemek yetmiyordu — düzenleme bildirim üretmiyor
+    # ve kullanıcı 2 dakika süren yayının sonucunu göremiyordu.
     telegram_bot.sonucu_yaz(
         mesaj_id,
         f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}{th_notu}\n"
         f"Onaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",
+        bildir=True,
     )
     return 0
 

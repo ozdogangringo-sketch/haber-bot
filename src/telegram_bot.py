@@ -342,16 +342,34 @@ def mesaji_guncelle(message_id: int, metin: str, menu: dict) -> None:
             raise
 
 
-def sonucu_yaz(message_id: int, metin: str) -> None:
+def sonucu_yaz(message_id: int, metin: str, bildir: bool = False) -> None:
     """
     Onay mesajını sonuçla günceller ve butonları kaldırır.
 
     Butonların kaldırılması önemli: kalırsa biri yayından sonra tekrar
     basar ve ikinci kez yayınlamaya çalışırız.
+
+    `bildir=True` sonucu AYRICA yeni bir mesaj olarak gönderir.
+
+    ⚠️ NEDEN GEREKİYOR: `editMessageText` var olan mesajı değiştiriyor ve
+    Telegram düzenlemede BİLDİRİM ÜRETMİYOR. Onay mesajı sohbette
+    yukarıda, uzun caption'ın içinde kalıyor; yayın 2 dakika sürdüğü için
+    kullanıcı o sırada başka yere bakıyor ve sonucu hiç görmüyor.
+    17 Ağu 2026: post, story ve Facebook paylaşımının üçü de başarıyla
+    çıktı, kullanıcı "telegramda bir dönüt alamadım" dedi.
+
+    Düzenleme yine de yapılıyor — butonları kaldırmanın başka yolu yok.
     """
     _istek("editMessageText", chat_id=_sohbet_id(), message_id=message_id,
            text=metin[:4096], reply_markup={"inline_keyboard": []},
            disable_web_page_preview=True)
+
+    if bildir:
+        # Bildirim gönderilemese bile yayın başarılı; sonucu düşürmeyelim.
+        try:
+            mesaj_gonder(metin)
+        except Exception as e:
+            log.warning("sonuç bildirimi gönderilemedi: %s", e)
 
 
 def mesaj_gonder(metin: str) -> int:
