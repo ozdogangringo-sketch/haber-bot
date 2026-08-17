@@ -34,6 +34,7 @@ import io
 import logging
 import os
 import random
+import re
 import time
 from datetime import date
 from pathlib import Path
@@ -707,38 +708,80 @@ def story_haber(
 # sığıyor (ölçüldü). Puntoyu metne göre küçültmek yerine SAYFA EKLİYORUZ
 # — 28 puntoya inen bir slayt telefonda okunmuyor ve carousel'de zaten
 # 10 slayt hakkımız var.
-DETAY_PUNTO = 40
+DETAY_PUNTO = 37
+
+# Giriş ("spot") paragrafı daha iri: slaytta ilk göze çarpan şey o olmalı.
+# Gazete düzeninden alınma — düz tek blok metin telefonda duvar gibi
+# görünüyor ve kaydırılıp geçiliyor.
+DETAY_SPOT_PUNTO = 46
+
+# Paragraflar arası nefes payı (piksel)
+PARAGRAF_ARASI = 24
 
 # Son dakika postu en fazla kaç detay sayfası taşısın.
 # 1 haber + 4 detay = 5 slayt. Daha uzunu kaydırılmıyor.
 AZAMI_DETAY_SAYFA = 4
 
 
-def detay_sayfalara_bol(detay: str, ayarlar: dict) -> list[list[str]]:
+def detay_sayfalara_bol(detay: str, ayarlar: dict) -> list[list[dict]]:
     """
-    Detay metnini slayta sığacak sayfalara böler.
+    Detay metnini paragraflara ayırıp sayfalara dağıtır.
 
-    Punto sabit; metin uzunsa sayfa ekleniyor. Tersi (puntoyu küçültmek)
-    denenip bırakıldı: uzun metinde 28 puntoya kadar inip okunmaz hâle
-    geliyordu.
+    Dönen yapı: sayfa listesi; her sayfa paragraf bloklarından oluşuyor:
+        [{"satirlar": [...], "spot": bool}, ...]
+
+    NEDEN PARAGRAF: tek blok düz metin slaytta duvar gibi görünüyor ve
+    kaydırılıp geçiliyor. Paragraf araları nefes veriyor, ilk paragraf
+    iri puntoyla basılınca göz oraya takılıyor (gazetedeki "spot").
+
+    Punto sabit; metin uzunsa SAYFA ekleniyor. Tersi (puntoyu küçültmek)
+    denenip bırakıldı — uzun metinde 28 puntoya inip okunmaz oluyordu.
+
+    Paragraf ortasından bölmemeye çalışıyoruz: sığmayan paragraf bir
+    sonraki sayfaya iniyor. Tek başına bir sayfayı aşan paragraf
+    kaçınılmaz olarak bölünüyor.
     """
-    genislik, yukseklik = ayarlar["gorsel"]["genislik"], ayarlar["gorsel"]["yukseklik"]
-    kenar = ayarlar["gorsel"]["kenar_bosluk"]
-    dikey_kenar = max(kenar, ayarlar["gorsel"].get("dikey_guvenli_pay", kenar))
+    g = ayarlar["gorsel"]
+    genislik, yukseklik = g["genislik"], g["yukseklik"]
+    kenar = g["kenar_bosluk"]
+    dikey_kenar = max(kenar, g.get("dikey_guvenli_pay", kenar))
 
     olcu = ImageDraw.Draw(Image.new("RGB", (genislik, yukseklik)))
-    font = _font(DETAY_PUNTO, EKSEN_OZET)
-    satir_y = int(DETAY_PUNTO * 1.5)
+    alan = genislik - 2 * kenar
 
-    # Başlık bloğu + ayırıcı + alt bilgi çıkınca kalan dikey alan
     ust_blok = dikey_kenar + 76 + 3 * int(46 * 1.2) + 62
     kullanilabilir = (yukseklik - dikey_kenar - 34 - 40) - ust_blok
-    sayfa_satir = max(4, kullanilabilir // satir_y)
 
-    satirlar = _satirlara_bol(detay, font, genislik - 2 * kenar, olcu)
-    sayfalar = [satirlar[i:i + sayfa_satir]
-                for i in range(0, len(satirlar), sayfa_satir)]
-    return sayfalar[:AZAMI_DETAY_SAYFA] or [[]]
+    paragraflar = [p.strip() for p in re.split(r"\n\s*\n", detay or "")
+                   if p.strip()]
+    if not paragraflar:
+        return [[]]
+
+    # Her paragrafı satırlara böl. İlki spot: daha iri punto.
+    bloklar = []
+    for i, metin in enumerate(paragraflar):
+        spot = (i == 0)
+        punto = DETAY_SPOT_PUNTO if spot else DETAY_PUNTO
+        font = _font(punto, EKSEN_OZET)
+        satirlar = _satirlara_bol(metin, font, alan, olcu)
+        yukseklik_px = int(punto * 1.5) * len(satirlar)
+        bloklar.append({"satirlar": satirlar, "spot": spot,
+                        "yukseklik": yukseklik_px})
+
+    # Sayfalara dağıt
+    sayfalar, gecerli, dolu = [], [], 0
+    for blok in bloklar:
+        gerekli = blok["yukseklik"] + (PARAGRAF_ARASI if gecerli else 0)
+        if gecerli and dolu + gerekli > kullanilabilir:
+            sayfalar.append(gecerli)
+            gecerli, dolu = [blok], blok["yukseklik"]
+        else:
+            gecerli.append(blok)
+            dolu += gerekli
+    if gecerli:
+        sayfalar.append(gecerli)
+
+    return sayfalar[:AZAMI_DETAY_SAYFA]
 
 
 def detay_slayti(
@@ -747,7 +790,7 @@ def detay_slayti(
     son_dakika: bool = True,
     ulke_kodu: str | None = None,
     ulke_adi: str | None = None,
-    satirlar: list[str] | None = None,
+    satirlar: list[dict] | None = None,
     sayfa: int = 1,
     toplam_sayfa: int = 1,
 ) -> Image.Image:
@@ -809,19 +852,32 @@ def detay_slayti(
     alt_bilgi_y = yukseklik - dikey_kenar - 34
     kullanilabilir = alt_bilgi_y - 40 - y
 
-    d_font = _font(DETAY_PUNTO, EKSEN_OZET)
-    satir_y = int(DETAY_PUNTO * 1.5)
-    d_satirlar = (satirlar if satirlar is not None
-                  else _satirlara_bol(detay, d_font, alan_genislik, ciz))
+    # `satirlar` paragraf blokları listesi: [{"satirlar", "spot"}, ...]
+    bloklar = satirlar
+    if bloklar is None:
+        d_font = _font(DETAY_PUNTO, EKSEN_OZET)
+        bloklar = [{"satirlar": _satirlara_bol(detay, d_font, alan_genislik, ciz),
+                    "spot": False}]
 
-    # Metin bloğunu kalan alanda dikeyde ortalıyoruz. Üste yapıştırınca
-    # kısa metinlerde altta koca bir boşluk kalıyordu.
-    blok = satir_y * len(d_satirlar)
-    y += max(0, (kullanilabilir - blok) // 2)
+    toplam = sum(
+        int((DETAY_SPOT_PUNTO if b["spot"] else DETAY_PUNTO) * 1.5)
+        * len(b["satirlar"]) for b in bloklar
+    ) + PARAGRAF_ARASI * max(0, len(bloklar) - 1)
 
-    for satir in d_satirlar:
-        ciz.text((kenar, y), satir, font=d_font, fill=(226, 231, 242))
-        y += satir_y
+    # Blokları kalan alanda dikeyde ortalıyoruz.
+    y += max(0, (kullanilabilir - toplam) // 2)
+
+    for i, b in enumerate(bloklar):
+        punto = DETAY_SPOT_PUNTO if b["spot"] else DETAY_PUNTO
+        f = _font(punto, EKSEN_OZET)
+        satir_y = int(punto * 1.5)
+        # Spot paragrafı daha parlak: göz önce oraya gitsin.
+        renk = (255, 255, 255) if b["spot"] else (206, 214, 230)
+        for satir in b["satirlar"]:
+            ciz.text((kenar, y), satir, font=f, fill=renk)
+            y += satir_y
+        if i < len(bloklar) - 1:
+            y += PARAGRAF_ARASI
 
     # --- Alt bilgi ---
     kucuk = _font(26, EKSEN_KUCUK)

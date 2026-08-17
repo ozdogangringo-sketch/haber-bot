@@ -164,12 +164,35 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   Başka kaynağa gitmesine gerek kalmamalı; zaten link vermiyoruz.
   Özet, başlıkta yer kalmayan ikinci en önemli bilgiyi taşısın.
 
-- detay_metni: 120-220 kelime. Haberin AYRINTILI anlatımı — son dakika
-  postlarında slaytlara yayılıyor (sayfa başına ~75 kelime).
-  Kim, ne, nerede, ne zaman, nasıl, sonuç ne oldu. Kaynak metinde ne
-  varsa onu anlat; BİLGİ UYDURMA, kaynakta olmayan ayrıntı ekleme.
-  Kaynak kısaysa kısa yaz — doldurmak için cümle üretme.
-  Paragraf yapma, düz akan metin yaz.
+- detay_metni: 120-220 kelime, PARAGRAFLAR HÂLİNDE. Haberin ayrıntılı
+  anlatımı — slaytlara yayılıyor.
+
+  BİÇİM: 3-5 paragraf, her biri 20-32 kelime. KISA TUT — uzun paragraf
+  slaytta tek başına sayfayı dolduruyor ve düzen yine tekdüze oluyor.
+  Paragrafları BOŞ SATIRLA
+  ayır (\n\n). Tek blok hâlinde yazma — slaytta duvar gibi görünüyor
+  ve kimse okumuyor.
+
+  İLK PARAGRAF EN ÇARPICI BİLGİYİ TAŞISIN. Slaytta iri puntoyla
+  basılıyor, okuyan ilk onu görüyor. Gazetecilikteki "spot" mantığı:
+  en önemli sonuç, en büyük sayı, en dikkat çekici ayrıntı önce gelir.
+  Kronolojik anlatma — "önce şu oldu, sonra bu oldu" diye başlama.
+
+  Sonraki paragraflar bağlamı açar: nasıl oldu, kim ne dedi, bundan
+  sonra ne olacak. Her paragraf TEK bir konuyu anlatsın.
+
+  ÖRNEK BİÇİM:
+    Depremde en az 47 kişi hayatını kaybetti, 200'den fazla kişi yaralandı.
+
+    Sarsıntı yerel saatle 03.20'de meydana geldi ve merkez üssü kıyıya
+    12 kilometre uzaklıktaydı.
+
+    Bölgeye 14 arama kurtarma ekibi sevk edildi; yetkililer enkaz
+    altında kalan olabileceğini bildirdi.
+
+  Kaynak metinde ne varsa onu anlat; BİLGİ UYDURMA, kaynakta olmayan
+  ayrıntı ekleme. Kaynak kısaysa 2 paragraf yeter — doldurmak için
+  cümle üretme.
 
 - gorsel_konu: SADECE GERÇEK BİR İNSANIN ADI VE SOYADI. Başka hiçbir şey.
   (örn: "Hakan Fidan", "Ekrem İmamoğlu")
