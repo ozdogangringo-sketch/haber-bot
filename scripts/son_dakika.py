@@ -334,7 +334,8 @@ def main() -> int:
                         threads.yayinla(
                             urller,
                             caption.kisa_metin_kur(
-                                [taze], caption.THREADS_AZAMI, ayarlar=ayarlar
+                                [taze], caption.THREADS_AZAMI,
+                                ayarlar=ayarlar, baslik="Son dakika"
                             ),
                         )
                     except Exception as e:

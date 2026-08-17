@@ -156,6 +156,7 @@ def kisa_metin_kur(
     sinir: int,
     gun: date | None = None,
     ayarlar: dict | None = None,
+    baslik: str = "Günün gündemi",
 ) -> str:
     """
     Dar karakter sınırı olan kanallar için gündemi yeniden kurar.
@@ -172,7 +173,7 @@ def kisa_metin_kur(
     (Threads için `sinir=THREADS_AZAMI`. X kapatıldı ama `x_paylas` de
      aynı işi 280 ile yapıyor — mantık tek yerde dursun diye burada.)
     """
-    bas = f"{tarih_metni(gun)}  ·  Günün gündemi\n\n"
+    bas = f"{tarih_metni(gun)}  ·  {baslik}\n\n"
 
     ham_etiketler = _hashtaglari_birlestir(haberler, azami=3)
     f = (ayarlar or {}).get("icerik_filtresi", {})
@@ -188,9 +189,13 @@ def kisa_metin_kur(
         kelimeler = f.get("yumusatilacak", [])
         basliklar = [filtre.metni_yumusat(b, kelimeler) for b in basliklar]
 
+    # Tek haberlik turda (son dakika) numara yazmak tuhaf duruyor:
+    # "1." diye başlayan bir liste ama ikinci maddesi yok.
+    numarali = len(basliklar) > 1
+
     satirlar: list[str] = []
-    for i, baslik in enumerate(basliklar, 1):
-        aday = satirlar + [f"{i}. {baslik}"]
+    for i, metin in enumerate(basliklar, 1):
+        aday = satirlar + [f"{i}. {metin}" if numarali else metin]
         if len(bas + "\n".join(aday) + kuyruk) > sinir:
             break
         satirlar = aday
