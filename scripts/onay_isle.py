@@ -43,6 +43,12 @@ log = logging.getLogger("onay")
 # ihtiyaç duyuyor; parametre zincirini uzatmamak için burada tutuluyor.
 _ayarlar_onbellek: dict = {}
 
+# Açık bir onay mesajına bağlı OLMAYAN komutlar. Bunlar `mesaj_id`
+# taşımıyor; buraya eklenmezse main() daha en başta hata verip çıkıyor.
+# (`/tur` buraya girmiyor — workflow onu `hazirla.py`'ye yönlendiriyor,
+#  bu script'e hiç uğramıyor.)
+MESAJSIZ_KOMUTLAR = {"durum"}
+
 
 def turu_getir(con, mesaj_id: int) -> list:
     """Bu onay mesajına bağlı haberleri slayt sırasıyla getirir."""
@@ -434,8 +440,16 @@ def main() -> int:
     mesaj_id = int(os.getenv("MESAJ_ID", "0") or 0)
     basan = os.getenv("BASAN", "").strip()
 
-    if not komut or not mesaj_id:
-        log.error("KOMUT veya MESAJ_ID eksik")
+    if not komut:
+        log.error("KOMUT eksik")
+        return 1
+
+    # ⚠️ `/durum` bir onay mesajına BAĞLI DEĞİL, dolayısıyla `mesaj_id`
+    # taşımıyor. Eskiden kontrol ikisini birden şart koşuyordu ve komut
+    # aşağıdaki kendi dalına HİÇ ULAŞAMIYORDU — `/durum` yazınca Worker
+    # "Durum sorgulanıyor…" diyor, job ise sessizce hata verip ölüyordu.
+    if komut not in MESAJSIZ_KOMUTLAR and not mesaj_id:
+        log.error("MESAJ_ID eksik (komut=%s)", komut)
         return 1
 
     global _ayarlar_onbellek
