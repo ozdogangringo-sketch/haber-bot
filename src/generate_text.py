@@ -61,6 +61,11 @@ CEVAP_SEMASI = {
         # Slaytta başlığın altına basılan kısa cümle
         "slayt_ozet": {"type": "string"},
         "detay_metni": {"type": "string"},
+        # Vurgu öğeleri — yoksa boş string
+        "vurgu_sayi": {"type": "string"},
+        "vurgu_etiket": {"type": "string"},
+        "alinti": {"type": "string"},
+        "alinti_sahibi": {"type": "string"},
         # Commons araması için kişi/kurum. Yoksa boş string.
         "gorsel_konu": {"type": "string"},
         # Pexels araması için İngilizce temsili terim.
@@ -72,7 +77,8 @@ CEVAP_SEMASI = {
     },
     "required": [
         "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
-        "slayt_ozet", "detay_metni", "gorsel_konu", "gorsel_temsili",
+        "slayt_ozet", "detay_metni", "vurgu_sayi", "vurgu_etiket",
+        "alinti", "alinti_sahibi", "gorsel_konu", "gorsel_temsili",
         "ulke_kodu", "ulke_adi",
     ],
 }
@@ -193,6 +199,26 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   Kaynak metinde ne varsa onu anlat; BİLGİ UYDURMA, kaynakta olmayan
   ayrıntı ekleme. Kaynak kısaysa 2 paragraf yeter — doldurmak için
   cümle üretme.
+
+- vurgu_sayi / vurgu_etiket: haberin EN ÇARPICI rakamı ve ne olduğu.
+  Slaytta iri puntoyla ayrı basılıyor, ilk göze çarpan şey o oluyor.
+    vurgu_sayi   : EN FAZLA 3 KELİME. "2.352 yıl" / "en az 47" / "%14,3"
+                   KÖTÜ: "828 yıldan 2.352 yıla" (çok uzun, slayta sığmıyor)
+                   İYİ : "2.352 yıl"  — en çarpıcı olan tek rakamı seç
+    vurgu_etiket : "istenen hapis cezası" / "hayatını kaybeden" / "zam oranı"
+  Etiket 2-5 kelime, küçük harfle. Rakamı KAYNAKTAKİ GİBİ yaz.
+  Haberde öne çıkan bir rakam yoksa İKİSİNİ DE BOŞ BIRAK — zorlama
+  rakam bulma, sıradan bir sayıyı büyütmek okuyucuyu yanıltır.
+
+- alinti / alinti_sahibi: haberde geçen çarpıcı bir SÖZ ve kimin söylediği.
+    alinti        : en fazla 18 kelime, tırnak İŞARETİ OLMADAN
+    alinti_sahibi : "Ekrem İmamoğlu" / "Bakan Göktaş" / "BM Sözcüsü"
+
+  ⚠️ ALINTI KAYNAK METİNDE AYNEN GEÇMELİ. Kelimeleri değiştirme,
+  kısaltma, güzelleştirme, birleştirme. Birinin ağzına söylemediği sözü
+  koymak yapabileceğin en ağır hata — sistem bunu kaynakta arıyor ve
+  bulamazsa alıntıyı ATIYOR.
+  Haberde doğrudan alıntı yoksa İKİSİNİ DE BOŞ BIRAK.
 
 - gorsel_konu: SADECE GERÇEK BİR İNSANIN ADI VE SOYADI. Başka hiçbir şey.
   (örn: "Hakan Fidan", "Ekrem İmamoğlu")

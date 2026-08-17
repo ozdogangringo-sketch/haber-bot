@@ -188,6 +188,41 @@ def suclama_dili_denetle(haber) -> list[str]:
     return ["suçlama kesin dille yazılmış — kaynakta ihtiyat var, metinde yok"]
 
 
+def alintiyi_denetle(alinti: str, kaynak: str) -> bool:
+    """
+    Alıntı kaynak metinde gerçekten geçiyor mu?
+
+    NEDEN EN SIKI DENETİM BU: birinin ağzına söylemediği sözü koymak,
+    yanlış sayı yazmaktan çok daha ağır. Sayı düzeltilebilir, uydurma
+    alıntı itibar meselesi.
+
+    Kelime kelime karşılaştırıyoruz: alıntının kelimelerinin %85'i
+    kaynakta ARDIŞIK olarak geçmeli. Tam eşleşme aramıyoruz çünkü
+    modelin araya bir bağlaç sıkıştırması ya da çekim ekini değiştirmesi
+    normal; ama cümlenin iskeleti kaynakta durmalı.
+    """
+    if not alinti or not kaynak:
+        return False
+
+    a_kelime = [_kok(k) for k in alinti.split() if len(k) > 2]
+    if len(a_kelime) < 3:
+        return False
+
+    k_sade = _sadelestir(kaynak)
+    k_kelime = [_kok(k) for k in kaynak.split() if len(k) > 2]
+
+    # Alıntının kelimeleri kaynakta ardışık bir pencerede toplanıyor mu?
+    pencere = len(a_kelime) + 6
+    hedef = int(len(a_kelime) * 0.85)
+    for i in range(max(1, len(k_kelime) - pencere + 1)):
+        parca = set(k_kelime[i:i + pencere])
+        if sum(1 for k in a_kelime if k in parca) >= hedef:
+            return True
+
+    # Yedek: düz alt dize araması (model birebir kopyalamışsa)
+    return _sadelestir(alinti).strip() in k_sade
+
+
 def haberi_dogrula(haber) -> dict:
     """
     Tek bir haberin üretilen metnini kaynağıyla karşılaştırır.

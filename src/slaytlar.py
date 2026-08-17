@@ -27,7 +27,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import fetch_photo, fetch_stock, make_image
+from . import dogrula, fetch_photo, fetch_stock, make_image
 
 log = logging.getLogger(__name__)
 
@@ -212,9 +212,29 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
     etiket_esigi = ayarlar["genel"].get("son_dakika_etiket_esigi", 9)
     son_dakika_mi = (haber["onem_puani"] or 0) >= etiket_esigi
 
+    # Vurgu rakamı — varsa iri puntoyla basılıyor.
+    vurgu = None
+    if _alan(haber, "vurgu_sayi"):
+        vurgu = (_alan(haber, "vurgu_sayi"), _alan(haber, "vurgu_etiket"))
+
+    # ALINTI KAYNAKTA DOĞRULANMADAN KULLANILMIYOR.
+    # Birinin ağzına söylemediği sözü koymak, yanlış sayı yazmaktan çok
+    # daha ağır bir hata. Doğrulanamayan alıntı sessizce atılıyor.
+    alinti = None
+    ham_alinti = _alan(haber, "alinti")
+    if ham_alinti:
+        kaynak = _alan(haber, "makale_metni") or _alan(haber, "ozet_orj")
+        if dogrula.alintiyi_denetle(ham_alinti, kaynak):
+            alinti = (ham_alinti, _alan(haber, "alinti_sahibi"))
+        else:
+            log.warning("alıntı kaynakta doğrulanamadı, atlandı #%s",
+                        haber["id"])
+
     # Metin uzunsa birden fazla sayfaya yayılıyor — punto küçültmek
     # yerine sayfa ekliyoruz, yoksa uzun anlatım okunmaz hâle geliyor.
-    sayfalar = make_image.detay_sayfalara_bol(detay, ayarlar)
+    sayfalar = make_image.detay_sayfalara_bol(
+        detay, ayarlar, vurgu=vurgu, alinti=alinti
+    )
     detay_yollari = []
     for i, satirlar in enumerate(sayfalar, start=1):
         gorsel2 = make_image.detay_slayti(

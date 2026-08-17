@@ -118,6 +118,14 @@ EK_KOLONLAR = {
     # yayılan 120-220 kelimelik metin. Sayfa başına ~75 kelime sığıyor,
     # yani 2-3 slayt ediyor.
     "detay_metni": "TEXT",
+    # --- Vurgu öğeleri (opsiyonel, yoksa NULL) ---
+    # Detay sayfalarında iri rakam ve alıntı bloğu olarak basılıyor.
+    # Alıntı kaynakta birebir doğrulanıyor (dogrula.alintiyi_denetle);
+    # doğrulanamazsa kullanılmıyor — uydurma alıntı en ağır hata.
+    "vurgu_sayi": "TEXT",
+    "vurgu_etiket": "TEXT",
+    "alinti": "TEXT",
+    "alinti_sahibi": "TEXT",
 }
 
 
@@ -213,6 +221,10 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
                onem_puani     = ?,
                slayt_ozet     = ?,
                detay_metni    = ?,
+               vurgu_sayi     = ?,
+               vurgu_etiket   = ?,
+               alinti         = ?,
+               alinti_sahibi  = ?,
                gorsel_konu    = ?,
                gorsel_temsili = ?,
                ulke_kodu      = ?,
@@ -229,6 +241,10 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
             uretilen.get("onem_puani"),
             uretilen.get("slayt_ozet"),
             uretilen.get("detay_metni"),
+            (uretilen.get("vurgu_sayi") or "").strip() or None,
+            (uretilen.get("vurgu_etiket") or "").strip() or None,
+            (uretilen.get("alinti") or "").strip() or None,
+            (uretilen.get("alinti_sahibi") or "").strip() or None,
             # Gemini boş bırakabiliyor (tanınmış kişi yoksa / ülkesiz haber).
             # Boş string yerine NULL saklamak SQL'de ayırt etmeyi kolaylaştırır.
             (uretilen.get("gorsel_konu") or "").strip() or None,

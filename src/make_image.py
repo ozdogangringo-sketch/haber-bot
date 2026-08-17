@@ -718,12 +718,21 @@ DETAY_SPOT_PUNTO = 46
 # Paragraflar arası nefes payı (piksel)
 PARAGRAF_ARASI = 24
 
+# Vurgu bloklarının puntoları
+VURGU_SAYI_PUNTO = 92      # iri rakam — sayfanın çapası
+VURGU_ETIKET_PUNTO = 30    # rakamın altındaki açıklama
+ALINTI_PUNTO = 40
+
 # Son dakika postu en fazla kaç detay sayfası taşısın.
 # 1 haber + 4 detay = 5 slayt. Daha uzunu kaydırılmıyor.
 AZAMI_DETAY_SAYFA = 4
 
 
-def detay_sayfalara_bol(detay: str, ayarlar: dict) -> list[list[dict]]:
+def detay_sayfalara_bol(
+    detay: str, ayarlar: dict,
+    vurgu: tuple[str, str] | None = None,
+    alinti: tuple[str, str] | None = None,
+) -> list[list[dict]]:
     """
     Detay metnini paragraflara ayırıp sayfalara dağıtır.
 
@@ -754,19 +763,47 @@ def detay_sayfalara_bol(detay: str, ayarlar: dict) -> list[list[dict]]:
 
     paragraflar = [p.strip() for p in re.split(r"\n\s*\n", detay or "")
                    if p.strip()]
-    if not paragraflar:
+    if not paragraflar and not vurgu and not alinti:
         return [[]]
 
-    # Her paragrafı satırlara böl. İlki spot: daha iri punto.
     bloklar = []
+
+    # Vurgu rakamı en başta: sayfanın çapası, ilk göze çarpan şey.
+    if vurgu and vurgu[0]:
+        # Rakam uzunsa puntoyu düşür: "828 yıldan 2.352 yıla" gibi uzun
+        # ifadeler 92 puntoda sağa taşıyordu.
+        s_punto = VURGU_SAYI_PUNTO
+        for aday in (VURGU_SAYI_PUNTO, 76, 64, 54, 46):
+            if olcu.textlength(vurgu[0], font=_font(aday, EKSEN_BASLIK)) <= alan:
+                s_punto = aday
+                break
+        else:
+            s_punto = 46
+        bloklar.append({
+            "tip": "sayi", "sayi": vurgu[0], "etiket": vurgu[1] or "",
+            "punto": s_punto, "satirlar": [],
+            "yukseklik": int(s_punto * 1.15) + int(VURGU_ETIKET_PUNTO * 1.7),
+        })
+
+    # Her paragrafı satırlara böl. İlki spot: daha iri punto.
     for i, metin in enumerate(paragraflar):
         spot = (i == 0)
         punto = DETAY_SPOT_PUNTO if spot else DETAY_PUNTO
         font = _font(punto, EKSEN_OZET)
         satirlar = _satirlara_bol(metin, font, alan, olcu)
         yukseklik_px = int(punto * 1.5) * len(satirlar)
-        bloklar.append({"satirlar": satirlar, "spot": spot,
+        bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
                         "yukseklik": yukseklik_px})
+
+    # Alıntı en sonda: paragrafları okuduktan sonra gelen kapanış.
+    if alinti and alinti[0]:
+        a_font = _font(ALINTI_PUNTO, EKSEN_OZET)
+        a_satirlar = _satirlara_bol(f"“{alinti[0]}”", a_font, alan - 40, olcu)
+        bloklar.append({
+            "tip": "alinti", "satirlar": a_satirlar,
+            "sahibi": alinti[1] or "", "spot": False,
+            "yukseklik": int(ALINTI_PUNTO * 1.45) * len(a_satirlar) + 54,
+        })
 
     # Sayfalara dağıt
     sayfalar, gecerli, dolu = [], [], 0
@@ -859,23 +896,52 @@ def detay_slayti(
         bloklar = [{"satirlar": _satirlara_bol(detay, d_font, alan_genislik, ciz),
                     "spot": False}]
 
-    toplam = sum(
-        int((DETAY_SPOT_PUNTO if b["spot"] else DETAY_PUNTO) * 1.5)
-        * len(b["satirlar"]) for b in bloklar
-    ) + PARAGRAF_ARASI * max(0, len(bloklar) - 1)
+    toplam = (sum(b.get("yukseklik", 0) for b in bloklar)
+              + PARAGRAF_ARASI * max(0, len(bloklar) - 1))
 
     # Blokları kalan alanda dikeyde ortalıyoruz.
     y += max(0, (kullanilabilir - toplam) // 2)
 
     for i, b in enumerate(bloklar):
-        punto = DETAY_SPOT_PUNTO if b["spot"] else DETAY_PUNTO
-        f = _font(punto, EKSEN_OZET)
-        satir_y = int(punto * 1.5)
-        # Spot paragrafı daha parlak: göz önce oraya gitsin.
-        renk = (255, 255, 255) if b["spot"] else (206, 214, 230)
-        for satir in b["satirlar"]:
-            ciz.text((kenar, y), satir, font=f, fill=renk)
-            y += satir_y
+        tip = b.get("tip", "metin")
+
+        if tip == "sayi":
+            # İri rakam + altında ne olduğu. Amber renk: sayfadaki tek
+            # renkli öğe, göz doğrudan oraya gidiyor.
+            punto = b.get("punto", VURGU_SAYI_PUNTO)
+            f = _font(punto, EKSEN_BASLIK)
+            ciz.text((kenar, y), b["sayi"], font=f, fill=(226, 170, 88))
+            y += int(punto * 1.15)
+            if b["etiket"]:
+                ciz.text((kenar + 4, y), _buyuk_harf(b["etiket"]),
+                         font=_font(VURGU_ETIKET_PUNTO, EKSEN_KUCUK),
+                         fill=(198, 206, 222))
+            y += int(VURGU_ETIKET_PUNTO * 1.7)
+
+        elif tip == "alinti":
+            # Sol kenarda dikey çizgi: alıntı olduğu bir bakışta belli.
+            f = _font(ALINTI_PUNTO, EKSEN_OZET)
+            satir_y = int(ALINTI_PUNTO * 1.45)
+            blok_yuk = satir_y * len(b["satirlar"])
+            ciz.rectangle([kenar, y, kenar + 5, y + blok_yuk],
+                          fill=(226, 170, 88))
+            for satir in b["satirlar"]:
+                ciz.text((kenar + 26, y), satir, font=f, fill=(240, 244, 252))
+                y += satir_y
+            if b["sahibi"]:
+                ciz.text((kenar + 26, y + 8), f"— {b['sahibi']}",
+                         font=_font(28, EKSEN_KUCUK), fill=(198, 206, 222))
+            y += 54
+
+        else:
+            punto = DETAY_SPOT_PUNTO if b["spot"] else DETAY_PUNTO
+            f = _font(punto, EKSEN_OZET)
+            satir_y = int(punto * 1.5)
+            renk = (255, 255, 255) if b["spot"] else (206, 214, 230)
+            for satir in b["satirlar"]:
+                ciz.text((kenar, y), satir, font=f, fill=renk)
+                y += satir_y
+
         if i < len(bloklar) - 1:
             y += PARAGRAF_ARASI
 
