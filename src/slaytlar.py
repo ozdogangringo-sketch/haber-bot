@@ -213,9 +213,19 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
     son_dakika_mi = (haber["onem_puani"] or 0) >= etiket_esigi
 
     # Vurgu rakamı — varsa iri puntoyla basılıyor.
+    #
+    # TEKRAR ENGELİ: rakam başlıkta zaten geçiyorsa vurgu bloğu aynı
+    # bilgiyi ikinci kez veriyor ve sayfayı boş yere işgal ediyor.
+    # Gerçek örnek: başlık "…32 kişi tutuklandı" + altında
+    # "32 / TUTUKLANAN ŞÜPHELİ SAYISI".
     vurgu = None
-    if _alan(haber, "vurgu_sayi"):
-        vurgu = (_alan(haber, "vurgu_sayi"), _alan(haber, "vurgu_etiket"))
+    ham_vurgu = _alan(haber, "vurgu_sayi")
+    if ham_vurgu:
+        baslik_metni = haber["ig_baslik"] or haber["baslik_orj"] or ""
+        if dogrula._sayilar(ham_vurgu) & dogrula._sayilar(baslik_metni):
+            log.info("vurgu rakamı başlıkta zaten var, atlandı #%s", haber["id"])
+        else:
+            vurgu = (ham_vurgu, _alan(haber, "vurgu_etiket"))
 
     # ALINTI KAYNAKTA DOĞRULANMADAN KULLANILMIYOR.
     # Birinin ağzına söylemediği sözü koymak, yanlış sayı yazmaktan çok

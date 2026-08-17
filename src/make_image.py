@@ -805,11 +805,31 @@ def detay_sayfalara_bol(
             "yukseklik": int(ALINTI_PUNTO * 1.45) * len(a_satirlar) + 54,
         })
 
+    # VURGU + İLK PARAGRAF BİRLİKTE SIĞMALI.
+    # Ayrılırlarsa vurgu tek başına sayfayı işgal ediyor ve altta koca
+    # bir boşluk kalıyor (17 Ağu 2026'da yayınlanan slaytta görüldü).
+    # Sığmıyorsa spot paragrafın puntosunu düşürüp birleştiriyoruz.
+    if len(bloklar) >= 2 and bloklar[0].get("tip") == "sayi":
+        ikisi = bloklar[0]["yukseklik"] + PARAGRAF_ARASI + bloklar[1]["yukseklik"]
+        for kucuk in (DETAY_PUNTO, 34, 31):
+            if ikisi <= kullanilabilir:
+                break
+            f = _font(kucuk, EKSEN_OZET)
+            yeni = _satirlara_bol(paragraflar[0], f, alan, olcu)
+            bloklar[1] = {"tip": "metin", "satirlar": yeni, "spot": False,
+                          "punto": kucuk,
+                          "yukseklik": int(kucuk * 1.5) * len(yeni)}
+            ikisi = bloklar[0]["yukseklik"] + PARAGRAF_ARASI + bloklar[1]["yukseklik"]
+
     # Sayfalara dağıt
     sayfalar, gecerli, dolu = [], [], 0
     for blok in bloklar:
         gerekli = blok["yukseklik"] + (PARAGRAF_ARASI if gecerli else 0)
-        if gecerli and dolu + gerekli > kullanilabilir:
+        # Vurgu bloğu asla tek başına sayfada kalmasın: yanındaki
+        # paragrafla birlikte taşınıyor.
+        tek_basina_vurgu = (len(gecerli) == 1
+                            and gecerli[0].get("tip") == "sayi")
+        if gecerli and dolu + gerekli > kullanilabilir and not tek_basina_vurgu:
             sayfalar.append(gecerli)
             gecerli, dolu = [blok], blok["yukseklik"]
         else:
@@ -934,7 +954,8 @@ def detay_slayti(
             y += 54
 
         else:
-            punto = DETAY_SPOT_PUNTO if b["spot"] else DETAY_PUNTO
+            punto = b.get("punto") or (DETAY_SPOT_PUNTO if b["spot"]
+                                       else DETAY_PUNTO)
             f = _font(punto, EKSEN_OZET)
             satir_y = int(punto * 1.5)
             renk = (255, 255, 255) if b["spot"] else (206, 214, 230)

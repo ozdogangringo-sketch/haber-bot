@@ -207,6 +207,11 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
                    İYİ : "2.352 yıl"  — en çarpıcı olan tek rakamı seç
     vurgu_etiket : "istenen hapis cezası" / "hayatını kaybeden" / "zam oranı"
   Etiket 2-5 kelime, küçük harfle. Rakamı KAYNAKTAKİ GİBİ yaz.
+  ⚠️ BAŞLIKTA GEÇEN SAYIYI VURGU OLARAK VERME. Başlık "32 kişi
+  tutuklandı" diyorsa vurgu_sayi "32" olmamalı — aynı bilgiyi iki kez
+  vermiş olursun. Başlıkta OLMAYAN, ikinci derecede çarpıcı bir rakam
+  seç (tutar, süre, oran, adres sayısı) ya da boş bırak.
+
   Haberde öne çıkan bir rakam yoksa İKİSİNİ DE BOŞ BIRAK — zorlama
   rakam bulma, sıradan bir sayıyı büyütmek okuyucuyu yanıltır.
 
