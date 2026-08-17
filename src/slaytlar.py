@@ -206,12 +206,17 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
              or _alan(haber, "slayt_ozet")
              or _alan(haber, "ozet_orj"))
 
+    # Kırmızı "SON DAKİKA" ibaresi yalnızca olağanüstü olaylarda.
+    etiket_esigi = ayarlar["genel"].get("son_dakika_etiket_esigi", 9)
+    son_dakika_mi = (haber["onem_puani"] or 0) >= etiket_esigi
+
     gorsel2 = make_image.detay_slayti(
         haber["ig_baslik"] or haber["baslik_orj"],
         detay,
         haber["kaynak"],
         ayarlar,
         kategori=haber["kategori"],
+        son_dakika=son_dakika_mi,
         ulke_kodu=_alan(haber, "ulke_kodu") or None,
         ulke_adi=_alan(haber, "ulke_adi") or None,
     )
@@ -231,7 +236,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
             arkaplan=(ham_arkaplan.copy()
                       if katman in ("commons", "pexels") else None),
             kategori=haber["kategori"],
-            son_dakika=True,
+            son_dakika=son_dakika_mi,
             ulke_kodu=_alan(haber, "ulke_kodu") or None,
             ulke_adi=_alan(haber, "ulke_adi") or None,
         )

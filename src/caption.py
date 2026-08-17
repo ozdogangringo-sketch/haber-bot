@@ -123,8 +123,16 @@ def son_dakika_caption(
             etiketler, f.get("yasakli_hashtagler", [])
         )
 
+    # "SON DAKİKA" ibaresi yalnızca gerçekten olağanüstü olaylarda.
+    # Tetikleme eşiği 8 ama etiket eşiği 9: her önemli habere "son
+    # dakika" demek ibareyi değersizleştiriyor.
+    etiket_esigi = ((ayarlar or {}).get("genel", {})
+                    .get("son_dakika_etiket_esigi", 9))
+    son_dakika_mi = (haber["onem_puani"] or 0) >= etiket_esigi
+
     parcalar = [
-        f"🔴 SON DAKİKA · {tarih_metni()}",
+        (f"🔴 SON DAKİKA · {tarih_metni()}" if son_dakika_mi
+         else tarih_metni()),
         baslik,
         govde,
         f"Kaynak: {haber['kaynak']}",

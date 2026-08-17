@@ -32,6 +32,16 @@ genel:
   # 3 post eder; Instagram için sağlıklı aralık, takipçi yorulmuyor.
   son_dakika_gunluk_azami: 2
 
+  # "SON DAKİKA" ETİKETİ hangi puandan itibaren basılsın.
+  # Tetikleme eşiği 8, ama 8 "önemli haber" demek; 9-10 ise
+  # olağanüstü olay. İkisine birden "son dakika" demek etiketin
+  # değerini düşürüyor — her gün son dakika gören takipçi için
+  # o ibare anlamını yitiriyor.
+  #
+  # Etiket basılmayan postlar yine gün içi tekil post olarak
+  # çıkıyor, sadece kırmızı "SON DAKİKA" ibaresi olmuyor.
+  son_dakika_etiket_esigi: 9
+
   # --- GECE (TR 23:00-07:00) ---
   # Gece farklı davranıyor çünkü onaylayacak kimse uyanık değil.
   # Gündüzki 1 saatlik ömür gece anlamsız: 03:00'te hazırlanan post
