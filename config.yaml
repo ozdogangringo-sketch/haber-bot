@@ -363,6 +363,16 @@ icerik_filtresi:
 #
 # Listeden çıkarmak yeterli — kanal kapanırsa ikonu da kaybolur.
 sosyal:
+  # Instagram'a yayınlanan içerik Facebook sayfasına da gitsin mi?
+  # Aynı sayfa jetonu kullanılıyor (pages_manage_posts izniyle), ek
+  # anahtar veya yenileme döngüsü yok. Carousel Facebook'ta ALBÜM
+  # olarak paylaşılıyor.
+  #
+  # İKİNCİL KANAL: Facebook paylaşımı patlarsa Instagram postu yayında
+  # kalıyor, yalnızca Telegram sonucuna not düşülüyor.
+  facebooka_da_at: true
+
+  # Slaytların alt bilgisinde gösterilen kanal ikonları
   kanallar:
     - instagram
     - x

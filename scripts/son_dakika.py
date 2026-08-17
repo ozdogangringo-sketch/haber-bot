@@ -36,8 +36,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, db_senkron, dogrula, fetch_news, instagram, make_image,
-    otomatik_onay,
+    caption, db, db_senkron, dogrula, facebook, fetch_news, instagram,
+    make_image, otomatik_onay,
     secim, slaytlar, telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -319,6 +319,11 @@ def main() -> int:
                         instagram.story_yayinla(story_url, ayarlar)
                     except Exception as e:
                         log.warning("story yayınlanamadı: %s", e)
+                if (ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"):
+                    try:
+                        facebook.albüm_yayinla(urller, metin, ayarlar)
+                    except Exception as e:
+                        log.warning("Facebook paylaşılamadı: %s", e)
 
                 con.execute(
                     "UPDATE haberler SET durum = 'yayinlandi', son_dakika = 1, "

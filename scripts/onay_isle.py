@@ -32,8 +32,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, db_senkron, dogrula, instagram, slaytlar, telegram_bot,
-    upload_image,
+    caption, db, db_senkron, dogrula, facebook, instagram, slaytlar,
+    telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
 
@@ -114,6 +114,19 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
             log.warning("story yayınlanamadı: %s", e)
             story_notu = f"\n⚠️ Story paylaşılamadı: {type(e).__name__}"
 
+    # Facebook: aynı içerik, aynı jeton, ayrı kanal.
+    # Instagram postu yayında kaldığı sürece buradaki hata turu
+    # düşürmemeli — o yüzden yutuluyor, sonuca not düşülüyor.
+    fb_notu = ""
+    if (ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"):
+        try:
+            fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
+            fb_notu = "\n📘 Facebook'a da paylaşıldı"
+            log.info("Facebook: %s", fb_id)
+        except Exception as e:
+            log.warning("Facebook paylaşılamadı: %s", e)
+            fb_notu = f"\n⚠️ Facebook'a gitmedi: {type(e).__name__}"
+
     con.execute(
         "UPDATE haberler SET durum = 'yayinlandi', ig_post_id = ? "
         "WHERE telegram_message_id = ?",
@@ -123,7 +136,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
 
     telegram_bot.sonucu_yaz(
         mesaj_id,
-        f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}\n"
+        f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}\n"
         f"Onaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",
     )
