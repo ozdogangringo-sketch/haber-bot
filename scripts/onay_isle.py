@@ -132,8 +132,16 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
 
 def iptal(con, haberler, mesaj_id, basan) -> int:
     # Haberler ELENMİYOR: havuza dönüp sonraki turda yeniden yarışıyorlar.
+    #
+    # METNİ OLAN HABER 'metin_hazir'E DÖNÜYOR, 'yeni'YE DEĞİL.
+    # 'yeni' yapılırsa sonraki tur onu metni yokmuş gibi görüp Gemini'ye
+    # tekrar gönderiyor: kota boşa gidiyor ve çağrı hata alırsa haber
+    # 'hata' durumunda kalıp havuzdan düşüyor. 17 Ağu 2026'da tam olarak
+    # bu oldu — iptal edilen haber bir daha aday olamadı.
     con.execute(
-        "UPDATE haberler SET durum = 'yeni', telegram_message_id = NULL "
+        "UPDATE haberler SET telegram_message_id = NULL, son_dakika = 0, "
+        "durum = CASE WHEN ig_baslik IS NOT NULL THEN 'metin_hazir' "
+        "             ELSE 'yeni' END "
         "WHERE telegram_message_id = ?",
         (mesaj_id,),
     )

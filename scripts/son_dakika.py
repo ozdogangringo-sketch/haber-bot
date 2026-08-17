@@ -135,9 +135,14 @@ def suresi_gecmisi_iptal_et(con, ayarlar: dict) -> None:
         if not omru_bitti_mi(satir["gonderim_zamani"], ayarlar):
             continue
         mesaj_id = satir["telegram_message_id"]
+        # Metni olan haber 'metin_hazir'e dönüyor: 'yeni' yapılırsa
+        # sonraki tur onu Gemini'ye tekrar gönderiyor, kota boşa gidiyor
+        # ve hata alınırsa haber havuzdan düşüyor.
         con.execute(
-            "UPDATE haberler SET durum = 'yeni', son_dakika = 0, "
-            "telegram_message_id = NULL WHERE telegram_message_id = ?",
+            "UPDATE haberler SET son_dakika = 0, telegram_message_id = NULL, "
+            "durum = CASE WHEN ig_baslik IS NOT NULL THEN 'metin_hazir' "
+            "             ELSE 'yeni' END "
+            "WHERE telegram_message_id = ?",
             (mesaj_id,),
         )
         con.commit()
@@ -191,6 +196,20 @@ def main() -> int:
     con = db.baglan()
 
     try:
+        # --- 0) Kota/ağ hatası almış haberleri havuza geri al ---
+        # Gemini 429 verdiğinde haber 'hata' durumunda kalıyor ve bir
+        # daha aday olamıyor. Bu haberin kusuru değil; metni varsa
+        # 'metin_hazir', yoksa 'yeni' olarak havuza dönüyor.
+        onarilan = con.execute(
+            "UPDATE haberler SET hata_mesaji = NULL, "
+            "durum = CASE WHEN ig_baslik IS NOT NULL THEN 'metin_hazir' "
+            "             ELSE 'yeni' END "
+            "WHERE durum = 'hata'"
+        ).rowcount
+        con.commit()
+        if onarilan:
+            log.info("%s haber 'hata' durumundan havuza döndürüldü", onarilan)
+
         # --- 1) Süresi geçmiş turu düşür ---
         suresi_gecmisi_iptal_et(con, ayarlar)
 
