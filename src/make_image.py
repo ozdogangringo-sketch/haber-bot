@@ -706,6 +706,7 @@ def story_haber(
 def detay_slayti(
     baslik: str, detay: str, kaynak: str, ayarlar: dict,
     kategori: str = "turkiye",
+    son_dakika: bool = True,
     ulke_kodu: str | None = None,
     ulke_adi: str | None = None,
 ) -> Image.Image:
@@ -728,22 +729,31 @@ def detay_slayti(
     ciz = ImageDraw.Draw(gorsel)
     alan_genislik = genislik - 2 * kenar
 
-    # --- Üst: SON DAKİKA etiketi ---
-    etiket_font = _font(24, EKSEN_KUCUK)
-    etiket = "SON DAKİKA"
-    metin_g = ciz.textlength(etiket, font=etiket_font)
-    ciz.rectangle(
-        [kenar, dikey_kenar, kenar + metin_g + 28, dikey_kenar + 42],
-        fill=(198, 60, 52),
-    )
-    ciz.text((kenar + 14, dikey_kenar + 9), etiket, font=etiket_font,
-             fill=(255, 255, 255))
+    # Bayrak sağ üstte duruyor; başlık oraya kadar uzarsa altında kalıyor.
+    # Etiket olmadığında başlık daha yukarıdan başladığı için çakışma
+    # görünür hâle geliyordu — başlık alanını bayrak kadar daraltıyoruz.
+    baslik_genislik = alan_genislik - (170 if ulke_kodu else 0)
 
-    y = dikey_kenar + 76
+    # --- Üst: SON DAKİKA etiketi (yalnızca olağanüstü olaylarda) ---
+    # Etiket eşiği çağıran tarafta karar veriliyor: tetikleme eşiği 8 ama
+    # etiket 9+, yoksa her gün "son dakika" görüp ibare değersizleşiyor.
+    if son_dakika:
+        etiket_font = _font(24, EKSEN_KUCUK)
+        etiket = "SON DAKİKA"
+        metin_g = ciz.textlength(etiket, font=etiket_font)
+        ciz.rectangle(
+            [kenar, dikey_kenar, kenar + metin_g + 28, dikey_kenar + 42],
+            fill=(198, 60, 52),
+        )
+        ciz.text((kenar + 14, dikey_kenar + 9), etiket, font=etiket_font,
+                 fill=(255, 255, 255))
+        y = dikey_kenar + 76
+    else:
+        y = dikey_kenar + 10
 
     # --- Başlık: küçük punto, bu slaytın yıldızı değil ---
     b_font = _font(46, EKSEN_BASLIK)
-    b_satirlar = _satirlara_bol(baslik, b_font, alan_genislik, ciz)[:3]
+    b_satirlar = _satirlara_bol(baslik, b_font, baslik_genislik, ciz)[:3]
     for satir in b_satirlar:
         ciz.text((kenar, y), satir, font=b_font, fill=(255, 255, 255))
         y += int(46 * 1.2)

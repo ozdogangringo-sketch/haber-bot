@@ -37,6 +37,14 @@ DENETLENEN = [
     "scripts/jeton_yenile.py",
     "scripts/test_6_tur_gorsel.py",
     "scripts/son_dakika.py",
+    # src/ içindeki modüller birbirini de çağırıyor; bu dosyalar
+    # denetlenmediği için `detay_slayti(son_dakika=...)` hatası
+    # gözden kaçtı ve bozuk kod push edildi (17 Ağu 2026).
+    "src/slaytlar.py",
+    "src/caption.py",
+    "src/otomatik_onay.py",
+    "src/telegram_bot.py",
+    "src/instagram.py",
 ]
 
 
@@ -44,11 +52,14 @@ def modul_adlarini_bul(agac: ast.AST) -> dict[str, str]:
     """`from src import a, b` ile gelen adları gerçek modül yoluna eşler."""
     esleme = {}
     for dugum in ast.walk(agac):
-        if isinstance(dugum, ast.ImportFrom) and dugum.module:
-            if not dugum.module.startswith("src"):
-                continue
-            for ad in dugum.names:
-                esleme[ad.asname or ad.name] = f"src.{ad.name}"
+        # "from src import x" (scripts/) ve "from . import x" (src/)
+        if isinstance(dugum, ast.ImportFrom):
+            if dugum.module and dugum.module.startswith("src"):
+                for ad in dugum.names:
+                    esleme[ad.asname or ad.name] = f"src.{ad.name}"
+            elif dugum.level == 1 and not dugum.module:
+                for ad in dugum.names:
+                    esleme[ad.asname or ad.name] = f"src.{ad.name}"
     return esleme
 
 
