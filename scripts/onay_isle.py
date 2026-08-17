@@ -20,6 +20,7 @@ TEKRAR BASMA KORUMASI:
     basılabiliyor; o yüzden durum da denetleniyor.
 """
 
+import json
 import logging
 import os
 import sys
@@ -51,6 +52,22 @@ def turu_getir(con, mesaj_id: int) -> list:
     ))
 
 
+def _detay_urlleri(ham) -> list[str]:
+    """
+    `detay_url` kolonunu listeye çevirir.
+
+    JSON listesi bekliyoruz ama eski kayıtlarda tek düz URL var —
+    ikisini de kabul ediyoruz ki geçmiş turlar bozulmasın.
+    """
+    if not ham:
+        return []
+    try:
+        cozulen = json.loads(ham)
+        return [u for u in cozulen if u] if isinstance(cozulen, list) else [ham]
+    except (ValueError, TypeError):
+        return [ham]
+
+
 def _sonuclari_kur(haberler: list) -> list[dict]:
     """Caption'ın atıf bloğu için katman bilgisini toparlar."""
     return [
@@ -66,12 +83,12 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
 
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
-    # Son dakika turu TEK haberden 2 slayt üretiyor (haber + ayrıntı).
-    # İkincisi ayrı kolonda duruyor; buraya eklenmezse elde tek görsel
-    # kalıyor ve Instagram carousel'i reddediyor.
+    # Son dakika turu TEK haberden birden çok slayt üretiyor: 1 haber +
+    # 1-4 ayrıntı sayfası (metin uzunsa sayfa ekleniyor). Bunlar ayrı
+    # kolonda JSON listesi olarak duruyor; buraya eklenmezse elde tek
+    # görsel kalıyor ve Instagram carousel'i reddediyor.
     for h in haberler:
-        if h["detay_url"]:
-            urller.append(h["detay_url"])
+        urller.extend(_detay_urlleri(h["detay_url"]))
 
     if len(urller) < 2:
         raise RuntimeError(

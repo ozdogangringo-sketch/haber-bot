@@ -202,7 +202,9 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
     # --- Slayt 2: detay ---
     # ig_caption zaten haberin 2-3 cümlelik özü; ayrı bir alan üretmek
     # yerine onu kullanıyoruz (ek Gemini çağrısı = ek kota).
-    detay = (_alan(haber, "ig_caption")
+    # Uzun anlatım varsa onu kullan; yoksa caption'a düş.
+    detay = (_alan(haber, "detay_metni")
+             or _alan(haber, "ig_caption")
              or _alan(haber, "slayt_ozet")
              or _alan(haber, "ozet_orj"))
 
@@ -210,18 +212,28 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
     etiket_esigi = ayarlar["genel"].get("son_dakika_etiket_esigi", 9)
     son_dakika_mi = (haber["onem_puani"] or 0) >= etiket_esigi
 
-    gorsel2 = make_image.detay_slayti(
-        haber["ig_baslik"] or haber["baslik_orj"],
-        detay,
-        haber["kaynak"],
-        ayarlar,
-        kategori=haber["kategori"],
-        son_dakika=son_dakika_mi,
-        ulke_kodu=_alan(haber, "ulke_kodu") or None,
-        ulke_adi=_alan(haber, "ulke_adi") or None,
-    )
-    yol2 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}-detay.jpg"
-    gorsel2.save(yol2, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+    # Metin uzunsa birden fazla sayfaya yayılıyor — punto küçültmek
+    # yerine sayfa ekliyoruz, yoksa uzun anlatım okunmaz hâle geliyor.
+    sayfalar = make_image.detay_sayfalara_bol(detay, ayarlar)
+    detay_yollari = []
+    for i, satirlar in enumerate(sayfalar, start=1):
+        gorsel2 = make_image.detay_slayti(
+            haber["ig_baslik"] or haber["baslik_orj"],
+            detay,
+            haber["kaynak"],
+            ayarlar,
+            kategori=haber["kategori"],
+            son_dakika=son_dakika_mi and i == 1,
+            ulke_kodu=_alan(haber, "ulke_kodu") or None,
+            ulke_adi=_alan(haber, "ulke_adi") or None,
+            satirlar=satirlar,
+            sayfa=i,
+            toplam_sayfa=len(sayfalar),
+        )
+        ek = "" if len(sayfalar) == 1 else f"-{i}"
+        yol2 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}-detay{ek}.jpg"
+        gorsel2.save(yol2, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+        detay_yollari.append(yol2)
 
     # --- Story (9:16): HAM arka planla, slaytla değil ---
     yol3 = None
@@ -246,8 +258,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
         # Story ikincil; patlarsa post yine çıkmalı.
         log.warning("story görseli üretilemedi: %s", e)
 
-    log.info("son dakika slaytları üretildi #%s [%s + detay + story]",
-             haber["id"], katman)
+    log.info("son dakika slaytları üretildi #%s [%s + %d detay + story]",
+             haber["id"], katman, len(detay_yollari))
 
     if con is not None:
         con.execute(
@@ -257,10 +269,9 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
         )
         con.commit()
 
-    sonuc = [
-        {"id": haber["id"], "yol": yol1, "katman": katman, "atif": atif},
-        {"id": haber["id"], "yol": yol2, "katman": "detay", "atif": ""},
-    ]
+    sonuc = [{"id": haber["id"], "yol": yol1, "katman": katman, "atif": atif}]
+    sonuc += [{"id": haber["id"], "yol": y, "katman": "detay", "atif": ""}
+              for y in detay_yollari]
     if yol3:
         # Story carousel'e GİRMİYOR; ayrı işaretli, çağıran taraf ayırıyor.
         sonuc.append(

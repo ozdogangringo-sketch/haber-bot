@@ -24,6 +24,7 @@ NEDEN ONAY KALDIRILMADI:
     python scripts/son_dakika.py --kuru    (Telegram'a GÖNDERME)
 """
 
+import json
 import logging
 import sys
 from datetime import datetime, timedelta, timezone
@@ -291,7 +292,7 @@ def main() -> int:
                     "UPDATE haberler SET durum = 'yayinlandi', son_dakika = 1, "
                     "ig_post_id = ?, gorsel_url = ?, detay_url = ?, story_url = ?, "
                     "gonderim_zamani = datetime('now') WHERE id = ?",
-                    (post_id, urller[0], urller[1] if len(urller) > 1 else None,
+                    (post_id, urller[0], json.dumps(urller[1:]),
                      story_url, aday["id"]),
                 )
                 con.commit()
@@ -329,7 +330,7 @@ def main() -> int:
             "UPDATE haberler SET durum = 'onay_bekliyor', son_dakika = 1, "
             "telegram_message_id = ?, gorsel_url = ?, detay_url = ?, "
             "story_url = ?, gonderim_zamani = datetime('now') WHERE id = ?",
-            (mesaj_id, urller[0], urller[1] if len(urller) > 1 else None,
+            (mesaj_id, urller[0], json.dumps(urller[1:]),
              story_url, aday["id"]),
         )
         con.commit()

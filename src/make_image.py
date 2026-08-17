@@ -703,12 +703,53 @@ def story_haber(
 # Son dakika: detay slaytı
 # ----------------------------------------------------------------------
 
+# Detay sayfasında sabit punto: 40 puntoda sayfa başına ~75 kelime
+# sığıyor (ölçüldü). Puntoyu metne göre küçültmek yerine SAYFA EKLİYORUZ
+# — 28 puntoya inen bir slayt telefonda okunmuyor ve carousel'de zaten
+# 10 slayt hakkımız var.
+DETAY_PUNTO = 40
+
+# Son dakika postu en fazla kaç detay sayfası taşısın.
+# 1 haber + 4 detay = 5 slayt. Daha uzunu kaydırılmıyor.
+AZAMI_DETAY_SAYFA = 4
+
+
+def detay_sayfalara_bol(detay: str, ayarlar: dict) -> list[list[str]]:
+    """
+    Detay metnini slayta sığacak sayfalara böler.
+
+    Punto sabit; metin uzunsa sayfa ekleniyor. Tersi (puntoyu küçültmek)
+    denenip bırakıldı: uzun metinde 28 puntoya kadar inip okunmaz hâle
+    geliyordu.
+    """
+    genislik, yukseklik = ayarlar["gorsel"]["genislik"], ayarlar["gorsel"]["yukseklik"]
+    kenar = ayarlar["gorsel"]["kenar_bosluk"]
+    dikey_kenar = max(kenar, ayarlar["gorsel"].get("dikey_guvenli_pay", kenar))
+
+    olcu = ImageDraw.Draw(Image.new("RGB", (genislik, yukseklik)))
+    font = _font(DETAY_PUNTO, EKSEN_OZET)
+    satir_y = int(DETAY_PUNTO * 1.5)
+
+    # Başlık bloğu + ayırıcı + alt bilgi çıkınca kalan dikey alan
+    ust_blok = dikey_kenar + 76 + 3 * int(46 * 1.2) + 62
+    kullanilabilir = (yukseklik - dikey_kenar - 34 - 40) - ust_blok
+    sayfa_satir = max(4, kullanilabilir // satir_y)
+
+    satirlar = _satirlara_bol(detay, font, genislik - 2 * kenar, olcu)
+    sayfalar = [satirlar[i:i + sayfa_satir]
+                for i in range(0, len(satirlar), sayfa_satir)]
+    return sayfalar[:AZAMI_DETAY_SAYFA] or [[]]
+
+
 def detay_slayti(
     baslik: str, detay: str, kaynak: str, ayarlar: dict,
     kategori: str = "turkiye",
     son_dakika: bool = True,
     ulke_kodu: str | None = None,
     ulke_adi: str | None = None,
+    satirlar: list[str] | None = None,
+    sayfa: int = 1,
+    toplam_sayfa: int = 1,
 ) -> Image.Image:
     """
     Son dakika postunun 2. slaytı: haberin ayrıntısı.
@@ -764,17 +805,14 @@ def detay_slayti(
     y += 40
 
     # --- Detay metni: asıl içerik ---
-    # Punto metnin uzunluğuna göre seçiliyor; kısa metinde iri, uzun
-    # metinde küçük. Sabit punto uzun metni taşırıyordu.
+    # Punto SABİT; metin uzunsa sayfa ekleniyor (bkz. detay_sayfalara_bol).
     alt_bilgi_y = yukseklik - dikey_kenar - 34
     kullanilabilir = alt_bilgi_y - 40 - y
 
-    for punto in (52, 48, 44, 40, 36, 32, 28):
-        d_font = _font(punto, EKSEN_OZET)
-        d_satirlar = _satirlara_bol(detay, d_font, alan_genislik, ciz)
-        satir_y = int(punto * 1.5)
-        if satir_y * len(d_satirlar) <= kullanilabilir:
-            break
+    d_font = _font(DETAY_PUNTO, EKSEN_OZET)
+    satir_y = int(DETAY_PUNTO * 1.5)
+    d_satirlar = (satirlar if satirlar is not None
+                  else _satirlara_bol(detay, d_font, alan_genislik, ciz))
 
     # Metin bloğunu kalan alanda dikeyde ortalıyoruz. Üste yapıştırınca
     # kısa metinlerde altta koca bir boşluk kalıyordu.
@@ -786,8 +824,17 @@ def detay_slayti(
         y += satir_y
 
     # --- Alt bilgi ---
+    kucuk = _font(26, EKSEN_KUCUK)
     ciz.text((kenar, alt_bilgi_y), _buyuk_harf(kaynak),
-             font=_font(26, EKSEN_KUCUK), fill=(198, 206, 222))
+             font=kucuk, fill=(198, 206, 222))
+
+    # Sayfa göstergesi: "2/3". Birden fazla detay sayfası varken
+    # takipçinin nerede olduğunu bilmesi gerekiyor.
+    if toplam_sayfa > 1:
+        gosterge = f"{sayfa}/{toplam_sayfa}"
+        gen = ciz.textlength(gosterge, font=kucuk)
+        ciz.text((genislik - kenar - gen, alt_bilgi_y), gosterge,
+                 font=kucuk, fill=(198, 206, 222))
 
     if ulke_kodu:
         gorsel = _bayragi_bas(gorsel, ulke_kodu, ulke_adi, dikey_kenar)

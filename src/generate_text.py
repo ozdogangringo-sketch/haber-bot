@@ -60,6 +60,7 @@ CEVAP_SEMASI = {
         "onem_puani": {"type": "integer"},
         # Slaytta başlığın altına basılan kısa cümle
         "slayt_ozet": {"type": "string"},
+        "detay_metni": {"type": "string"},
         # Commons araması için kişi/kurum. Yoksa boş string.
         "gorsel_konu": {"type": "string"},
         # Pexels araması için İngilizce temsili terim.
@@ -71,7 +72,7 @@ CEVAP_SEMASI = {
     },
     "required": [
         "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
-        "slayt_ozet", "gorsel_konu", "gorsel_temsili",
+        "slayt_ozet", "detay_metni", "gorsel_konu", "gorsel_temsili",
         "ulke_kodu", "ulke_adi",
     ],
 }
@@ -162,6 +163,13 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   Başlık + özet birlikte okunduğunda takipçi o haberi ÖĞRENMİŞ olmalı.
   Başka kaynağa gitmesine gerek kalmamalı; zaten link vermiyoruz.
   Özet, başlıkta yer kalmayan ikinci en önemli bilgiyi taşısın.
+
+- detay_metni: 120-220 kelime. Haberin AYRINTILI anlatımı — son dakika
+  postlarında slaytlara yayılıyor (sayfa başına ~75 kelime).
+  Kim, ne, nerede, ne zaman, nasıl, sonuç ne oldu. Kaynak metinde ne
+  varsa onu anlat; BİLGİ UYDURMA, kaynakta olmayan ayrıntı ekleme.
+  Kaynak kısaysa kısa yaz — doldurmak için cümle üretme.
+  Paragraf yapma, düz akan metin yaz.
 
 - gorsel_konu: SADECE GERÇEK BİR İNSANIN ADI VE SOYADI. Başka hiçbir şey.
   (örn: "Hakan Fidan", "Ekrem İmamoğlu")

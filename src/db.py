@@ -113,6 +113,11 @@ EK_KOLONLAR = {
     # anında kayboluyor ve Instagram "carousel en az 2 görsel ister"
     # diye reddediyor — 17 Ağu 2026 sabahı tam olarak bu oldu.
     "detay_url": "TEXT",
+    # Son dakika slaytlarındaki uzun anlatım (ig_caption'dan AYRI).
+    # ig_caption Instagram açıklaması için 2-3 cümle; bu ise slaytlara
+    # yayılan 120-220 kelimelik metin. Sayfa başına ~75 kelime sığıyor,
+    # yani 2-3 slayt ediyor.
+    "detay_metni": "TEXT",
 }
 
 
@@ -207,6 +212,7 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
                ig_hashtag     = ?,
                onem_puani     = ?,
                slayt_ozet     = ?,
+               detay_metni    = ?,
                gorsel_konu    = ?,
                gorsel_temsili = ?,
                ulke_kodu      = ?,
@@ -222,6 +228,7 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
             " ".join(e.lstrip("#") for e in etiketler),
             uretilen.get("onem_puani"),
             uretilen.get("slayt_ozet"),
+            uretilen.get("detay_metni"),
             # Gemini boş bırakabiliyor (tanınmış kişi yoksa / ülkesiz haber).
             # Boş string yerine NULL saklamak SQL'de ayırt etmeyi kolaylaştırır.
             (uretilen.get("gorsel_konu") or "").strip() or None,
