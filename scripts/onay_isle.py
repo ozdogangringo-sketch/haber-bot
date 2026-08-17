@@ -88,8 +88,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     # 1-4 ayrıntı sayfası (metin uzunsa sayfa ekleniyor). Bunlar ayrı
     # kolonda JSON listesi olarak duruyor; buraya eklenmezse elde tek
     # görsel kalıyor ve Instagram carousel'i reddediyor.
+    #
+    # ⚠️ SADECE SON DAKİKA TURUNDA. Onaylanmayan son dakika haberi havuza
+    # dönerken `detay_url` üstünde kalıyor; aynı haber akşam turunda
+    # yeniden seçilince o eski ayrıntı sayfaları carousel'e sızıyordu.
+    # 17 Ağu 2026'da oldu: 10 haberlik tur 13 görselle yayınlanmaya
+    # çalıştı ve Instagram reddetti (sınır 10).
     for h in haberler:
-        urller.extend(_detay_urlleri(h["detay_url"]))
+        if h["son_dakika"]:
+            urller.extend(_detay_urlleri(h["detay_url"]))
 
     if len(urller) < 2:
         raise RuntimeError(
