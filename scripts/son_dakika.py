@@ -200,11 +200,23 @@ def main() -> int:
         # Gemini 429 verdiğinde haber 'hata' durumunda kalıyor ve bir
         # daha aday olamıyor. Bu haberin kusuru değil; metni varsa
         # 'metin_hazir', yoksa 'yeni' olarak havuza dönüyor.
+        # son_dakika işareti de temizleniyor: yayınlanmamış bir turdan
+        # kalan işaret haberi `aday_bul`un gözünden düşürüyor ("bu haber
+        # zaten son dakika yapıldı" sanılıyor) ve haber bir daha
+        # seçilemiyor.
         onarilan = con.execute(
-            "UPDATE haberler SET hata_mesaji = NULL, "
+            "UPDATE haberler SET hata_mesaji = NULL, son_dakika = 0, "
+            "telegram_message_id = NULL, "
             "durum = CASE WHEN ig_baslik IS NOT NULL THEN 'metin_hazir' "
             "             ELSE 'yeni' END "
             "WHERE durum = 'hata'"
+        ).rowcount
+
+        # Yayınlanmamış ama son_dakika işareti takılı kalmış haberler
+        # (iptal edilmiş turlardan artakalan) da temizleniyor.
+        onarilan += con.execute(
+            "UPDATE haberler SET son_dakika = 0 "
+            "WHERE son_dakika = 1 AND durum NOT IN ('yayinlandi', 'onay_bekliyor')"
         ).rowcount
         con.commit()
         if onarilan:
