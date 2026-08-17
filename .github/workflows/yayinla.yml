@@ -50,6 +50,12 @@ jobs:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Threads'in kendi API'si ve kendi jetonu var; Instagram/Facebook
+          # jetonu burada ÇALIŞMIYOR. Secret tanımlı değilse boş geliyor ve
+          # `threads.kullanilabilir_mi()` False dönüp paylaşımı atlıyor —
+          # yani jeton gelmeden önce de bu satırlar zararsız.
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
         run: |
           # "/tur" yazılı komutu yeni bir tur kuruyor; kalan her şey
           # açık turun üstünde işlem yapıyor.
