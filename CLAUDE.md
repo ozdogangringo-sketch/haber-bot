@@ -117,6 +117,11 @@ yayınlandı**:
 |---|---|
 | 15 Ağu 19:04 | instagram.com/p/DcEmOj8m2cG |
 | 16 Ağu 17:58 | instagram.com/p/DcHDZDbEhQF |
+| 17 Ağu 23:06 | post `18071412488477132` + story + Facebook albüm + Facebook story |
+
+17 Ağustos turu **dört ayrı arızayı** aştıktan sonra çıktı (bkz. 1d/1e).
+Story, Facebook albümü ve Facebook story'si aynı akışta ilk kez birlikte
+yayınlandı ve üçü de doğrulandı. Threads jeton beklediği için atlandı.
 
 16 Ağustos turu **tamamen otomatikti**: cron 17:31'de hazırladı (7 dk),
 Telegram'a düştü, onaylandı, 17:58'de yayınlandı.
@@ -202,6 +207,21 @@ Zincir:
 ⚠️ **`git pull --rebase`'i bu repoda çıplak kullanma.** Yerelde de
 geçerli: `haber.db` her turda değiştiği için çakışma kuraldır, istisna
 değil.
+
+**1e. Aynı akşam çıkan diğer üç arıza (17 Ağu 2026) — hepsi düzeltildi.**
+
+Turu kurtarırken arka arkaya patladılar; dördü de ayrı kusurdu.
+
+| Belirti | Kök sebep | Düzeltme |
+|---|---|---|
+| `carousel 2-10 görsel ister, 13 verildi` | Onaylanmayan son dakika haberi havuza dönerken `detay_url` üstünde KALIYOR. Aynı haber akşam turunda seçilince eski 3 ayrıntı sayfası carousel'e sızdı. | `onay_isle.yayinla` ayrıntı sayfalarını yalnızca `son_dakika` işaretli haberde ekliyor. |
+| `HTTP 400 Timeout / 2207003` | Instagram görseli imgbb'den KENDİSİ indiriyor, o indirme zaman aşımına uğradı. Cevapta `is_transient: false` yazıyor ama **yalan** — aynı URL saniyeler sonra iniyor. Retry yalnızca HTTP koduna baktığı için hiç denenmedi. | `instagram.GECICI_ALT_KODLAR` + medya hatasında 15 sn'den başlayan bekleme. |
+| Yayın başarılı ama Telegram'da dönüt yok | Sonuç yalnızca `editMessageText` ile yazılıyordu. **Telegram düzenlemede bildirim ÜRETMİYOR**; onay mesajı sohbette yukarıda kalıyor, yayın 2 dk sürüyor, kullanıcı sonucu hiç görmüyor. | `sonucu_yaz(..., bildir=True)` sonucu ayrıca yeni mesaj olarak gönderiyor. Düzenleme yine yapılıyor — butonları kaldırmanın başka yolu yok. |
+
+**Ayrıca:** `hatirlat.py` artık **90 dakikadan yeni turu kapatmıyor**
+(`TAZE_TUR_DAKIKA`). Elle kurulan geç bir tur, 11 dakika sonraki
+hatırlatmada "onay gelmedi" diye havuza dönüyordu. Normal 20:07 turunda
+3 saatlik pay var, elle kurulanda yok.
 
 Yoğun test edilen bir günde kota doldu ve tur yarıda kaldı. `hazirla.py
 --metinsiz` bunun için var: Gemini'ye hiç gitmeden, metni ZATEN hazır
