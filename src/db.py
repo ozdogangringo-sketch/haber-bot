@@ -68,6 +68,13 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # Threads'e paylaşıldıysa zincirin ana gönderi id'si.
+    #
+    # ⚠️ MÜKERRER PAYLAŞIMI ÖNLÜYOR. `gecmisi_paylas.py` önce bu kolona
+    # bakıyor; doluysa turu atlıyor. Olmadığında script her çalıştırmada
+    # baştan başlıyordu ve 18 Ağu 2026'da aynı tur üç kez yayınlandı
+    # (biri `--adet 1` denemesinden, ikisi sonraki çalıştırmadan).
+    "threads_post_id": "TEXT",
     "onem_puani": "INTEGER",
     "tur": "TEXT",
     "telegram_message_id": "INTEGER",

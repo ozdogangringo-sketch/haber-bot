@@ -88,6 +88,8 @@ def turlari_getir(con) -> list[dict]:
             "haberler": haberler,
             "urller": urller,
             "son_dakika": bool(haberler[0]["son_dakika"]),
+            # Daha önce paylaşıldıysa id'si burada; tur atlanacak.
+            "threads_id": haberler[0]["threads_post_id"],
         })
     return turlar
 
@@ -134,8 +136,18 @@ def main() -> int:
 
     paylasilacak, atlanan = [], []
     for tur in turlar:
-        tam, saglam = gorseller_saglam_mi(tur["urller"])
         etiket = "son dakika" if tur["son_dakika"] else "akşam turu"
+
+        # ⚠️ ÖNCE MÜKERRER KONTROLÜ, görsel kontrolünden bile önce.
+        # Script hangi turu paylaştığını hatırlamazsa her çalıştırmada
+        # baştan başlıyor; aynı tur ikinci kez yayınlanınca takipçi iki
+        # kopya görüyor ve temizlemek elle silmek demek.
+        if tur["threads_id"]:
+            print(f"  · {tur['zaman'][:16]}  {etiket:11} zaten paylaşılmış, "
+                  f"atlanıyor")
+            continue
+
+        tam, saglam = gorseller_saglam_mi(tur["urller"])
         durum = f"{saglam}/{len(tur['urller'])} görsel"
 
         # Görsellerin HEPSİ sağlam olmalı: eksik görsel zincirde eksik
@@ -187,6 +199,13 @@ def main() -> int:
         gun = tur["zaman"][:10]
         try:
             post_id, yayinlanan = threads.zincir_yayinla(halkalar)
+            # Kısmi de olsa yayınlandıysa işaretle: bir daha atılmasın.
+            con.execute(
+                "UPDATE haberler SET threads_post_id = ? "
+                "WHERE telegram_message_id = ?",
+                (post_id, tur["msg"]),
+            )
+            con.commit()
             tam = yayinlanan == len(halkalar)
             if tam:
                 print(f"✓ Zincir tam yayınlandı ({yayinlanan} halka): {post_id}")

@@ -254,15 +254,30 @@ def _halka_yayinla(kullanici: str, parametreler: dict) -> str:
         try:
             d = _istek("POST", f"/{kullanici}/threads", **parametreler)
             _container_bekle(d["id"])
-            # tekrar=False: publish idempotent değil.
-            p = _istek("POST", f"/{kullanici}/threads_publish",
-                       tekrar=False, creation_id=d["id"])
-            return p["id"]
         except Exception as e:
+            # Container üretmek zararsız: başarısızsa ortada gönderi yok,
+            # tekrar denemek mükerrer üretmiyor.
             son_hata = e
-            log.warning("halka denemesi %s/3 başarısız: %s", deneme, str(e)[:160])
+            log.warning("container denemesi %s/3 başarısız: %s",
+                        deneme, str(e)[:150])
             if deneme < 3:
                 time.sleep(MEDYA_BEKLEME_SANIYE)
+            continue
+
+        # ⚠️ PUBLISH TEKRARLANMAZ — hata fırlarsa yukarı gider.
+        #
+        # Publish'in başarısız GÖRÜNMESİ, yayınlanmadığı anlamına
+        # gelmiyor. 18 Ağu 2026'da publish HTTP 500 döndü, gönderi
+        # aslında YAYINLANDI, tekrar denemesi İKİNCİ bir gönderi
+        # üretti ve hesapta aynı turun üç kopyası oluştu.
+        #
+        # Mükerrer gönderi, yarım zincirden çok daha kötü: yarım zincir
+        # bildiriliyor ve tamamlanabiliyor, mükerrer post ise elle
+        # silinmek zorunda ve takipçi ikisini de görüyor.
+        p = _istek("POST", f"/{kullanici}/threads_publish",
+                   tekrar=False, creation_id=d["id"])
+        return p["id"]
+
     raise RuntimeError(f"halka yayınlanamadı: {son_hata}")
 
 
