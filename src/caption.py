@@ -147,6 +147,69 @@ def son_dakika_caption(
     return metin[:AZAMI_KARAKTER]
 
 
+# Threads'in gönderi sınırı. Instagram'ın 2200'ü buraya SIĞMIYOR.
+THREADS_AZAMI = 500
+
+
+def kisa_metin_kur(
+    haberler: list,
+    sinir: int,
+    gun: date | None = None,
+    ayarlar: dict | None = None,
+) -> str:
+    """
+    Dar karakter sınırı olan kanallar için gündemi yeniden kurar.
+
+    ⚠️ KIRPMA DEĞİL, YENİDEN KURMA. Threads'e önce tam caption gönderilip
+    `metin[:500]` ile kesiliyordu — 2200 karakterlik bir metni 500'de
+    kesmek onu bir haberin ORTASINDA bitiriyor, üstelik caption'ın sonunda
+    kaynak ve atıf satırları var, onlar da hiç görünmüyordu.
+
+    Burada sığan kadar manşet alınıyor, sığmayanlar "+N haber daha" diye
+    özetleniyor. Öncelik sırası: tarih ve ilk manşetler korunur, hashtag
+    en önce feda edilir.
+
+    (Threads için `sinir=THREADS_AZAMI`. X kapatıldı ama `x_paylas` de
+     aynı işi 280 ile yapıyor — mantık tek yerde dursun diye burada.)
+    """
+    bas = f"{tarih_metni(gun)}  ·  Günün gündemi\n\n"
+
+    ham_etiketler = _hashtaglari_birlestir(haberler, azami=3)
+    f = (ayarlar or {}).get("icerik_filtresi", {})
+    if f.get("aktif") and f.get("captionda", True):
+        ham_etiketler = filtre.hashtaglari_ele(
+            ham_etiketler, f.get("yasakli_hashtagler", [])
+        )
+    kuyruk = ("\n\n" + " ".join(f"#{e}" for e in ham_etiketler)
+              if ham_etiketler else "")
+
+    basliklar = [(h["ig_baslik"] or h["baslik_orj"]).strip() for h in haberler]
+    if f.get("aktif") and f.get("captionda", True):
+        kelimeler = f.get("yumusatilacak", [])
+        basliklar = [filtre.metni_yumusat(b, kelimeler) for b in basliklar]
+
+    satirlar: list[str] = []
+    for i, baslik in enumerate(basliklar, 1):
+        aday = satirlar + [f"{i}. {baslik}"]
+        if len(bas + "\n".join(aday) + kuyruk) > sinir:
+            break
+        satirlar = aday
+
+    if not satirlar:
+        # Tek manşet bile sığmadı: hashtag'i at, manşeti kısalt.
+        tek = basliklar[0] if basliklar else ""
+        yer = max(0, sinir - len(bas) - 1)
+        return (bas + tek[:yer] + "…")[:sinir]
+
+    kalan = len(basliklar) - len(satirlar)
+    if kalan > 0:
+        ek = f"\n+{kalan} haber daha"
+        if len(bas + "\n".join(satirlar) + ek + kuyruk) <= sinir:
+            satirlar.append(ek.strip())
+
+    return bas + "\n".join(satirlar) + kuyruk
+
+
 def caption_kur(
     haberler: list,
     sonuclar: list[dict] | None = None,

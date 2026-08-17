@@ -154,7 +154,13 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
             and threads.kullanilabilir_mi()):
         try:
-            th_id = threads.yayinla(urller, metin)
+            # Threads'in sınırı 500; tam caption'ı göndermek onu bir
+            # haberin ortasında kesiyor.
+            th_id = threads.yayinla(
+                urller,
+                caption.kisa_metin_kur(haberler, caption.THREADS_AZAMI,
+                                       ayarlar=ayarlar),
+            )
             th_notu = "\n🧵 Threads'e de paylaşıldı"
             log.info("Threads: %s", th_id)
         except Exception as e:

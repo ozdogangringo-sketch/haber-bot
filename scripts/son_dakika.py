@@ -329,7 +329,14 @@ def main() -> int:
                 if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
                         and threads.kullanilabilir_mi()):
                     try:
-                        threads.yayinla(urller, metin)
+                        # Threads'in sınırı 500; son dakika caption'ı
+                        # genelde kısa ama detaylı haberlerde aşabiliyor.
+                        threads.yayinla(
+                            urller,
+                            caption.kisa_metin_kur(
+                                [taze], caption.THREADS_AZAMI, ayarlar=ayarlar
+                            ),
+                        )
                     except Exception as e:
                         log.warning("Threads paylaşılamadı: %s", e)
 
