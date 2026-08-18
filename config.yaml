@@ -418,11 +418,16 @@ kaynaklar:
     agirlik: 10
     aktif: true
 
-  - ad: "TRT Teknoloji"
-    url: "https://www.trthaber.com/xml_mobile.php?tur=xml_genel&kategori=teknoloji"
-    kategori: "teknoloji"
-    agirlik: 10
-    aktif: true
+  # ⚠️ TRT TEKNOLOJİ KALDIRILDI (18 Ağu 2026) — KATEGORİSİ YALAN.
+  # Ölçüldü: beslemedeki 10 haberin linkleri /haber/gundem/ (5),
+  # /haber/dunya/ (3), /haber/bilim-teknoloji/ (1), /haber/turkiye/ (1)
+  # yani istenen kategoriden HİÇBİRİ yoktu. "Mustafa Bozbey CHP'den
+  # istifa etti" haberi bu yüzden slaytta "TRT TEKNOLOJİ" etiketiyle
+  # yayınlandı.
+  #
+  # TRT Ekonomi (8/10) ve TRT Dünya (9/10) doğru içerik veriyor, onlar
+  # duruyor. Yeni bir TRT kategorisi eklerken linklerdeki /haber/<kat>/
+  # segmentini MUTLAKA doğrula.
 
   - ad: "AA Dünya"
     url: "https://www.aa.com.tr/tr/rss/default?cat=dunya"
