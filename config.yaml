@@ -139,6 +139,36 @@ gemini:
 
 
 # =========================================================
+#  SEÇİM
+# =========================================================
+secim:
+  # ⚠️ TUR SABİT 10 SLAYT DEĞİL. Eşiği geçen kaç haber varsa o kadar
+  # slayt üretiliyor: sakin gün 6-7, yoğun gün 10 (Instagram sınırı).
+  #
+  # Önce havuzdan hep en iyi 10 alınıyordu ve havuz doluyken 10'uncu
+  # haber "belediye şu toplantıyı yaptı" seviyesine düşebiliyordu.
+  # Zayıf haberle slayt doldurmak turun tamamını sıradanlaştırıyor.
+  asgari_onem_puani: 6
+
+  # ⚠️ ÖN ELEMEDE HER KATEGORİYE GARANTİLİ PAY.
+  # Ölçüldü (1236 haberlik havuz): pay olmadan 25 adayın 24'ü TRT
+  # Haber'den geliyordu, kategori dağılımı %100 "turkiye" idi. Ön skor
+  # `ağırlık × 10` ile başladığı için ağırlığı yüksek tek kaynak listeyi
+  # dolduruyor; eklenen bilim/spor/ekonomi/kültür kaynakları metin
+  # üretimine HİÇ giremiyordu.
+  on_eleme_kategori_payi: 3
+
+  # İki başlık kaç ortak anahtar kelime paylaşırsa "aynı olay" sayılsın.
+  # 2 ölçüldü: "İsrail ... Gazze" ile "İsrail ... Lübnan" ayrışıyor ama
+  # aynı olayın iki farklı kaynaktaki hâli birleşiyor.
+  #
+  # ⚠️ KATEGORİ VE KAYNAK KOTASI YOK (18 Ağu 2026'da kaldırıldı). Gündem
+  # gerçekten tek konuya kilitlendiğinde (deprem, seçim gecesi) kota o
+  # haberleri dışarıda bırakıp yerlerine önemsizlerini alıyordu.
+  konu_ortak_kelime_esigi: 2
+
+
+# =========================================================
 #  GÖRSEL (Adım 3)
 #
 #  DİKKAT — BU KISIM PARA HARCIYOR.

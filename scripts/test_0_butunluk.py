@@ -93,6 +93,65 @@ def argumanlari_denetle(fn, cagri: ast.Call) -> str | None:
     return None
 
 
+def config_denetle() -> list[str]:
+    """
+    `config.yaml` kodun beklediği anahtarları taşıyor mu?
+
+    ⚠️ NEDEN GEREKTİ: 18 Ağu 2026'da config programatik olarak yeniden
+    yazılırken `secim:` bloğunun tamamı silindi. Kod varsayılanlara
+    düştüğü için HİÇBİR HATA ÇIKMADI — yalnızca `asgari_onem_puani`
+    devre dışı kaldı ve o gün eklenen "esnek tur uzunluğu" özelliği
+    sessizce etkisizleşti. Bu tür kayıplar ancak aranırsa bulunuyor.
+    """
+    import yaml
+
+    sorunlar = []
+    try:
+        cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    except Exception as e:
+        return [f"config.yaml okunamadı: {e}"]
+
+    # Kodun `ayarlar["x"]` ile doğrudan istediği üst anahtarlar
+    gerekli = {"genel", "gemini", "gorsel", "imgbb", "instagram", "kaynaklar"}
+    for anahtar in sorted(gerekli - set(cfg)):
+        sorunlar.append(f"config.yaml: '{anahtar}' bloğu YOK")
+
+    # Kod tarafında varsayılanı olan ama bilinçli konmuş ayarlar —
+    # kaybolurlarsa özellik sessizce devre dışı kalıyor.
+    beklenen = {
+        "secim": ["asgari_onem_puani", "on_eleme_kategori_payi",
+                  "konu_ortak_kelime_esigi"],
+        "sosyal": ["kanallar"],
+    }
+    for blok, alanlar in beklenen.items():
+        if blok not in cfg:
+            sorunlar.append(f"config.yaml: '{blok}' bloğu YOK")
+            continue
+        for alan in alanlar:
+            if alan not in (cfg[blok] or {}):
+                sorunlar.append(f"config.yaml: {blok}.{alan} YOK")
+
+    # Ayar panelindeki yollar config'de gerçekten var mı?
+    try:
+        from src import ayar
+        for yol in ayar.yollari_dogrula(cfg):
+            sorunlar.append(f"config.yaml: ayar paneli '{yol}' bulamıyor")
+    except Exception as e:
+        sorunlar.append(f"ayar yolları denetlenemedi: {e}")
+
+    # Kaynaklar: zorunlu alanlar ve benzersiz adlar
+    adlar = set()
+    for k in cfg.get("kaynaklar") or []:
+        for alan in ("ad", "url", "kategori", "agirlik"):
+            if alan not in k:
+                sorunlar.append(f"kaynak {k.get('ad', '?')}: '{alan}' eksik")
+        if k.get("ad") in adlar:
+            sorunlar.append(f"kaynak adı tekrar ediyor: {k['ad']}")
+        adlar.add(k.get("ad"))
+
+    return sorunlar
+
+
 def main() -> int:
     hatalar = []
     denetlenen_cagri = 0
@@ -137,6 +196,8 @@ def main() -> int:
             if sorun:
                 hatalar.append(f"{yol}:{dugum.lineno} — "
                                f"{esleme[takma]}.{fn_ad}(): {sorun}")
+
+    hatalar += config_denetle()
 
     print("=" * 70)
     print("BÜTÜNLÜK TESTİ")
