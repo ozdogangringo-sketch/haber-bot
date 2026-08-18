@@ -132,6 +132,34 @@ def _bozuk_baytlari_onar(xml_bytes: bytes) -> bytes:
     return metin.encode("utf-8")
 
 
+TRT_TABAN = "https://www.trthaber.com/"
+
+
+def _trt_ayristir(girdiler) -> list[dict]:
+    """
+    TRT'nin `xml_mobile` beslemesini standart haber sözlüğüne çevirir.
+
+    ⚠️ LİNKLER GÖRELİ geliyor ("haber/dunya/...html"); başına alan adı
+    eklenmezse makale gövdesi çekilemiyor ve `og:image` bulunamıyor,
+    yani hem metin hem görsel katmanı sessizce düşüyor.
+    """
+    sonuc = []
+    for g in girdiler:
+        baslik = (g.findtext("haber_manset") or "").strip()
+        link = (g.findtext("haber_link") or "").strip()
+        if not baslik or not link:
+            continue
+        if not link.startswith("http"):
+            link = TRT_TABAN + link.lstrip("/")
+        sonuc.append({
+            "baslik_orj": " ".join(baslik.split()),
+            "link": link,
+            "ozet_orj": html_temizle(g.findtext("haber_aciklama")),
+            "yayin_tarihi": tarihi_cevir(g.findtext("haber_tarihi")),
+        })
+    return sonuc
+
+
 def feed_ayristir(xml_bytes: bytes) -> list[dict]:
     """Ham XML'i haber listesine çevirir. RSS 2.0 ve Atom destekli."""
     try:
@@ -140,6 +168,20 @@ def feed_ayristir(xml_bytes: bytes) -> list[dict]:
         # Feed bozuk olabilir: baytları onarıp bir kez daha deniyoruz.
         # Hâlâ patlarsa hata yukarı gider, kaynak "bozuk" diye raporlanır.
         kok = ET.fromstring(_bozuk_baytlari_onar(xml_bytes))
+
+    # ⚠️ TRT ÖZEL FORMAT — RSS de Atom da değil.
+    #
+    # TRT'nin kategori beslemeleri (`xml_mobile.php?kategori=spor`)
+    # `<haberler><haber><haber_manset>` yapısında geliyor. Standart
+    # okuyucu bunu boş sanıp kaynağı düşürüyordu; TRT ağırlığı 10 olan
+    # en güvendiğimiz kaynak olduğu ve kategori beslemeleri yalnızca
+    # burada bulunduğu için ayrı bir dal açıldı (18 Ağu 2026).
+    #
+    # Doğrulandı: spor / ekonomi / bilim-teknoloji arasında 0 ortak
+    # haber var, yani kategori parametresi gerçekten çalışıyor.
+    trt = kok.findall(".//haber")
+    if trt and kok.tag == "haberler":
+        return _trt_ayristir(trt)
 
     girdiler = kok.findall(".//item")            # RSS 2.0
     atom = False

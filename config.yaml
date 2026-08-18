@@ -398,6 +398,53 @@ kaynaklar:
     agirlik: 7
     aktif: true
 
+  # ---------- TRT KATEGORİ BESLEMELERİ (18 Ağu 2026) ----------
+  # TRT ağırlığı 10 olan en güvendiğimiz kaynak ama yalnızca genel akışı
+  # (sondakika.rss) kullanıyorduk. Kategori beslemeleri farklı adreste
+  # ve ÖZEL FORMATTA (`<haberler><haber>`); standart okuyucu boş sanıp
+  # düşürüyordu. `fetch_news._trt_ayristir` bunun için yazıldı.
+  #
+  # ⚠️ YALNIZCA 3 KATEGORİ CANLI. Ölçüldü: spor beslemesi 11 GÜN,
+  # çevre 25 saat eski; kültür-sanat, sağlık ve eğitim de %20-30 taze.
+  # Bunlar eklenseydi yaş filtresine takılıp boşuna istek olurdu.
+  # Yeni kategori eklemeden önce TAZELİĞİ ÖLÇ.
+  - ad: "TRT Ekonomi"
+    url: "https://www.trthaber.com/xml_mobile.php?tur=xml_genel&kategori=ekonomi"
+    kategori: "ekonomi"
+    agirlik: 10
+    aktif: true
+
+  - ad: "TRT Dünya"
+    url: "https://www.trthaber.com/xml_mobile.php?tur=xml_genel&kategori=dunya"
+    kategori: "dunya"
+    agirlik: 10
+    aktif: true
+
+  - ad: "TRT Teknoloji"
+    url: "https://www.trthaber.com/xml_mobile.php?tur=xml_genel&kategori=teknoloji"
+    kategori: "teknoloji"
+    agirlik: 10
+    aktif: true
+
+  # ---------- EK GÜVENİLİR KAYNAKLAR ----------
+  # Tazelik süzgecinden geçenler (24 saat içindeki haber oranı):
+  #   AA Dünya %100 · Independent Türkçe %100
+  # Elenenler: Habertürk Sağlık %23, NTV Sağlık %5, Habertürk Kültür %0,
+  # Hürriyet Teknoloji %3 — beslemeler güncellenmiyor.
+  # ⚠️ Milliyet'in "gündem" ve "ekonomi" beslemeleri BİREBİR AYNI
+  # (20/20 ortak haber); ikisi birden eklenirse aynı haber iki kez çekilir.
+  - ad: "AA Dünya"
+    url: "https://www.aa.com.tr/tr/rss/default?cat=dunya"
+    kategori: "dunya"
+    agirlik: 9
+    aktif: true
+
+  - ad: "Independent Türkçe"
+    url: "https://www.indyturk.com/rss.xml"
+    kategori: "turkiye"
+    agirlik: 6
+    aktif: true
+
 # =========================================================
 #  SEÇİM ÇEŞİTLİLİĞİ (18 Ağu 2026)
 #
