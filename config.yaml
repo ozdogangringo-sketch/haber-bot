@@ -96,10 +96,18 @@ gemini:
   #   gemini-3.7-flash  → en yeni AMA gerçek boyutlu isteklerde
   #                       3 denemenin 2'sinde 503 "yoğunluk" verdi.
   #                       Talep yatışırsa denenebilir.
-  model: "gemini-3.6-flash"
+  # ⚠️ SIRA GEÇİCİ OLARAK DEĞİŞTİRİLDİ (18 Ağu 2026).
+  # Ölçüldü: 3.6-flash ücretsiz kotası tükendi (6/6 istek 429), 3.5-flash
+  # 7/8 çalışıyor. Sıra değişmeseydi her haber için 3 başarısız deneme +
+  # 12 saniye bekleme yaşanacak, 25 haberlik tur ~5 dakika uzayacaktı.
+  #
+  # Kota günlük yenilenince 3.6'ya geri dönülebilir — kalite farkı için
+  # 14 Ağu ölçümüne bak. Geri alırken bu iki satırın yerini değiştirmek
+  # yeterli.
+  model: "gemini-3.5-flash"
 
   # Birincil model 503/429 verirse buna düşer.
-  yedek_model: "gemini-3.5-flash"
+  yedek_model: "gemini-3.6-flash"
 
   # 0 = hep aynı cevap, 1 = daha yaratıcı.
   # Haber metninde yaratıcılık istemiyoruz ama tamamen robotik de olmasın.
