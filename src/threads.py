@@ -352,6 +352,61 @@ def zincir_yayinla(halkalar: list[dict]) -> str:
     return ana_id, len(halkalar)
 
 
+def zincir_halkalari(ana_id: str) -> list[dict]:
+    """
+    Zincirdeki yanıtları YAYIN SIRASINA göre döner (ana gönderi hariç).
+
+    ⚠️ SIRALAMA GARANTİ DEĞİL. `/conversation` yanıtları kendi düzeninde
+    veriyor; zinciri tamamlarken son halkaya bağlanmak gerektiği için
+    `timestamp`e göre sıralıyoruz. Yanlış halkaya bağlamak zincirin
+    ortasından dallanmasına yol açar.
+    """
+    d = _istek("GET", f"/{ana_id}/conversation", tekrar=False,
+               fields="id,timestamp")
+    yanitlar = d.get("data", [])
+    return sorted(yanitlar, key=lambda x: x.get("timestamp", ""))
+
+
+def zinciri_tamamla(ana_id: str, halkalar: list[dict]) -> tuple[int, int]:
+    """
+    Yarım kalmış bir zincire eksik halkaları ekler.
+
+    `(yayinlanan, hedef)` döner. Zaten tamsa hiçbir şey yapmıyor.
+
+    NEDEN GEREKİYOR: Threads'in medya tarafı kararsız ve zincir ortada
+    kesilebiliyor. Kesilen zinciri elden tamamlamanın yolu yoktu;
+    18 Ağu 2026'da 10 halkalı bir zincirin 1 halkası yayınlandı ve
+    kalanı terminalden yeniden denemek gerekti.
+    """
+    mevcut = zincir_halkalari(ana_id)
+    yayinlanmis = len(mevcut) + 1          # ana gönderi de sayılıyor
+    if yayinlanmis >= len(halkalar):
+        return yayinlanmis, len(halkalar)
+
+    kullanici = _kullanici()
+    onceki_id = mevcut[-1]["id"] if mevcut else ana_id
+
+    for sira in range(yayinlanmis, len(halkalar)):
+        halka = halkalar[sira]
+        time.sleep(CONTAINER_ARASI_SANIYE)
+
+        parametreler = {"text": halka["metin"][:500], "reply_to_id": onceki_id}
+        if halka.get("gorsel_url"):
+            parametreler["media_type"] = "IMAGE"
+            parametreler["image_url"] = halka["gorsel_url"]
+        else:
+            parametreler["media_type"] = "TEXT"
+
+        try:
+            onceki_id = _halka_yayinla(kullanici, parametreler)
+        except Exception as e:
+            log.warning("tamamlama %d. halkada kesildi: %s", sira + 1, e)
+            return sira, len(halkalar)
+        log.info("Threads zinciri tamamlandı %d/%d", sira + 1, len(halkalar))
+
+    return len(halkalar), len(halkalar)
+
+
 def zinciri_sil(ana_id: str) -> tuple[int, int]:
     """
     Bir zinciri tamamen siler. `(silinen, toplam)` döner.

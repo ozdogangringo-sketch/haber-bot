@@ -59,8 +59,16 @@ jobs:
         run: |
           # "/tur" yazılı komutu yeni bir tur kuruyor; kalan her şey
           # açık turun üstünde işlem yapıyor.
-          if [ "${{ github.event.client_payload.komut }}" = "tur" ]; then
+          KOMUT="${{ github.event.client_payload.komut }}"
+          if [ "$KOMUT" = "tur" ]; then
             python scripts/hazirla.py
+          elif [ "$KOMUT" = "arsiv" ]; then
+            # Paylaşılmamış eski turları Threads'e taşır. Bir seferde en
+            # fazla 3 tur: her tur halka aralıklarıyla dakikalar sürüyor
+            # ve art arda çok zincir atmak hesabı spam gibi gösteriyor.
+            # Kalanlar için komut tekrar verilir; zaten paylaşılan tur
+            # veritabanındaki işaret sayesinde atlanıyor.
+            python scripts/gecmisi_paylas.py --adet 3
           else
             python scripts/onay_isle.py
           fi

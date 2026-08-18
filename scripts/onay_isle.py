@@ -47,7 +47,7 @@ _ayarlar_onbellek: dict = {}
 # taşımıyor; buraya eklenmezse main() daha en başta hata verip çıkıyor.
 # (`/tur` buraya girmiyor — workflow onu `hazirla.py`'ye yönlendiriyor,
 #  bu script'e hiç uğramıyor.)
-MESAJSIZ_KOMUTLAR = {"durum", "ayar"}
+MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv"}
 
 
 def turu_getir(con, mesaj_id: int) -> list:
@@ -221,6 +221,61 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
         f"{baglanti or post_id}",
         bildir=True,
     )
+    return 0
+
+
+def zinciri_tamamla(con, ayarlar) -> int:
+    """
+    `/tamamla` — son yayınlanan turun Threads zinciri eksikse tamamlar.
+
+    Threads'in medya tarafı kararsız ve zincir ortada kesilebiliyor.
+    Kesildiğinde bildirim düşüyor ama düzeltmenin Telegram'dan yolu
+    yoktu; terminale inmek gerekiyordu.
+    """
+    if not threads.kullanilabilir_mi():
+        telegram_bot.mesaj_gonder("⚠️ Threads anahtarları tanımlı değil.")
+        return 0
+
+    satir = con.execute(
+        "SELECT telegram_message_id AS msg, MIN(threads_post_id) AS th "
+        "FROM haberler WHERE durum = 'yayinlandi' "
+        "AND threads_post_id IS NOT NULL "
+        "GROUP BY telegram_message_id ORDER BY MIN(gonderim_zamani) DESC "
+        "LIMIT 1"
+    ).fetchone()
+
+    if not satir:
+        telegram_bot.mesaj_gonder(
+            "ℹ️ Threads'e paylaşılmış bir tur bulunamadı.")
+        return 0
+
+    haberler = turu_getir(con, satir["msg"])
+    urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
+    son_dakika_mi = bool(haberler[0]["son_dakika"])
+    if son_dakika_mi:
+        for h in haberler:
+            urller.extend(_detay_urlleri(h["detay_url"]))
+
+    halkalar = caption.threads_halkalari(
+        haberler, urller, son_dakika=son_dakika_mi,
+        ayarlar=ayarlar, tarihli=not son_dakika_mi,
+    )
+
+    try:
+        yayinlanan, hedef = threads.zinciri_tamamla(satir["th"], halkalar)
+    except Exception as e:
+        telegram_bot.mesaj_gonder(f"⚠️ Tamamlanamadı: {type(e).__name__}: {e}")
+        return 1
+
+    baglanti = threads.post_baglantisi(satir["th"])
+    if yayinlanan >= hedef:
+        telegram_bot.mesaj_gonder(
+            f"✅ Zincir tam ({hedef} halka).\n{baglanti}")
+    else:
+        telegram_bot.mesaj_gonder(
+            f"⚠️ Zincir hâlâ eksik: {yayinlanan}/{hedef} halka.\n"
+            f"Threads medya hatası sürüyor olabilir, sonra tekrar dene.\n"
+            f"{baglanti}")
     return 0
 
 
@@ -622,6 +677,8 @@ def main() -> int:
     # `int(sira)` çağrısında patlar.
     if komut == "ayar":
         return ayar_paneli(con, ayarlar)
+    if komut == "tamamla":
+        return zinciri_tamamla(con, ayarlar)
     if komut.startswith("ayarsec:"):
         return ayar_degistir(con, ayarlar, komut.split(":", 1)[1],
                              mesaj_id, basan)

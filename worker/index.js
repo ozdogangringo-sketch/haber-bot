@@ -26,7 +26,8 @@
 
 // GitHub'a iletilecek gerçek eylemler. İş yapan komutlar.
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
-const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur", "ayar"];
+const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
+                  "ayar", "tamamla", "arsiv"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
 const PARAMETRELI_EYLEM =
   /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil):([1-9]|10)$/;
@@ -259,13 +260,15 @@ export default {
                 "/durum — onay bekleyen tur var mı, havuzda kaç haber var\n" +
                 "/tur — yeni tur hazırla (birkaç dakika sürer)\n" +
                 "/ayar — gece otomatik yayın, eşikler, kanallar\n" +
+                "/tamamla — yarım kalan Threads zincirini tamamla\n" +
+                "/arsiv — paylaşılmamış eski turları Threads'e gönder\n" +
                 "/yardim — bu mesaj\n\n" +
                 "Onay mesajındaki butonlarla yayınlayabilir, slaytları " +
                 "değiştirebilir veya turu atlayabilirsin.");
             return new Response("ok");
         }
 
-        if (komutMetni === "/durum" || komutMetni === "/tur" || komutMetni === "/ayar") {
+        if (["/durum", "/tur", "/ayar", "/tamamla", "/arsiv"].includes(komutMetni)) {
             const komut = komutMetni.slice(1);
             const iletildi = await githubaIlet(env, komut, null,
                 msj.from ? msj.from.first_name || "" : "");
@@ -275,7 +278,11 @@ export default {
                         ? "⏳ Yeni tur hazırlanıyor, birkaç dakika sürebilir…"
                         : komut === "ayar"
                           ? "⏳ Ayarlar getiriliyor…"
-                          : "⏳ Durum sorgulanıyor…")
+                          : komut === "tamamla"
+                            ? "⏳ Threads zinciri kontrol ediliyor…"
+                            : komut === "arsiv"
+                              ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
+                              : "⏳ Durum sorgulanıyor…")
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }
