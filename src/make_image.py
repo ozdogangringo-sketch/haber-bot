@@ -284,12 +284,14 @@ def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
 # Ölçüm (aynı 10 başlık, ortalama kapladığı yükseklik):
 #     96 -> 643 px  (8/10 başlık altı satır)
 #     88 -> 556 px  (5/10)
-#     80 -> 446 px  (1/10)   <- seçilen
-#     72 -> 374 px  (0/10)   telefonda küçük kalıyor
+#     80 -> 446 px  (1/10)
+#     72 -> 374 px  (0/10)   <- seçilen
 #
-# 80'in altına inilmedi: manşetin uzaktan okunabilmesi bu tasarımın
-# temel şartı, slayt kaydırılırken haber ÖĞRENİLMİŞ olmalı.
-BASLIK_PUNTO_TAVAN = 80
+# 72'ye inildi (18 Ağu, kullanıcı isteği): başlık artık düz renk şeridin
+# değil fotoğrafın üstünde duruyor, yer kapladıkça fotoğrafı örtüyor.
+# Daha aşağı inilmedi — manşetin uzaktan okunabilmesi bu tasarımın temel
+# şartı, slayt kaydırılırken haber ÖĞRENİLMİŞ olmalı.
+BASLIK_PUNTO_TAVAN = 72
 
 
 def _basligi_yerlestir(metin: str, ciz, alan_genislik: int, alan_yukseklik: int):
@@ -526,26 +528,26 @@ def yaziyi_bas(
     # perde düz siyah bir blok gibi başlıyordu.
     perde_basi = max(0, baslik_ust - (190 + taban))
 
-    # ⚠️ PERDE ARTIK YAZI BÖLGESİNDE TAM OPAK.
+    # ⚠️ RENK ŞERİDİ BAŞLIĞIN ALTINDAN BAŞLIYOR.
     #
-    # Eskiden perde yarı saydamdı ve fotoğrafın deseni yazının arkasından
-    # görünüyordu; açık ya da kalabalık bir fotoğrafta başlık okunmakta
-    # zorlanıyordu. Yeni düzende fotoğraf yukarıda net kalıyor, aşağı
-    # doğru marka rengine dönüşüyor ve metnin oturduğu şerit DÜZ RENK
-    # oluyor — okunabilirlik fotoğrafın ne olduğundan bağımsız hale
-    # geliyor.
+    # Şerit önce başlığı da kaplıyordu; okunaklıydı ama fotoğrafın yarıdan
+    # fazlasını yutuyordu. Artık yalnızca AÇIKLAMA ve alt bilgi düz renk
+    # üstünde; başlık fotoğrafın üstünde duruyor ve okunmayı gölgeden
+    # alıyor. Böylece fotoğraf çok daha fazla görünüyor.
     #
     # `taban` yine ölçülüyor ama artık yalnızca geçişin nerede
-    # başlayacağını belirliyor; koyu bir fotoğrafta geçiş daha erken
-    # başlayıp yumuşuyor.
+    # başlayacağını belirliyor: koyu fotoğrafta geçiş erken başlayıp
+    # yumuşuyor.
     renk = tuple(g.get("perde_rengi", [22, 18, 46]))
+    serit_ust = ozet_ust - 30 if ozet else alt_bilgi_y - 30
+    serit_basi = max(0, serit_ust - (150 + taban))
+
     perde = Image.new("RGBA", (genislik, yukseklik), renk + (0,))
     perde_ciz = ImageDraw.Draw(perde)
-    gecis = max(1, baslik_ust - perde_basi)
-    for y in range(perde_basi, yukseklik):
-        if y < baslik_ust:
-            # Yumuşak giriş: fotoğraftan renge dönüş keskin çizgi olmasın.
-            alfa = int(255 * ((y - perde_basi) / gecis) ** 1.6)
+    gecis = max(1, serit_ust - serit_basi)
+    for y in range(serit_basi, yukseklik):
+        if y < serit_ust:
+            alfa = int(255 * ((y - serit_basi) / gecis) ** 1.6)
         else:
             alfa = 255
         perde_ciz.line([(0, y), (genislik, y)], fill=renk + (min(255, alfa),))
@@ -554,10 +556,24 @@ def yaziyi_bas(
     ciz = ImageDraw.Draw(gorsel)
 
     # --- 3) Yazı ---
+    #
+    # ⚠️ BAŞLIK GÖLGESİ GERÇEK BULANIK GÖLGE, tek piksel kaydırma değil.
+    # Başlık artık düz renk şeridin değil FOTOĞRAFIN üstünde duruyor;
+    # okunması tamamen gölgeye bağlı. Eski 2px kaydırma açık ve kalabalık
+    # fotoğraflarda yetmiyordu — harflerin kenarı zemine karışıyordu.
+    # Yumuşak gölge, arka plan rengi ne olursa olsun harfi ayırıyor.
+    golge = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    golge_ciz = ImageDraw.Draw(golge)
     y = baslik_ust
     for satir in satirlar:
-        # Hafif gölge: açık arka planda bile kenarları ayrışsın
-        ciz.text((kenar + 2, y + 2), satir, font=font, fill=(0, 0, 0))
+        golge_ciz.text((kenar, y + 3), satir, font=font, fill=(0, 0, 0, 200))
+        y += satir_yuksekligi
+    golge = golge.filter(ImageFilter.GaussianBlur(9))
+    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), golge).convert("RGB")
+    ciz = ImageDraw.Draw(gorsel)
+
+    y = baslik_ust
+    for satir in satirlar:
         ciz.text((kenar, y), satir, font=font, fill=(255, 255, 255))
         y += satir_yuksekligi
 
