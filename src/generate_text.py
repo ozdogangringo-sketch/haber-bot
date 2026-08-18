@@ -309,6 +309,31 @@ def _anahtar_al() -> str:
     return anahtar
 
 
+def _anahtarlar() -> list[tuple[str, str]]:
+    """
+    Denenecek anahtarlar, sırayla. `(ad, anahtar)` listesi döner.
+
+    ⚠️ İKİNCİ ANAHTAR FATURALI PROJEDE (18 Ağu 2026, kullanıcı kararı).
+    `GEMINI_IMAGE_API_KEY` görsel üretimi için alınmıştı ve metin kotası
+    bakir. Ücretsiz projede kota bitince istek REDDEDİLİYOR; faturalı
+    projede ise ÜCRETLENDİRİLİYOR. Yani bu yedek, kota aşımında sessizce
+    para harcayabilir.
+
+    Risk bilinçli kabul edildi çünkü:
+      * Günlük kullanım 25-75 çağrı, ücretsiz kotanın (binlerce) çok
+        altında; ücrete girmesi için olağandışı bir döngü gerekir.
+      * Alternatif, turun tamamen düşmesi.
+
+    Yalnızca birinci anahtar KOTA yüzünden tükendiğinde devreye giriyor;
+    ağ hatası veya 503'te geçilmiyor — orada sorun kotada değil.
+    """
+    anahtarlar = [("birincil", _anahtar_al())]
+    yedek = os.getenv("GEMINI_IMAGE_API_KEY", "").strip()
+    if yedek and yedek != anahtarlar[0][1]:
+        anahtarlar.append(("yedek (faturalı proje)", yedek))
+    return anahtarlar
+
+
 def prompt_kur(kaynak: str, baslik: str, metin: str, tam_metin_var: bool) -> str:
     """Modele gidecek metni hazırlar."""
     return PROMPT.format(
@@ -330,11 +355,40 @@ def gemini_cagir(prompt: str, ayarlar: dict) -> dict:
     kimse müdahale edemeyeceği için dayanıklılık şart.
     """
     g = ayarlar["gemini"]
-    anahtar = _anahtar_al()
-    modeller = [g["model"], g.get("yedek_model")]
-    son_hata = None
+    modeller = [m for m in (g["model"], g.get("yedek_model")) if m]
 
-    for model in [m for m in modeller if m]:
+    # ⚠️ ANAHTAR DÖNGÜSÜ EN DIŞTA. Önce bir anahtarla TÜM modeller
+    # deneniyor; hepsi kota yüzünden düşerse ikinci anahtara geçiliyor.
+    # Ters sıra (her model için iki anahtar) yanlış olurdu: kota
+    # anahtara bağlı, modele değil.
+    son_hata = None
+    for anahtar_adi, anahtar in _anahtarlar():
+        sonuc, son_hata, kota_doldu = _anahtarla_dene(
+            prompt, ayarlar, modeller, anahtar, anahtar_adi)
+        if sonuc is not None:
+            return sonuc
+        if not kota_doldu:
+            # Sorun kotada değil (ağ, bozuk istek, yetki) — anahtar
+            # değiştirmek bir şey çözmez, üstelik faturalı projeye
+            # gereksiz istek gönderir.
+            break
+
+    raise RuntimeError(f"Gemini çağrısı başarısız: {son_hata}")
+
+
+def _anahtarla_dene(prompt, ayarlar, modeller, anahtar, anahtar_adi):
+    """
+    Tek anahtarla bütün modelleri sırayla dener.
+
+    Döner: `(sonuc, son_hata, kota_doldu)`. `kota_doldu` yalnızca
+    HTTP 429 görüldüğünde True — çağıran taraf anahtar değiştirmeye
+    buna bakarak karar veriyor.
+    """
+    g = ayarlar["gemini"]
+    son_hata = None
+    kota_doldu = False
+
+    for model in modeller:
         for deneme in range(1, g["deneme_sayisi"] + 1):
             try:
                 cevap = requests.post(
@@ -357,9 +411,13 @@ def gemini_cagir(prompt: str, ayarlar: dict) -> dict:
                 continue
 
             if cevap.status_code == 200:
-                return _cevabi_coz(cevap.json())
+                if anahtar_adi != "birincil":
+                    log.warning("Gemini %s anahtarı kullanıldı", anahtar_adi)
+                return _cevabi_coz(cevap.json()), None, False
 
             son_hata = f"HTTP {cevap.status_code}: {cevap.text[:200]}"
+            if cevap.status_code == 429:
+                kota_doldu = True
 
             if cevap.status_code in GECICI_HATALAR:
                 bekle = 2 * deneme          # 2, 4, 6 saniye
@@ -374,7 +432,7 @@ def gemini_cagir(prompt: str, ayarlar: dict) -> dict:
 
         log.warning("%s ile olmadı, yedek modele geçiliyor", model)
 
-    raise RuntimeError(f"Gemini çağrısı başarısız: {son_hata}")
+    return None, son_hata, kota_doldu
 
 
 def _cevabi_coz(veri: dict) -> dict:
