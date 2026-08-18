@@ -182,6 +182,45 @@ def _baslikla_ilgili_mi(metin: str, baslik: str) -> bool:
     return gecen >= max(2, len(kelimeler) // 3)
 
 
+def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
+    """
+    Haber sayfasının `og:image` görselini döner. Bulamazsa None.
+
+    ⚠️ TELİF — BİLİNÇLİ BİR TERCİH.
+    Bu görseller çoğu zaman ajans fotoğrafı (AA, Reuters, AFP) ve telifi
+    ajansa ait. "Kaynak belirtmek" izin yerine GEÇMEZ. Instagram telif
+    şikayeti gelirse postu kaldırır, tekrarlanırsa hesap risk altına
+    girer. Kullanıcı bu riski bilerek kullanmayı seçti (18 Ağu 2026).
+
+    NEDEN `og:image`, rastgele bir sayfa fotoğrafı değil:
+    Bu etiket sitenin kendi haberini sosyal medyada paylaştırmak için
+    koyduğu görsel — paylaşıma açık sunulan tek görsel budur. Riski
+    ortadan kaldırmıyor ama sayfadan gelişigüzel fotoğraf çekmekten
+    savunulabilir bir fark var.
+
+    `config.yaml → gorsel.haber_gorseli_kullan: false` ile kapatılır;
+    o zaman eski davranışa (Commons → Pexels → gradyan) dönülür.
+    """
+    try:
+        cevap = requests.get(link, headers=BASLIKLAR, timeout=zaman_asimi)
+        cevap.raise_for_status()
+        corba = BeautifulSoup(cevap.content, "html.parser")
+    except Exception as e:
+        log.warning("og:image için sayfa alınamadı %s: %s", link, e)
+        return None
+
+    for ozellik in ("og:image", "twitter:image", "og:image:secure_url"):
+        etiket = (corba.find("meta", property=ozellik)
+                  or corba.find("meta", attrs={"name": ozellik}))
+        if etiket and etiket.get("content"):
+            url = etiket["content"].strip()
+            if url.startswith("//"):
+                url = "https:" + url
+            if url.startswith("http"):
+                return url
+    return None
+
+
 def makale_metni_cek(
     link: str, baslik: str | None = None, zaman_asimi: int = 20
 ) -> str | None:

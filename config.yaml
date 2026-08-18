@@ -190,6 +190,19 @@ gorsel:
   # 26'da alt bilgide gözden kaçıyordu (kullanıcı fark etmedi).
   # 26/34/42 karşılaştırıldı; 34 fark ediliyor ama kaynak adını ezmiyor.
   kanal_ikon_boyu: 34
+
+  # ⚠️ HABER SİTESİNİN KENDİ GÖRSELİ (og:image) — TELİF RİSKİ TAŞIYOR.
+  # Bu görseller çoğu zaman ajans fotoğrafı (AA, Reuters, AFP) ve telifi
+  # ajansa ait; "kaynak belirtmek" izin yerine GEÇMEZ. Instagram telif
+  # şikayetinde postu kaldırır, tekrarı hesabı riske atar.
+  # Kullanıcı bu riski bilerek kullanmayı seçti (18 Ağu 2026) — sektörde
+  # yaygın pratik ve görsel gücü Commons/Pexels'ten çok daha yüksek.
+  # false yapılırsa eski davranışa dönülür: Commons -> Pexels -> gradyan.
+  haber_gorseli_kullan: true
+
+  # og:image bazen sitenin logosu ya da paylaşım rozeti oluyor; bu
+  # genişliğin altındakiler eleniyor, yoksa büyütülünce bulanık çıkıyor.
+  haber_gorseli_asgari_genislik: 600
   jpeg_kalite: 90          # Instagram PNG kabul etmiyor, JPEG şart
   deneme_sayisi: 3
   zaman_asimi: 180         # görsel üretimi metinden yavaş

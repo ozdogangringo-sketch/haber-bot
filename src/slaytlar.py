@@ -22,12 +22,14 @@ devreye giriyor (Adım 5).
 
 from __future__ import annotations
 
+import io
 import logging
 from pathlib import Path
 
+import requests
 from PIL import Image
 
-from . import dogrula, fetch_photo, fetch_stock, make_image
+from . import dogrula, fetch_article, fetch_photo, fetch_stock, make_image
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +47,32 @@ def _alan(haber, ad: str) -> str:
         return ""
 
 
+def _gorseli_indir(url: str, g: dict):
+    """
+    Haber görselini indirir; küçük ya da bozuksa None döner.
+
+    ⚠️ BOYUT DENETİMİ ŞART. `og:image` bazen sitenin logosu ya da
+    paylaşım rozeti oluyor; 1080x1350'ye büyütülünce bulanık bir leke
+    çıkıyor. Asgari genişlik altındakiler eleniyor ve akış bir sonraki
+    katmana (Commons/Pexels) düşüyor.
+    """
+    asgari = g.get("haber_gorseli_asgari_genislik", 600)
+    try:
+        cevap = requests.get(url, timeout=20,
+                             headers={"User-Agent": "Mozilla/5.0"})
+        cevap.raise_for_status()
+        foto = Image.open(io.BytesIO(cevap.content))
+        foto.load()
+    except Exception as e:
+        log.warning("haber görseli indirilemedi: %s", e)
+        return None
+
+    if foto.width < asgari:
+        log.info("haber görseli küçük (%spx), atlanıyor", foto.width)
+        return None
+    return foto.convert("RGB")
+
+
 def arkaplan_sec(haber, ayarlar: dict) -> tuple[Image.Image, str, str]:
     """
     Habere arka plan bulur. (görüntü, katman_adı, atıf_metni) döner.
@@ -55,6 +83,31 @@ def arkaplan_sec(haber, ayarlar: dict) -> tuple[Image.Image, str, str]:
     """
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
+
+    # --- 0) Haberin kendi görseli (og:image) ---
+    #
+    # ⚠️ TELİF RİSKİ TAŞIYOR, BİLİNÇLİ TERCİH (18 Ağu 2026). Bu görseller
+    # çoğu zaman ajans fotoğrafı ve telifi ajansa ait; "kaynak belirtmek"
+    # izin yerine geçmiyor. Kullanıcı riski bilerek kullanmayı seçti.
+    # Kapatmak için: `gorsel.haber_gorseli_kullan: false`.
+    #
+    # NEDEN İLK SIRADA: haberin KENDİ olayını gösteren tek görsel bu.
+    # Commons kişi portresi, Pexels temsili fotoğraf veriyor; ikisi de
+    # "o an" değil. Görsel gücü en yüksek katman burası.
+    if g.get("haber_gorseli_kullan") and haber["link"]:
+        try:
+            url = fetch_article.og_gorseli_cek(haber["link"])
+            if url:
+                foto = _gorseli_indir(url, g)
+                if foto:
+                    return (
+                        make_image.fotograftan_arkaplan(
+                            foto, genislik, yukseklik),
+                        "haber",
+                        f"Foto: {haber['kaynak']}",
+                    )
+        except Exception as e:
+            log.warning("haber görseli alınamadı: %s", e)
 
     # --- 1) Commons: tanınmış kişi/kurum ---
     konu = _alan(haber, "gorsel_konu")
