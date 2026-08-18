@@ -75,6 +75,16 @@ EK_KOLONLAR = {
     # baştan başlıyordu ve 18 Ağu 2026'da aynı tur üç kez yayınlandı
     # (biri `--adet 1` denemesinden, ikisi sonraki çalıştırmadan).
     "threads_post_id": "TEXT",
+    # Facebook albüm postunun id'si.
+    #
+    # ⚠️ SİLEBİLMEK İÇİN ŞART. Önce yalnızca loga yazılıyordu; yayınlanan
+    # bir postu geri almak gerektiğinde id elde olmadığı için Facebook'a
+    # elle girmek gerekiyordu. Instagram'da silme API'den mümkün DEĞİL
+    # (Graph API izin vermiyor), ama Facebook ve Threads silinebiliyor.
+    "facebook_post_id": "TEXT",
+    # Story id'leri: story 24 saatte kendiliğinden düşüyor, yine de
+    # yayından kaldırırken birlikte silinebilsin diye tutuluyor.
+    "story_post_id": "TEXT",
     "onem_puani": "INTEGER",
     "tur": "TEXT",
     "telegram_message_id": "INTEGER",

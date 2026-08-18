@@ -36,9 +36,16 @@ const PARAMETRELI_EYLEM =
 // butonlarını doğrudan düzenliyor.
 const MENU_GEZINME = /^(slayt_menu:(\d{1,2})|geri:(\d{1,2})|slayt:([1-9]|10):(\d{1,2}))$/;
 
+// Yayından kaldırma. Tur id'si komuta GÖMÜLÜ ("kaldir:144") çünkü bu
+// düğme yayın sonucu mesajında duruyor ve o mesajın kendi message_id'si
+// turunkinden farklı — cb.message.message_id kullanılırsa yanlış turu
+// hedefler.
+const KALDIR = /^kaldir:(\d{1,12})$/;
+
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 64) return false;
-  return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri);
+  return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
+    || KALDIR.test(veri);
 }
 
 // ---------------------------------------------------------------------
@@ -287,7 +294,17 @@ export default {
       ? `${cb.from.first_name || ""} ${cb.from.username ? "@" + cb.from.username : ""}`.trim()
       : "";
 
-    const iletildi = await githubaIlet(env, komut, mesajId, basan);
+    // "kaldir:144" -> komut "kaldir", hedef tur 144. Mesajın kendi
+    // id'si burada işe yaramıyor (bkz. KALDIR açıklaması).
+    let gonderilecek = komut;
+    let hedefMesajId = mesajId;
+    const kaldirEslesme = KALDIR.exec(komut);
+    if (kaldirEslesme) {
+      gonderilecek = "kaldir";
+      hedefMesajId = Number(kaldirEslesme[1]);
+    }
+
+    const iletildi = await githubaIlet(env, gonderilecek, hedefMesajId, basan);
 
     if (iletildi) {
       // Önce görsel geri bildirim, sonra buton halkasını durdur.

@@ -131,6 +131,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     # Instagram postu yayında kaldığı sürece buradaki hata turu
     # düşürmemeli — o yüzden yutuluyor, sonuca not düşülüyor.
     fb_notu = ""
+    fb_id = None
     if (ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"):
         try:
             fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
@@ -151,6 +152,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     # Threads: ayrı jeton istiyor. Anahtar yoksa sessizce atlanıyor —
     # jeton alınmadan önce de kod güvenle çalışsın diye.
     th_notu = ""
+    th_gonderi_id = None
     if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
             and threads.kullanilabilir_mi()):
         try:
@@ -163,6 +165,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
                 son_dakika=bool(haberler[0]["son_dakika"]), ayarlar=ayarlar,
             )
             th_id, th_adet = threads.zincir_yayinla(halkalar)
+            th_gonderi_id = th_id
             if th_adet == len(halkalar):
                 th_notu = f"\n🧵 Threads'e de paylaşıldı ({th_adet} halka)"
             else:
@@ -174,10 +177,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
             log.warning("Threads paylaşılamadı: %s", e)
             th_notu = f"\n⚠️ Threads'e gitmedi: {type(e).__name__}"
 
+    # ⚠️ ID'LER SAKLANMALI. Yayından kaldırmak gerektiğinde Facebook ve
+    # Threads bunlarla siliniyor; saklanmazsa elle girip aramak gerekiyor.
+    # (Instagram'da silme API'den mümkün değil, orada yalnızca bağlantı
+    #  gösteriliyor.)
     con.execute(
-        "UPDATE haberler SET durum = 'yayinlandi', ig_post_id = ? "
+        "UPDATE haberler SET durum = 'yayinlandi', ig_post_id = ?, "
+        "facebook_post_id = ?, threads_post_id = ? "
         "WHERE telegram_message_id = ?",
-        (post_id, mesaj_id),
+        (post_id, fb_id, th_gonderi_id, mesaj_id),
     )
     con.commit()
 
@@ -191,6 +199,71 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
         f"{baglanti or post_id}",
         bildir=True,
     )
+    return 0
+
+
+def yayindan_kaldir(con, ayarlar, haberler, mesaj_id, basan) -> int:
+    """
+    Yayınlanmış bir turu geri alır.
+
+    ⚠️ INSTAGRAM API'DEN SİLİNEMİYOR. Graph API yayınlanmış postu silmeye
+    izin vermiyor (denendi: `(#10) Insufficient permissions`); orada silme
+    yalnızca uygulamadan yapılabiliyor. Bu yüzden Instagram için yalnızca
+    bağlantı gösteriliyor ve elle silinmesi isteniyor.
+
+    Facebook ve Threads API'den siliniyor.
+
+    HABER ELENİYOR: kaldırılan tur `durum='kaldirildi'` oluyor, havuza
+    DÖNMÜYOR. Bir postu geri alıyorsak o haberi bir daha yayınlamak
+    istemiyoruz demektir; havuza dönerse ertesi gün yeniden çıkardı.
+    """
+    if not any(h["durum"] == "yayinlandi" for h in haberler):
+        telegram_bot.mesaj_gonder("⚠️ Bu tur yayınlanmamış, kaldırılacak bir şey yok.")
+        return 0
+
+    ilk = haberler[0]
+    satirlar = []
+
+    # --- Facebook ---
+    fb = ilk["facebook_post_id"]
+    if fb:
+        if facebook.postu_sil(fb, ayarlar):
+            satirlar.append("📘 Facebook postu silindi")
+        else:
+            satirlar.append("⚠️ Facebook postu silinemedi")
+    else:
+        satirlar.append("· Facebook: kayıtlı post id yok")
+
+    # --- Threads ---
+    th = ilk["threads_post_id"]
+    if th:
+        try:
+            silinen, toplam = threads.zinciri_sil(th)
+            satirlar.append(f"🧵 Threads zinciri silindi ({silinen}/{toplam} gönderi)")
+        except Exception as e:
+            satirlar.append(f"⚠️ Threads silinemedi: {type(e).__name__}")
+    else:
+        satirlar.append("· Threads: kayıtlı gönderi id yok")
+
+    # --- Instagram: elle ---
+    ig = ilk["ig_post_id"]
+    baglanti = instagram.post_baglantisi(ig, ayarlar) if ig else ""
+    satirlar.append(
+        "\n📷 Instagram'dan ELLE silmen gerekiyor — Graph API yayınlanmış "
+        "postu silmeye izin vermiyor:\n" + (baglanti or f"post id: {ig}")
+    )
+
+    con.execute(
+        "UPDATE haberler SET durum = 'kaldirildi' WHERE telegram_message_id = ?",
+        (mesaj_id,),
+    )
+    con.commit()
+
+    telegram_bot.mesaj_gonder(
+        f"🗑 YAYINDAN KALDIRILDI ({len(haberler)} haber)\n"
+        f"Kaldıran: {basan or 'bilinmiyor'}\n\n" + "\n".join(satirlar)
+    )
+    log.info("tur yayından kaldırıldı (mesaj_id=%s)", mesaj_id)
     return 0
 
 
@@ -504,6 +577,8 @@ def main() -> int:
             return yayinla(con, ayarlar, haberler, mesaj_id, basan)
         if komut == "iptal":
             return iptal(con, haberler, mesaj_id, basan)
+        if komut == "kaldir":
+            return yayindan_kaldir(con, ayarlar, haberler, mesaj_id, basan)
         if komut == "ertele":
             return ertele(con, mesaj_id, basan)
         if komut == "metin_yenile":

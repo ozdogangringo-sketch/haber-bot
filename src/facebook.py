@@ -53,6 +53,11 @@ def _istek(yontem: str, yol: str, ayarlar: dict, **parametreler) -> dict:
             if yontem.upper() == "GET":
                 cevap = requests.get(url, params=parametreler,
                                      timeout=g["zaman_asimi"])
+            elif yontem.upper() == "DELETE":
+                # Silme isteği query string ile gidiyor; gövdeye konursa
+                # Graph API jetonu hiç görmüyor.
+                cevap = requests.delete(url, params=parametreler,
+                                        timeout=g["zaman_asimi"])
             else:
                 cevap = requests.post(url, data=parametreler,
                                       timeout=g["zaman_asimi"])
@@ -135,6 +140,23 @@ def story_yayinla(gorsel_url: str, ayarlar: dict) -> str:
     story_id = d.get("post_id") or d.get("id") or foto_id
     log.info("Facebook story yayınlandı: %s", story_id)
     return story_id
+
+
+def postu_sil(post_id: str, ayarlar: dict) -> bool:
+    """
+    Yayınlanmış Facebook postunu siler.
+
+    `pages_manage_posts` izni bunu kapsıyor. Instagram'da karşılığı YOK:
+    Graph API yayınlanmış Instagram postunu silmeye izin vermiyor, orada
+    silme yalnızca uygulamadan yapılabiliyor.
+    """
+    try:
+        _istek("DELETE", f"/{post_id}", ayarlar)
+        log.info("Facebook postu silindi: %s", post_id)
+        return True
+    except Exception as e:
+        log.warning("Facebook postu silinemedi (%s): %s", post_id, e)
+        return False
 
 
 def post_baglantisi(post_id: str) -> str:

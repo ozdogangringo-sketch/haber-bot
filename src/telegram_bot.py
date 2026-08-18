@@ -367,15 +367,29 @@ def sonucu_yaz(message_id: int, metin: str, bildir: bool = False) -> None:
     if bildir:
         # Bildirim gönderilemese bile yayın başarılı; sonucu düşürmeyelim.
         try:
-            mesaj_gonder(metin)
+            # Yayın sonucuna "kaldır" düğmesi: gece otomatik yayın açıkken
+            # sabah uyanıp postu tek tuşla geri alabilmek gerekiyor.
+            # Tur id'si düğmeye gömülü, çünkü bu YENİ bir mesaj ve kendi
+            # message_id'si turunkinden farklı.
+            butonlar = [[{"text": "🗑 Bu yayını kaldır",
+                          "callback_data": f"kaldir:{message_id}"}]]
+            mesaj_gonder(metin, butonlar=butonlar)
         except Exception as e:
             log.warning("sonuç bildirimi gönderilemedi: %s", e)
 
 
-def mesaj_gonder(metin: str) -> int:
-    """Düz bilgi/hata mesajı — buton yok."""
+def mesaj_gonder(metin: str, butonlar: list | None = None) -> int:
+    """
+    Düz bilgi/hata mesajı.
+
+    `butonlar` verilirse inline klavye eklenir — yayın sonucuna
+    "kaldır" düğmesi koyabilmek için.
+    """
+    ek = {}
+    if butonlar:
+        ek["reply_markup"] = {"inline_keyboard": butonlar}
     sonuc = _istek("sendMessage", chat_id=_sohbet_id(), text=metin[:4096],
-                   disable_web_page_preview=True)
+                   disable_web_page_preview=True, **ek)
     return sonuc["message_id"]
 
 

@@ -352,6 +352,37 @@ def zincir_yayinla(halkalar: list[dict]) -> str:
     return ana_id, len(halkalar)
 
 
+def zinciri_sil(ana_id: str) -> tuple[int, int]:
+    """
+    Bir zinciri tamamen siler. `(silinen, toplam)` döner.
+
+    Önce yanıtlar, EN SONDA ana gönderi siliniyor. Sıra önemli: ana
+    gönderi önce silinirse yanıtlar öksüz kalıyor ve `/conversation`
+    ile bulunamıyorlar.
+
+    Threads silmeyi destekliyor (günde 100 silme kotası). Instagram'da
+    bunun karşılığı YOK — orada yayınlanmış post API'den silinemiyor.
+    """
+    try:
+        d = _istek("GET", f"/{ana_id}/conversation", tekrar=False, fields="id")
+        yanitlar = [x["id"] for x in d.get("data", [])]
+    except Exception as e:
+        log.warning("zincir okunamadı, yalnızca ana gönderi silinecek: %s", e)
+        yanitlar = []
+
+    hedefler = yanitlar + [ana_id]
+    silinen = 0
+    for hedef in hedefler:
+        try:
+            requests.delete(f"{TABAN}/{hedef}",
+                            params={"access_token": _jeton()},
+                            timeout=ZAMAN_ASIMI)
+            silinen += 1
+        except Exception as e:
+            log.warning("silinemedi (%s): %s", hedef, e)
+    return silinen, len(hedefler)
+
+
 def jetonu_yenile() -> tuple[str, int]:
     """
     Jetonu 60 gün daha uzatır. `(yeni_jeton, kalan_gun)` döner.
