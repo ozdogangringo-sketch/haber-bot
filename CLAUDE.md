@@ -80,7 +80,12 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Beğenilmeyen görsel | Telegram'a **`🎨 Görseli AI ile üret`** butonu eklenecek. Varsayılan bedava katman; AI maliyeti ancak kullanıcı basarsa oluşuyor. |
 | Slayt yazısı | Başlık + altında küçük puntoyla **tek cümlelik özet** (`slayt_ozet`). |
 | ★ Başlık kuralı | **Başlık haberin SONUCUNU söylemek zorunda.** Takipçiye link vermiyoruz, okuyacağı başka yer yok — slaytı kaydırıp geçen kişi haberi ÖĞRENMİŞ olmalı. "…ilişkin açıklama", "…değerlendirdi", "…anlattı" gibi 15 kalıp prompt'ta YASAK; `dogrula.basligi_denetle()` yakalayıp uyarıyor. Abartı ("şok", "bomba") da yasak — güveni düşürüyor. Ölçüldü: "Bakan Göktaş'tan taciz iddialarına ilişkin açıklama" → "…iddialarının vahim olduğunu belirtti". |
-| Telegram komutları | `/durum` (havuz + onay bekleyen + son yayın), `/tur` (elle tur kur), `/yardim`. Buton menüsü yalnızca açık onay mesajı varken işe yarıyordu; tur kapanınca elde tutamak kalmıyordu. `/yardim` Worker'da anında cevaplanıyor. |
+| Telegram komutları | `/durum` · `/tur` · `/ayar` · `/tamamla` · `/arsiv` · `/yardim`. Buton menüsü yalnızca açık onay mesajı varken işe yarıyordu; tur kapanınca elde tutamak kalmıyordu. `/yardim` Worker'da anında cevaplanıyor. |
+| Ayar paneli (18 Ağu 2026) | `/ayar` → çalışma ayarları Telegram'dan değiştirilebiliyor (`src/ayar.py`). **İki katman:** `config.yaml` varsayılan, `ayarlar` tablosu üste biner — DB her job sonunda commit edildiği için değişiklik kalıcı. ⚠️ **BEYAZ LİSTE ZORUNLU** (`DEGISTIRILEBILIR`, 6 anahtar): gruba herkes yazabildiği için keyfi anahtar kabul etmek botu grup üzerinden yönetilebilir kılardı. Alt menü Worker'da açılıyor ama seçenekler **düğmeye gömülü** (`ayarmenu:yol:true-false`) — menü üçüncü bir yerde tekrarlanmasın diye. |
+| Günlük rapor | `scripts/gunluk_rapor.py` + workflow (TR 09:07). Dün ne yayınlandı, havuz, Instagram kotası, Threads erişimi, son 24 saatte patlayan job'lar, varsayılandan sapmış ayarlar. Bot sessiz çalıştığı için arıza ancak bir şey patlayınca fark ediliyordu. |
+| Yayından kaldırma | Yayın sonucu mesajındaki `🗑 Bu yayını kaldır` düğmesi. ⚠️ **INSTAGRAM API'DEN SİLİNEMİYOR** — Graph API izin vermiyor (`(#10) Insufficient permissions`), orada silme yalnızca uygulamadan. Facebook ve Threads siliniyor, Instagram için bağlantı veriliyor. Kaldırılan tur `durum='kaldirildi'`, havuza DÖNMÜYOR. |
+| `/tamamla` | Kesilen Threads zincirini kaldığı yerden sürdürür. `zincir_halkalari()` yanıtları **timestamp'e göre** sıralıyor — `/conversation` sırayı garanti etmiyor ve yanlış halkaya bağlamak zinciri ortasından dallandırır. Tam zincirde hiçbir şey yapmıyor. |
+| `/arsiv` | Paylaşılmamış eski turları Threads'e gönderir, **bir seferde 3 tur**. Paylaşılan tur `threads_post_id` işaretiyle atlanıyor. |
 | İşlem geri bildirimi | Butona basıldığı an Worker butonları kaldırıp `⏳ Yayınlanıyor…` yazıyor. Actions 40-90 sn sürüyor; o sessizlikte insan ikinci kez basıyordu ve "yayınla"da bu **çift post** demekti. Menü iş bitince (ve hata durumunda) geri konuyor, yoksa tur kilitleniyor. |
 | Onay mesajı içeriği | Sıra: denetim uyarısı → özet tablo (sıra no + katman simgesi + başlık) → caption. Katman simgeleri: 📷 Commons (gerçek) · 🖼 Pexels (temsili) · ▪️ gradyan · 🎨 AI. Albümdeki her fotoğrafta da kendi numarası yazılı. |
 | Ülke flaması | Sağ üstte, sağ kenara yapışık **kırlangıç kuyruklu flama**: bayrak üstte (54px), ülke adı altında (19 punto). V çentiğinin kırılımı flamanın ortasında değil, **bayrak/yazı ayrımının hizasında**. |
@@ -541,6 +546,20 @@ herhangi bir yerde → hata
 ozet_orj, yayin_tarihi, cekilme_zamani, ig_baslik, ig_caption, ig_hashtag,
 onem_puani, gorsel_yolu, gorsel_url, tur, telegram_message_id, gonderim_zamani,
 hatirlatma_sayisi, ertelenme_sayisi, durum, ig_post_id, hata_mesaji`
+
+### ⚠️ 18 Ağustos 2026 — troubleshooting bulguları
+
+Üçü de **sessiz** kusurdu: hiçbiri hata vermiyordu.
+
+| Bulgu | Neden tehlikeliydi |
+|---|---|
+| **Onaylanan metin ≠ yayınlanan metin.** `son_dakika.py` hazırlarken `son_dakika_caption()` kuruyor ve Telegram'da onu gösteriyordu; `onay_isle.py` yayınlarken `caption_kur()` çağırıyordu. Son dakika postu "Günün gündemi" diye çıktı. | Gözden geçirdiğin şey yayına çıkan şey değil — onay adımı işlevini kaybediyor. |
+| **Gece otomatik yayını geri alınamıyordu.** Facebook id'si atılıyor, Threads id'si yalnızca loga yazılıyor, `telegram_message_id` hiç atanmıyordu. | Kaldırmanın en çok gerektiği senaryo tam da bu: post insan onayı olmadan çıkıyor. |
+| **Bütünlük testinin dosya listesi elle tutuluyordu.** Sonradan eklenen `ayar.py`, `threads.py`, yeni scriptler denetim dışıydı; `instagram.kota_durumu()` diye var olmayan bir çağrı testten TEMİZ geçti. | Testin kendisi yanlış güven veriyordu. Liste otomatik keşfe çevrildi: 11 dosya/161 çağrı → 42 dosya/206 çağrı. |
+
+**Ders:** bir düzeltmeyi uygularken aynı işi yapan DİĞER kod yolunu da ara.
+Tarih düzeltmesi ve caption seçimi, ikisi de yalnızca bir dosyaya uygulandı;
+onaylı yayınlar başka dosyadan çıktığı için düzeltme onlara hiç işlemedi.
 
 ### `test_0_butunluk.py` — ÖNCE BUNU ÇALIŞTIR
 
