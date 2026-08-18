@@ -201,7 +201,7 @@ def arkaplan_uret_ai(kategori: str, ayarlar: dict) -> Image.Image:
 
 
 def arkaplan_uret_yedek(
-    kategori: str, genislik: int, yukseklik: int
+    kategori: str, genislik: int, yukseklik: int, g: dict | None = None
 ) -> Image.Image:
     """
     API'siz, bedava gradyan arka plan.
@@ -211,26 +211,21 @@ def arkaplan_uret_yedek(
          maliyeti burada kısıyoruz)
       2. AI kapak üretimi patlarsa yedek olarak
     """
-    # ⚠️ HER KATEGORİNİN KENDİ RENGİ OLMALI. Önce yalnızca "turkiye" ve
-    # "dunya" tanımlıydı; 18 Ağu 2026'da altı yeni kategori eklendi
-    # (bilim, teknoloji, spor, ekonomi, kultur, yasam) ve hepsi sessizce
-    # varsayılana düşüyordu — çeşitlilik içerikte artarken görselde
-    # görünmüyordu.
+    # ⚠️ RENK TEK KAYNAKTAN: `gorsel.serit_renkleri`.
     #
-    # Tonlar bilerek birbirine yakın ve koyu: hepsi `perde_rengi`
-    # ailesinden, yoksa carousel kaydırılırken slaytlar farklı
-    # hesaplardan gelmiş gibi duruyor. Ayrım hissedilir ama sıçramaz.
-    renkler = {
-        "turkiye":   ((16, 24, 46), (38, 50, 82)),
-        "dunya":     ((26, 18, 40), (58, 42, 74)),
-        "bilim":     ((14, 26, 44), (30, 56, 78)),
-        "teknoloji": ((18, 20, 48), (42, 44, 86)),
-        "spor":      ((14, 30, 34), (30, 62, 64)),
-        "ekonomi":   ((28, 24, 34), (62, 52, 60)),
-        "kultur":    ((30, 18, 38), (66, 40, 72)),
-        "yasam":     ((16, 28, 40), (36, 60, 76)),
-    }
-    ust, alt = renkler.get(kategori, renkler["turkiye"])
+    # Gradyanın kendi renk sözlüğü vardı ve şerit paletiyle AYRI
+    # tanımlıydı; aynı kategori iki yerde farklı tonda çıkıyor, yeni
+    # kategori eklenince biri güncellenip diğeri unutuluyordu. Artık
+    # gradyan da şerit renginden türüyor: üst ton renk, alt ton onun
+    # açılmış hâli.
+    #
+    # `g` verilmezse (eski çağrılar) varsayılan palet kullanılıyor.
+    palet = (g or {}).get("serit_renkleri") or {}
+    taban = palet.get(kategori) or (g or {}).get("perde_rengi") or [22, 18, 46]
+    ust = tuple(taban)
+    # Alt ton: aynı rengin açılmışı. Sabit bir katsayı yerine toplama
+    # kullanıyoruz — çarpım koyu tonlarda neredeyse hiç açmıyor.
+    alt = tuple(min(255, k + 34) for k in ust)
 
     gorsel = Image.new("RGB", (genislik, yukseklik), ust)
     ciz = ImageDraw.Draw(gorsel)
@@ -897,7 +892,7 @@ def story_haber(
     }
 
     if arkaplan is None:
-        arkaplan = arkaplan_uret_yedek(kategori, STORY_GENISLIK, STORY_YUKSEKLIK)
+        arkaplan = arkaplan_uret_yedek(kategori, STORY_GENISLIK, STORY_YUKSEKLIK, g)
     else:
         arkaplan = fotograftan_arkaplan(
             arkaplan, STORY_GENISLIK, STORY_YUKSEKLIK
@@ -1090,7 +1085,7 @@ def detay_slayti(
     kenar = g["kenar_bosluk"]
     dikey_kenar = max(kenar, g.get("dikey_guvenli_pay", kenar))
 
-    gorsel = arkaplan_uret_yedek(kategori, genislik, yukseklik)
+    gorsel = arkaplan_uret_yedek(kategori, genislik, yukseklik, g)
     ciz = ImageDraw.Draw(gorsel)
     alan_genislik = genislik - 2 * kenar
 
@@ -1398,7 +1393,7 @@ def gorsel_uret(haber, ayarlar: dict, con=None) -> Path:
         kaynak_tipi = "ai"
     except Exception as e:
         log.warning("AI arka plan olmadı (%s), yedek gradyana düşülüyor", e)
-        arkaplan = arkaplan_uret_yedek(kategori, g["genislik"], g["yukseklik"])
+        arkaplan = arkaplan_uret_yedek(kategori, g["genislik"], g["yukseklik"], g)
         kaynak_tipi = "yedek"
 
     gorsel = yaziyi_bas(arkaplan, baslik, haber["kaynak"], ayarlar)

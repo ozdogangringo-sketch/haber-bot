@@ -143,7 +143,7 @@ def arkaplan_sec(haber, ayarlar: dict) -> tuple[Image.Image, str, str]:
 
     # --- 3) Gradyan: her zaman çalışır ---
     return (
-        make_image.arkaplan_uret_yedek(haber["kategori"], genislik, yukseklik),
+        make_image.arkaplan_uret_yedek(haber["kategori"], genislik, yukseklik, g),
         "gradyan",
         "",
     )
