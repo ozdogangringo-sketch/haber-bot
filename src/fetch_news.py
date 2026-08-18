@@ -226,10 +226,24 @@ def feed_indir(url: str, zaman_asimi: int) -> bytes:
 # Ana iş
 # ----------------------------------------------------------------------
 
-def haberleri_cek(ayarlar: dict | None = None) -> dict:
+def haberleri_cek(ayarlar: dict | None = None,
+                  asgari_agirlik: int | None = None) -> dict:
     """
     Tüm aktif kaynakları gezer, yeni haberleri veritabanına yazar.
     Bir kaynak patlarsa diğerleri etkilenmez.
+
+    `asgari_agirlik` verilirse yalnızca o ağırlıktaki ve üstündeki
+    kaynaklar taranır.
+
+    ⚠️ NEDEN VAR — GITHUB ACTIONS KOTASI. Son dakika kontrolü saat başı
+    çalışıyor ve her seferinde 22 kaynağı tarıyordu; job süresinin
+    171 saniyesinin neredeyse tamamı RSS indirmekle geçiyordu. Ölçüldü
+    (18 Ağu 2026): bu tempoyla aylık kullanım 2040 dakikaya çıkıyor ve
+    2000 dakikalık ücretsiz limit AŞILIYOR — bot ay sonunda dururdu.
+
+    Son dakika haberi doğası gereği yüksek ağırlıklı gündem
+    kaynaklarından geliyor; kültür, yaşam, motor sporları beslemelerini
+    saat başı taramanın karşılığı yok. Akşam turu hepsini zaten tarıyor.
 
     Döner: {'eklenen': int, 'tekrar': int, 'eski': int, 'kaynaklar': [...]}
     """
@@ -243,6 +257,9 @@ def haberleri_cek(ayarlar: dict | None = None) -> dict:
     with db.baglan() as con:
         for kaynak in ayarlar["kaynaklar"]:
             if not kaynak.get("aktif", True):
+                continue
+            if (asgari_agirlik is not None
+                    and (kaynak.get("agirlik") or 0) < asgari_agirlik):
                 continue
 
             k_rapor = {"ad": kaynak["ad"], "durum": "ok", "eklenen": 0,

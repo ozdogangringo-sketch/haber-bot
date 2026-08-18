@@ -242,7 +242,12 @@ def main() -> int:
             return 0
 
         # --- 4) Taze haber çek, sonra aday ara ---
-        rapor = fetch_news.haberleri_cek(ayarlar)
+        # Yalnızca yüksek ağırlıklı gündem kaynakları — Actions kotası
+        # için (bkz. fetch_news.haberleri_cek). Akşam turu hepsini tarıyor.
+        rapor = fetch_news.haberleri_cek(
+            ayarlar,
+            asgari_agirlik=ayarlar["genel"].get("son_dakika_asgari_agirlik", 9),
+        )
         log.info("RSS: %s yeni haber", rapor["eklenen"])
 
         aday = aday_bul(con, ayarlar)

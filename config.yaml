@@ -28,6 +28,18 @@ genel:
   # kaybeder — her önemli haber son dakika değildir.
   son_dakika_puan_esigi: 8
 
+  # ⚠️ SON DAKİKA KONTROLÜ YALNIZCA BU AĞIRLIKTAN İTİBAREN TARAR.
+  #
+  # Kontrol saat başı çalışıyor ve 22 kaynağı taramak job süresinin
+  # 171 saniyesini yiyordu. Ölçüldü: bu tempoyla aylık Actions kullanımı
+  # 2040 dk'ya çıkıyor ve 2000 dk'lık ücretsiz limit AŞILIYOR.
+  #
+  # 9: TRT, BBC Türkçe, AA ve TRT kategori beslemeleri. Son dakika haberi
+  # zaten bu kaynaklardan geliyor; kültür/yaşam/motor sporları
+  # beslemelerini saat başı taramanın karşılığı yok — akşam turu
+  # hepsini tarıyor.
+  son_dakika_asgari_agirlik: 9
+
   # Günde en fazla kaç son dakika postu. Akşam turuyla birlikte günde
   # 3 post eder; Instagram için sağlıklı aralık, takipçi yorulmuyor.
   son_dakika_gunluk_azami: 2
