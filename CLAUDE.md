@@ -87,6 +87,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | ~~Haber sitesi fotoğrafı kullanılmıyor~~ | **KARAR DEĞİŞTİ (18 Ağu 2026), artık KULLANILIYOR.** 15 Ağu'da telif riski anlatılıp vazgeçilmişti. Kullanıcı benzer hesapların bu görselleri rahatça kullandığını görüp yeniden istedi; risk ikinci kez anlatıldı ve karar kullanıcınındır. Ayrıntı: "⚠️ Haber görseli" satırı. Telif riski ortadan KALKMADI — yalnızca kabul edildi. |
 | Beğenilmeyen görsel | Telegram'a **`🎨 Görseli AI ile üret`** butonu eklenecek. Varsayılan bedava katman; AI maliyeti ancak kullanıcı basarsa oluşuyor. |
 | Slayt yazısı | Başlık + altında küçük puntoyla **tek cümlelik özet** (`slayt_ozet`). |
+| ★ Önem puanı (18 Ağu 2026) | Prompt'un puan bandı örnekleri **yalnızca siyasiydi** ("9-10 = ülke gündemini belirleyen olay") ve model ölçeği ona kalibre ediyordu. Sonuç: "UltrAslan lideri uyuşturucu testi pozitif" 6, "James Webb 3 kara delik keşfetti" 6 alırken "Bakan X konuyu değerlendirdi" 7 alıyordu — tur resmi açıklamalarla doluyor, insanların okuduğu haberler 5-6 bandında bekliyordu. 7-8 bandına siyaset dışı çapalar yazıldı (bilim keşfi, sağlık uyarısı, büyük kaza, spor sonucu, tanınan ismin karıştığı olay) ve **açıklama/olay ayrımı** eklendi: "değerlendirdi/kınadı/temenni etti" 3-5, "karar alındı/yasa çıktı" yüksek. ⚠️ **ÖLÇÜLMEDİ** — Gemini kotası dolduğu için A/B testi yapılamadı, ilk fırsatta yapılmalı. |
 | ★ Başlık kuralı | **Başlık haberin SONUCUNU söylemek zorunda.** Takipçiye link vermiyoruz, okuyacağı başka yer yok — slaytı kaydırıp geçen kişi haberi ÖĞRENMİŞ olmalı. "…ilişkin açıklama", "…değerlendirdi", "…anlattı" gibi 15 kalıp prompt'ta YASAK; `dogrula.basligi_denetle()` yakalayıp uyarıyor. Abartı ("şok", "bomba") da yasak — güveni düşürüyor. Ölçüldü: "Bakan Göktaş'tan taciz iddialarına ilişkin açıklama" → "…iddialarının vahim olduğunu belirtti". |
 | Telegram komutları | `/durum` · `/tur` · `/ayar` · `/tamamla` · `/arsiv` · `/yardim`. Buton menüsü yalnızca açık onay mesajı varken işe yarıyordu; tur kapanınca elde tutamak kalmıyordu. `/yardim` Worker'da anında cevaplanıyor. |
 | Ayar paneli (18 Ağu 2026) | `/ayar` → çalışma ayarları Telegram'dan değiştirilebiliyor (`src/ayar.py`). **İki katman:** `config.yaml` varsayılan, `ayarlar` tablosu üste biner — DB her job sonunda commit edildiği için değişiklik kalıcı. ⚠️ **BEYAZ LİSTE ZORUNLU** (`DEGISTIRILEBILIR`, 6 anahtar): gruba herkes yazabildiği için keyfi anahtar kabul etmek botu grup üzerinden yönetilebilir kılardı. Alt menü Worker'da açılıyor ama seçenekler **düğmeye gömülü** (`ayarmenu:yol:true-false`) — menü üçüncü bir yerde tekrarlanmasın diye. |
@@ -255,6 +256,67 @@ Kota hatası alan haberler `durum='hata'` oluyor; bu haberin kusuru değil,
 `durum='yeni'` yapılıp havuza döndürülmeli.
 
 ---
+
+**1f. ⚠️ YAML'daki çıplak `git rebase` — 1d'nin TEKRARI (18 Ağu 2026).**
+
+Akşam turu hazırlandı, Telegram'a HİÇ ulaşmadı, kayboldu. 1d'de
+"çözüldü" denen arızanın aynısı, başka bir kod yolundan.
+
+Zincir: `hazirla` 20:40'ta turu kurdu → push reddedildi (araya son
+dakika job'ı girmişti) → yedek yol `git rebase origin/main` çalıştı →
+`haber.db` ikili, çakışma çözülemedi → job kırmızı, tur yok oldu.
+
+17 Ağu'da `db_senkron._birlestir()` yazılıp Python tarafı düzeltilmişti
+ama **dört workflow YAML'ı kendi ham git komutlarını çalıştırmaya devam
+ediyordu.** O gün CLAUDE.md'ye yazılan ders birebir tekrarladı:
+*bir düzeltmeyi uygularken aynı işi yapan DİĞER kod yolunu da ara.*
+
+Düzeltme: `scripts/db_kaydet.py` (yeni). Dört workflow artık onu
+çağırıyor, o da `db_senkron.hemen_kaydet()` kullanıyor. Çakışmayı
+çözüyor, çözemezse `rebase --abort` ile repoyu temiz bırakıyor.
+⚠️ **Workflow'a veritabanı yazan yeni bir adım eklerken ham git
+komutu YAZMA, `scripts/db_kaydet.py` çağır.**
+
+**1g. Gemini günlük kotası turu düşürüyor — `--metinsiz` artık
+Actions'tan tetiklenebiliyor.**
+
+Aynı gece ücretsiz anahtar `GenerateRequestsPerDayPerProjectPerModel-
+FreeTier` sınırına vurdu. Haber başına 3 model × 2 anahtar deneniyor,
+hepsi 429; tur 20 dakika sürüp hiçbir yere varamadı.
+
+`hazirla.py --metinsiz` bu iş için zaten vardı ama yalnızca komut
+satırından erişiliyordu. `hazirla.yml`'e `metinsiz` girdisi eklendi:
+Actions ekranından tetiklenebiliyor, Gemini'ye HİÇ gitmiyor, metni
+hazır haberlerle tur kuruyor. Kota dolu gecelerde turu kurtarmanın en
+hızlı yolu bu.
+
+⚠️ Yedek (faturalı) anahtar devreye giriyor ve ÇALIŞIYOR — yani kota
+dolduğunda sistem durmuyor, **para harcamaya başlıyor.** Sessiz bir
+maliyet: log'a "yedek anahtar kullanıldı" yazıyor ama kimse bakmıyor.
+Günlük rapora eklenmeli.
+
+**1h. ⚠️ Kaynağı kapatmak, ondan gelmiş KAYITLARI düzeltmiyor.**
+
+TRT Teknoloji kaldırıldıktan sonra da veritabanındaki 4 kayıt
+`teknoloji` etiketiyle kaldı ve **ikisi ertesi akşamın turuna girdi** —
+"Bozbey CHP'den istifa etti" yine TEKNOLOJİ etiketiyle yayınlanacaktı.
+Havuz 48 saat aday tuttuğu için kaynak kapatmanın etkisi iki gün
+gecikiyor.
+
+Kural: bir kaynağı `config.yaml`'den çıkarırken
+`UPDATE haberler SET kategori=... WHERE kaynak='<ad>'` ile eski
+kayıtları da düzelt.
+
+**1i. ⚠️ KATEGORİ HABERİN DEĞİL, KAYNAĞIN ÖZELLİĞİ (açık kusur).**
+
+`fetch_news.py:292` → `kategori=kaynak["kategori"]`. Haberin içeriğine
+hiç bakılmıyor. Sonuç: Venezuela depremi ve Batı Şeria baskını
+`turkiye` kategorisinde görünüyor, çünkü TRT genel akışından geldiler.
+
+Etkilediği yerler: slayttaki kategori etiketi, şerit rengi, ön
+elemedeki kategori payı. Gemini haberin tam metnini zaten okuyor;
+`CEVAP_SEMASI`'na `kategori` alanı eklenip ona sordurulabilir.
+**Henüz yapılmadı.**
 
 ### Geçmiş notlar (güncelleme: 14 Ağustos 2026)
 
