@@ -130,9 +130,13 @@ def son_dakika_caption(
                     .get("son_dakika_etiket_esigi", 9))
     son_dakika_mi = (haber["onem_puani"] or 0) >= etiket_esigi
 
+    # ⚠️ SON DAKİKA AÇIKLAMASINDA TARİH YOK.
+    # Instagram gönderinin yaşını zaten gösteriyor ve haber o an oluyor;
+    # üstüne tarih yazmak hem tekrar hem de aciliyeti zayıflatıyor.
+    # Tarih yalnızca AKŞAM TURU açıklamasında var (`caption_kur`), çünkü
+    # orada vaat "şu günün gündemi" — tarih bilginin parçası.
     parcalar = [
-        (f"🔴 SON DAKİKA · {tarih_metni()}" if son_dakika_mi
-         else tarih_metni()),
+        "🔴 SON DAKİKA" if son_dakika_mi else "",
         baslik,
         govde,
         f"Kaynak: {haber['kaynak']}",

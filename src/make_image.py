@@ -274,12 +274,30 @@ def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
     return satirlar
 
 
+# ⚠️ BAŞLIK PUNTO TAVANI — 96'dan 80'e indirildi (18 Ağu 2026).
+#
+# 96 tavanla ölçüldü: bir turdaki 10 başlığın 8'i altı satırı doldurup
+# 640-700 px kaplıyordu, yani slaytın yarısını. Yazı alanı büyüdükçe
+# okuma perdesi de büyüyor ve arka plandaki fotoğraf neredeyse tamamen
+# örtülüyordu — kullanıcının şikâyeti buydu.
+#
+# Ölçüm (aynı 10 başlık, ortalama kapladığı yükseklik):
+#     96 -> 643 px  (8/10 başlık altı satır)
+#     88 -> 556 px  (5/10)
+#     80 -> 446 px  (1/10)   <- seçilen
+#     72 -> 374 px  (0/10)   telefonda küçük kalıyor
+#
+# 80'in altına inilmedi: manşetin uzaktan okunabilmesi bu tasarımın
+# temel şartı, slayt kaydırılırken haber ÖĞRENİLMİŞ olmalı.
+BASLIK_PUNTO_TAVAN = 80
+
+
 def _basligi_yerlestir(metin: str, ciz, alan_genislik: int, alan_yukseklik: int):
     """
     Başlığı alana sığdıran en büyük puntoyu bulur.
     Büyükten küçüğe deniyoruz: başlık kısaysa iri, uzunsa küçük olsun.
     """
-    for punto in range(96, 39, -4):
+    for punto in range(BASLIK_PUNTO_TAVAN, 39, -4):
         font = _font(punto, EKSEN_BASLIK)
         satirlar = _satirlara_bol(metin, font, alan_genislik, ciz)
         satir_yuksekligi = int(punto * 1.22)
