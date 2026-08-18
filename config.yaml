@@ -482,6 +482,18 @@ secim:
   # ama sertleşir; 7-8 yapmak sakin günlerde 3-4 slayta düşürebilir.
   asgari_onem_puani: 6
 
+  # ⚠️ ÖN ELEMEDE HER KATEGORİYE GARANTİLİ PAY.
+  #
+  # Ölçüldü (1236 haberlik havuz): pay olmadan 25 adayın 24'ü TRT
+  # Haber'den geliyordu, kategori dağılımı %100 "turkiye" idi. Ön skor
+  # `ağırlık × 10` ile başladığı için ağırlığı yüksek tek kaynak listeyi
+  # dolduruyor; eklenen bilim/spor/ekonomi/kültür kaynakları metin
+  # üretimine HİÇ giremiyordu. Çeşitlilik kaynakta değil burada ölüyordu.
+  #
+  # 3: her kategoriden en fazla 3 garantili aday. Kalan kontenjan yine
+  # düz skorla doluyor, yani Türkiye gündemi baskın kalıyor.
+  on_eleme_kategori_payi: 3
+
   # İki başlık kaç ortak anahtar kelime paylaşırsa "aynı olay" sayılsın.
   # 2 ölçüldü: "İsrail ... Gazze" ile "İsrail ... Lübnan" ayrışıyor ama
   # aynı olayın iki farklı kaynaktaki hâli birleşiyor.

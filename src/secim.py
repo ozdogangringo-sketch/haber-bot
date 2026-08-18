@@ -45,6 +45,11 @@ def _yas_saat(haber) -> float:
     return (datetime.now(timezone.utc) - t).total_seconds() / 3600
 
 
+def _kategori_payi(ayarlar: dict) -> int:
+    """Ön elemede her kategoriye ayrılan garantili aday sayısı."""
+    return (ayarlar.get("secim", {}) or {}).get("on_eleme_kategori_payi", 3)
+
+
 def on_eleme(con, ayarlar: dict, kac: int | None = None) -> list:
     """
     Metin üretilecek adayları seçer. LLM ÇAĞIRMAZ, bedavadır.
@@ -73,8 +78,46 @@ def on_eleme(con, ayarlar: dict, kac: int | None = None) -> list:
         puanli.append((puan, haber))
 
     puanli.sort(key=lambda p: p[0], reverse=True)
-    secilen = [h for _, h in puanli[:kac]]
-    log.info("ön eleme: %d havuzdan %d aday", len(havuz), len(secilen))
+
+    # ⚠️ KATEGORİ PAYI OLMADAN ÖN ELEME TEK KAYNAĞA KİLİTLENİYOR.
+    #
+    # Ölçüldü (18 Ağu 2026, 1236 haberlik havuz): düz skor sıralamasıyla
+    # 25 adayın 24'ü TRT Haber'den, 1'i BBC Türkçe'den geliyordu ve
+    # kategori dağılımı %100 "turkiye" idi. Sebep basit — ön skor
+    # `ağırlık × 10` ile başlıyor, ağırlığı 10 olan kaynak tek başına
+    # 120 taze haber veriyor ve listeyi tamamen dolduruyor.
+    #
+    # Sonuç: eklenen bilim, spor, ekonomi, kültür, teknoloji ve yaşam
+    # kaynakları metin üretimine HİÇ giremiyor, dolayısıyla asıl seçimde
+    # de görünmüyordu. Çeşitlilik kaynakta değil, tam burada ölüyordu.
+    #
+    # Çözüm: her kategoriye garantili küçük bir pay ayrılıyor, kalan
+    # kontenjan yine düz skorla dolduruluyor. Türkiye gündemi baskın
+    # kalmaya devam ediyor (havuzun %75'i o), ama diğer kategoriler de
+    # en azından temsil ediliyor.
+    kategori_payi = _kategori_payi(ayarlar)
+    secilen, alinan = [], set()
+    if kategori_payi:
+        kategoriler = {h["kategori"] for _, h in puanli}
+        for kat in kategoriler:
+            for puan, haber in puanli:
+                if haber["kategori"] != kat or haber["id"] in alinan:
+                    continue
+                secilen.append(haber)
+                alinan.add(haber["id"])
+                if sum(1 for h in secilen if h["kategori"] == kat) >= kategori_payi:
+                    break
+
+    for _, haber in puanli:
+        if len(secilen) >= kac:
+            break
+        if haber["id"] not in alinan:
+            secilen.append(haber)
+            alinan.add(haber["id"])
+
+    secilen = secilen[:kac]
+    log.info("ön eleme: %d havuzdan %d aday (%d kategori)",
+             len(havuz), len(secilen), len({h["kategori"] for h in secilen}))
     return secilen
 
 
