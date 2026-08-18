@@ -24,6 +24,10 @@ on:
         description: "Kuru çalışma (Telegram'a GÖNDERME, sadece üret)"
         type: boolean
         default: false
+      metinsiz:
+        description: "Gemini'ye HİÇ gitme — metni hazır haberlerle tur kur (kota dolduysa)"
+        type: boolean
+        default: false
 
 # ⚠️ ORTAK GRUP — veritabanına yazan HER workflow bu grupta olmalı.
 #
@@ -68,6 +72,10 @@ jobs:
         run: |
           if [ "${{ inputs.kuru }}" = "true" ]; then
             python scripts/hazirla.py --kuru
+          elif [ "${{ inputs.metinsiz }}" = "true" ]; then
+            # Gemini kotası dolduğunda turu tamamen kaçırmamak için:
+            # metni ZATEN üretilmiş haberlerle tur kurar, hiç LLM çağırmaz.
+            python scripts/hazirla.py --metinsiz
           else
             python scripts/hazirla.py
           fi
