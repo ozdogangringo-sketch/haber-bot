@@ -166,6 +166,11 @@ secim:
   # gerçekten tek konuya kilitlendiğinde (deprem, seçim gecesi) kota o
   # haberleri dışarıda bırakıp yerlerine önemsizlerini alıyordu.
   konu_ortak_kelime_esigi: 2
+  # Son kaç günde yayınlanmış konular tekrar seçilmesin
+  gecmis_konu_gun: 2
+  # Geçmiş için eşik daha yüksek: devam eden olayı değil,
+  # aynı haberin tekrarını engellemek istiyoruz
+  gecmis_ortak_kelime_esigi: 3
 
 
 # =========================================================

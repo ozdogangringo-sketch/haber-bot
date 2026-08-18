@@ -143,7 +143,44 @@ ETKISIZ_KELIMELER = {
     "göre", "karşı", "yeni", "büyük", "sonrası", "ilgili", "hakkında",
     "arasında", "üzerine", "birlikte", "dedi", "açıkladı", "oldu",
     "edildi", "verdi", "aldı", "yaptı", "bulundu", "geldi", "başladı",
+    # ⚠️ HABER KALIPLARI — büyük harfle yazıldıkları için özel isim
+    # sanılıyorlardı. Ölçüldü (18 Ağu 2026): iki tamamen farklı mevzuat
+    # haberi "Resmi Gazete'de yayımlandı" üzerinden aynı olay sayıldı.
+    # Bunlar olayı ayırt etmiyor, yalnızca haberin biçimini anlatıyor.
+    "resmi", "gazete", "yayımlandı", "yayimlandi", "açıklama",
+    "bakanlığı", "başkanlığı", "cumhurbaşkanı", "bakan", "başkan",
 }
+
+
+def _ozel_isimler(baslik: str) -> set[str]:
+    """
+    Başlıktaki özel isimler (kişi, yer, kurum) — küçük harfe indirilmiş.
+
+    ⚠️ NEDEN GEREKTİ: geçmiş-tekrar denetimi yalnızca ortak kelime
+    sayarken YANLIŞ POZİTİF veriyordu. Ölçüldü (18 Ağu 2026):
+    "Yeni çözüm sürecinin ... çerçeve yasa Resmi Gazete'de yayımlandı"
+    ile bambaşka bir yasa haberi `resmi + gazete + yayımlandı` üzerinden
+    eşleşiyordu — o kalıp neredeyse her mevzuat haberinde geçiyor.
+
+    Aynı OLAY olduğunu gösteren şey ortak kalıp değil, ortak ÖZEL
+    İSİMDİR: "Bozbey", "Mustafa". Bu yüzden geçmiş denetiminde
+    eşleşmenin en az bir özel isim taşıması aranıyor.
+
+    İlk kelime atlanıyor: başlık her zaman büyük harfle başlıyor, o
+    yüzden büyük harf orada özel isim işareti değil.
+    """
+    isimler = set()
+    for ham in (baslik or "").replace("'", " ").split()[1:]:
+        temiz = "".join(k for k in ham if k.isalnum())
+        # Karşılaştırma _anahtar_kelimeler ile AYNI biçimde yapılmalı:
+        # o da düz .lower() kullanıyor ve Türkçe karakterleri koruyor.
+        # İki taraf farklı sadeleştirme uygularsa ETKISIZ_KELIMELER
+        # listesi bir tarafta hiç tutmaz ve eleme sessizce çalışmaz.
+        kucuk = temiz.lower()
+        if len(temiz) >= 4 and temiz[:1].isupper() \
+                and kucuk not in ETKISIZ_KELIMELER:
+            isimler.add(kucuk)
+    return isimler
 
 
 def _anahtar_kelimeler(baslik: str) -> set[str]:
@@ -162,7 +199,33 @@ def _anahtar_kelimeler(baslik: str) -> set[str]:
     return kelimeler
 
 
-def cesitlendir(adaylar: list, adet: int, ayarlar: dict) -> list:
+def yayinlanmis_konular(con, ayarlar: dict) -> list[set]:
+    """
+    Son günlerde YAYINLANMIŞ haberlerin anahtar kelime kümeleri.
+
+    ⚠️ NEDEN GEREKTİ (18 Ağu 2026): "Bozbey CHP'den istifa etti" haberi
+    aynı gün İKİ KEZ yayınlandı (14:47 ve 16:48) ve akşam turunda
+    ÜÇÜNCÜ kez seçilmişti. Aynı olay beş ayrı kayıt olarak duruyordu —
+    Sözcü, TRT, BBC, Independent hepsi ayrı haber yazmıştı.
+
+    `haberler.link` UNIQUE olduğu için tekrar engeli sanılıyordu ama o
+    yalnızca AYNI LİNKİ engelliyor; farklı kaynakların aynı olayı ayrı
+    linklerle vermesi tekrar sayılmıyordu. `cesitlendir` de yalnızca
+    tur İÇİNDEKİ haberleri karşılaştırıyordu.
+    """
+    gun = (ayarlar.get("secim", {}) or {}).get("gecmis_konu_gun", 2)
+    satirlar = con.execute(
+        """SELECT ig_baslik, baslik_orj FROM haberler
+           WHERE durum='yayinlandi'
+             AND gonderim_zamani > datetime('now', ?)""",
+        (f"-{gun} day",),
+    ).fetchall()
+    return [(_anahtar_kelimeler(b), _ozel_isimler(b))
+            for b in ((r[0] or r[1]) for r in satirlar) if b]
+
+
+def cesitlendir(adaylar: list, adet: int, ayarlar: dict,
+                gecmis_konular: list | None = None) -> list:
     """
     Skora göre sıralı adaylardan turu kurar; AYNI OLAYI bir kez alır.
 
@@ -181,12 +244,33 @@ def cesitlendir(adaylar: list, adet: int, ayarlar: dict) -> list:
     s = ayarlar.get("secim", {}) or {}
     ortak_esik = s.get("konu_ortak_kelime_esigi", 2)
 
-    secilen, konular = [], []
+    # ⚠️ GEÇMİŞ İÇİN EŞİK DAHA YÜKSEK.
+    # Tur içinde iki haber benzer başlıklıysa aynı olaydır. Ama günler
+    # arasında gerçek bir gelişme olabilir: "İsrail Gazze" her gün
+    # haber üretiyor ve dünkü habere benziyor diye bugünkü gelişmeyi
+    # atmak yanlış olur. Bu yüzden geçmişte daha çok kelime tutuşması
+    # aranıyor — engellenen şey tekrar, devam eden olay değil.
+    gecmis_esik = s.get("gecmis_ortak_kelime_esigi", ortak_esik + 1)
+
+    secilen = []
+    konular = []                      # tur içi — eşik: ortak_esik
+    onceki_konular = list(gecmis_konular or [])   # yayınlanmış — eşik: gecmis_esik
     for haber in adaylar:
         if len(secilen) >= adet:
             break
         kelimeler = _anahtar_kelimeler(haber["ig_baslik"] or haber["baslik_orj"])
         if any(len(kelimeler & onceki) >= ortak_esik for onceki in konular):
+            continue
+        # Bu olayı son günlerde zaten yayınladık mı?
+        # İki şart BİRLİKTE aranıyor: yeterince ortak kelime VE en az
+        # bir ortak özel isim. Tek başına kelime sayısı "Resmi Gazete'de
+        # yayımlandı" gibi kalıplarda yanlış eşleşme veriyordu.
+        isimler = _ozel_isimler(haber["ig_baslik"] or haber["baslik_orj"])
+        if any(len(kelimeler & ok) >= gecmis_esik and (isimler & oi)
+               for ok, oi in onceki_konular):
+            log.info("konu son %s günde zaten yayınlandı, atlanıyor: %s",
+                     (s.get("gecmis_konu_gun", 2)),
+                     (haber["ig_baslik"] or haber["baslik_orj"])[:60])
             continue
         secilen.append(haber)
         konular.append(kelimeler)
@@ -225,7 +309,9 @@ def tur_icin_sec(con, ayarlar: dict) -> list:
     adaylar.sort(key=lambda h: skor(h, ayarlar), reverse=True)
     # Düz sıralamadan almak yerine çeşitlendiriyoruz: aynı olayın
     # haberleri birbirine yakın puan aldığı için üst üste diziliyordu.
-    secilen = cesitlendir(adaylar, g["slayt_sayisi"], ayarlar)
+    # Son günlerde yayınladığımız olayları tekrar seçmeyelim.
+    secilen = cesitlendir(adaylar, g["slayt_sayisi"], ayarlar,
+                          gecmis_konular=yayinlanmis_konular(con, ayarlar))
 
     log.info("tur seçimi: %d adaydan %d haber", len(adaylar), len(secilen))
     return secilen
