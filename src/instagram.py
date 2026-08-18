@@ -58,6 +58,19 @@ GECICI_ALT_KODLAR = {2207003, 2207032, 2207052}
 # sormak aynı yükün üstüne binmek oluyor.
 MEDYA_BEKLEME_SANIYE = 15
 
+# ⚠️ MEDYA HATALARINDA DAHA ÇOK DENEME.
+#
+# 18 Ağu 2026: bir son dakika turu 2207052 ("medya indirme başarısız")
+# ile düştü, 3 deneme yetmedi. İki dakika sonra elle denendiğinde 5
+# görselin 5'i de sorunsuz yüklendi — yani sorun görselde değil, karşı
+# tarafın o anki durumundaydı.
+#
+# Threads'te aynı desen ölçülmüştü: bekleme süresini uzatmak tek başına
+# çözmüyor (10/20/30 sn denendi, sonuç hata/başarı/hata), asıl güvence
+# DENEME SAYISI. Bu yüzden medya hatalarında sabit bekleme + daha çok
+# deneme kullanıyoruz.
+MEDYA_AZAMI_DENEME = 6
+
 
 def _jeton() -> str:
     j = os.getenv("IG_ACCESS_TOKEN", "").strip()
@@ -93,8 +106,11 @@ def _istek(yontem: str, yol: str, ayarlar: dict, **parametreler) -> dict:
     url = f"{TABAN}/{g['api_surumu']}{yol}"
     parametreler["access_token"] = _jeton()
 
+    # Deneme sayısı config'den geliyordu ama kod onu HİÇ OKUMUYORDU;
+    # `range(1, 4)` sabitti ve `instagram.deneme_sayisi` ölü ayardı.
+    azami = max(int(g.get("deneme_sayisi", 3)), MEDYA_AZAMI_DENEME)
     son_hata = None
-    for deneme in range(1, 4):
+    for deneme in range(1, azami + 1):
         try:
             # GET'te parametreler query string'e, POST'ta gövdeye gider.
             # İkisini karıştırmak "(#200) Provide valid app ID" gibi
@@ -122,9 +138,12 @@ def _istek(yontem: str, yol: str, ayarlar: dict, **parametreler) -> dict:
             continue
 
         if _alt_kod(cevap) in GECICI_ALT_KODLAR:
-            log.warning("medya indirme hatası, %s sn sonra tekrar (%s/3)",
-                        MEDYA_BEKLEME_SANIYE, deneme)
-            time.sleep(MEDYA_BEKLEME_SANIYE * deneme)
+            # SABİT bekleme: bu bir hız sınırı değil, karşı tarafın
+            # kararsızlığı. Artan bekleme yalnızca toplam süreyi
+            # şişiriyor, başarı şansını artırmıyor (Threads'te ölçüldü).
+            log.warning("medya indirme hatası, %s sn sonra tekrar (%s/%s)",
+                        MEDYA_BEKLEME_SANIYE, deneme, azami)
+            time.sleep(MEDYA_BEKLEME_SANIYE)
             continue
         break
 

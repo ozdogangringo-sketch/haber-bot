@@ -100,9 +100,17 @@ ICI_BOS_KALIPLAR = (
 )
 
 # Abartı/tıklama tuzağı işaretleri.
+# ⚠️ TÜRKÇE ÇEKİMLER AYRI AYRI YAZILMALI.
+# Kalıplar kelime sınırıyla aranıyor (bkz. `basligi_denetle`), yani
+# "şaşırttı" yazmak "şaşırtan"ı yakalamıyor. Kök araması yapmak da
+# çözüm değil: "şok" kökü sadeleştirme sonrası "sok" oluyor ve sonek
+# serbest bırakılırsa "sokak" yeniden eşleşiyor.
 ABARTI_KALIPLAR = (
-    "şok", "bomba", "herkesi şaşırttı", "işte o an", "olay oldu",
-    "gündemi salladı", "inanılmaz", "şaşkına çevirdi", "ağzı açık kaldı",
+    "şok", "bomba", "işte o an", "olay oldu", "inanılmaz",
+    "herkesi şaşırttı", "herkesi şaşırtan", "şaşırtan",
+    "gündemi salladı", "gündemi sallayan",
+    "şaşkına çevirdi", "şaşkına çeviren",
+    "ağzı açık kaldı", "dumur etti", "çılgın",
 )
 
 
@@ -124,8 +132,19 @@ def basligi_denetle(baslik: str) -> list[str]:
             sorunlar.append(f"içi boş kalıp: '{kalip}'")
             break
 
+    # ⚠️ ABARTI KALIPLARI KELİME SINIRIYLA ARANIYOR, ALT DİZE OLARAK DEĞİL.
+    #
+    # `_sadelestir` "ş" harfini "s"ye çeviriyor, yani "şok" → "sok".
+    # Alt dize araması yapılınca "sokak", "Söke", "sokuldu" gibi masum
+    # kelimeler eşleşiyordu: "İstanbul'da ... sokak ulaşıma kapatıldı" ve
+    # "Söke-Milas kara yolunda..." başlıkları "abartılı" damgası yiyordu
+    # (18 Ağu 2026'da ölçüldü).
+    #
+    # Yanlış uyarı, uyarı vermemekten kötü: onay mesajında sürekli
+    # gereksiz işaret gören kullanıcı gerçek uyarıyı da ciddiye almıyor.
     for kalip in ABARTI_KALIPLAR:
-        if _sadelestir(kalip).strip() in sade:
+        kalip_sade = _sadelestir(kalip).strip()
+        if re.search(rf"(?<!\w){re.escape(kalip_sade)}(?!\w)", sade):
             sorunlar.append(f"abartı: '{kalip}'")
             break
 
