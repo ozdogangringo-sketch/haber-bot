@@ -45,12 +45,29 @@ const KALDIR = /^kaldir:(\d{1,12})$/;
 // Ayar düğmeleri: "ayar:genel.gece_otomatik_yayin". Yol beyaz listeye
 // karşı GitHub tarafında da doğrulanıyor; buradaki desen yalnızca
 // biçim kontrolü.
-const AYAR = /^ayar:[a-z_]+\.[a-z_]+$/;
+// Ayar alt menüsü Worker'da açılıyor (anında). Seçenekler düğmenin
+// içinde taşınıyor ("ayarmenu:genel.gece_otomatik_yayin:true-false"),
+// böylece seçenek listesi yalnızca src/ayar.py'de duruyor — menüyü
+// üçüncü bir yerde tekrarlamıyoruz.
+const AYAR_MENU = /^ayarmenu:([a-z_]+\.[a-z_]+):([a-z0-9\-]{1,40})$/;
+const AYAR_SEC  = /^ayarsec:[a-z_]+\.[a-z_]+:[a-z0-9]{1,10}$/;
 
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 64) return false;
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
-    || KALDIR.test(veri) || AYAR.test(veri);
+    || KALDIR.test(veri) || AYAR_SEC.test(veri);
+}
+
+// Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
+// bilinmediği için işaret KONULMUYOR — onu GitHub tarafı, paneli
+// tazelerken gösteriyor.
+function ayarAltMenu(yol, kodlar) {
+  const goster = (k) => (k === "true" ? "AÇIK" : k === "false" ? "KAPALI" : k);
+  const satir = kodlar.split("-").map((k) => ({
+    text: goster(k),
+    callback_data: `ayarsec:${yol}:${k}`,
+  }));
+  return { inline_keyboard: [satir, [{ text: "← Ayarlara dön", callback_data: "ayar" }]] };
 }
 
 // ---------------------------------------------------------------------
@@ -274,6 +291,15 @@ export default {
     const komut = cb.data;
     const sohbetId = cb.message ? cb.message.chat.id : null;
     const mesajId = cb.message ? cb.message.message_id : null;
+
+    // --- Ayar alt menüsü: Worker anında açıyor ---
+    const ayarMenu = AYAR_MENU.exec(komut);
+    if (ayarMenu) {
+      await menuyuDegistir(env, sohbetId, mesajId,
+                           ayarAltMenu(ayarMenu[1], ayarMenu[2]));
+      await butonuDurdur(env, cb.id, "");
+      return new Response("ok");
+    }
 
     // --- Menü gezinme: Worker anında hallediyor, GitHub'a gitmiyor ---
     const gezinme = MENU_GEZINME.exec(komut);

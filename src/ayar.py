@@ -29,10 +29,14 @@ log = logging.getLogger(__name__)
 
 # Değiştirilebilir ayarlar: yol -> (etiket, seçenekler)
 #
-# Seçenekler DÖNGÜSEL: butona her basışta sıradaki değere geçiyor.
-# Serbest sayı girişi yerine sabit seçenek listesi tercih edildi —
-# Telegram'da metin girişi ayrı bir akış gerektiriyor ve hatalı değer
-# (eşik 99 gibi) botu sessizce durdurabilir.
+# Panelde her ayar bir düğme; basınca seçeneklerin listelendiği alt menü
+# açılıyor. İlk sürüm düğmeye her basışta sıradaki değere geçiyordu ama
+# üç seçenekli eşiklerde istenen değere ulaşmak birkaç basış gerektiriyor
+# ve zahmetli oluyordu.
+#
+# Serbest sayı girişi yerine sabit seçenek listesi: Telegram'da metin
+# girişi ayrı bir akış gerektiriyor ve hatalı değer (eşik 99 gibi) botu
+# sessizce durdurabilir.
 DEGISTIRILEBILIR: dict[str, tuple[str, list]] = {
     "genel.gece_otomatik_yayin": (
         "🌙 Gece otomatik yayın", [True, False]),
@@ -107,25 +111,6 @@ def gecerli_deger(con, ayarlar: dict, yol: str):
     return _cozumle(ham, DEGISTIRILEBILIR[yol][1][0])
 
 
-def sonraki_degere_gec(con, ayarlar: dict, yol: str):
-    """Ayarı seçenek listesindeki bir sonraki değere çevirir."""
-    if yol not in DEGISTIRILEBILIR:
-        raise ValueError(f"değiştirilemez ayar: {yol}")
-
-    _, secenekler = DEGISTIRILEBILIR[yol]
-    simdi = gecerli_deger(con, ayarlar, yol)
-    try:
-        sonraki = secenekler[(secenekler.index(simdi) + 1) % len(secenekler)]
-    except ValueError:
-        # Config'deki değer seçenek listesinde yoksa baştan başla.
-        sonraki = secenekler[0]
-
-    db.ayar_yaz(con, yol, sonraki)
-    con.commit()
-    log.info("ayar değişti: %s = %s", yol, sonraki)
-    return sonraki
-
-
 def _goster(deger) -> str:
     if isinstance(deger, bool):
         return "AÇIK" if deger else "KAPALI"
@@ -143,18 +128,75 @@ def panel_metni(con, ayarlar: dict) -> str:
                                  and deger != varsayilan else ""
         satirlar.append(f"{etiket}: {_goster(deger)}{isaret}")
     satirlar.append("")
-    satirlar.append("Değiştirmek için düğmeye bas — her basış sıradaki "
-                    "değere geçer.")
+    satirlar.append("Değiştirmek istediğin ayara bas, seçenekler açılsın.")
     return "\n".join(satirlar)
 
 
+def _kodla(deger) -> str:
+    """Seçeneği callback_data'ya sığacak biçimde kodlar."""
+    if isinstance(deger, bool):
+        return "true" if deger else "false"
+    return str(deger)
+
+
+def coz(yol: str, kod: str):
+    """`ayarsec` ile gelen kodu gerçek değere çevirir."""
+    secenekler = DEGISTIRILEBILIR[yol][1]
+    for s in secenekler:
+        if _kodla(s) == kod:
+            return s
+    raise ValueError(f"geçersiz değer: {kod}")
+
+
 def panel_butonlari(con, ayarlar: dict) -> list:
+    """
+    Ana panel: her ayar bir satır, basınca alt menü açılıyor.
+
+    ⚠️ SEÇENEKLER DÜĞMEYE GÖMÜLÜ ("...:true-false", "...:7-8-9").
+    Alt menü Worker'da açılıyor çünkü GitHub Actions'ı uyandırmak 30+
+    saniye sürüyor ve menü açmak anında olmalı. Ama Worker hangi ayarın
+    hangi seçeneklere sahip olduğunu bilmiyor; listeyi oraya kopyalamak
+    menüyü ÜÇÜNCÜ bir yerde tekrarlamak olurdu. Seçenekleri düğmeyle
+    taşıyınca Worker onları veriden okuyor, tek kaynak burası kalıyor.
+    """
     tuslar = []
-    for yol, (etiket, _) in DEGISTIRILEBILIR.items():
+    for yol, (etiket, secenekler) in DEGISTIRILEBILIR.items():
         deger = gecerli_deger(con, ayarlar, yol)
+        kodlar = "-".join(_kodla(s) for s in secenekler)
         tuslar.append([{
-            "text": f"{etiket} → {_goster(deger)}",
-            # Yol callback_data'ya gömülü; 64 bayt sınırının altında.
-            "callback_data": f"ayar:{yol}",
+            "text": f"{etiket}: {_goster(deger)}",
+            "callback_data": f"ayarmenu:{yol}:{kodlar}",
         }])
     return tuslar
+
+
+def alt_menu_butonlari(con, ayarlar: dict, yol: str) -> list:
+    """Tek ayarın seçenekleri; geçerli değer ✅ ile işaretli."""
+    etiket, secenekler = DEGISTIRILEBILIR[yol]
+    simdi = gecerli_deger(con, ayarlar, yol)
+    satir = []
+    for s in secenekler:
+        isaret = "✅ " if s == simdi else ""
+        satir.append({"text": f"{isaret}{_goster(s)}",
+                      "callback_data": f"ayarsec:{yol}:{_kodla(s)}"})
+    return [satir, [{"text": "← Ayarlara dön", "callback_data": "ayar"}]]
+
+
+def alt_menu_metni(con, ayarlar: dict, yol: str) -> str:
+    # Etiket zaten kendi emojisini taşıyor; başına bir tane daha koymak
+    # "⚙️ ⚡ Son dakika eşiği" gibi çift emoji üretiyordu.
+    etiket, _ = DEGISTIRILEBILIR[yol]
+    return (f"{etiket}\n\n"
+            f"Şu an: {_goster(gecerli_deger(con, ayarlar, yol))}\n\n"
+            f"Yeni değeri seç:")
+
+
+def deger_ata(con, ayarlar: dict, yol: str, kod: str):
+    """Alt menüden seçilen değeri yazar."""
+    if yol not in DEGISTIRILEBILIR:
+        raise ValueError(f"değiştirilemez ayar: {yol}")
+    deger = coz(yol, kod)
+    db.ayar_yaz(con, yol, deger)
+    con.commit()
+    log.info("ayar değişti: %s = %s", yol, deger)
+    return deger

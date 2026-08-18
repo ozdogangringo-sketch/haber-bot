@@ -211,26 +211,29 @@ def ayar_paneli(con, ayarlar) -> int:
     return 0
 
 
-def ayar_degistir(con, ayarlar, yol: str, mesaj_id: int, basan) -> int:
+def ayar_degistir(con, ayarlar, komut: str, mesaj_id: int, basan) -> int:
     """
-    Bir ayarı sıradaki değere çevirir ve paneli yerinde tazeler.
+    Alt menüden seçilen değeri yazar ve ANA PANELE döner.
 
-    Paneli YENİ mesaj olarak göndermiyoruz: ayar değiştirmek birkaç kez
-    üst üste yapılıyor ve her basışta yeni mesaj sohbeti dolduruyor.
+    Ana panele dönmek bilinçli: değer değiştikten sonra alt menüde
+    kalmak, kullanıcıyı bir tık daha "geri" basmaya zorluyor. Panelde
+    yeni değer zaten görünüyor.
     """
     try:
-        yeni = ayar.sonraki_degere_gec(con, ayarlar, yol)
-    except ValueError:
-        telegram_bot.mesaj_gonder("⚠️ Tanınmayan ayar.")
+        yol, kod = komut.split(":", 1)
+        yeni = ayar.deger_ata(con, ayarlar, yol, kod)
+    except (ValueError, KeyError):
+        telegram_bot.mesaj_gonder("⚠️ Tanınmayan ayar ya da değer.")
         return 1
 
     ayar.uygula(con, ayarlar)
     etiket = ayar.DEGISTIRILEBILIR[yol][0]
+    gosterim = "AÇIK" if yeni is True else "KAPALI" if yeni is False else yeni
     try:
         telegram_bot.paneli_tazele(
             mesaj_id,
-            ayar.panel_metni(con, ayarlar) + f"\n\nSon değişiklik: {etiket} "
-            f"→ {'AÇIK' if yeni is True else 'KAPALI' if yeni is False else yeni}"
+            ayar.panel_metni(con, ayarlar)
+            + f"\n\nSon değişiklik: {etiket} → {gosterim}"
             f"  ({basan or 'bilinmiyor'})",
             ayar.panel_butonlari(con, ayarlar),
         )
@@ -597,7 +600,7 @@ def main() -> int:
     # `int(sira)` çağrısında patlar.
     if komut == "ayar":
         return ayar_paneli(con, ayarlar)
-    if komut.startswith("ayar:"):
+    if komut.startswith("ayarsec:"):
         return ayar_degistir(con, ayarlar, komut.split(":", 1)[1],
                              mesaj_id, basan)
 
