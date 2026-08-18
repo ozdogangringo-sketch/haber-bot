@@ -420,6 +420,23 @@ def paylasim_bildir(kanal: str, basarili: bool, ayrinti: str = "",
         log.warning("paylaşım bildirimi gönderilemedi: %s", e)
 
 
+def butonlari_ayarla(message_id: int, butonlar: list) -> None:
+    """
+    Var olan bir mesajın düğmelerini değiştirir.
+
+    Gece otomatik yayını için gerekti: "kaldır" düğmesi turun id'sini
+    taşımak zorunda, ama o id mesaj GÖNDERİLDİKTEN sonra belli oluyor
+    (mesajın kendi id'si tur kimliği olarak kullanılıyor). Bu yüzden
+    mesaj önce düğmesiz gidiyor, id öğrenilince düğme ekleniyor.
+    """
+    try:
+        _istek("editMessageReplyMarkup", chat_id=_sohbet_id(),
+               message_id=message_id,
+               reply_markup={"inline_keyboard": butonlar})
+    except Exception as e:
+        log.warning("düğmeler ayarlanamadı: %s", e)
+
+
 def hata_bildir(baslik: str, ayrinti: str = "") -> None:
     """
     Bir job patladığında haber verir (Adım 7).
