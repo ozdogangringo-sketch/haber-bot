@@ -445,6 +445,20 @@ kaynaklar:
     agirlik: 6
     aktif: true
 
+  # Motor sporları: F1, MotoGP, ralli. Türkçe ve uluslararası marka.
+  # ⚠️ TAZELİK DÜŞÜK (%24) ama bu kaynağın kusuru değil — F1 haftalık
+  # bir spor, yarış dışı günlerde doğal olarak sessiz. Yarış haftalarında
+  # akış hızlanıyor.
+  #
+  # Kategori "spor" bırakıldı, ayrı kategori açılmadı: seçim filtresi
+  # kategori başına 3 haber alıyor; ayrı kategori olsaydı turda 3 futbol
+  # + 3 motor sporu çıkıp spor ağırlığı iki katına çıkardı.
+  - ad: "Motorsport TR"
+    url: "https://tr.motorsport.com/rss/all/news/"
+    kategori: "spor"
+    agirlik: 7
+    aktif: true
+
 # =========================================================
 #  SEÇİM ÇEŞİTLİLİĞİ (18 Ağu 2026)
 #
