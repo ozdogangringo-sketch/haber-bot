@@ -311,6 +311,90 @@ kaynaklar:
     agirlik: 4
     aktif: true
 
+  # ---------- ÇEŞİTLİLİK KAYNAKLARI (18 Ağu 2026) ----------
+  # Neden eklendi: 8 kaynağın 6'sı Türkiye gündemiydi ve turlar
+  # siyaset/savaş ağırlıklı çıkıyordu — 16 Ağu turunda 10 haberin 6'sı
+  # İsrail/Gazze idi. Bilim, teknoloji, spor, kültür ve ekonomi kaynağı
+  # HİÇ yoktu; o konular seçime giremiyordu bile.
+  #
+  # MAGAZİN/ÜNLÜ HABERİ BİLEREK YOK: ilgi çekiyor ama doğruluk riski
+  # yüksek ve dört katmanlı denetim dedikoduyu ayıklayamıyor.
+  #
+  # Hepsi kendi RSS okuyucumuzla test edildi: 8/8 çalıştı, tarihler dolu.
+  - ad: "AA Bilim-Teknoloji"
+    url: "https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji"
+    kategori: "bilim"
+    agirlik: 9
+    aktif: true
+
+  - ad: "AA Ekonomi"
+    url: "https://www.aa.com.tr/tr/rss/default?cat=ekonomi"
+    kategori: "ekonomi"
+    agirlik: 9
+    aktif: true
+
+  - ad: "AA Kültür"
+    url: "https://www.aa.com.tr/tr/rss/default?cat=kultur"
+    kategori: "kultur"
+    agirlik: 8
+    aktif: true
+
+  - ad: "AA Spor"
+    url: "https://www.aa.com.tr/tr/rss/default?cat=spor"
+    kategori: "spor"
+    agirlik: 8
+    aktif: true
+
+  - ad: "NTV Teknoloji"
+    url: "https://www.ntv.com.tr/teknoloji.rss"
+    kategori: "teknoloji"
+    agirlik: 8
+    aktif: true
+
+  - ad: "NTV Dünya"
+    url: "https://www.ntv.com.tr/dunya.rss"
+    kategori: "dunya"
+    agirlik: 8
+    aktif: true
+
+  - ad: "Habertürk Yaşam"
+    url: "https://www.haberturk.com/rss/kategori/yasam.xml"
+    kategori: "yasam"
+    agirlik: 7
+    aktif: true
+
+  - ad: "Habertürk Spor"
+    url: "https://www.haberturk.com/rss/kategori/spor.xml"
+    kategori: "spor"
+    agirlik: 7
+    aktif: true
+
+# =========================================================
+#  SEÇİM ÇEŞİTLİLİĞİ (18 Ağu 2026)
+#
+#  Seçim düz skor sıralamasıydı ve aynı olayın haberleri birbirine yakın
+#  puan aldığı için üst üste diziliyordu: 16 Ağu turunda 10 haberin 6'sı
+#  İsrail/Gazze, 8'i tek kaynaktandı. Takipçi için bu "günün özeti"
+#  değil, tek konunun tekrarı.
+#
+#  Kurallar turu EKSİK BIRAKMAZ: havuz darsa gevşetilip en yüksek
+#  puanlılarla dolduruluyor.
+# =========================================================
+secim:
+  # Aynı kategoriden en fazla kaç haber (turkiye, dunya, spor...).
+  # 3: on slaytlık turda tek konu başlığı üçte birden fazlasını almasın.
+  azami_ayni_kategori: 3
+
+  # Aynı kaynaktan en fazla kaç haber. TRT tek başına sekiz haber
+  # veriyordu; tek yayıncının gündemi turu domine etmemeli.
+  azami_ayni_kaynak: 4
+
+  # İki başlık kaç ortak anahtar kelime paylaşırsa "aynı olay" sayılsın.
+  # 2 ölçüldü: "İsrail ... Gazze" ile "İsrail ... Lübnan" ayrışıyor ama
+  # aynı olayın iki farklı kaynaktaki hâli birleşiyor.
+  konu_ortak_kelime_esigi: 2
+
+
 # ----------------------------------------------------------------------
 # İÇERİK FİLTRESİ — Instagram erişim kısıtlamasına karşı
 # ----------------------------------------------------------------------
