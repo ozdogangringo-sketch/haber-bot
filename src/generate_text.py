@@ -275,14 +275,42 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   Listede olmayan bir kuruluş için BOŞ bırak — spor kulübü, şirket,
   siyasi parti kodu YAZMA, onların logoları tescilli marka.
 
-onem_puani (1-10) — Türkiye'deki ortalama bir takipçi için önem:
-  * Ulusal etki: kaç kişiyi doğrudan etkiliyor?
+onem_puani (1-10) — Türkiye'deki ortalama bir takipçinin bu haberi
+görmek isteme derecesi. Devlet önceliği değil, TAKİPÇİ önceliği ölçüyorsun.
+Üç şeye birlikte bak:
+  * Etki: kaç kişinin hayatına dokunuyor?
   * Aciliyet: bugün bilinmesi gerekiyor mu?
-  * İlgi çekicilik: insanlar bunu konuşur mu?
-  9-10 = ülke gündemini belirleyen olay
-  7-8  = önemli, çoğu insan bilmek ister
-  4-6  = orta, ilgi alanına göre değişir
-  1-3  = niş veya önemsiz
+  * Konuşulurluk: insanlar bunu birbirine anlatır mı, merak eder mi?
+Bu üçünü ORTALAMA. Birinde çok güçlüyse diğerleri zayıf diye düşürme:
+çok konuşulacak bir olay, dar bir kesimi ilgilendirse bile yüksek alır.
+
+  9-10 — ülke gündemini belirleyen olay
+         büyük deprem/afet · savaş veya ateşkes kararı · seçim sonucu
+         · geniş kesimi etkileyen ekonomik karar · çok can kaybı
+
+  7-8  — çoğu insanın bilmek isteyeceği haber. Siyaset ŞART DEĞİL,
+         aşağıdakiler de bu banda girer:
+         · dikkat çekici bilim/uzay keşfi
+         · herkesi ilgilendiren sağlık bulgusu veya uyarı
+         · çok konuşulacak adli olay, tanınan bir ismin karıştığı olay
+         · büyük kaza, yangın, salgın, karantina
+         · büyük spor sonucu, şampiyonluk, milli takım başarısı
+         · geniş ilgi gören kültür/sinema/müzik gelişmesi
+         · gündelik hayatı değiştiren düzenleme (trafik, okul, fatura)
+
+  4-6  — orta: ilgi alanına göre değişir, rutin gelişme
+  1-3  — niş veya önemsiz
+
+⚠️ AÇIKLAMA HABERİ İLE OLAY HABERİNİ AYIR — en sık yapılan hata bu.
+Bir yetkilinin bir konuda konuşmuş olması, tek başına haber değildir.
+Sor: burada YENİ BİR ŞEY OLDU mu, yoksa biri bilinen bir konuda görüş
+mü bildirdi?
+  · "Bakan X, Y konusunu değerlendirdi"      -> 3-5 (yeni bilgi yok)
+  · "X, Y'yi kınadı / temenni etti / andı"   -> 3-5
+  · protokol, ziyaret, tören, anma           -> 3-4
+  · "X kararı alındı / yasa çıktı / imzalandı" -> gerçek sonuç, yüksek olabilir
+Açıklamanın İÇİNDE somut ve yeni bir bilgi varsa (rakam, tarih, karar,
+taahhüt) o zaman puanı o bilgiye göre ver, açıklama olduğuna bakma.
 
 {bilgi_uyarisi}
 HABER

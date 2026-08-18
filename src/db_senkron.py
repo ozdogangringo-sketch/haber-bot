@@ -96,7 +96,7 @@ def _birlestir() -> None:
         _calistir("git", "rebase", "--abort")
 
 
-def hemen_kaydet(mesaj: str) -> bool:
+def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
     """
     data/haber.db'yi commit edip push eder.
 
@@ -108,7 +108,8 @@ def hemen_kaydet(mesaj: str) -> bool:
     _calistir("git", "config", "user.name", "haber-bot")
     _calistir("git", "config", "user.email", "bot@users.noreply.github.com")
 
-    tamam, _ = _calistir("git", "add", "data/haber.db")
+    yollar = ["data/haber.db"] + list(ek_yollar or [])
+    tamam, _ = _calistir("git", "add", *yollar)
     if not tamam:
         log.warning("db_senkron: git add başarısız")
         return False
