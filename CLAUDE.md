@@ -318,6 +318,40 @@ elemedeki kategori payı. Gemini haberin tam metnini zaten okuyor;
 `CEVAP_SEMASI`'na `kategori` alanı eklenip ona sordurulabilir.
 **Henüz yapılmadı.**
 
+**1j. ⚠️ AYNI OLAY ÜÇÜNCÜ KEZ TURA GİRDİ — `link` UNIQUE yetmiyor.**
+
+18 Ağu 2026: "Bozbey CHP'den istifa etti" haberi aynı gün İKİ KEZ
+yayınlandı (14:47 ve 16:48, ayrı postlar) ve akşam turunda ÜÇÜNCÜ kez
+seçilmişti. Kullanıcı fark etti.
+
+Aynı olayın **beş ayrı kaydı** vardı: Sözcü, TRT, BBC, Independent
+hepsi kendi haberini yazmıştı. `haberler.link` UNIQUE tekrar engeli
+sanılıyor ama yalnızca AYNI LİNKİ engelliyor — farklı kaynakların aynı
+olayı farklı linklerle vermesi tekrar sayılmıyordu. `cesitlendir()` de
+yalnızca tur İÇİNDEKİ haberleri karşılaştırıyordu.
+
+Çözüm: `secim.yayinlanmis_konular()` son 2 günün yayınlarını getiriyor,
+`cesitlendir` onlara karşı da eliyor.
+
+⚠️ **Geçmiş denetimi tur içi denetimden FARKLI çalışmalı.** İki ek şart:
+eşik daha yüksek (3 vs 2) **ve ortak ÖZEL İSİM zorunlu**. Ölçüldü:
+yalnızca kelime saymak yanlış pozitif veriyordu — iki tamamen farklı
+mevzuat haberi *"Resmi Gazete'de yayımlandı"* üzerinden, Venezuela
+depremi *"daki/kaybı/yükseldi"* üzerinden eşleşti. Amaç devam eden
+olayı engellemek değil (İsrail-Gazze her gün gelişiyor), aynı haberin
+tekrarını engellemek.
+
+**1k. ⚠️ SLAYTTA BASILAN ŞEY KATEGORİ DEĞİL, KAYNAK ADI.**
+
+`make_image.py:614` → `alt_metin = _buyuk_harf(kaynak)`.
+
+1h'deki düzeltmede yalnızca `kategori` sütunu düzeltilmişti ve slaytta
+hâlâ **TRT TEKNOLOJİ** yazıyordu. Kaynak adı ayrı bir sütun ve slayta
+basılan o. Kayıtların `kaynak` alanı da `TRT Haber` yapıldı.
+
+Kural: bir kaynağı kapatırken **iki sütunu birden** düzelt —
+`kategori` (şerit rengi, ön eleme) ve `kaynak` (slaytta görünen ad).
+
 ### Geçmiş notlar (güncelleme: 14 Ağustos 2026)
 
 **Adım 1 BİTTİ ve kullanıcının makinesinde doğrulandı.** 8/8 kaynak çalışıyor,
