@@ -420,6 +420,18 @@ def paylasim_bildir(kanal: str, basarili: bool, ayrinti: str = "",
         log.warning("paylaşım bildirimi gönderilemedi: %s", e)
 
 
+def paneli_tazele(message_id: int, metin: str, butonlar: list) -> None:
+    """
+    Var olan bir paneli metniyle ve düğmeleriyle birlikte günceller.
+
+    Ayar paneli için: değer değiştirmek üst üste yapılan bir iş ve her
+    basışta yeni mesaj göndermek sohbeti dolduruyor.
+    """
+    _istek("editMessageText", chat_id=_sohbet_id(), message_id=message_id,
+           text=metin[:4096], disable_web_page_preview=True,
+           reply_markup={"inline_keyboard": butonlar})
+
+
 def butonlari_ayarla(message_id: int, butonlar: list) -> None:
     """
     Var olan bir mesajın düğmelerini değiştirir.

@@ -32,7 +32,7 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, db_senkron, dogrula, facebook, instagram, slaytlar,
+    ayar, caption, db, db_senkron, dogrula, facebook, instagram, slaytlar,
     telegram_bot, threads, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -47,7 +47,7 @@ _ayarlar_onbellek: dict = {}
 # taşımıyor; buraya eklenmezse main() daha en başta hata verip çıkıyor.
 # (`/tur` buraya girmiyor — workflow onu `hazirla.py`'ye yönlendiriyor,
 #  bu script'e hiç uğramıyor.)
-MESAJSIZ_KOMUTLAR = {"durum"}
+MESAJSIZ_KOMUTLAR = {"durum", "ayar"}
 
 
 def turu_getir(con, mesaj_id: int) -> list:
@@ -199,6 +199,47 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
         f"{baglanti or post_id}",
         bildir=True,
     )
+    return 0
+
+
+def ayar_paneli(con, ayarlar) -> int:
+    """`/ayar` — çalışma ayarlarını gösterir, düğmelerle değiştirilir."""
+    telegram_bot.mesaj_gonder(
+        ayar.panel_metni(con, ayarlar),
+        butonlar=ayar.panel_butonlari(con, ayarlar),
+    )
+    return 0
+
+
+def ayar_degistir(con, ayarlar, yol: str, mesaj_id: int, basan) -> int:
+    """
+    Bir ayarı sıradaki değere çevirir ve paneli yerinde tazeler.
+
+    Paneli YENİ mesaj olarak göndermiyoruz: ayar değiştirmek birkaç kez
+    üst üste yapılıyor ve her basışta yeni mesaj sohbeti dolduruyor.
+    """
+    try:
+        yeni = ayar.sonraki_degere_gec(con, ayarlar, yol)
+    except ValueError:
+        telegram_bot.mesaj_gonder("⚠️ Tanınmayan ayar.")
+        return 1
+
+    ayar.uygula(con, ayarlar)
+    etiket = ayar.DEGISTIRILEBILIR[yol][0]
+    try:
+        telegram_bot.paneli_tazele(
+            mesaj_id,
+            ayar.panel_metni(con, ayarlar) + f"\n\nSon değişiklik: {etiket} "
+            f"→ {'AÇIK' if yeni is True else 'KAPALI' if yeni is False else yeni}"
+            f"  ({basan or 'bilinmiyor'})",
+            ayar.panel_butonlari(con, ayarlar),
+        )
+    except Exception as e:
+        log.warning("panel tazelenemedi: %s", e)
+
+    # Ayar değişikliği veritabanında; runner'lar arasında taşınması için
+    # hemen push ediliyor, yoksa sonraki job eski değeri okur.
+    db_senkron.hemen_kaydet(f"Ayar: {yol} = {yeni}")
     return 0
 
 
@@ -543,11 +584,22 @@ def main() -> int:
     _ayarlar_onbellek = ayarlar
     db.kur()
     con = db.baglan()
+    ayar.uygula(con, ayarlar)
 
     # /durum haberlerden bağımsız çalışıyor — onay bekleyen tur olmasa da
     # cevap vermeli, zaten "bir şey var mı?" diye sorulan komut bu.
     if komut == "durum":
         return durum_bildir(con, ayarlar)
+
+    # ⚠️ AYAR KOMUTLARI TURDAN BAĞIMSIZ ve `turu_getir`DEN ÖNCE olmalı.
+    # İkinci sebep daha ince: "ayar:genel.gece_otomatik_yayin" içinde ":"
+    # var; aşağıdaki `":" in komut` dalına düşerse slayt işlemi sanılıp
+    # `int(sira)` çağrısında patlar.
+    if komut == "ayar":
+        return ayar_paneli(con, ayarlar)
+    if komut.startswith("ayar:"):
+        return ayar_degistir(con, ayarlar, komut.split(":", 1)[1],
+                             mesaj_id, basan)
 
     haberler = turu_getir(con, mesaj_id)
 

@@ -36,7 +36,7 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, db_senkron, dogrula, facebook, fetch_news, instagram,
+    ayar, caption, db, db_senkron, dogrula, facebook, fetch_news, instagram,
     make_image, otomatik_onay, threads,
     secim, slaytlar, telegram_bot, upload_image,
 )
@@ -194,6 +194,7 @@ def main() -> int:
     ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
     db.kur()
     con = db.baglan()
+    ayar.uygula(con, ayarlar)
 
     try:
         # --- 0) Kota/ağ hatası almış haberleri havuza geri al ---

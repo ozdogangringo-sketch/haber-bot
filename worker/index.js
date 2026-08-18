@@ -26,7 +26,7 @@
 
 // GitHub'a iletilecek gerçek eylemler. İş yapan komutlar.
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
-const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur"];
+const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur", "ayar"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
 const PARAMETRELI_EYLEM =
   /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil):([1-9]|10)$/;
@@ -42,10 +42,15 @@ const MENU_GEZINME = /^(slayt_menu:(\d{1,2})|geri:(\d{1,2})|slayt:([1-9]|10):(\d
 // hedefler.
 const KALDIR = /^kaldir:(\d{1,12})$/;
 
+// Ayar düğmeleri: "ayar:genel.gece_otomatik_yayin". Yol beyaz listeye
+// karşı GitHub tarafında da doğrulanıyor; buradaki desen yalnızca
+// biçim kontrolü.
+const AYAR = /^ayar:[a-z_]+\.[a-z_]+$/;
+
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 64) return false;
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
-    || KALDIR.test(veri);
+    || KALDIR.test(veri) || AYAR.test(veri);
 }
 
 // ---------------------------------------------------------------------
@@ -236,13 +241,14 @@ export default {
                 "🤖 Daily Brief botu\n\n" +
                 "/durum — onay bekleyen tur var mı, havuzda kaç haber var\n" +
                 "/tur — yeni tur hazırla (birkaç dakika sürer)\n" +
+                "/ayar — gece otomatik yayın, eşikler, kanallar\n" +
                 "/yardim — bu mesaj\n\n" +
                 "Onay mesajındaki butonlarla yayınlayabilir, slaytları " +
                 "değiştirebilir veya turu atlayabilirsin.");
             return new Response("ok");
         }
 
-        if (komutMetni === "/durum" || komutMetni === "/tur") {
+        if (komutMetni === "/durum" || komutMetni === "/tur" || komutMetni === "/ayar") {
             const komut = komutMetni.slice(1);
             const iletildi = await githubaIlet(env, komut, null,
                 msj.from ? msj.from.first_name || "" : "");
@@ -250,7 +256,9 @@ export default {
                 iletildi
                     ? (komut === "tur"
                         ? "⏳ Yeni tur hazırlanıyor, birkaç dakika sürebilir…"
-                        : "⏳ Durum sorgulanıyor…")
+                        : komut === "ayar"
+                          ? "⏳ Ayarlar getiriliyor…"
+                          : "⏳ Durum sorgulanıyor…")
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }

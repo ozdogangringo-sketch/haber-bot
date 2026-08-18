@@ -32,7 +32,7 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    caption, db, db_senkron, dogrula, fetch_news, make_image, secim, slaytlar,
+    ayar, caption, db, db_senkron, dogrula, fetch_news, make_image, secim, slaytlar,
     telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -58,6 +58,8 @@ def main() -> int:
     ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
     db.kur()
     con = db.baglan()
+    # Telegram'dan yapılan ayar değişiklikleri config'in üstüne biner.
+    ayar.uygula(con, ayarlar)
 
     try:
         # --- 1) Yeni haberleri çek ---
