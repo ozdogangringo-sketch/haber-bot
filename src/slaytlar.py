@@ -173,6 +173,8 @@ def slayt_uret(haber, ayarlar: dict) -> tuple[Path, str, str]:
         arsiv_ibaresi=katman in ("commons", "pexels"),
         ulke_kodu=_alan(haber, "ulke_kodu") or None,
         ulke_adi=_alan(haber, "ulke_adi") or None,
+        # Şerit rengi kategoriden geliyor: spor yeşil, ekonomi bronz…
+        kategori=haber["kategori"] or "",
     )
 
     yol = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
@@ -248,6 +250,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
         arsiv_ibaresi=katman in ("commons", "pexels"),
         ulke_kodu=_alan(haber, "ulke_kodu") or None,
         ulke_adi=_alan(haber, "ulke_adi") or None,
+        # Şerit rengi kategoriden geliyor: spor yeşil, ekonomi bronz…
+        kategori=haber["kategori"] or "",
     )
     yol1 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
     gorsel1.save(yol1, "JPEG", quality=g["jpeg_kalite"], optimize=True)

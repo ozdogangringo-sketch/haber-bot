@@ -198,7 +198,27 @@ gorsel:
   # arkasından görünüyordu — açık ya da kalabalık bir fotoğrafta başlık
   # okunmuyordu. Düz renk şerit okunabilirliği fotoğraftan bağımsız
   # kılıyor ve hesaba tutarlı bir kimlik veriyor.
+  #
+  # Kategorisi listede olmayan haberlerde bu renk kullanılıyor.
   perde_rengi: [22, 18, 46]
+
+  # ŞERİT RENGİ KATEGORİYE GÖRE (18 Ağu 2026)
+  #
+  # Renk, konuyu başlık okunmadan sezdiriyor: spor yeşil, ekonomi bronz,
+  # kültür şarap. Carousel kaydırılırken de tekdüzeliği kırıyor.
+  #
+  # ⚠️ HEPSİ KOYU OLMAK ZORUNDA. Şerit tam opak ve üstüne BEYAZ yazı
+  # basılıyor; açık bir ton seçilirse başlık okunmaz hale gelir.
+  # Doygunluk da ölçülü: parlak renkler haber hesabını amatör gösteriyor.
+  serit_renkleri:
+    turkiye:   [22, 18, 46]     # koyu lacivert — ana kimlik
+    dunya:     [30, 20, 52]     # indigo
+    spor:      [12, 40, 30]     # koyu çim yeşili
+    ekonomi:   [44, 32, 16]     # koyu bronz
+    bilim:     [12, 34, 46]     # koyu petrol
+    teknoloji: [20, 22, 56]     # koyu mavi-mor
+    kultur:    [46, 18, 38]     # koyu şarap
+    yasam:     [16, 40, 44]     # koyu turkuaz
 
   # ⚠️ HABER SİTESİNİN KENDİ GÖRSELİ (og:image) — TELİF RİSKİ TAŞIYOR.
   # Bu görseller çoğu zaman ajans fotoğrafı (AA, Reuters, AFP) ve telifi

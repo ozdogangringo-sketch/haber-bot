@@ -487,12 +487,29 @@ def _bayragi_bas(
     return gorsel
 
 
+def serit_rengi(kategori: str, g: dict) -> tuple:
+    """
+    Metin şeridinin rengi — kategoriye göre.
+
+    Renk konuyu başlık okunmadan sezdiriyor (spor yeşil, ekonomi bronz)
+    ve carousel kaydırılırken tekdüzeliği kırıyor.
+
+    ⚠️ SEÇİLEN RENKLER KOYU OLMAK ZORUNDA: şerit tam opak ve üstüne
+    BEYAZ yazı basılıyor. Açık bir ton başlığı okunmaz yapar. Bu yüzden
+    renkler config'de sabit listede duruyor, haberden türetilmiyor.
+    """
+    varsayilan = g.get("perde_rengi", [22, 18, 46])
+    renkler = g.get("serit_renkleri") or {}
+    return tuple(renkler.get(kategori, varsayilan))
+
+
 def yaziyi_bas(
     arkaplan: Image.Image, baslik: str, kaynak: str, ayarlar: dict,
     ozet: str | None = None,
     arsiv_ibaresi: bool = False,
     ulke_kodu: str = "",
     ulke_adi: str = "",
+    kategori: str = "",
 ) -> Image.Image:
     """
     Arka planın üstüne başlığı, varsa özeti ve alt bilgiyi yazar.
@@ -553,7 +570,7 @@ def yaziyi_bas(
     # `taban` yine ölçülüyor ama artık yalnızca geçişin nerede
     # başlayacağını belirliyor: koyu fotoğrafta geçiş erken başlayıp
     # yumuşuyor.
-    renk = tuple(g.get("perde_rengi", [22, 18, 46]))
+    renk = serit_rengi(kategori, g)
     serit_ust = ozet_ust - 30 if ozet else alt_bilgi_y - 30
     serit_basi = max(0, serit_ust - (150 + taban))
 
