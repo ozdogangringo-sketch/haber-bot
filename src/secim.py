@@ -121,54 +121,32 @@ def _anahtar_kelimeler(baslik: str) -> set[str]:
 
 def cesitlendir(adaylar: list, adet: int, ayarlar: dict) -> list:
     """
-    Skora göre sıralı adaylardan ÇEŞİTLİ bir tur kurar.
+    Skora göre sıralı adaylardan turu kurar; AYNI OLAYI bir kez alır.
 
-    NEDEN GEREKTİ: seçim düz skor sıralamasıydı ve aynı olayın haberleri
-    birbirine yakın puan aldığı için üst üste diziliyordu. 16 Ağu 2026
-    turunda 10 haberin 6'sı İsrail/Gazze, 8'i tek kaynaktandı — takipçi
-    için bu "haber özeti" değil, tek konunun tekrarı.
+    ⚠️ KATEGORİ VE KAYNAK KOTASI YOK (18 Ağu 2026'da kaldırıldı).
+    Önce "kategori başına 3, kaynak başına 4" kuralı vardı. Amaç
+    tekdüzeliği kırmaktı ama yan etkisi şuydu: gündem gerçekten tek
+    konuya kilitlendiğinde (büyük bir deprem, seçim gecesi) kota o
+    haberleri dışarıda bırakıp yerlerine daha önemsizlerini alıyordu.
+    Gündemi biz değil olaylar belirlemeli.
 
-    Üç kural: aynı olaydan bir haber, kategori başına sınır, kaynak
-    başına sınır.
-
-    ⚠️ KURALLAR TURU EKSİK BIRAKMAZ. Havuz darsa (gecenin ilerleyen
-    saatleri, kota hatası) kısıtlar gevşetilip kalan en yüksek puanlılar
-    ekleniyor: 7 haberlik bir carousel, 10 haberlik tekdüze bir turdan
-    kötü değil ama boş slayt hiç kabul edilemez.
+    KALAN TEK KURAL — AYNI OLAY TEKRARI: başlıkları birbirine çok
+    benzeyen haberlerden yalnızca en yüksek puanlısı alınıyor. Bu bir
+    "çeşitlilik" tercihi değil, MÜKERRER İÇERİK engeli: aynı olayı iki
+    kaynaktan üst üste koymak takipçiye yeni bir şey söylemiyor.
     """
     s = ayarlar.get("secim", {}) or {}
-    azami_kategori = s.get("azami_ayni_kategori", 3)
-    azami_kaynak = s.get("azami_ayni_kaynak", 4)
     ortak_esik = s.get("konu_ortak_kelime_esigi", 2)
 
-    secilen, kategori_sayaci, kaynak_sayaci, konular = [], {}, {}, []
-
+    secilen, konular = [], []
     for haber in adaylar:
         if len(secilen) >= adet:
             break
-        kategori = haber["kategori"] or "?"
-        kaynak = haber["kaynak"] or "?"
         kelimeler = _anahtar_kelimeler(haber["ig_baslik"] or haber["baslik_orj"])
-
         if any(len(kelimeler & onceki) >= ortak_esik for onceki in konular):
             continue
-        if kategori_sayaci.get(kategori, 0) >= azami_kategori:
-            continue
-        if kaynak_sayaci.get(kaynak, 0) >= azami_kaynak:
-            continue
-
         secilen.append(haber)
         konular.append(kelimeler)
-        kategori_sayaci[kategori] = kategori_sayaci.get(kategori, 0) + 1
-        kaynak_sayaci[kaynak] = kaynak_sayaci.get(kaynak, 0) + 1
-
-    if len(secilen) < adet:
-        eksik = adet - len(secilen)
-        secili_idler = {h["id"] for h in secilen}
-        yedek = [h for h in adaylar if h["id"] not in secili_idler][:eksik]
-        if yedek:
-            log.info("çeşitlilik kuralları %d haber için gevşetildi", len(yedek))
-        secilen += yedek
 
     return secilen
 
@@ -184,12 +162,21 @@ def tur_icin_sec(con, ayarlar: dict) -> list:
     g = ayarlar["gorsel"]
     sinir_saat = ayarlar["genel"]["yayin_yasi_siniri_saat"]
 
+    # ⚠️ ASGARİ ÖNEM PUANI — TUR ARTIK SABİT 10 SLAYT DEĞİL.
+    #
+    # Önce havuzdan en iyi 10 alınıyordu; havuz doluysa 10'uncu haber
+    # bazen "belediye şu toplantıyı yaptı" seviyesine düşüyordu. Artık
+    # eşiği geçen kaç haber varsa o kadar slayt üretiliyor: az gün 6-7,
+    # yoğun gün 10. Zayıf haberle slayt doldurmak turun tamamını
+    # sıradanlaştırıyor.
+    asgari = (ayarlar.get("secim", {}) or {}).get("asgari_onem_puani", 0)
+
     adaylar = [
         h for h in con.execute(
             "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
             "AND ig_baslik IS NOT NULL"
         )
-        if _yas_saat(h) <= sinir_saat
+        if _yas_saat(h) <= sinir_saat and (h["onem_puani"] or 0) >= asgari
     ]
 
     adaylar.sort(key=lambda h: skor(h, ayarlar), reverse=True)

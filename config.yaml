@@ -471,17 +471,25 @@ kaynaklar:
 #  puanlılarla dolduruluyor.
 # =========================================================
 secim:
-  # Aynı kategoriden en fazla kaç haber (turkiye, dunya, spor...).
-  # 3: on slaytlık turda tek konu başlığı üçte birden fazlasını almasın.
-  azami_ayni_kategori: 3
-
-  # Aynı kaynaktan en fazla kaç haber. TRT tek başına sekiz haber
-  # veriyordu; tek yayıncının gündemi turu domine etmemeli.
-  azami_ayni_kaynak: 4
+  # ⚠️ TUR SABİT 10 SLAYT DEĞİL. Eşiği geçen kaç haber varsa o kadar
+  # slayt üretiliyor: sakin gün 6-7, yoğun gün 10 (Instagram sınırı).
+  #
+  # Önce havuzdan hep en iyi 10 alınıyordu ve havuz doluyken 10'uncu
+  # haber "belediye şu toplantıyı yaptı" seviyesine düşebiliyordu.
+  # Zayıf haberle slayt doldurmak turun tamamını sıradanlaştırıyor.
+  #
+  # 6: "çoğu insan bilmek ister" alt sınırı. Yükseltirsen turlar kısalır
+  # ama sertleşir; 7-8 yapmak sakin günlerde 3-4 slayta düşürebilir.
+  asgari_onem_puani: 6
 
   # İki başlık kaç ortak anahtar kelime paylaşırsa "aynı olay" sayılsın.
   # 2 ölçüldü: "İsrail ... Gazze" ile "İsrail ... Lübnan" ayrışıyor ama
   # aynı olayın iki farklı kaynaktaki hâli birleşiyor.
+  #
+  # ⚠️ KATEGORİ VE KAYNAK KOTASI KALDIRILDI (18 Ağu 2026). "Kategori
+  # başına 3, kaynak başına 4" kuralı vardı; gündem gerçekten tek konuya
+  # kilitlendiğinde (deprem, seçim gecesi) o haberleri dışarıda bırakıp
+  # yerlerine önemsizlerini alıyordu. Gündemi olaylar belirlemeli.
   konu_ortak_kelime_esigi: 2
 
 
