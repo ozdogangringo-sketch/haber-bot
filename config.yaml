@@ -300,66 +300,22 @@ instagram:
 # =========================================================
 kaynaklar:
 
-  # ---------- TÜRKİYE GÜNDEMİ (ana odak) ----------
-  - ad: "TRT Haber"
-    url: "https://www.trthaber.com/sondakika.rss"
-    kategori: "turkiye"
-    agirlik: 10
-    aktif: true
-
-  - ad: "BBC Türkçe"
-    url: "https://feeds.bbci.co.uk/turkce/rss.xml"
-    kategori: "turkiye"
-    agirlik: 10
-    aktif: true
-
-  - ad: "Anadolu Ajansı"
-    url: "https://www.aa.com.tr/tr/rss/default?cat=guncel"
-    kategori: "turkiye"
-    agirlik: 9
-    aktif: true
-
-  - ad: "NTV Gündem"
-    url: "https://www.ntv.com.tr/gundem.rss"
-    kategori: "turkiye"
-    agirlik: 8
-    aktif: true
-
-  - ad: "Habertürk Gündem"
-    url: "https://www.haberturk.com/rss/kategori/gundem.xml"
-    kategori: "turkiye"
-    agirlik: 7
-    aktif: true
-
-  - ad: "Sözcü Gündem"
-    url: "https://www.sozcu.com.tr/feeds-rss-category-gundem"
-    kategori: "turkiye"
-    agirlik: 6
-    aktif: true
-
-  # ---------- DÜNYA GÜNDEMİ (sadece kritik olaylar) ----------
-  - ad: "BBC World"
-    url: "https://feeds.bbci.co.uk/news/world/rss.xml"
-    kategori: "dunya"
-    agirlik: 5
-    aktif: true
-
-  - ad: "Al Jazeera"
-    url: "https://www.aljazeera.com/xml/rss/all.xml"
-    kategori: "dunya"
-    agirlik: 4
-    aktif: true
-
-  # ---------- ÇEŞİTLİLİK KAYNAKLARI (18 Ağu 2026) ----------
-  # Neden eklendi: 8 kaynağın 6'sı Türkiye gündemiydi ve turlar
-  # siyaset/savaş ağırlıklı çıkıyordu — 16 Ağu turunda 10 haberin 6'sı
-  # İsrail/Gazze idi. Bilim, teknoloji, spor, kültür ve ekonomi kaynağı
-  # HİÇ yoktu; o konular seçime giremiyordu bile.
+  # ⚠️ SIRA ÖNEMLİ — KATEGORİ BESLEMELERİ ÖNCE.
   #
-  # MAGAZİN/ÜNLÜ HABERİ BİLEREK YOK: ilgi çekiyor ama doğruluk riski
-  # yüksek ve dört katmanlı denetim dedikoduyu ayıklayamıyor.
+  # `haberler.link` UNIQUE ve ilk gelen kaynak kazanıyor. Genel akışlar
+  # (TRT sondakika, AA guncel) TÜM kategorileri içeriyor; önce
+  # çekildiklerinde ekonomi/bilim/kültür haberlerini "turkiye" etiketiyle
+  # kaydediyor ve kategori beslemeleri komple tekrar sayılıp eleniyor.
   #
-  # Hepsi kendi RSS okuyucumuzla test edildi: 8/8 çalıştı, tarihler dolu.
+  # Ölçüldü (18 Ağu 2026): AA Ekonomi ve TRT Ekonomi'nin ilk 10 haberinin
+  # 10'u da zaten veritabanındaydı — "Anadolu Ajansı / turkiye" ve
+  # "TRT Haber / turkiye" olarak. Yani eklenen 7 kategori kaynağından
+  # HİÇ haber girmiyordu ve o kategoriler hiç dolmayacaktı.
+  #
+  # Kategori beslemeleri önce çekilince haber doğru etiketle giriyor;
+  # yalnızca genel akışta olan haberler yine "turkiye" oluyor.
+
+  # ---------- KATEGORİ BESLEMELERİ ----------
   - ad: "AA Bilim-Teknoloji"
     url: "https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji"
     kategori: "bilim"
@@ -408,16 +364,6 @@ kaynaklar:
     agirlik: 7
     aktif: true
 
-  # ---------- TRT KATEGORİ BESLEMELERİ (18 Ağu 2026) ----------
-  # TRT ağırlığı 10 olan en güvendiğimiz kaynak ama yalnızca genel akışı
-  # (sondakika.rss) kullanıyorduk. Kategori beslemeleri farklı adreste
-  # ve ÖZEL FORMATTA (`<haberler><haber>`); standart okuyucu boş sanıp
-  # düşürüyordu. `fetch_news._trt_ayristir` bunun için yazıldı.
-  #
-  # ⚠️ YALNIZCA 3 KATEGORİ CANLI. Ölçüldü: spor beslemesi 11 GÜN,
-  # çevre 25 saat eski; kültür-sanat, sağlık ve eğitim de %20-30 taze.
-  # Bunlar eklenseydi yaş filtresine takılıp boşuna istek olurdu.
-  # Yeni kategori eklemeden önce TAZELİĞİ ÖLÇ.
   - ad: "TRT Ekonomi"
     url: "https://www.trthaber.com/xml_mobile.php?tur=xml_genel&kategori=ekonomi"
     kategori: "ekonomi"
@@ -436,17 +382,65 @@ kaynaklar:
     agirlik: 10
     aktif: true
 
-  # ---------- EK GÜVENİLİR KAYNAKLAR ----------
-  # Tazelik süzgecinden geçenler (24 saat içindeki haber oranı):
-  #   AA Dünya %100 · Independent Türkçe %100
-  # Elenenler: Habertürk Sağlık %23, NTV Sağlık %5, Habertürk Kültür %0,
-  # Hürriyet Teknoloji %3 — beslemeler güncellenmiyor.
-  # ⚠️ Milliyet'in "gündem" ve "ekonomi" beslemeleri BİREBİR AYNI
-  # (20/20 ortak haber); ikisi birden eklenirse aynı haber iki kez çekilir.
   - ad: "AA Dünya"
     url: "https://www.aa.com.tr/tr/rss/default?cat=dunya"
     kategori: "dunya"
     agirlik: 9
+    aktif: true
+
+  - ad: "Motorsport TR"
+    url: "https://tr.motorsport.com/rss/all/news/"
+    kategori: "spor"
+    agirlik: 7
+    aktif: true
+
+  # ---------- GENEL AKIŞLAR ----------
+  - ad: "TRT Haber"
+    url: "https://www.trthaber.com/sondakika.rss"
+    kategori: "turkiye"
+    agirlik: 10
+    aktif: true
+
+  - ad: "BBC Türkçe"
+    url: "https://feeds.bbci.co.uk/turkce/rss.xml"
+    kategori: "turkiye"
+    agirlik: 10
+    aktif: true
+
+  - ad: "Anadolu Ajansı"
+    url: "https://www.aa.com.tr/tr/rss/default?cat=guncel"
+    kategori: "turkiye"
+    agirlik: 9
+    aktif: true
+
+  - ad: "NTV Gündem"
+    url: "https://www.ntv.com.tr/gundem.rss"
+    kategori: "turkiye"
+    agirlik: 8
+    aktif: true
+
+  - ad: "Habertürk Gündem"
+    url: "https://www.haberturk.com/rss/kategori/gundem.xml"
+    kategori: "turkiye"
+    agirlik: 7
+    aktif: true
+
+  - ad: "Sözcü Gündem"
+    url: "https://www.sozcu.com.tr/feeds-rss-category-gundem"
+    kategori: "turkiye"
+    agirlik: 6
+    aktif: true
+
+  - ad: "BBC World"
+    url: "https://feeds.bbci.co.uk/news/world/rss.xml"
+    kategori: "dunya"
+    agirlik: 5
+    aktif: true
+
+  - ad: "Al Jazeera"
+    url: "https://www.aljazeera.com/xml/rss/all.xml"
+    kategori: "dunya"
+    agirlik: 4
     aktif: true
 
   - ad: "Independent Türkçe"
@@ -454,66 +448,6 @@ kaynaklar:
     kategori: "turkiye"
     agirlik: 6
     aktif: true
-
-  # Motor sporları: F1, MotoGP, ralli. Türkçe ve uluslararası marka.
-  # ⚠️ TAZELİK DÜŞÜK (%24) ama bu kaynağın kusuru değil — F1 haftalık
-  # bir spor, yarış dışı günlerde doğal olarak sessiz. Yarış haftalarında
-  # akış hızlanıyor.
-  #
-  # Kategori "spor" bırakıldı, ayrı kategori açılmadı: seçim filtresi
-  # kategori başına 3 haber alıyor; ayrı kategori olsaydı turda 3 futbol
-  # + 3 motor sporu çıkıp spor ağırlığı iki katına çıkardı.
-  - ad: "Motorsport TR"
-    url: "https://tr.motorsport.com/rss/all/news/"
-    kategori: "spor"
-    agirlik: 7
-    aktif: true
-
-# =========================================================
-#  SEÇİM ÇEŞİTLİLİĞİ (18 Ağu 2026)
-#
-#  Seçim düz skor sıralamasıydı ve aynı olayın haberleri birbirine yakın
-#  puan aldığı için üst üste diziliyordu: 16 Ağu turunda 10 haberin 6'sı
-#  İsrail/Gazze, 8'i tek kaynaktandı. Takipçi için bu "günün özeti"
-#  değil, tek konunun tekrarı.
-#
-#  Kurallar turu EKSİK BIRAKMAZ: havuz darsa gevşetilip en yüksek
-#  puanlılarla dolduruluyor.
-# =========================================================
-secim:
-  # ⚠️ TUR SABİT 10 SLAYT DEĞİL. Eşiği geçen kaç haber varsa o kadar
-  # slayt üretiliyor: sakin gün 6-7, yoğun gün 10 (Instagram sınırı).
-  #
-  # Önce havuzdan hep en iyi 10 alınıyordu ve havuz doluyken 10'uncu
-  # haber "belediye şu toplantıyı yaptı" seviyesine düşebiliyordu.
-  # Zayıf haberle slayt doldurmak turun tamamını sıradanlaştırıyor.
-  #
-  # 6: "çoğu insan bilmek ister" alt sınırı. Yükseltirsen turlar kısalır
-  # ama sertleşir; 7-8 yapmak sakin günlerde 3-4 slayta düşürebilir.
-  asgari_onem_puani: 6
-
-  # ⚠️ ÖN ELEMEDE HER KATEGORİYE GARANTİLİ PAY.
-  #
-  # Ölçüldü (1236 haberlik havuz): pay olmadan 25 adayın 24'ü TRT
-  # Haber'den geliyordu, kategori dağılımı %100 "turkiye" idi. Ön skor
-  # `ağırlık × 10` ile başladığı için ağırlığı yüksek tek kaynak listeyi
-  # dolduruyor; eklenen bilim/spor/ekonomi/kültür kaynakları metin
-  # üretimine HİÇ giremiyordu. Çeşitlilik kaynakta değil burada ölüyordu.
-  #
-  # 3: her kategoriden en fazla 3 garantili aday. Kalan kontenjan yine
-  # düz skorla doluyor, yani Türkiye gündemi baskın kalıyor.
-  on_eleme_kategori_payi: 3
-
-  # İki başlık kaç ortak anahtar kelime paylaşırsa "aynı olay" sayılsın.
-  # 2 ölçüldü: "İsrail ... Gazze" ile "İsrail ... Lübnan" ayrışıyor ama
-  # aynı olayın iki farklı kaynaktaki hâli birleşiyor.
-  #
-  # ⚠️ KATEGORİ VE KAYNAK KOTASI KALDIRILDI (18 Ağu 2026). "Kategori
-  # başına 3, kaynak başına 4" kuralı vardı; gündem gerçekten tek konuya
-  # kilitlendiğinde (deprem, seçim gecesi) o haberleri dışarıda bırakıp
-  # yerlerine önemsizlerini alıyordu. Gündemi olaylar belirlemeli.
-  konu_ortak_kelime_esigi: 2
-
 
 # ----------------------------------------------------------------------
 # İÇERİK FİLTRESİ — Instagram erişim kısıtlamasına karşı
