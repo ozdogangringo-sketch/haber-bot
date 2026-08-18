@@ -526,24 +526,32 @@ def yaziyi_bas(
     # perde düz siyah bir blok gibi başlıyordu.
     perde_basi = max(0, baslik_ust - (190 + taban))
 
-    # taban 0 ise arka plan zaten yeterince koyu (gradyan böyle) — perde
-    # çizmek orada görünür bir bant bırakıyor, o yüzden hiç çizmiyoruz.
-    if taban > 0:
-        perde = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
-        perde_ciz = ImageDraw.Draw(perde)
-        gecis = max(1, baslik_ust - perde_basi)
-        for y in range(perde_basi, yukseklik):
-            if y < baslik_ust:
-                # Yumuşak giriş: perdenin başladığı yer keskin çizgi olmasın
-                alfa = int(taban * ((y - perde_basi) / gecis) ** 2)
-            else:
-                # Yazı bölgesi: taban garanti, aşağı indikçe biraz daha koyu
-                derinlik = (y - baslik_ust) / max(1, yukseklik - baslik_ust)
-                alfa = int(taban + (250 - taban) * derinlik * 0.55)
-            perde_ciz.line([(0, y), (genislik, y)], fill=(0, 0, 0, min(250, alfa)))
+    # ⚠️ PERDE ARTIK YAZI BÖLGESİNDE TAM OPAK.
+    #
+    # Eskiden perde yarı saydamdı ve fotoğrafın deseni yazının arkasından
+    # görünüyordu; açık ya da kalabalık bir fotoğrafta başlık okunmakta
+    # zorlanıyordu. Yeni düzende fotoğraf yukarıda net kalıyor, aşağı
+    # doğru marka rengine dönüşüyor ve metnin oturduğu şerit DÜZ RENK
+    # oluyor — okunabilirlik fotoğrafın ne olduğundan bağımsız hale
+    # geliyor.
+    #
+    # `taban` yine ölçülüyor ama artık yalnızca geçişin nerede
+    # başlayacağını belirliyor; koyu bir fotoğrafta geçiş daha erken
+    # başlayıp yumuşuyor.
+    renk = tuple(g.get("perde_rengi", [22, 18, 46]))
+    perde = Image.new("RGBA", (genislik, yukseklik), renk + (0,))
+    perde_ciz = ImageDraw.Draw(perde)
+    gecis = max(1, baslik_ust - perde_basi)
+    for y in range(perde_basi, yukseklik):
+        if y < baslik_ust:
+            # Yumuşak giriş: fotoğraftan renge dönüş keskin çizgi olmasın.
+            alfa = int(255 * ((y - perde_basi) / gecis) ** 1.6)
+        else:
+            alfa = 255
+        perde_ciz.line([(0, y), (genislik, y)], fill=renk + (min(255, alfa),))
 
-        gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
-        ciz = ImageDraw.Draw(gorsel)
+    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
+    ciz = ImageDraw.Draw(gorsel)
 
     # --- 3) Yazı ---
     y = baslik_ust

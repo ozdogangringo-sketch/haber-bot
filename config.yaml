@@ -191,6 +191,15 @@ gorsel:
   # 26/34/42 karşılaştırıldı; 34 fark ediliyor ama kaynak adını ezmiyor.
   kanal_ikon_boyu: 34
 
+  # Metin şeridinin rengi. Fotoğraf yukarıda net kalıp aşağı doğru bu
+  # renge dönüşüyor; yazının oturduğu bölge TAM OPAK oluyor.
+  #
+  # Eskiden perde yarı saydam siyahtı ve fotoğrafın deseni yazının
+  # arkasından görünüyordu — açık ya da kalabalık bir fotoğrafta başlık
+  # okunmuyordu. Düz renk şerit okunabilirliği fotoğraftan bağımsız
+  # kılıyor ve hesaba tutarlı bir kimlik veriyor.
+  perde_rengi: [22, 18, 46]
+
   # ⚠️ HABER SİTESİNİN KENDİ GÖRSELİ (og:image) — TELİF RİSKİ TAŞIYOR.
   # Bu görseller çoğu zaman ajans fotoğrafı (AA, Reuters, AFP) ve telifi
   # ajansa ait; "kaynak belirtmek" izin yerine GEÇMEZ. Instagram telif
