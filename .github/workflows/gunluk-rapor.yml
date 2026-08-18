@@ -1,0 +1,53 @@
+# =========================================================
+#  GÜNLÜK RAPOR
+#
+#  Sabah tek mesajda "dün ne oldu, bugün ne durumdayız".
+#  Bot sessiz çalıştığı için arıza ancak bir şey patlayınca fark
+#  ediliyordu; bu rapor jeton, kota ve başarısız job'ları önceden
+#  görünür kılıyor.
+#
+#  TR 09:07 -> UTC 06:07 (Türkiye UTC+3, yaz saati yok)
+# =========================================================
+
+name: Günlük Rapor
+
+on:
+  schedule:
+    - cron: "7 6 * * *"
+  workflow_dispatch:
+
+# ⚠️ Veritabanına YAZMIYOR (yalnızca okuyor), ama aynı gruba koymak
+# ölçüm sırasında turun ortasına denk gelmesini de engelliyor.
+concurrency:
+  group: veritabani
+  cancel-in-progress: false
+
+jobs:
+  rapor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Başarısız job'ları listelemek için gerekiyor.
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Raporu gönder
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          # Kendi iş akışlarımızın durumunu okumak için; ek PAT gerekmiyor.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/gunluk_rapor.py

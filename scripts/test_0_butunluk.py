@@ -30,22 +30,25 @@ from pathlib import Path
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 
-DENETLENEN = [
-    "scripts/hazirla.py",
-    "scripts/onay_isle.py",
-    "scripts/hatirlat.py",
-    "scripts/jeton_yenile.py",
-    "scripts/test_6_tur_gorsel.py",
-    "scripts/son_dakika.py",
-    # src/ içindeki modüller birbirini de çağırıyor; bu dosyalar
-    # denetlenmediği için `detay_slayti(son_dakika=...)` hatası
-    # gözden kaçtı ve bozuk kod push edildi (17 Ağu 2026).
-    "src/slaytlar.py",
-    "src/caption.py",
-    "src/otomatik_onay.py",
-    "src/telegram_bot.py",
-    "src/instagram.py",
-]
+# ⚠️ LİSTE ELLE TUTULMUYOR — src/ ve scripts/ altındaki HER .py dosyası
+# otomatik denetleniyor.
+#
+# Önce sabit bir liste vardı ve iki kez aynı şekilde yanılttı:
+#   * src/ modülleri listede yoktu -> `detay_slayti(son_dakika=...)`
+#     hatası gözden kaçtı, bozuk kod push edildi (17 Ağu 2026).
+#   * Sonradan eklenen dosyalar (ayar.py, threads.py, gunluk_rapor.py…)
+#     listeye girmediği için denetim dışı kaldı; `instagram.kota_durumu`
+#     diye var olmayan bir fonksiyon çağrısı testten TEMİZ geçti
+#     (18 Ağu 2026).
+#
+# Yeni dosya eklerken hiçbir şey yapmaya gerek yok; kapsam kendiliğinden
+# genişliyor.
+DENETLENEN = sorted(
+    str(p.relative_to(KOK))
+    for klasor in ("src", "scripts")
+    for p in (KOK / klasor).glob("*.py")
+    if p.name != "__init__.py" and p.name != Path(__file__).name
+)
 
 
 def modul_adlarini_bul(agac: ast.AST) -> dict[str, str]:

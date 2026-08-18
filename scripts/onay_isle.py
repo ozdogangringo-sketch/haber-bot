@@ -110,7 +110,22 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
             f"Tur bozuk görünüyor — /tur ile yenisini kurabilirsin."
         )
 
-    metin = caption.caption_kur(haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
+    # ⚠️ SON DAKİKA AYRI CAPTION KULLANIYOR.
+    #
+    # `son_dakika.py` turu hazırlarken `son_dakika_caption()` kuruyor ve
+    # Telegram'da ONU gösteriyor; burada `caption_kur()` çağrılınca
+    # yayınlanan metin onaylanandan FARKLI oluyordu. 18 Ağu 2026'da
+    # yayınlanan son dakika postunun açıklaması "Günün gündemi" diye
+    # başlayıp tek haberi numaralı liste gibi veriyordu.
+    #
+    # Onaylanan metinle yayınlanan metnin ayrışması, içerik hatasından
+    # daha sinsi: gözden geçirdiğin şey yayına çıkan şey değil.
+    if haberler[0]["son_dakika"]:
+        metin = caption.son_dakika_caption(
+            haberler[0], _sonuclari_kur(haberler), ayarlar)
+    else:
+        metin = caption.caption_kur(
+            haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
     post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
     baglanti = instagram.post_baglantisi(post_id, ayarlar)
 
@@ -160,9 +175,16 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
             # platformu, sınırı 500 karakter ve uzun anlatım zincirle
             # yapılıyor. Tam caption'ı tek gönderiye sıkıştırmak onu bir
             # haberin ortasında kesiyordu.
+            # ⚠️ SON DAKİKADA TARİH YAZILMIYOR (`tarihli=False`).
+            # Bu düzeltme önce yalnızca gece otomatik yayınına
+            # uygulanmıştı; onaydan geçen son dakika postları buradan
+            # çıktığı için tarih yazmaya devam etti ve canlı zincirde
+            # "18 AĞUSTOS 2026 · Son dakika" göründü (18 Ağu 2026).
+            # Akşam turunda tarih KALIYOR: orada vaat günlük derleme.
+            son_dakika_mi = bool(haberler[0]["son_dakika"])
             halkalar = caption.threads_halkalari(
-                haberler, urller,
-                son_dakika=bool(haberler[0]["son_dakika"]), ayarlar=ayarlar,
+                haberler, urller, son_dakika=son_dakika_mi,
+                ayarlar=ayarlar, tarihli=not son_dakika_mi,
             )
             th_id, th_adet = threads.zincir_yayinla(halkalar)
             th_gonderi_id = th_id
