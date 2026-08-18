@@ -211,9 +211,24 @@ def arkaplan_uret_yedek(
          maliyeti burada kısıyoruz)
       2. AI kapak üretimi patlarsa yedek olarak
     """
+    # ⚠️ HER KATEGORİNİN KENDİ RENGİ OLMALI. Önce yalnızca "turkiye" ve
+    # "dunya" tanımlıydı; 18 Ağu 2026'da altı yeni kategori eklendi
+    # (bilim, teknoloji, spor, ekonomi, kultur, yasam) ve hepsi sessizce
+    # varsayılana düşüyordu — çeşitlilik içerikte artarken görselde
+    # görünmüyordu.
+    #
+    # Tonlar bilerek birbirine yakın ve koyu: hepsi `perde_rengi`
+    # ailesinden, yoksa carousel kaydırılırken slaytlar farklı
+    # hesaplardan gelmiş gibi duruyor. Ayrım hissedilir ama sıçramaz.
     renkler = {
-        "turkiye": ((16, 24, 46), (38, 50, 82)),
-        "dunya": ((26, 18, 40), (58, 42, 74)),
+        "turkiye":   ((16, 24, 46), (38, 50, 82)),
+        "dunya":     ((26, 18, 40), (58, 42, 74)),
+        "bilim":     ((14, 26, 44), (30, 56, 78)),
+        "teknoloji": ((18, 20, 48), (42, 44, 86)),
+        "spor":      ((14, 30, 34), (30, 62, 64)),
+        "ekonomi":   ((28, 24, 34), (62, 52, 60)),
+        "kultur":    ((30, 18, 38), (66, 40, 72)),
+        "yasam":     ((16, 28, 40), (36, 60, 76)),
     }
     ust, alt = renkler.get(kategori, renkler["turkiye"])
 
@@ -1225,9 +1240,14 @@ def kapak_ciz(
 
     # Kapakta yazı her yere yayıldığı için perde tüm görsele uygulanıyor,
     # haber slaytlarındaki gibi sadece alta değil.
+    # Perde rengi haber slaytlarıyla AYNI olmalı: story ve post aynı
+    # turdan çıkıyor, farklı renk kullanmak iki ayrı hesabın işi gibi
+    # duruyor. Siyahtan marka rengine çevrildi (18 Ağu 2026).
+    story_renk = tuple(g.get("perde_rengi", [22, 18, 46]))
     taban = _perde_taban_alfa(gorsel, (0, 0, genislik, yukseklik))
     if taban > 0:
-        perde = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, int(taban * 0.85)))
+        perde = Image.new("RGBA", (genislik, yukseklik),
+                          story_renk + (int(taban * 0.85),))
         gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
 
     ciz = ImageDraw.Draw(gorsel)
