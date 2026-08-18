@@ -3,17 +3,19 @@ slaytlar.py — ADIM 3'ün son parçası
 
 Bir turluk carousel'in bütün slaytlarını üretir.
 
-BURADAKİ ASIL İŞ: görsel katmanını seçmek. Her haberin arka planı üç
-bedava kaynaktan gelebiliyor, sırayla deneyip ilk tutanı kullanıyoruz:
+BURADAKİ ASIL İŞ: görsel katmanını seçmek. Her haberin arka planı dört
+kaynaktan gelebiliyor, sırayla deneyip ilk tutanı kullanıyoruz:
 
-    1. Wikimedia Commons  — haberde tanınmış bir kişi/kurum varsa
+    0. Haberin kendi görseli (og:image) — olayın FOTOĞRAFI
+    1. Wikimedia Commons  — haberde tanınmış bir kişi varsa
     2. Pexels             — yoksa konuyu temsil eden stok fotoğraf
-    3. Gradyan            — ikisi de bulamazsa
+    3. Gradyan            — hiçbiri bulamazsa
 
-Neden sıra bu: Commons gerçek kişinin gerçek fotoğrafını veriyor, en
-bilgilendirici olan o. Ama sadece tanınmış isimlerde tutuyor. Pexels her
-konuda bir şey buluyor ama temsili — "bir otobüs", o otobüs değil.
-Gradyan hiç yanıltmıyor ama hiçbir şey de anlatmıyor.
+Neden sıra bu: haberin kendi görseli olayın kendisini gösteriyor, en
+güçlü olan o (⚠️ telif riski taşıyor, bkz. `arkaplan_sec`). Commons
+gerçek kişinin gerçek fotoğrafını veriyor ama sadece tanınmış isimlerde
+tutuyor. Pexels her konuda bir şey buluyor ama temsili — "bir otobüs",
+o otobüs değil. Gradyan hiç yanıltmıyor ama hiçbir şey de anlatmıyor.
 
 AI bu zincirde YOK. Normal turda hiç çağrılmıyor, dolayısıyla bir turun
 görsel maliyeti sıfır. AI yalnızca Telegram'dan elle tetiklenince
@@ -32,6 +34,18 @@ from PIL import Image
 from . import dogrula, fetch_article, fetch_photo, fetch_stock, make_image
 
 log = logging.getLogger(__name__)
+
+# Arka planında GERÇEK FOTOĞRAF olan katmanlar.
+#
+# ⚠️ YENİ FOTOĞRAF KATMANI EKLERKEN BURAYA DA EKLE. Katman adları koda
+# birden çok yerde gömülüydü ve "haber" (og:image) katmanı eklenince
+# story'nin listesi güncellenmedi: haber fotoğrafı kullanılan postlarda
+# story fotoğrafsız çıktı. Tek liste tutmak bunu tekrarlanmaz kılıyor.
+FOTOGRAFLI_KATMANLAR = ("haber", "commons", "pexels")
+
+# Bunlardan hangilerinde "ARŞİV GÖRSELİ" ibaresi basılsın?
+# `haber` katmanı HARİÇ: o görsel olayın kendi fotoğrafı, arşiv değil.
+ARSIV_KATMANLARI = ("commons", "pexels")
 
 
 def _alan(haber, ad: str) -> str:
@@ -170,7 +184,7 @@ def slayt_uret(haber, ayarlar: dict) -> tuple[Path, str, str]:
         ozet=_alan(haber, "slayt_ozet") or None,
         # Fotoğraf katmanlarında görsel o olayın belgesi değil; gradyanda
         # ise ortada fotoğraf yok, ibare anlamsız olurdu.
-        arsiv_ibaresi=katman in ("commons", "pexels"),
+        arsiv_ibaresi=katman in ARSIV_KATMANLARI,
         ulke_kodu=_alan(haber, "ulke_kodu") or None,
         ulke_adi=_alan(haber, "ulke_adi") or None,
         # Şerit rengi kategoriden geliyor: spor yeşil, ekonomi bronz…
@@ -247,7 +261,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
         haber["kaynak"],
         ayarlar,
         ozet=_alan(haber, "slayt_ozet") or None,
-        arsiv_ibaresi=katman in ("commons", "pexels"),
+        arsiv_ibaresi=katman in ARSIV_KATMANLARI,
         ulke_kodu=_alan(haber, "ulke_kodu") or None,
         ulke_adi=_alan(haber, "ulke_adi") or None,
         # Şerit rengi kategoriden geliyor: spor yeşil, ekonomi bronz…
@@ -332,8 +346,13 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
             ayarlar,
             # Gradyan katmanında ham arka planı geçmiyoruz: story kendi
             # ölçüsünde yeni bir gradyan üretsin, 4:5'liği esnetmesin.
+            #
+            # ⚠️ FOTOĞRAFLI KATMANLARIN HEPSİ BURADA OLMALI. "haber"
+            # katmanı (og:image) eklendiğinde bu liste güncellenmedi ve
+            # haber fotoğrafı kullanılan her postta story FOTOĞRAFSIZ
+            # çıktı — 18 Ağu 2026'da yayınlanan story'de görüldü.
             arkaplan=(ham_arkaplan.copy()
-                      if katman in ("commons", "pexels") else None),
+                      if katman in FOTOGRAFLI_KATMANLAR else None),
             kategori=haber["kategori"],
             son_dakika=son_dakika_mi,
             ulke_kodu=_alan(haber, "ulke_kodu") or None,
