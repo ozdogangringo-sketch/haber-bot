@@ -262,11 +262,19 @@ def oneri_esigi(ayarlar: dict, kategori: str | None) -> int:
     ortalama 1.5-1.8 puan DÜŞÜK veriyor (ölçüldü). Aynı eşiği
     kullanmak öneri akışını tamamen kilitliyordu: hiçbir başlık 8'e
     ulaşamadığı için öneri hiç gönderilmiyordu.
+
+    ⚠️ GECE KURALI BURADA UYGULANMIYOR — bilerek. Yayın eşiğinde
+    gece +1 var, çünkü gece çıkan post sabaha kadar kimsenin
+    onayından geçmeden yayında kalıyor. Ama ÖNERİ yayın değil,
+    yalnızca insana sunma: mesaj gece gelir, kullanıcı sabah bakıp
+    seçer. Gece kuralını buraya da uygulamak, gece toplanan
+    haberlerin hiç önerilmemesine yol açıyordu — sabaha kadar
+    beklerken 5 saatlik tazelik penceresini de aşıyor ve o haberler
+    tamamen görünmez oluyordu.
     """
     g = ayarlar["genel"]
     esikler = g.get("oneri_kategori_esikleri", {}) or {}
-    taban = esikler.get(kategori, 6)
-    return taban + (1 if gece_mi() else 0)
+    return esikler.get(kategori, 6)
 
 
 def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
