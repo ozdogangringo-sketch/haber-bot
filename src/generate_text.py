@@ -464,7 +464,40 @@ def _anahtarla_dene(prompt, ayarlar, modeller, anahtar, anahtar_adi):
 
 
 def _cevabi_coz(veri: dict) -> dict:
-    """Gemini cevabının içinden JSON'u çıkarır ve doğrular."""
+    """
+    Gemini cevabının içinden JSON'u çıkarır ve doğrular.
+
+    ⚠️ HATA MESAJI TEŞHİSİ ZORLAŞTIRMASIN. Bu fonksiyon eskiden her
+    beklenmedik yapıya aynı cevabı veriyordu:
+        "Cevap beklenen yapıda değil (finishReason=?): 'candidates'"
+    Oysa iki tamamen farklı durum bu mesaja düşüyor ve ikisinin de
+    çözümü başka:
+      * API hata döndürmüş (kota bitmiş, jeton geçersiz) — cevapta
+        `error` var, `candidates` yok.
+      * Sonuç ZATEN çözümlenmiş bir dict — yani çağıran taraf
+        `_cevabi_coz`'u iki kez uygulamış.
+    19 Ağu 2026'da bir ölçüm 20 istek harcayıp bu mesajla döndü ve
+    kota dolduğu sanıldı; gerçek sebep ikinci maddeydi.
+    """
+    # API'nin kendi hata cevabı — 429 kota, 403 yetki, 400 bozuk istek
+    if "error" in veri and "candidates" not in veri:
+        h = veri["error"]
+        kod = h.get("code", "?")
+        mesaj = (h.get("message") or "")[:200]
+        if kod == 429:
+            raise RuntimeError(
+                f"Gemini KOTASI DOLDU (HTTP 429). Ücretsiz katman model "
+                f"başına günde 20 istek veriyor; kota Pasifik gece "
+                f"yarısında (TR ~10:00) sıfırlanıyor. Ayrıntı: {mesaj}")
+        raise RuntimeError(f"Gemini API hatası (HTTP {kod}): {mesaj}")
+
+    # Zaten çözümlenmiş sonuç: gemini_cagir çıktısı doğrudan verilmiş
+    if "candidates" not in veri and "ig_baslik" in veri:
+        raise RuntimeError(
+            "_cevabi_coz ZATEN çözümlenmiş bir sonuca uygulandı — "
+            "gemini_cagir() çıktısı hazır dict döndürüyor, ikinci kez "
+            "çözümlemeye gerek yok.")
+
     try:
         ham = veri["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError) as e:
