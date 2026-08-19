@@ -53,10 +53,17 @@ const KALDIR = /^kaldir:(\d{1,12})$/;
 const AYAR_MENU = /^ayarmenu:([a-z_]+\.[a-z_]+):([a-z0-9\-]{1,40})$/;
 const AYAR_SEC  = /^ayarsec:[a-z_]+\.[a-z_]+:[a-z0-9]{1,10}$/;
 
+// Hata bildirimindeki eylem düğmeleri (src/hata_bildir.py üretiyor).
+// "tur_tekrar" ve "tur_metinsiz" GitHub'da tur kurdurur; "ayrinti"
+// GitHub'a HİÇ gitmez — Worker ham hata metnini repodan okuyup anında
+// cevaplıyor, Actions dakikası harcamıyoruz.
+const HATA_EYLEM = /^hata:(tur_tekrar|tur_metinsiz)$/;
+const HATA_AYRINTI = "hata:ayrinti";
+
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 64) return false;
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
-    || KALDIR.test(veri) || AYAR_SEC.test(veri);
+    || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -146,6 +153,7 @@ const KOMUT_ADI = {
   slayt_metin: "Metin yeniden üretiliyor",
   slayt_kaynak: "Kaynak metni getiriliyor",
   slayt_sil: "Slayt çıkarılıyor",
+  hata: "Tur yeniden kuruluyor",
 };
 
 /**
@@ -203,6 +211,26 @@ async function butonuDurdur(env, callbackId, metin) {
   });
 }
 
+// Ham hata metnini repodan okur. GitHub'a dispatch ATMIYOR — yalnızca
+// dosya okuyor, yani Actions dakikası harcanmıyor ve cevap anında geliyor.
+async function hamHataOku(env) {
+  const url = `https://api.github.com/repos/${env.GITHUB_REPO}/contents/data/son_hata.txt`;
+  const cevap = await fetch(url, {
+    headers: {
+      authorization: `Bearer ${env.GITHUB_PAT}`,
+      accept: "application/vnd.github+json",
+      "user-agent": "haber-bot-worker",
+    },
+  });
+  if (!cevap.ok) return null;
+  const veri = await cevap.json();
+  try {
+    return decodeURIComponent(escape(atob((veri.content || "").replace(/\n/g, ""))));
+  } catch (e) {
+    return null;
+  }
+}
+
 async function githubaIlet(env, komut, mesajId, basanKisi) {
   const url = `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`;
   const cevap = await fetch(url, {
@@ -215,8 +243,15 @@ async function githubaIlet(env, komut, mesajId, basanKisi) {
       "user-agent": "haber-bot-worker",
     },
     body: JSON.stringify({
-      event_type: "telegram_onay",
-      client_payload: { komut, mesaj_id: mesajId, basan: basanKisi },
+      // Tur kurma ayrı bir workflow (hazirla.yml); onay akışıyla aynı
+      // event'i paylaşırsa yayinla.yml onu da işlemeye kalkıyor.
+      event_type: HATA_EYLEM.test(komut) ? "tur_hazirla" : "telegram_onay",
+      client_payload: {
+        komut,
+        mesaj_id: mesajId,
+        basan: basanKisi,
+        metinsiz: komut === "hata:tur_metinsiz",
+      },
     }),
   });
   // 204 = kabul edildi. GitHub dispatch'te gövde döndürmüyor.
@@ -321,6 +356,16 @@ export default {
         menu = slaytIslemMenusu(Number(gezinme[4]), Number(gezinme[5]));
       }
       await menuyuDegistir(env, sohbetId, mesajId, menu);
+      await butonuDurdur(env, cb.id, "");
+      return new Response("ok");
+    }
+
+    // --- Ham hata metni: Worker repodan okuyup anında gösteriyor ---
+    if (komut === HATA_AYRINTI) {
+      const ham = await hamHataOku(env);
+      await mesajGonder(env, sohbetId,
+        ham ? `🔍 HAM HATA METNİ\n\n${ham.slice(0, 3500)}`
+            : "Kayıtlı ham hata metni bulunamadı.");
       await butonuDurdur(env, cb.id, "");
       return new Response("ok");
     }

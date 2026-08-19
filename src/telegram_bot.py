@@ -47,6 +47,29 @@ KOK = Path(__file__).resolve().parent.parent
 ENV_YOLU = KOK / ".env"
 TABAN = "https://api.telegram.org/bot{jeton}/{metot}"
 GECICI_HATALAR = {429, 500, 502, 503, 504}
+
+# ⚠️ HTTP KODUNA BAKMAK YETMİYOR — medya hataları 400 ile geliyor.
+#
+# 19 Ağu 2026 akşam turu şu hatayla düştü ve tur tamamen kayboldu:
+#     400: failed to send message #9 with the error message
+#          "WEBPAGE_CURL_FAILED"
+#
+# Anlamı: Telegram, albümdeki 9. görseli imgbb'den KENDİSİ indirmeye
+# çalıştı ve indiremedi. Görselde kusur yok — Instagram'daki 2207052
+# hatasının birebir kardeşi. 400 "kalıcı hata" sayıldığı için hiç
+# tekrar denenmedi; oysa aynı URL saniyeler sonra sorunsuz iniyor.
+GECICI_MESAJLAR = (
+    "WEBPAGE_CURL_FAILED",
+    "failed to get http url content",
+    "wrong file identifier",
+    "failed to send message",
+)
+
+# Medya indirme hatasında bekleme. Instagram ve Threads'te ölçüldü:
+# sorun karşı tarafın o anki durumu, 2 saniye sonra tekrar sormak
+# aynı yükün üstüne binmek oluyor.
+MEDYA_BEKLEME_SANIYE = 10
+MEDYA_AZAMI_DENEME = 5
 ZAMAN_ASIMI = 60
 
 
@@ -98,7 +121,7 @@ def _istek(metot: str, **parametreler) -> dict:
     url = TABAN.format(jeton=_jeton(), metot=metot)
 
     son_hata = None
-    for deneme in range(1, 4):
+    for deneme in range(1, MEDYA_AZAMI_DENEME + 1):
         try:
             cevap = requests.post(url, json=parametreler, timeout=ZAMAN_ASIMI)
         except requests.RequestException as e:
@@ -128,6 +151,15 @@ def _istek(metot: str, **parametreler) -> dict:
         son_hata = f"{veri.get('error_code')}: {veri.get('description')}"
         if cevap.status_code in GECICI_HATALAR:
             time.sleep(2 * deneme)
+            continue
+
+        # Medya indirme hatası: 400 geliyor ama GEÇİCİ (bkz. GECICI_MESAJLAR)
+        aciklama = (veri.get("description") or "").lower()
+        if any(k in aciklama for k in GECICI_MESAJLAR):
+            log.warning("Telegram medyayı indiremedi, %s sn sonra tekrar (%s/%s): %s",
+                        MEDYA_BEKLEME_SANIYE, deneme, MEDYA_AZAMI_DENEME,
+                        veri.get("description", "")[:80])
+            time.sleep(MEDYA_BEKLEME_SANIYE)
             continue
         break
 

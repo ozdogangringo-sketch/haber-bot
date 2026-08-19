@@ -27,6 +27,7 @@ NEDEN ONAY KALDIRILMADI:
 import json
 import logging
 import sys
+import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -36,7 +37,7 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    ayar, caption, db, db_senkron, dogrula, facebook, fetch_news, instagram,
+    ayar, caption, db, db_senkron, hata_bildir, dogrula, facebook, fetch_news, instagram,
     make_image, otomatik_onay, threads,
     secim, slaytlar, telegram_bot, upload_image,
 )
@@ -501,9 +502,9 @@ def main() -> int:
     except Exception as e:
         log.exception("son dakika turu hazırlanamadı")
         if not kuru:
-            telegram_bot.hata_bildir(
-                "Son dakika turu hazırlanamadı", f"{type(e).__name__}: {e}"
-            )
+            # Ham traceback yerine teşhis edilmiş, eylem düğmeli mesaj.
+            hata_bildir.son_ham_hata_kaydet(traceback.format_exc())
+            hata_bildir.bildir("Son dakika turu hazırlanamadı", e, nerede="son_dakika.py")
         return 1
 
 

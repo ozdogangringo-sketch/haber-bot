@@ -24,6 +24,7 @@ HATA POLİTİKASI:
 
 import logging
 import sys
+import traceback
 from pathlib import Path
 
 KOK = Path(__file__).resolve().parent.parent
@@ -32,8 +33,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    ayar, caption, db, db_senkron, dogrula, fetch_news, make_image, secim, slaytlar,
-    telegram_bot, upload_image,
+    ayar, caption, db, db_senkron, dogrula, fetch_news, hata_bildir,
+    make_image, secim, slaytlar, telegram_bot, upload_image,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
 
@@ -193,9 +194,9 @@ def main() -> int:
     except Exception as e:
         log.exception("tur hazırlanamadı")
         if not kuru:
-            telegram_bot.hata_bildir(
-                "Tur hazırlanamadı", f"{type(e).__name__}: {e}"
-            )
+            # Ham traceback yerine teşhis edilmiş, eylem düğmeli mesaj.
+            hata_bildir.son_ham_hata_kaydet(traceback.format_exc())
+            hata_bildir.bildir("Tur hazırlanamadı", e, nerede="hazirla.py")
         return 1
 
 

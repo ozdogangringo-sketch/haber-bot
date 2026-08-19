@@ -25,6 +25,10 @@ on:
     # mümkün değil — kapasiteyi artırmanın tek yolu tur sayısı.
     - cron: "7 5 * * *"       # TR 08:07 — gece biriken haberler
     - cron: "7 17 * * *"      # TR 20:07 — günün geri kalanı
+  # Telegram'daki hata mesajından "🔄 Turu yeniden hazırla" /
+  # "🧯 Metinsiz tur kur" düğmesine basıldığında Worker bunu tetikliyor.
+  repository_dispatch:
+    types: [tur_hazirla]
   workflow_dispatch:           # Actions ekranından elle de çalıştırılabilir
     inputs:
       kuru:
@@ -77,9 +81,15 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          # ⚠️ İKİ TETİKLEYİCİ, İKİ FARKLI YER.
+          # workflow_dispatch -> inputs.*
+          # repository_dispatch (Telegram hata düğmesi) -> client_payload.*
+          # Yalnızca inputs'a bakmak, düğmeden gelen "metinsiz" isteğini
+          # sessizce yok sayar ve kota dolu olsa bile normal tur denenir.
+          METINSIZ="${{ inputs.metinsiz || github.event.client_payload.metinsiz }}"
           if [ "${{ inputs.kuru }}" = "true" ]; then
             python scripts/hazirla.py --kuru
-          elif [ "${{ inputs.metinsiz }}" = "true" ]; then
+          elif [ "$METINSIZ" = "true" ]; then
             # Gemini kotası dolduğunda turu tamamen kaçırmamak için:
             # metni ZATEN üretilmiş haberlerle tur kurar, hiç LLM çağırmaz.
             python scripts/hazirla.py --metinsiz
