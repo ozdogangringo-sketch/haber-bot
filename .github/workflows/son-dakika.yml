@@ -30,8 +30,12 @@ name: Son Dakika Kontrolü
 
 on:
   schedule:
-    # UTC 04:05-19:05 = TR 07:05-22:05, saat başı (gündüz)
-    - cron: "5 4-19 * * *"
+    # UTC 04:05-19:35 = TR 07:05-22:35, YARIM SAATTE BİR (gündüz).
+    # 19 Ağu 2026'da saat başından yarım saate çekildi: kontrol artık
+    # tam metin üretmiyor (yalnızca başlıkları toplu puanlıyor) ve
+    # süresi 2.81 dk'dan ~0.55 dk'ya indi. Daha sık bakmak hem haber
+    # kaçırma riskini azaltıyor hem Actions kotasını daha az yiyor.
+    - cron: "5,35 4-19 * * *"
     # UTC 20:05,22:05,00:05,02:05 = TR 23:05,01:05,03:05,05:05 (gece)
     - cron: "5 20,22,0,2 * * *"
   workflow_dispatch:

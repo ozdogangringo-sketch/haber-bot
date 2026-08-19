@@ -31,6 +31,7 @@ YETKİ:
 from __future__ import annotations
 
 import json
+import html
 import logging
 import os
 import re
@@ -495,3 +496,55 @@ def hata_bildir(baslik: str, ayrinti: str = "") -> None:
         mesaj_gonder(metin)
     except Exception as e:
         log.error("hata bildirimi gönderilemedi: %s", e)
+
+
+def _kacir(metin: str) -> str:
+    """
+    Telegram HTML modunda güvenli hale getirir.
+
+    ⚠️ Haber başlıkları dışarıdan geliyor ve `&`, `<`, `>` içerebilir;
+    kaçırılmazsa Telegram mesajı "can't parse entities" ile reddediyor
+    ve o tur sessizce Telegram'a HİÇ ulaşmıyor.
+    """
+    return html.escape(metin or "", quote=False)
+
+
+def oneri_gonder(adaylar: list) -> int:
+    """
+    Tekil post için BAŞLIK ÖNERİSİ gönderir — henüz metin/görsel yok.
+
+    ⚠️ NEDEN İKİ AŞAMALI ONAY (19 Ağu 2026):
+        Eskiden kontrol job'ı taze haberlere TAM metin üretiyor
+        (başlık + caption + detay + görsel alanları, ~4400 token),
+        sonra puanına bakıp eşiği geçmiyorsa ATIYORDU. Üretilen
+        metnin çoğu çöpe gidiyordu.
+
+        Şimdi önce yalnızca başlıklar puanlanıp buraya geliyor.
+        Tam metin ve görsel YALNIZCA kullanıcının seçtiği haber için
+        üretiliyor. Kontrol job'ı 2.81 dk'dan ~0.55 dk'ya indi ve bu
+        sayede kontrol sıklığı saat başından 20 dakikaya çıkabildi.
+
+    `adaylar`: [{id, puan, baslik, kaynak, kategori}] — puana göre sıralı.
+    """
+    if not adaylar:
+        return 0
+
+    rakam = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+    satirlar = ["📰 <b>Tekil post adayları</b>", ""]
+    butonlar = []
+    for i, a in enumerate(adaylar[:5]):
+        satirlar.append(
+            f"{rakam[i]} <b>[{a['puan']}]</b> {_kacir(a['baslik'])}"
+        )
+        satirlar.append(
+            f"     <i>{_kacir(a['kaynak'])} · {_kacir(a['kategori'])}</i>"
+        )
+        satirlar.append("")
+        butonlar.append({"text": rakam[i],
+                         "callback_data": f"hazirla:{a['id']}"})
+
+    satirlar.append("<i>Seçtiğin haberin metni ve görseli üretilip "
+                    "onayına sunulur. Hiçbiri uygun değilse geç.</i>")
+
+    menu = [butonlar, [{"text": "❌ Hiçbiri", "callback_data": "oneri_gec"}]]
+    return mesaj_gonder("\n".join(satirlar), menu)

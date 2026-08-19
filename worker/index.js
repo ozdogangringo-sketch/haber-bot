@@ -27,10 +27,16 @@
 // GitHub'a iletilecek gerçek eylemler. İş yapan komutlar.
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
-                  "ayar", "tamamla", "arsiv"];
+                  "ayar", "tamamla", "arsiv", "oneri_gec"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
 const PARAMETRELI_EYLEM =
   /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil):([1-9]|10)$/;
+
+// Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
+// İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
+// puanlayıp öneriyor, tam metin ve görsel ancak bu butona basılınca
+// üretiliyor. id sınırlı biçimde doğrulanıyor (yalnızca rakam).
+const HAZIRLA = /^hazirla:\d{1,8}$/;
 
 // Menü gezinme komutları. Bunlar GitHub'a GİTMİYOR — Actions'ı uyandırmak
 // 30+ saniye sürüyor ve menü açmak anında olmalı. Worker mesajın
@@ -63,7 +69,8 @@ const HATA_AYRINTI = "hata:ayrinti";
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 64) return false;
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
-    || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri);
+    || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
+    || HAZIRLA.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer

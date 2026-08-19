@@ -638,6 +638,45 @@ def durum_bildir(con, ayarlar) -> int:
     return 0
 
 
+
+def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
+    """
+    Telegram'da seçilen başlık önerisini tam posta dönüştürür.
+
+    İKİ AŞAMALI AKIŞIN İKİNCİ ADIMI (19 Ağu 2026). Kontrol job'ı
+    yalnızca başlıkları puanlayıp öneriyor; tam metin, görsel ve
+    imgbb yüklemesi ancak burada — yani kullanıcı seçtikten sonra —
+    yapılıyor. Böylece üretilen hiçbir metin çöpe gitmiyor.
+    """
+    try:
+        haber_id = int(komut.split(":", 1)[1])
+    except (IndexError, ValueError):
+        log.error("geçersiz hazırla komutu: %s", komut)
+        return 1
+
+    haber = con.execute("SELECT baslik_orj FROM haberler WHERE id = ?",
+                        (haber_id,)).fetchone()
+    if haber is None:
+        telegram_bot.sonucu_yaz(
+            mesaj_id, "⚠️ Bu haber bulunamadı (veritabanı güncellenmiş olabilir).")
+        return 1
+
+    baslik = (haber["baslik_orj"] or "")[:70]
+    telegram_bot.sonucu_yaz(
+        mesaj_id, f"⏳ Hazırlanıyor: <b>{baslik}</b>\n\n"
+                  f"<i>Metin ve görsel üretiliyor, birkaç dakika sürebilir.</i>")
+
+    # son_dakika akışını yeniden kullanıyoruz — görsel üretimi, imgbb
+    # yüklemesi, doğrulama ve onay mesajı zaten orada.
+    import son_dakika
+    sonuc = son_dakika.main(zorla_haber_id=haber_id)
+    if sonuc != 0:
+        telegram_bot.sonucu_yaz(
+            mesaj_id, f"⚠️ Hazırlanamadı: <b>{baslik}</b>\n\n"
+                      f"<i>Ayrıntı için Actions kaydına bakılabilir.</i>")
+    return sonuc
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)-7s %(message)s",
@@ -679,6 +718,16 @@ def main() -> int:
         return ayar_paneli(con, ayarlar)
     if komut == "tamamla":
         return zinciri_tamamla(con, ayarlar)
+    # ── Tekil post ÖNERİSİ ──────────────────────────────────────
+    # Bu komutlar bir TURA bağlı değil: öneri mesajı henüz tur değil,
+    # yalnızca başlık listesi. Haber id'si komutun içinde geliyor.
+    if komut.startswith("hazirla:"):
+        return oneriyi_hazirla(con, ayarlar, komut, mesaj_id)
+    if komut == "oneri_gec":
+        telegram_bot.sonucu_yaz(mesaj_id, "⏭ Öneri geçildi.")
+        log.info("öneri geçildi")
+        return 0
+
     if komut.startswith("ayarsec:"):
         return ayar_degistir(con, ayarlar, komut.split(":", 1)[1],
                              mesaj_id, basan)

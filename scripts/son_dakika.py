@@ -41,6 +41,7 @@ from src import (                                  # noqa: E402
     make_image, otomatik_onay, threads,
     secim, slaytlar, telegram_bot, upload_image,
 )
+from src import generate_text                      # noqa: E402
 from src.generate_text import metinleri_uret       # noqa: E402
 
 log = logging.getLogger("sondakika")
@@ -227,6 +228,86 @@ def taze_adaylar(con, ayarlar: dict, kac: int) -> list:
     ))
 
 
+
+def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
+    """
+    Taze başlıkları ucuz yoldan puanlayıp Telegram'a ÖNERİ gönderir.
+
+    ⚠️ İKİ AŞAMALI AKIŞIN BİRİNCİ AŞAMASI (19 Ağu 2026).
+    Eskiden kontrol job'ı taze haberlere TAM metin üretiyor (~4400
+    token/haber), sonra puanına bakıp eşiği geçmiyorsa atıyordu —
+    üretilen metnin çoğu çöpe gidiyordu. Şimdi yalnızca başlıklar
+    toplu ve ucuz biçimde puanlanıyor (10 başlık tek istekte,
+    ~1500 token); tam metin YALNIZCA kullanıcının seçtiği haber için
+    üretiliyor.
+
+    Döner: gönderilen öneri sayısı (0 = önerilecek haber yok).
+    """
+    tazelik = _tazelik_saat(ayarlar)
+    sinir = (datetime.now(timezone.utc) - timedelta(hours=tazelik)).isoformat()
+    azami = ayarlar["genel"].get("oneri_aday_adedi", 10)
+
+    # Henüz puanlanmamış VE önerilmemiş taze haberler
+    ham = list(con.execute(
+        """SELECT * FROM haberler
+           WHERE durum = 'yeni' AND yayin_tarihi >= ?
+             AND onem_puani IS NULL
+             AND (oneri_gonderildi IS NULL OR oneri_gonderildi = 0)
+           ORDER BY agirlik DESC, yayin_tarihi DESC LIMIT ?""",
+        (sinir, azami),
+    ))
+    if not ham:
+        log.info("önerilecek taze haber yok")
+        return 0
+
+    puanlar = generate_text.basliklari_puanla(ham, ayarlar)
+    if not puanlar:
+        log.warning("başlıklar puanlanamadı, öneri gönderilmedi")
+        return 0
+
+    # Puanları sakla — bir daha puanlamaya gerek kalmasın
+    for haber_id, puan in puanlar.items():
+        con.execute("UPDATE haberler SET onem_puani = ? WHERE id = ?",
+                    (puan, haber_id))
+    con.commit()
+
+    kat_azami = ayarlar["genel"].get("son_dakika_kategori_azami", 3)
+    adaylar = []
+    for h in ham:
+        puan = puanlar.get(h["id"])
+        if puan is None:
+            continue
+        if puan < gecerli_esik(ayarlar, h["kategori"]):
+            continue
+        if bugunku_kategori_sayisi(con, h["kategori"] or "") >= kat_azami:
+            continue
+        adaylar.append({"id": h["id"], "puan": puan,
+                        "baslik": h["baslik_orj"],
+                        "kaynak": h["kaynak"],
+                        "kategori": h["kategori"] or "-"})
+    adaylar.sort(key=lambda a: a["puan"], reverse=True)
+
+    if not adaylar:
+        log.info("puanlanan %d başlığın hiçbiri eşiği geçmedi", len(puanlar))
+        return 0
+
+    if kuru:
+        print("\n--- ÖNERİ (kuru çalışma, Telegram'a gönderilmedi) ---")
+        for a in adaylar[:5]:
+            print(f"  [{a['puan']}] {a['kategori']:9} {a['baslik'][:60]}")
+        return len(adaylar[:5])
+
+    telegram_bot.oneri_gonder(adaylar)
+    # Gönderilenleri işaretle: aynı başlık her kontrolde tekrar gelmesin
+    for a in adaylar[:5]:
+        con.execute("UPDATE haberler SET oneri_gonderildi = 1 WHERE id = ?",
+                    (a["id"],))
+    con.commit()
+    db_senkron.hemen_kaydet("Tekil post önerisi")
+    log.info("%d başlık öneri olarak gönderildi", len(adaylar[:5]))
+    return len(adaylar[:5])
+
+
 def aday_bul(con, ayarlar: dict):
     """
     Son dakika adayı: yüksek puanlı, taze ve henüz yayınlanmamış haber.
@@ -268,7 +349,7 @@ def aday_bul(con, ayarlar: dict):
     return adaylar[0] if adaylar else None
 
 
-def main() -> int:
+def main(zorla_haber_id: int | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-7s %(name)s: %(message)s",
@@ -277,6 +358,8 @@ def main() -> int:
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     kuru = "--kuru" in sys.argv
+    if zorla_haber_id is None and "--haber-id" in sys.argv:
+        zorla_haber_id = int(sys.argv[sys.argv.index("--haber-id") + 1])
     ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
     db.kur()
     con = db.baglan()
@@ -336,30 +419,44 @@ def main() -> int:
         )
         log.info("RSS: %s yeni haber", rapor["eklenen"])
 
-        aday = aday_bul(con, ayarlar)
-        if not aday:
-            # Metni hazır aday yoksa, yüksek puanlı olabilecek TAZE
-            # haberlere metin ürettirip bir daha bak. Sadece birkaç tane —
-            # her saat başı havuza metin üretmek kotayı yakar.
-            # ⚠️ ACTIONS KOTASININ EN BÜYÜK KALEMİ BURASI.
-            # Ölçüldü (19 Ağu 2026): kontrol job'ının ana adımı 26 sn
-            # ile 540 sn arasında değişiyor; uzun olanlar tam da bu
-            # metin üretiminin çalıştığı çalışmalar. Kontrol günde ~18
-            # kez koşuyor, yani aylık ~1518 dk — Pro kotasının yarısı.
-            #
-            # 5'ten 3'e indirildi: artık günde 2 tur var (sabah+akşam)
-            # ve ikisi toplam ~50 adaya metin üretiyor, havuzda sürekli
-            # 100+ hazır metin duruyor. Buradaki üretim yalnızca çok
-            # taze bir haberi yakalamak için; kalabalık olması gerekmiyor.
-            yeniler = taze_adaylar(
-                con, ayarlar,
-                kac=ayarlar["genel"].get("son_dakika_ek_metin_adedi", 3))
-            if yeniler:
-                metinleri_uret(ayarlar=ayarlar, haberler=yeniler)
-                aday = aday_bul(con, ayarlar)
+        if zorla_haber_id:
+            # Kullanıcı Telegram'da bir ÖNERİYİ seçti. Eşik/tazelik
+            # denetimleri burada uygulanmıyor — insan zaten bakıp
+            # seçti, makinenin ikinci kez elemesi anlamsız olurdu.
+            aday = con.execute("SELECT * FROM haberler WHERE id = ?",
+                               (zorla_haber_id,)).fetchone()
+            if aday is None:
+                log.error("haber bulunamadı: %s", zorla_haber_id)
+                return 1
+            if not aday["ig_baslik"]:
+                log.info("seçilen haberin metni üretiliyor: %s",
+                         aday["baslik_orj"][:60])
+                metinleri_uret(ayarlar=ayarlar, haberler=[aday])
+                aday = con.execute("SELECT * FROM haberler WHERE id = ?",
+                                   (zorla_haber_id,)).fetchone()
+            if not aday or not aday["ig_baslik"]:
+                log.error("metin üretilemedi, tur kurulamadı")
+                telegram_bot.hata_bildir(
+                    "Seçilen haber hazırlanamadı",
+                    "Gemini metni üretemedi (kota ya da güvenlik filtresi "
+                    "olabilir). Haber havuzda duruyor, tekrar denenebilir.")
+                return 1
+        else:
+            # Metni ZATEN hazır bir aday var mı? (daha önce seçilmiş
+            # ama tur kurulamamış olabilir)
+            aday = aday_bul(con, ayarlar)
 
-        if not aday:
-            log.info("son dakika seviyesinde haber yok")
+        if not zorla_haber_id and not aday:
+            # ⚠️ BURADA ARTIK TAM METİN ÜRETİLMİYOR.
+            # Eskiden taze haberlere tam metin üretilir (~4400 token),
+            # sonra puanına bakılıp eşiği geçmiyorsa ATILIRDI — üretilen
+            # metnin çoğu çöpe gidiyordu ve kontrol job'ı 2.81 dk
+            # sürüyordu (Actions kotasının en büyük kalemi).
+            #
+            # Şimdi başlıklar toplu ve ucuz biçimde puanlanıp kullanıcıya
+            # öneriliyor; tam metin yalnızca seçilen haber için üretiliyor.
+            onerileri_gonder(con, ayarlar, kuru=kuru)
+            log.info("metni hazır aday yok — öneri aşamasında kalındı")
             return 0
 
         log.info("aday: [%s] %s", aday["onem_puani"], aday["ig_baslik"])

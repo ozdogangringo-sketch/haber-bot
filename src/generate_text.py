@@ -602,3 +602,141 @@ def metinleri_uret(limit: int = 10, ayarlar: dict | None = None,
             rapor["haberler"].append(satir)
 
     return rapor
+
+
+# ─────────────────────────────────────────────────────────────
+#  TOPLU BAŞLIK PUANLAMA — tekil post önerisi için
+# ─────────────────────────────────────────────────────────────
+#
+# ⚠️ NEDEN AYRI BİR YOL VAR (19 Ağu 2026):
+#     Tekil post akışı eskiden şöyleydi: taze haberlere TAM metin
+#     üret (başlık + caption + detay + görsel alanları), sonra
+#     puanına bak, eşiği geçmiyorsa AT. Yani üretilen metnin çoğu
+#     çöpe gidiyordu — haber başına ~4400 token boşa.
+#
+#     Yeni akış önce ucuz bir tarama yapıyor: 10 başlık TEK istekte
+#     gönderilip yalnızca önem puanı isteniyor (~1500 token, yani
+#     30 kat ucuz). Tam metin YALNIZCA kullanıcının Telegram'dan
+#     seçtiği haber için üretiliyor.
+#
+#     Yan kazanç: kontrol job'ı 2.81 dk'dan ~0.55 dk'ya iniyor ve
+#     bu sayede kontrol sıklığı saat başından 20 dakikaya çıkabiliyor.
+
+TOPLU_PUAN_SEMASI = {
+    "type": "object",
+    "properties": {
+        "puanlar": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "no": {"type": "integer"},
+                    "puan": {"type": "integer"},
+                },
+                "required": ["no", "puan"],
+            },
+        },
+    },
+    "required": ["puanlar"],
+}
+
+TOPLU_PUAN_PROMPT = """Aşağıda numaralı haber başlıkları var. Her birine
+1-10 arası bir ÖNEM PUANI ver ve yalnızca puanları döndür.
+
+onem_puani (1-10) — Türkiye'deki ortalama bir takipçinin bu haberi
+görmek isteme derecesi. Devlet önceliği değil, TAKİPÇİ önceliği.
+  * Etki: kaç kişinin hayatına dokunuyor?
+  * Aciliyet: bugün bilinmesi gerekiyor mu?
+  * Konuşulurluk: insanlar bunu birbirine anlatır mı, merak eder mi?
+Birinde çok güçlüyse diğerleri zayıf diye düşürme.
+
+  9-10 — ülke gündemini belirleyen olay: büyük deprem/afet · savaş
+         veya ateşkes kararı · seçim sonucu · geniş kesimi etkileyen
+         ekonomik karar · çok can kaybı
+  7-8  — çoğu insanın bilmek isteyeceği haber. Siyaset ŞART DEĞİL:
+         dikkat çekici bilim/uzay keşfi · herkesi ilgilendiren sağlık
+         bulgusu · çok konuşulacak adli olay · tanınan ismin karıştığı
+         olay · büyük kaza/yangın/salgın · büyük spor sonucu · geniş
+         ilgi gören kültür-sinema gelişmesi · gündelik hayatı
+         değiştiren düzenleme
+  4-6  — orta: ilgi alanına göre değişir, rutin gelişme
+  1-3  — niş veya önemsiz
+
+⚠️ AÇIKLAMA HABERİ İLE OLAY HABERİNİ AYIR — en sık yapılan hata bu.
+Bir yetkilinin konuşmuş olması tek başına haber değildir:
+  · "Bakan X, Y konusunu değerlendirdi"        -> 3-5
+  · "X kınadı / temenni etti / mesaj yayımladı" -> 3-5
+  · protokol, ziyaret, tören, anma              -> 3-4
+  · "X kararı alındı / yasa çıktı / imzalandı"  -> gerçek sonuç, yüksek
+
+HABERLER
+{liste}
+"""
+
+
+def basliklari_puanla(haberler: list, ayarlar: dict) -> dict[int, int]:
+    """
+    Birden çok haber başlığına TEK Gemini isteğiyle önem puanı verir.
+
+    Döner: {haber_id: puan}. Puanlanamayan haber sözlükte yer almaz —
+    çağıran taraf onları elemeli.
+    """
+    if not haberler:
+        return {}
+
+    satirlar = []
+    sira_id = {}
+    for i, h in enumerate(haberler, 1):
+        sira_id[i] = h["id"]
+        ozet = (h["ozet_orj"] or "")[:200].replace("\n", " ")
+        satirlar.append(f"{i}. [{h['kaynak']}] {h['baslik_orj']}\n   {ozet}")
+
+    prompt = TOPLU_PUAN_PROMPT.format(liste="\n".join(satirlar))
+
+    g = ayarlar["gemini"]
+    modeller = [m for m in (g["model"], g.get("yedek_model")) if m]
+    for anahtar_adi, anahtar in _anahtarlar():
+        for model in modeller:
+            try:
+                cevap = requests.post(
+                    UC_NOKTA.format(model=model),
+                    headers={"x-goog-api-key": anahtar},
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "responseMimeType": "application/json",
+                            "responseSchema": TOPLU_PUAN_SEMASI,
+                            "temperature": 0.2,
+                        },
+                    },
+                    timeout=g["zaman_asimi"],
+                )
+            except requests.RequestException as e:
+                log.warning("toplu puanlama ağ hatası: %s", e)
+                continue
+
+            if cevap.status_code != 200:
+                log.warning("toplu puanlama HTTP %s (%s)",
+                            cevap.status_code, model)
+                continue
+
+            try:
+                ham = cevap.json()["candidates"][0]["content"]["parts"][0]["text"]
+                veri = json.loads(ham)
+            except Exception as e:
+                log.warning("toplu puanlama çözümlenemedi: %s", e)
+                continue
+
+            sonuc = {}
+            for kayit in veri.get("puanlar", []):
+                no, puan = kayit.get("no"), kayit.get("puan")
+                if no in sira_id and isinstance(puan, int) and 1 <= puan <= 10:
+                    sonuc[sira_id[no]] = puan
+            if anahtar_adi != "birincil":
+                log.warning("Gemini %s anahtarı kullanıldı", anahtar_adi)
+            log.info("toplu puanlama: %d başlığın %d tanesi puanlandı",
+                     len(haberler), len(sonuc))
+            return sonuc
+
+    log.warning("toplu puanlama başarısız, hiçbir anahtar/model çalışmadı")
+    return {}

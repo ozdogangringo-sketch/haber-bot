@@ -49,6 +49,9 @@ genel:
   son_dakika_kategori_azami: 3
   # Kontrol job'ı aday bulamazsa kaç habere metin üretsin.
   # Actions kotasının en büyük kalemi bu; 5'ten 3'e indirildi.
+  # Tekil post önerisinde kaç başlık TEK Gemini isteğiyle puanlanacak.
+  # Bunların en iyi 5'i Telegram'a öneri olarak gidiyor.
+  oneri_aday_adedi: 10
   son_dakika_ek_metin_adedi: 4
   # Tekil post adayı bu kadar saatten taze olmalı. 3 saat çok dardı:
   # ölçüldü, hazır metinlerin %98'i bu filtreye takılıyordu.

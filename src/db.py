@@ -68,6 +68,12 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # Tekil post için BAŞLIK ÖNERİSİ olarak Telegram'a gönderildi mi?
+    #
+    # ⚠️ Aynı haberi her kontrolde tekrar önermeyi engelliyor. Kontrol
+    # 20 dakikada bir çalışıyor; işaret olmadan aynı üç başlık gün boyu
+    # tekrar tekrar gelir ve öneri mesajı gürültüye dönerdi.
+    "oneri_gonderildi": "INTEGER DEFAULT 0",
     # Threads'e paylaşıldıysa zincirin ana gönderi id'si.
     #
     # ⚠️ MÜKERRER PAYLAŞIMI ÖNLÜYOR. `gecmisi_paylas.py` önce bu kolona
