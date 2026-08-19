@@ -55,8 +55,9 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | ~~Kapak slaytı~~ | **DENENDİ VE ELENDİ (15 Ağu 2026).** Kapak+9 haber düzeni üretilip gösterildi; kullanıcı 10 haberi tercih etti. `kapak_ciz`/`kapak_uret` kodu `make_image.py`'de DURUYOR — fikir değişirse `kapak_var: true` yeterli, yeniden yazma. |
 | Slayt oranı | **4:5 dikey (1080x1350)**. Carousel'de tüm slaytlar aynı oranda olmak zorunda. |
 | Güvenli alan | `dikey_guvenli_pay: 150`. Feed'de 4:5 tam görünüyor; risk profil ızgarasının kareye kırpması (üst/alt 135px). Instagram ızgarayı 2025'te dikey yaptı ama bayrak ve kaynak satırı tam sınırdaydı, içeri alındı. |
-| Post sıklığı | **Günde 2 tur (TR 08:07 + 20:07) + en fazla 10 tekil post** = günde en çok 12 post. 19 Ağu 2026'da tek tur + 2 tekil'den çıkıldı; havuzda yayınlanmayı bekleyen 100+ haber birikiyordu. |
+| Post sıklığı | **Günde 2 tur (TR 08:07 + 20:07) + en fazla 10 tekil post** (`son_dakika_gunluk_azami: 10`) = günde en çok 12 post. 19 Ağu 2026'da tek tur + 2 tekil'den çıkıldı; havuzda yayınlanmayı bekleyen 100+ haber birikiyordu. |
 | ★ Kategori bazlı tekil post eşiği | ⚠️ **TEK EŞİK SPOR VE EKONOMİYİ TAMAMEN DIŞLIYORDU.** Ölçüldü (son 3 gün): ekonomide 8+ puan alan haber **sıfır** (en yükseği 7), sporda **sıfır** (en yükseği 7). Eşik 8 iken o kategorilerden tekil post çıkması matematiksel olarak imkânsızdı. Önem puanı kategoriye göre farklı dağılıyor — "ülke gündemi" haberleri doğaları gereği yüksek alıyor. Çözüm `son_dakika_kategori_esikleri`: turkiye/dunya 8, diğerleri 7; gece hepsine +1. Ayrıca `son_dakika_kategori_azami: 3` — tek kategori günü domine etmesin, yoksa bütün tekil postlar yine "turkiye"den çıkardı. |
+| ⚠️ Kontrol job'ı Actions'ın en büyük kalemi | Son dakika kontrolünün ana adımı **26 sn ile 540 sn** arasında değişiyor; uzun olanlar aday bulunamayınca metin ürettiği çalışmalar. Günde ~20 kez koştuğu için aylık ~1518 dk — Pro kotasının yarısı. `son_dakika_ek_metin_adedi` 5'ten **3**'e indirildi; güvenli, çünkü artık günde 2 tur ~50 adaya metin üretiyor ve havuzda sürekli 100+ hazır metin duruyor. |
 | ⚠️ Actions ölçümü — KUYRUK SÜRESİNİ SAYMA | Run seviyesindeki `run_started_at → updated_at` farkı **kuyrukta bekleme süresini de içeriyor** ve GitHub onu faturalandırmıyor. `veritabani` concurrency grubu joblari sıraya soktuğu için bu fark büyük. Doğru ölçüm **job seviyesinden**: `/runs/{id}/jobs` → her job'ın `started_at → completed_at` farkı. (`/timing` uç noktası bu repoda `total_ms: 0` dönüyor, kullanma.) |
 | ⚠️ Gerçek Actions kullanımı (19 Ağu 2026) | Job seviyesinde ölçüldü: son dakika kontrolü **2.81 dk** (günde ~18 → ~1518 dk/ay, kotanın yarısı), tur **8.31 dk**, onay işleme **1.77 dk**, hatırlatma 0.18 dk. Toplam **~3022 dk/ay** ve Pro kotası 3000 — **TAM SINIRDA**. Hesap 17-18 Ağu verisine dayanıyor ve o günler arıza ayıklamasıyla şişkindi; sakin günde ~50 dk/gün görülüyor. Yine de en büyük kalem son dakika kontrolü ve çoğu "haber yok" deyip çıkıyor. |
 | Plan | **GitHub Pro** (19 Ağu 2026'da yükseltildi) — Actions kotası 2000 → **3000 dk/ay**. |
@@ -87,6 +88,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | ⚠️ Magazin kaynağı YOK | Bilerek. İlgi çekiyor ama doğruluk riski yüksek ve dört katmanlı denetim dedikoduyu ayıklayamıyor. İstenirse `config.yaml → kaynaklar`'a eklenir. |
 | Slayt düzeni (18 Ağu 2026) | Fotoğraf üstte NET, aşağı doğru `gorsel.perde_rengi`'ne dönüşüyor; **açıklama ve alt bilgi düz renk şeritte**, başlık FOTOĞRAFIN üstünde. Başlık okunmasını **gerçek bulanık gölgeden** alıyor (GaussianBlur) — eski 2px kaydırma açık/kalabalık fotoğrafta yetmiyordu. Başlık tavanı **72** (96→80→72; başlık fotoğrafı örttüğü için yer kaplaması artık doğrudan maliyet). |
 | ⚠️ Kategori renkleri | `arkaplan_uret_yedek` her kategori için ayrı gradyan taşıyor. Yeni kategori eklerken **buraya da renk ekle**, yoksa sessizce "turkiye" rengine düşer. Tonlar bilerek yakın ve koyu: carousel kaydırılırken slaytlar farklı hesaptan gelmiş gibi durmasın. |
+| ⚠️ Instagram medya hatası GEÇİCİ | `2207052` / `2207003` ("Only photo or video can be accepted" — mesaj yanıltıcı, Türkçesi doğruyu söylüyor: *medya indirme başarısız*). Instagram görseli imgbb'den KENDİSİ çekiyor ve o çekme patlıyor; görselde kusur yok. 18 Ağu'da bir tur 3 denemede geçemedi, 2 dakika sonra elle denendiğinde 5/5 sorunsuz yüklendi. `MEDYA_AZAMI_DENEME = 6` + **sabit** 15 sn bekleme (artan bekleme çözmüyor — Threads'te ölçüldü). ⚠️ `deneme_sayisi` config'de tanımlıydı ama kod onu HİÇ OKUMUYORDU, `range(1,4)` sabitti. |
 | ⚠️ Instagram'da MÜZİK yok | Doğrulandı (18 Ağu 2026): `audio_name` parametresi var ama **yalnızca Reels için**. Foto ve carousel postlarına API'den müzik eklenemiyor; müzik kütüphanesi sadece resmi uygulamada. Müzikli haber hesapları postu ELLE paylaşıyor. Politika kısıtı, aşılamaz. |
 | Commons kuralı | **`gorsel_konu`ya SADECE kişi adı yazılır, kurum/örgüt/şehir ASLA.** Ölçüldü: "İSKİ"→Macar sanatçı portresi, "Taliban"→askeri harita, "Ankara Büyükşehir"→kale manzarası. Bunlar yayınlanamaz. Kurumu Pexels temsil ediyor ve iyi çalışıyor. |
 | Caption | Tek post, 10 haber → `src/caption.py`. Tarih + numaralı manşet listesi + kaynaklar + atıf + hashtag. Sınır 2200 karakter / 30 hashtag; aşarsa sırayla hashtag → atıf → son maddeler kırpılır. |
@@ -141,7 +143,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 
 ## 4. ŞU ANKİ DURUM
 
-### 🟢 BOT YAYINDA — 16 Ağustos 2026
+### 🟢 BOT YAYINDA — son güncelleme 19 Ağustos 2026
 
 Tüm adımlar bitti. Sistem kendi başına çalışıyor ve **gerçek postlar
 yayınlandı**:
@@ -175,6 +177,15 @@ katmanda, Instagram jetonu süresiz.
 | Aylık maliyet | **~$1.81** (gemini-3.6-flash, 2026 fiyatı) |
 | Her istek ücretli olsaydı | ~$6.95/ay |
 | ⚠️ 1 Ocak 2027'den sonra | fiyat **iki katına** çıkıyor → ~$3.6/ay |
+
+⚠️ **Kota hatası artık doğru raporlanıyor.** `_cevabi_coz` eskiden her
+beklenmedik yapıya aynı cevabı veriyordu: *"Cevap beklenen yapıda değil
+(finishReason=?)"*. Üç ayrı durum bu mesaja düşüyordu ve üçünün çözümü
+farklıydı: API hata cevabı (429/403/400), sonucun **ikinci kez**
+çözümlenmesi (çağıranın hatası), gerçek güvenlik filtresi. 19 Ağu'da bir
+A/B ölçümü 20 istek harcayıp bu mesajla döndü ve kotanın dolduğu sanıldı;
+gerçek sebep çift çözümlemeydi. Artık üçü ayrı ayrı ve çözümü söyleyerek
+raporlanıyor.
 
 ⚠️ **Retry'lar da kotadan sayılıyor.** 429 alınan istek 3 kez
 deneniyor ve üçü de kotadan düşüyor; bu yüzden bedava kota
@@ -418,6 +429,39 @@ eşiği düşürmek "kontrolsüz yayın" demek değil, asıl süzgeç katmanlar.
 puan dağılımını yükseltip yükseltmediği ölçülecek; 9 gerçekten
 ulaşılabilir hale geldiyse eşiğe hiç dokunulmayacak. Yükselmezse
 eşik 8'e indirilecek.
+
+**1m. ⚠️ KATEGORİ BESLEMELERİ SON DAKİKA FİLTRESİNE TAKILIP YOK
+OLUYORDU — spor ve kültür veritabanında hiç oluşmadı.**
+
+19 Ağu 2026, kullanıcı "haber çeşitliliği ne durumda" diye sorunca
+ölçüldü: **AA Kültür ve AA Spor 3 GÜNDE SIFIR haber yazmıştı.** Oysa
+ikisi de sağlıklı çalışıyor ve 30'ar haber veriyor (URL testi temiz).
+
+Zincir:
+1. `son_dakika_asgari_agirlik: 9` filtresi ağırlığı 8 olan AA Kültür
+   ve AA Spor'u eliyordu.
+2. Ama AA'nın **genel akışının** ağırlığı 9 ve o geçiyordu.
+3. Genel akış aynı haberleri `turkiye` etiketiyle ÖNCE kaydediyor.
+4. `haberler.link` UNIQUE → kategori beslemesi sonradan geldiğinde
+   "tekrar" sayılıp eleniyor.
+5. Kontrol günde 20 kez, tur günde 2 kez çalıştığı için genel akış
+   **her zaman** önce davranıyordu.
+
+Sonuç: kategori bazlı ön eleme spor/kültüre yer ayırsa bile ortada
+haber yoktu. Çeşitlilik sorununun asıl sebebi buydu — kaynak listesi
+değil, çekme sırası.
+
+Düzeltme (`fetch_news.haberleri_cek`): ağırlık filtresi artık yalnızca
+**gündem akışlarına** tam uygulanıyor; kategori beslemeleri daha düşük
+bir eşikle (`KATEGORI_ASGARI_AGIRLIK = 7`) taranıyor. Dünya kategorisi
+zaten TRT/AA ile temsil edildiği için ağırlığı 4-5 olan akışlar
+(BBC World, Al Jazeera) yine saat başı taranmıyor.
+
+⚠️ 1h dersi burada da uygulandı: **eski KAYITLAR da düzeltildi.**
+Yanlış etiketlenmiş 81 haber (58 spor + 23 kültür) link segmentine
+bakılarak doğru kaynak/kategoriye taşındı.
+
+Ölçüldü (son 3 gün): **spor 50 → 100, kultur 0 → 21.**
 
 ### Geçmiş notlar (güncelleme: 14 Ağustos 2026)
 
