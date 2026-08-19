@@ -156,7 +156,24 @@ secim:
   # `ağırlık × 10` ile başladığı için ağırlığı yüksek tek kaynak listeyi
   # dolduruyor; eklenen bilim/spor/ekonomi/kültür kaynakları metin
   # üretimine HİÇ giremiyordu.
-  on_eleme_kategori_payi: 3
+  # ⚠️ KATEGORİ KATSAYILARI — haberler önce KENDİ kategorisinde yarışır,
+  # sonra bu katsayıyla ağırlıklandırılır. Bir kategoriye tavan ya da
+  # kota koymuyor; yalnızca kategoriler arası göreli önceliği belirliyor.
+  kategori_katsayilari:
+    turkiye: 1.00
+    dunya: 0.85
+    ekonomi: 0.80
+    spor: 0.75
+    bilim: 0.75
+    teknoloji: 0.70
+    kultur: 0.65
+    yasam: 0.65
+  # Listede olmayan kategori bunu alır
+  kategori_varsayilan_katsayi: 0.60
+  # Kategori içi her sıra için puan bu oranla azalır (üstel).
+  # Küçültmek kategori çeşidini artırır, büyütmek büyük kategorilere
+  # daha çok yer verir. 0.88 ölçülerek seçildi.
+  kategori_sira_azalmasi: 0.88
 
   # İki başlık kaç ortak anahtar kelime paylaşırsa "aynı olay" sayılsın.
   # 2 ölçüldü: "İsrail ... Gazze" ile "İsrail ... Lübnan" ayrışıyor ama

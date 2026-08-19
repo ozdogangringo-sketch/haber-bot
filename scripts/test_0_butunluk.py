@@ -119,8 +119,8 @@ def config_denetle() -> list[str]:
     # Kod tarafında varsayılanı olan ama bilinçli konmuş ayarlar —
     # kaybolurlarsa özellik sessizce devre dışı kalıyor.
     beklenen = {
-        "secim": ["asgari_onem_puani", "on_eleme_kategori_payi",
-                  "konu_ortak_kelime_esigi"],
+        "secim": ["asgari_onem_puani", "kategori_katsayilari",
+                  "konu_ortak_kelime_esigi", "gecmis_konu_gun"],
         "sosyal": ["kanallar"],
     }
     for blok, alanlar in beklenen.items():

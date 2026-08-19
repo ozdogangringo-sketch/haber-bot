@@ -21,6 +21,7 @@ secim.py — Turda hangi haberlerin yayınlanacağına karar verir.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
@@ -45,79 +46,117 @@ def _yas_saat(haber) -> float:
     return (datetime.now(timezone.utc) - t).total_seconds() / 3600
 
 
-def _kategori_payi(ayarlar: dict) -> int:
-    """Ön elemede her kategoriye ayrılan garantili aday sayısı."""
-    return (ayarlar.get("secim", {}) or {}).get("on_eleme_kategori_payi", 3)
+# Başlıkta "bir şey OLDU" sinyali — ön elemede puanı yükseltir.
+OLAY_SINYALLERI = [
+    "tutukland", "gözaltına", "öldü", "hayatını kaybet", "yaraland",
+    "keşfet", "rekor", "ilk kez", "kazandı", "şampiyon", "patlad",
+    "yangın", "çöktü", "düştü", "kaza", "istifa", "görevden al", "zam",
+    "operasyon", "baskın", "saldır", "yürürlüğe", "erteledi", "geriledi",
+    "yükseldi",
+]
+
+# Başlıkta "biri bir şey DEDİ" sinyali — puanı düşürür.
+ACIKLAMA_SINYALLERI = [
+    "değerlendir", "kınad", "temenni", "vurgulad", "belirtti", "mesaj",
+    "tebrik", "anma", "ziyaret", "katıldı",
+]
+
+
+def _icerik_puani(baslik: str) -> float:
+    """
+    Başlığa bakarak haberin "olay mı, açıklama mı" olduğunu tahmin eder.
+
+    LLM YOK, bedava. Ön eleme aşamasında elimizde yalnızca başlık var;
+    önem puanı henüz üretilmedi (tavuk-yumurta sorunu, bkz. modül
+    açıklaması). Bu kaba sinyal o boşluğu dolduruyor.
+
+    Ölçüldü (19 Ağu 2026): "Dışişleri Bakanlığından Dünya İnsani Günü
+    mesajı" listeden geriledi, trafik kazaları ve operasyon haberleri
+    öne çıktı.
+    """
+    b = (baslik or "").lower()
+    puan = 0.0
+    if re.search(r"\d", baslik or ""):
+        puan += 8                                  # somut rakam taşıyor
+    if any(k in b for k in OLAY_SINYALLERI):
+        puan += 12
+    if any(k in b for k in ACIKLAMA_SINYALLERI):
+        puan -= 10
+    return puan
+
+
+def _kategori_katsayilari(ayarlar: dict) -> dict:
+    return (ayarlar.get("secim", {}) or {}).get("kategori_katsayilari", {}) or {}
 
 
 def on_eleme(con, ayarlar: dict, kac: int | None = None) -> list:
     """
     Metin üretilecek adayları seçer. LLM ÇAĞIRMAZ, bedavadır.
 
-    Yalnızca elimizde zaten olan bilgiyi kullanıyor: yaş, kaynak ağırlığı,
-    kategori. Bayatlama sınırını geçenler hiç aday olmuyor.
+    ⚠️ İKİ KATMANLI — HABERLER ÖNCE KENDİ KATEGORİSİNDE YARIŞIR.
+
+    Eski yöntem tek havuzda düz sıralama yapıyordu ve ölçüldüğünde
+    (19 Ağu 2026, 1497 haberlik havuz) 25 adayın tamamı 2 kategoriden,
+    3 kaynaktan geliyordu: turkiye 17, ekonomi 8. Sebep aritmetik —
+    ön skor `ağırlık × 10` ile başlıyor, TRT/AA gibi ağırlığı 10 olan
+    ajanslar saatte onlarca haber basıyor ve liste onların taze
+    haberleriyle doluyor. 25 saatlik bir spor transferi (ağırlık 7)
+    skoru 44 alırken 2 saatlik bir TRT haberi 98 alıyordu; bu farkı
+    hiçbir içerik sinyali kapatamıyordu. Ağırlık çarpanını 10'dan 3'e
+    düşürmek bile işe yaramadı — asıl baskın etken haber AKIŞININ
+    yoğunluğuydu, ağırlığın kendisi değil.
+
+    Şimdi:
+      KATMAN 1 — her haber yalnızca KENDİ kategorisindeki haberlerle
+                 yarışır (kaynak ağırlığı + tazelik + içerik sinyali).
+      KATMAN 2 — kategori içi sırası, kategorinin katsayısıyla
+                 ağırlıklandırılır. Sıra cezası ÜSTEL ve kategori
+                 büyüklüğünden BAĞIMSIZ.
+
+    ⚠️ Sıra cezası neden kategori büyüklüğünden bağımsız olmalı: ilk
+    denemede sıra, kategorideki haber sayısına bölünerek normalize
+    edildi ve sonuç yine %100 turkiye çıktı — 592 haberlik kategoride
+    25. sıra hâlâ 0.96 alıyor, 35 haberlik sporda 2. sıra 0.97'ye
+    düşüyordu. Büyük kategori otomatik olarak avantajlı hale geliyordu.
+
+    Ölçüldü: kategori çeşidi 2 -> 5, kaynak çeşidi 3 -> 9.
     """
     g = ayarlar["gorsel"]
     sinir_saat = ayarlar["genel"]["yayin_yasi_siniri_saat"]
     kac = kac or int(g["slayt_sayisi"] * ADAY_KATSAYISI)
+    s = ayarlar.get("secim", {}) or {}
+    katsayilar = _kategori_katsayilari(ayarlar)
+    azalma = s.get("kategori_sira_azalmasi", 0.88)
+    varsayilan_katsayi = s.get("kategori_varsayilan_katsayi", 0.6)
 
     havuz = list(con.execute("SELECT * FROM haberler WHERE durum = 'yeni'"))
 
-    puanli = []
+    # --- KATMAN 1: kategori içi ham skor ---
+    kategoriler: dict[str, list] = {}
     for haber in havuz:
         yas = _yas_saat(haber)
         if yas > sinir_saat:
             continue
-        # Ön skor: taze ve ağırlıklı kaynak öne çıksın. onem_puani burada
-        # YOK — henüz üretilmedi, asıl seçimde devreye girecek.
-        puan = (haber["agirlik"] or 1) * 10 - yas
-        if haber["kategori"] == "dunya":
-            # Türkiye gündemi öncelikli; dünya haberi asıl skorda
-            # onem_puani >= 8 ile geri dönebilir.
-            puan -= 15
-        puanli.append((puan, haber))
+        ham = ((haber["agirlik"] or 1) * 10
+               - yas
+               + _icerik_puani(haber["baslik_orj"]))
+        kategoriler.setdefault(haber["kategori"] or "diger", []).append((ham, haber))
 
-    puanli.sort(key=lambda p: p[0], reverse=True)
+    # --- KATMAN 2: kategori katsayısı ile ağırlıklandır ---
+    puanli = []
+    for kat, liste in kategoriler.items():
+        liste.sort(key=lambda x: x[0], reverse=True)
+        katsayi = katsayilar.get(kat, varsayilan_katsayi)
+        for sira, (_ham, haber) in enumerate(liste):
+            puanli.append((katsayi * (azalma ** sira), haber))
 
-    # ⚠️ KATEGORİ PAYI OLMADAN ÖN ELEME TEK KAYNAĞA KİLİTLENİYOR.
-    #
-    # Ölçüldü (18 Ağu 2026, 1236 haberlik havuz): düz skor sıralamasıyla
-    # 25 adayın 24'ü TRT Haber'den, 1'i BBC Türkçe'den geliyordu ve
-    # kategori dağılımı %100 "turkiye" idi. Sebep basit — ön skor
-    # `ağırlık × 10` ile başlıyor, ağırlığı 10 olan kaynak tek başına
-    # 120 taze haber veriyor ve listeyi tamamen dolduruyor.
-    #
-    # Sonuç: eklenen bilim, spor, ekonomi, kültür, teknoloji ve yaşam
-    # kaynakları metin üretimine HİÇ giremiyor, dolayısıyla asıl seçimde
-    # de görünmüyordu. Çeşitlilik kaynakta değil, tam burada ölüyordu.
-    #
-    # Çözüm: her kategoriye garantili küçük bir pay ayrılıyor, kalan
-    # kontenjan yine düz skorla dolduruluyor. Türkiye gündemi baskın
-    # kalmaya devam ediyor (havuzun %75'i o), ama diğer kategoriler de
-    # en azından temsil ediliyor.
-    kategori_payi = _kategori_payi(ayarlar)
-    secilen, alinan = [], set()
-    if kategori_payi:
-        kategoriler = {h["kategori"] for _, h in puanli}
-        for kat in kategoriler:
-            for puan, haber in puanli:
-                if haber["kategori"] != kat or haber["id"] in alinan:
-                    continue
-                secilen.append(haber)
-                alinan.add(haber["id"])
-                if sum(1 for h in secilen if h["kategori"] == kat) >= kategori_payi:
-                    break
+    puanli.sort(key=lambda x: x[0], reverse=True)
+    secilen = [haber for _, haber in puanli[:kac]]
 
-    for _, haber in puanli:
-        if len(secilen) >= kac:
-            break
-        if haber["id"] not in alinan:
-            secilen.append(haber)
-            alinan.add(haber["id"])
-
-    secilen = secilen[:kac]
-    log.info("ön eleme: %d havuzdan %d aday (%d kategori)",
-             len(havuz), len(secilen), len({h["kategori"] for h in secilen}))
+    log.info("ön eleme: %d havuzdan %d aday (%d kategori, %d kaynak)",
+             len(havuz), len(secilen),
+             len({h["kategori"] for h in secilen}),
+             len({h["kaynak"] for h in secilen}))
     return secilen
 
 
