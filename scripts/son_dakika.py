@@ -229,6 +229,31 @@ def taze_adaylar(con, ayarlar: dict, kac: int) -> list:
 
 
 
+def _konu_imzasi(baslik: str) -> tuple[set, set]:
+    """
+    Öneri listesinde tekrar denetimi için (kelimeler, özel isimler).
+
+    ⚠️ `secim._ozel_isimler`'den farkı: BAŞLIĞIN İLK KELİMESİNİ DE
+    sayıyor. O fonksiyon ilk kelimeyi bilerek atlıyor (her başlık
+    büyük harfle başlar, orada büyük harf özel isim işareti değil) —
+    ama haber başlıkları çok sık yer adıyla başlıyor: "Kolombiya'da
+    7,4 büyüklüğündeki depremde…". İlk kelime atlanınca iki Kolombiya
+    haberinin ortak özel ismi kalmıyor ve tekrar yakalanamıyordu.
+
+    Burada yanlış pozitif riski düşük: yalnızca aynı öneri listesindeki
+    5 başlık karşılaştırılıyor, geçmişe karşı denetim değil.
+    """
+    kelimeler = secim._anahtar_kelimeler(baslik)
+    isimler = set()
+    for ham in (baslik or "").replace("'", " ").split():
+        temiz = "".join(k for k in ham if k.isalnum())
+        if len(temiz) >= 4 and temiz[:1].isupper():
+            kucuk = temiz.lower()
+            if kucuk not in secim.ETKISIZ_KELIMELER:
+                isimler.add(kucuk)
+    return kelimeler, isimler
+
+
 def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     """
     Taze başlıkları ucuz yoldan puanlayıp Telegram'a ÖNERİ gönderir.
@@ -272,6 +297,18 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     con.commit()
 
     kat_azami = ayarlar["genel"].get("son_dakika_kategori_azami", 3)
+    s = ayarlar.get("secim", {}) or {}
+    ortak_esik = s.get("konu_ortak_kelime_esigi", 2)
+    gecmis_esik = s.get("gecmis_ortak_kelime_esigi", ortak_esik + 1)
+
+    # ⚠️ ÖNERİ LİSTESİNDE AYNI OLAY İKİ KEZ GÖRÜNMESİN.
+    # İlk sürümde Kolombiya depremi hem TRT Dünya hem AA Dünya
+    # satırıyla listeye girdi — kullanıcıya aynı haberi iki numara
+    # olarak sunmak seçimi zorlaştırıyor ve listede yer israfı.
+    # Ayrıca son günlerde YAYINLANMIŞ konular da öneriye girmemeli.
+    gecmis = secim.yayinlanmis_konular(con, ayarlar)
+
+    onceki = []
     adaylar = []
     for h in ham:
         puan = puanlar.get(h["id"])
@@ -281,6 +318,23 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
             continue
         if bugunku_kategori_sayisi(con, h["kategori"] or "") >= kat_azami:
             continue
+
+        kelimeler, isimler = _konu_imzasi(h["baslik_orj"])
+        # Liste içi tekrar. ⚠️ Burada da ORTAK ÖZEL İSİM şartı var:
+        # yalnızca kelime saymak "Kolombiya'da 7,4 büyüklüğündeki
+        # depremde..." ile "Endonezya'daki 7,7 büyüklüğündeki
+        # depremde..." haberlerini aynı olay sayıyordu — ikisi de
+        # deprem, kelimeler tutuyor ama olaylar farklı. Ayırt eden
+        # şey ülke/kişi adı.
+        if any(len(kelimeler & k) >= ortak_esik and (isimler & i)
+               for k, i in onceki):
+            continue
+        # Son günlerde zaten yayınlanmış konu
+        if any(len(kelimeler & ok) >= gecmis_esik and (isimler & oi)
+               for ok, oi in gecmis):
+            continue
+
+        onceki.append((kelimeler, isimler))
         adaylar.append({"id": h["id"], "puan": puan,
                         "baslik": h["baslik_orj"],
                         "kaynak": h["kaynak"],
