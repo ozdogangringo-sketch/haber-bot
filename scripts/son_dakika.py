@@ -229,6 +229,12 @@ def taze_adaylar(con, ayarlar: dict, kac: int) -> list:
 
 
 
+# `onerileri_gonder` bu değeri döndürdüğünde: öneri GÖNDERİLMEDİ,
+# bunun yerine yüksek puanlı bir habere metin üretildi. Çağıran taraf
+# yeniden aday aramalı — o haber artık otomatik yayın akışına girebilir.
+METIN_URETILDI = -1
+
+
 def _konu_imzasi(baslik: str) -> tuple[set, set]:
     """
     Öneri listesinde tekrar denetimi için (kelimeler, özel isimler).
@@ -318,6 +324,29 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
         con.execute("UPDATE haberler SET onem_puani = ? WHERE id = ?",
                     (puan, haber_id))
     con.commit()
+
+    # ⚠️ GECE OTOMATİK YAYIN ADAYINI ÖNERİYE DÜŞÜRME.
+    #
+    # Öneri akışı haberi `durum='yeni'` ve metinsiz bırakıyor; oysa
+    # `aday_bul` yalnızca `metin_hazir` olanlara bakıyor. Yani gece
+    # gelen büyük bir haber öneriye düşerse otomatik yayınlanmaz,
+    # sabaha kadar bekler — tam da otomatik yayının önlemek istediği
+    # şey. Bu yüzden yüksek puanlı bir başlık varsa öneri yerine
+    # doğrudan metni üretiliyor ve normal akışa bırakılıyor.
+    #
+    # Eşik toplu puanlamaya göre: toplu puan tam metin puanından
+    # ~1.6 düşük geldiği için, yayın eşiği 9 olan bir haber burada
+    # 7-8 civarında görünüyor.
+    if (not kuru and gece_mi()
+            and ayarlar["genel"].get("gece_otomatik_yayin", False)):
+        uretim_esigi = ayarlar["genel"].get("oneri_otomatik_uretim_esigi", 8)
+        yuksek = [h for h in ham
+                  if puanlar.get(h["id"], 0) >= uretim_esigi]
+        if yuksek:
+            log.info("gece otomatik yayın adayı olabilir [%s], metin üretiliyor: %s",
+                     puanlar.get(yuksek[0]["id"]), yuksek[0]["baslik_orj"][:50])
+            metinleri_uret(ayarlar=ayarlar, haberler=yuksek[:1])
+            return METIN_URETILDI
 
     kat_azami = ayarlar["genel"].get("son_dakika_kategori_azami", 3)
     s = ayarlar.get("secim", {}) or {}
@@ -532,9 +561,14 @@ def main(zorla_haber_id: int | None = None) -> int:
             #
             # Şimdi başlıklar toplu ve ucuz biçimde puanlanıp kullanıcıya
             # öneriliyor; tam metin yalnızca seçilen haber için üretiliyor.
-            onerileri_gonder(con, ayarlar, kuru=kuru)
-            log.info("metni hazır aday yok — öneri aşamasında kalındı")
-            return 0
+            sonuc = onerileri_gonder(con, ayarlar, kuru=kuru)
+            if sonuc == METIN_URETILDI:
+                # Yüksek puanlı bir habere metin üretildi; artık
+                # otomatik yayın akışına girebilir.
+                aday = aday_bul(con, ayarlar)
+            if not aday:
+                log.info("metni hazır aday yok — öneri aşamasında kalındı")
+                return 0
 
         log.info("aday: [%s] %s", aday["onem_puani"], aday["ig_baslik"])
 

@@ -64,6 +64,11 @@ genel:
   # Bu yüzden öneri aşaması kendi eşiğini kullanıyor. Zaten burada
   # eleme kesin değil: eşiği geçen haber YAYINLANMIYOR, yalnızca
   # kullanıcıya öneriliyor — son sözü insan söylüyor.
+  # Gece: toplu puanı bu değerin üstünde olan haber ÖNERİYE düşmez,
+  # doğrudan metni üretilip otomatik yayın denetimine sokulur.
+  # Toplu puan tam metin puanından ~1.6 düşük geldiği için, yayın
+  # eşiği 9 olan bir haber burada 7-8 civarında görünüyor.
+  oneri_otomatik_uretim_esigi: 8
   oneri_kategori_esikleri:
     turkiye: 6
     dunya: 6
