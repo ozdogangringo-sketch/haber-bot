@@ -226,6 +226,11 @@ def feed_indir(url: str, zaman_asimi: int) -> bytes:
 # Ana iş
 # ----------------------------------------------------------------------
 
+# Kategori beslemeleri için son dakika çekimindeki alt sınır.
+# Gündem akışlarınınkinden düşük: kategori çeşitliliği buna bağlı.
+KATEGORI_ASGARI_AGIRLIK = 7
+
+
 def haberleri_cek(ayarlar: dict | None = None,
                   asgari_agirlik: int | None = None) -> dict:
     """
@@ -245,6 +250,22 @@ def haberleri_cek(ayarlar: dict | None = None,
     kaynaklarından geliyor; kültür, yaşam, motor sporları beslemelerini
     saat başı taramanın karşılığı yok. Akşam turu hepsini zaten tarıyor.
 
+    ⚠️ AMA KATEGORİ BESLEMELERİ BU FİLTREDEN MUAF OLMAK ZORUNDA.
+    19 Ağu 2026'da ölçüldü: AA Kültür ve AA Spor beslemeleri
+    veritabanına 3 GÜNDE SIFIR haber yazmıştı, oysa ikisi de sağlıklı
+    çalışıyor ve 30'ar haber veriyor.
+
+    Sebep: ağırlıkları 8, yani bu filtreye takılıyorlardı. Ama AA'nın
+    GENEL akışının ağırlığı 9 ve o geçiyordu — aynı haberleri "turkiye"
+    etiketiyle önce kaydediyor, `haberler.link` UNIQUE olduğu için
+    kategori beslemesi sonradan geldiğinde "tekrar" sayılıp eleniyordu.
+    Kontrol günde 20 kez, tur günde 2 kez çalıştığı için genel akış
+    her zaman önce davranıyordu.
+
+    Sonuç: spor ve kültür kategorileri veritabanında hiç oluşmuyor,
+    kategori bazlı ön eleme onlara yer ayırsa bile ortada haber yok.
+    Bu yüzden filtre yalnızca GÜNDEM akışlarına uygulanıyor.
+
     Döner: {'eklenen': int, 'tekrar': int, 'eski': int, 'kaynaklar': [...]}
     """
     ayarlar = ayarlar or ayarlari_oku()
@@ -258,9 +279,18 @@ def haberleri_cek(ayarlar: dict | None = None,
         for kaynak in ayarlar["kaynaklar"]:
             if not kaynak.get("aktif", True):
                 continue
-            if (asgari_agirlik is not None
-                    and (kaynak.get("agirlik") or 0) < asgari_agirlik):
-                continue
+            # Filtre yalnızca gündem akışlarına tam uygulanır; kategori
+            # beslemeleri daha düşük bir eşikle taranır (yoksa spor ve
+            # kültür veritabanında hiç oluşmuyor — yukarıdaki nota bak).
+            # Kategori beslemelerine de bir alt sınır var: dünya
+            # kategorisi zaten TRT/AA ile temsil ediliyor, ağırlığı 4-5
+            # olan akışları saat başı taramanın karşılığı yok.
+            agirlik = kaynak.get("agirlik") or 0
+            genel_akis = (kaynak.get("kategori") or "") == "turkiye"
+            if asgari_agirlik is not None:
+                esik = asgari_agirlik if genel_akis else min(asgari_agirlik, KATEGORI_ASGARI_AGIRLIK)
+                if agirlik < esik:
+                    continue
 
             k_rapor = {"ad": kaynak["ad"], "durum": "ok", "eklenen": 0,
                        "tekrar": 0, "eski": 0, "hata": None}
