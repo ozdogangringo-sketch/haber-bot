@@ -463,6 +463,40 @@ bakılarak doğru kaynak/kategoriye taşındı.
 
 Ölçüldü (son 3 gün): **spor 50 → 100, kultur 0 → 21.**
 
+**1n. ⚠️ TEKİL POST 5 SAAT BOYUNCA HİÇ ÇIKMADI — havuz doluydu, hepsi
+"bayat" sayılıyordu.**
+
+19 Ağu 2026, kullanıcı bildirdi: "gün içinde attığımız tekli haber
+sayısı azaldı, 5-6 saattir atmıyoruz". Bugün 7 tekil post çıkmıştı
+(limit 10), sonuncusu TR 17:50'de.
+
+Eleme zinciri ölçüldü:
+
+| aşama | adet |
+|---|---|
+| metni hazır, henüz tekil olmamış | 228 |
+| ⛔ 3 saatten eski (bayat) | **224** |
+| ⛔ puan eşiğini geçemedi | 4 |
+| ✓ aday | **0** |
+
+Yani sorun eşik ya da kategori limiti DEĞİLDİ — hazır metinlerin
+%98'i tazelik filtresine takılıyordu. Aynı anda son 3 saatte gelen
+**44 haberin metni hiç üretilmemişti.**
+
+Kök sebep: kontrol job'ı metin üretecek haberi `secim.on_eleme` ile
+seçiyordu. `on_eleme` "en İYİ haberi" seçiyor (kaynak ağırlığı +
+kategori katsayısı + içerik sinyali); son dakika için gereken ise
+"en TAZE haber". İkisi farklı soru. on_eleme havuzdaki eski ama
+yüksek skorlu haberleri seçip duruyordu, onlar da zaten bayat
+oldukları için aday olamıyordu — kısır döngü.
+
+Düzeltme (`son_dakika.taze_adaylar`): kontrol job'ı artık doğrudan
+tazelik sorguluyor — son `son_dakika_tazelik_saat` içinde yayınlanmış,
+metni üretilmemiş haberler, kaynak ağırlığına göre sıralı.
+
+Ayrıca `TAZELIK_SAAT` sabit 3'tü ve config'den okunmuyordu; artık
+`son_dakika_tazelik_saat: 5` ile ayarlanıyor, ek metin adedi 3→4.
+
 ### Geçmiş notlar (güncelleme: 14 Ağustos 2026)
 
 **Adım 1 BİTTİ ve kullanıcının makinesinde doğrulandı.** 8/8 kaynak çalışıyor,

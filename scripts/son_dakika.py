@@ -49,7 +49,17 @@ log = logging.getLogger("sondakika")
 OMUR_DAKIKA = 60
 
 # Haber kaç saatten eskiyse artık "son dakika" sayılmaz.
-TAZELIK_SAAT = 3
+# ⚠️ Config'den okunuyor — sabit 3 saat ölçüldüğünde çok dar çıktı:
+# havuzdaki 228 hazır metnin 224'ü bu filtreye takılıyordu ve tekil
+# post 5 saat boyunca hiç çıkmadı (19 Ağu 2026).
+TAZELIK_SAAT_VARSAYILAN = 5
+
+
+def _tazelik_saat(ayarlar: dict | None = None) -> int:
+    if not ayarlar:
+        return TAZELIK_SAAT_VARSAYILAN
+    return ayarlar["genel"].get("son_dakika_tazelik_saat",
+                                TAZELIK_SAAT_VARSAYILAN)
 
 # TR saatiyle gece aralığı. UTC+3 sabit (yaz saati yok).
 GECE_BASI_TR, GECE_SONU_TR = 23, 7
@@ -187,6 +197,36 @@ def suresi_gecmisi_iptal_et(con, ayarlar: dict) -> None:
         log.info("süresi geçen son dakika turu iptal edildi (%s)", mesaj_id)
 
 
+def taze_adaylar(con, ayarlar: dict, kac: int) -> list:
+    """
+    Metin üretilecek TAZE haberler.
+
+    ⚠️ NEDEN `secim.on_eleme` KULLANMIYORUZ. Ölçüldü (19 Ağu 2026):
+    tekil post 5 saat boyunca hiç çıkmadı. Sebep aday bulunamaması
+    değildi — havuzda 228 hazır metin vardı ama **224'ü 3 saatten
+    eskiydi** ve `TAZELIK_SAAT` filtresine takılıyordu. Aynı anda son
+    3 saatte gelen 44 haberin metni HİÇ üretilmemişti.
+
+    Kök sebep: `on_eleme` "en iyi haberi" seçiyor — kaynak ağırlığı,
+    kategori katsayısı ve içerik sinyaliyle. Son dakika için gereken
+    ise "en TAZE haber". İkisi farklı sorular ve on_eleme ikincisini
+    cevaplamıyor; havuzdaki eski ama yüksek skorlu haberleri seçip
+    duruyordu, onlar da zaten bayat oldukları için aday olamıyordu.
+
+    Burada doğrudan tazelik sorgulanıyor: son `TAZELIK_SAAT` içinde
+    yayınlanmış, metni henüz üretilmemiş haberler, kaynak ağırlığına
+    göre sıralı.
+    """
+    sinir = (datetime.now(timezone.utc)
+             - timedelta(hours=_tazelik_saat(ayarlar))).isoformat()
+    return list(con.execute(
+        """SELECT * FROM haberler
+           WHERE durum = 'yeni' AND yayin_tarihi >= ?
+           ORDER BY agirlik DESC, yayin_tarihi DESC LIMIT ?""",
+        (sinir, kac),
+    ))
+
+
 def aday_bul(con, ayarlar: dict):
     """
     Son dakika adayı: yüksek puanlı, taze ve henüz yayınlanmamış haber.
@@ -196,7 +236,7 @@ def aday_bul(con, ayarlar: dict):
     üretiyor, buradaki iş onların arasından fırlayanı seçmek.
     """
     sinir = (datetime.now(timezone.utc)
-             - timedelta(hours=TAZELIK_SAAT)).isoformat()
+             - timedelta(hours=_tazelik_saat(ayarlar))).isoformat()
     kat_azami = ayarlar["genel"].get("son_dakika_kategori_azami", 3)
 
     # Eşik artık kategoriye göre değiştiği için SQL'de süzemiyoruz;
@@ -311,7 +351,7 @@ def main() -> int:
             # ve ikisi toplam ~50 adaya metin üretiyor, havuzda sürekli
             # 100+ hazır metin duruyor. Buradaki üretim yalnızca çok
             # taze bir haberi yakalamak için; kalabalık olması gerekmiyor.
-            yeniler = secim.on_eleme(
+            yeniler = taze_adaylar(
                 con, ayarlar,
                 kac=ayarlar["genel"].get("son_dakika_ek_metin_adedi", 3))
             if yeniler:
