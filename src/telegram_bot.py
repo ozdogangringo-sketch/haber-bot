@@ -411,16 +411,27 @@ def sonucu_yaz(message_id: int, metin: str, bildir: bool = False) -> None:
             log.warning("sonuç bildirimi gönderilemedi: %s", e)
 
 
-def mesaj_gonder(metin: str, butonlar: list | None = None) -> int:
+def mesaj_gonder(metin: str, butonlar: list | None = None,
+                 html: bool = False) -> int:
     """
     Düz bilgi/hata mesajı.
 
     `butonlar` verilirse inline klavye eklenir — yayın sonucuna
     "kaldır" düğmesi koyabilmek için.
+
+    ⚠️ `html` VARSAYILAN OLARAK KAPALI. Telegram'a `parse_mode`
+    göndermezsek etiketler metin olarak görünüyor; gönderirsek de
+    metindeki her `<` ve `&` kaçırılmak zorunda, yoksa Telegram
+    mesajı "can't parse entities" ile REDDEDİYOR ve mesaj sessizce
+    hiç ulaşmıyor. Bu modüldeki eski çağrıların metinleri
+    kaçırılmamış olduğu için varsayılan kapalı; HTML isteyen çağıran
+    `_kacir()` kullanmak zorunda.
     """
     ek = {}
     if butonlar:
         ek["reply_markup"] = {"inline_keyboard": butonlar}
+    if html:
+        ek["parse_mode"] = "HTML"
     sonuc = _istek("sendMessage", chat_id=_sohbet_id(), text=metin[:4096],
                    disable_web_page_preview=True, **ek)
     return sonuc["message_id"]
@@ -547,4 +558,5 @@ def oneri_gonder(adaylar: list) -> int:
                     "onayına sunulur. Hiçbiri uygun değilse geç.</i>")
 
     menu = [butonlar, [{"text": "❌ Hiçbiri", "callback_data": "oneri_gec"}]]
-    return mesaj_gonder("\n".join(satirlar), menu)
+    # Başlıklar `_kacir` ile kaçırıldığı için HTML güvenli.
+    return mesaj_gonder("\n".join(satirlar), menu, html=True)

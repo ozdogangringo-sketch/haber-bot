@@ -662,9 +662,11 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
         return 1
 
     baslik = (haber["baslik_orj"] or "")[:70]
+    # ⚠️ Düz metin: `sonucu_yaz` parse_mode göndermiyor, HTML etiketi
+    # kullanırsak kullanıcıya "<b>" diye görünür.
     telegram_bot.sonucu_yaz(
-        mesaj_id, f"⏳ Hazırlanıyor: <b>{baslik}</b>\n\n"
-                  f"<i>Metin ve görsel üretiliyor, birkaç dakika sürebilir.</i>")
+        mesaj_id, f"⏳ Hazırlanıyor: {baslik}\n\n"
+                  f"Metin ve görsel üretiliyor, birkaç dakika sürebilir.")
 
     # son_dakika akışını yeniden kullanıyoruz — görsel üretimi, imgbb
     # yüklemesi, doğrulama ve onay mesajı zaten orada.
@@ -672,8 +674,8 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
     sonuc = son_dakika.main(zorla_haber_id=haber_id)
     if sonuc != 0:
         telegram_bot.sonucu_yaz(
-            mesaj_id, f"⚠️ Hazırlanamadı: <b>{baslik}</b>\n\n"
-                      f"<i>Ayrıntı için Actions kaydına bakılabilir.</i>")
+            mesaj_id, f"⚠️ Hazırlanamadı: {baslik}\n\n"
+                      f"Ayrıntı için Actions kaydına bakılabilir.")
     return sonuc
 
 
