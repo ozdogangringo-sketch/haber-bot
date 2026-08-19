@@ -36,7 +36,16 @@ const PARAMETRELI_EYLEM =
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
 // puanlayıp öneriyor, tam metin ve görsel ancak bu butona basılınca
 // üretiliyor. id sınırlı biçimde doğrulanıyor (yalnızca rakam).
-const HAZIRLA = /^hazirla:\d{1,8}$/;
+const HAZIRLA = /^hazirla:\d{1,8}(,\d{1,8}){0,7}$/;
+
+// Tekil post önerisinde ÇOKLU SEÇİM.
+// "sec:1482" bir başlığı işaretler/işareti kaldırır — bu GitHub'a
+// GİTMİYOR, Worker mesajın butonlarını doğrudan düzenliyor. Actions'ı
+// her seçim için uyandırmak 3 haber = 3 ayrı job (~5 dk) demekti.
+// "hazirla_secilenler" işaretli olanların hepsini tek dispatch ile
+// gönderiyor; id'ler buton metinlerinden okunuyor.
+const SEC = /^sec:\d{1,8}$/;
+const SECILENLERI_HAZIRLA = "hazirla_secilenler";
 
 // Menü gezinme komutları. Bunlar GitHub'a GİTMİYOR — Actions'ı uyandırmak
 // 30+ saniye sürüyor ve menü açmak anında olmalı. Worker mesajın
@@ -70,7 +79,7 @@ function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 64) return false;
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
-    || HAZIRLA.test(veri);
+    || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA;
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -346,6 +355,67 @@ export default {
     if (ayarMenu) {
       await menuyuDegistir(env, sohbetId, mesajId,
                            ayarAltMenu(ayarMenu[1], ayarMenu[2]));
+      await butonuDurdur(env, cb.id, "");
+      return new Response("ok");
+    }
+
+    // --- Öneri çoklu seçimi: Worker anında hallediyor ---
+    if (SEC.test(komut)) {
+      const klavye = cb.message?.reply_markup?.inline_keyboard || [];
+      let secili = 0;
+      const yeni = klavye.map((satir) =>
+        satir.map((btn) => {
+          const kopya = { ...btn };
+          if (kopya.callback_data === komut) {
+            // İşareti aç/kapat
+            kopya.text = kopya.text.startsWith("✅")
+              ? kopya.text.slice(1)
+              : "✅" + kopya.text;
+          }
+          if (String(kopya.callback_data || "").startsWith("sec:")
+              && kopya.text.startsWith("✅")) {
+            secili += 1;
+          }
+          return kopya;
+        })
+      );
+      // "Hazırla (N)" sayacını güncelle
+      for (const satir of yeni) {
+        for (const btn of satir) {
+          if (btn.callback_data === SECILENLERI_HAZIRLA) {
+            btn.text = `▶️ Hazırla (${secili})`;
+          }
+        }
+      }
+      await menuyuDegistir(env, sohbetId, mesajId, { inline_keyboard: yeni });
+      await butonuDurdur(env, cb.id, "");
+      return new Response("ok");
+    }
+
+    // Seçilenleri topla ve TEK dispatch ile gönder
+    if (komut === SECILENLERI_HAZIRLA) {
+      const klavye = cb.message?.reply_markup?.inline_keyboard || [];
+      const idler = klavye
+        .flat()
+        .filter((b) => String(b.callback_data || "").startsWith("sec:")
+                       && String(b.text || "").startsWith("✅"))
+        .map((b) => b.callback_data.slice(4));
+      if (idler.length === 0) {
+        await butonuDurdur(env, cb.id, "Önce en az bir haber seç");
+        return new Response("ok");
+      }
+      // Komut GitHub'a "hazirla:12,34,56" biçiminde gidiyor.
+      // callback_data 64 bayt sınırına takılmıyor çünkü id'ler
+      // butonun kendisinde değil, buton METİNLERİNDEN okunuyor.
+      // `basan` aşağıda tanımlanıyor ama bu blok ondan önce
+      // çalışıyor; burada kendimiz hesaplıyoruz.
+      const secen = cb.from
+        ? `${cb.from.first_name || ""} ${cb.from.username ? "@" + cb.from.username : ""}`.trim()
+        : "";
+      const kararlar = `hazirla:${idler.join(",")}`;
+      await islemeAlindiGoster(env, sohbetId, mesajId,
+        `${idler.length} haber seçildi, sırayla üretiliyor.`, kararlar);
+      await githubaIlet(env, kararlar, mesajId, secen);
       await butonuDurdur(env, cb.id, "");
       return new Response("ok");
     }

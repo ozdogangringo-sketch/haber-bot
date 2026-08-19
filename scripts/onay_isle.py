@@ -641,42 +641,65 @@ def durum_bildir(con, ayarlar) -> int:
 
 def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
     """
-    Telegram'da seçilen başlık önerisini tam posta dönüştürür.
+    Telegram'da SEÇİLEN başlık önerilerini sırayla tam posta dönüştürür.
 
-    İKİ AŞAMALI AKIŞIN İKİNCİ ADIMI (19 Ağu 2026). Kontrol job'ı
-    yalnızca başlıkları puanlayıp öneriyor; tam metin, görsel ve
-    imgbb yüklemesi ancak burada — yani kullanıcı seçtikten sonra —
-    yapılıyor. Böylece üretilen hiçbir metin çöpe gitmiyor.
+    Komut biçimi: "hazirla:1482" ya da "hazirla:1482,1490,1503".
+    Çoklu seçim Worker'da yapılıyor (butonlara ✓ konuyor), buraya
+    yalnızca sonuç geliyor.
+
+    İKİ AŞAMALI AKIŞIN İKİNCİ ADIMI. Kontrol job'ı yalnızca başlıkları
+    puanlayıp öneriyor; tam metin, görsel ve imgbb yüklemesi ancak
+    burada — kullanıcı seçtikten sonra — yapılıyor.
     """
     try:
-        haber_id = int(komut.split(":", 1)[1])
+        ham = komut.split(":", 1)[1]
+        haber_idler = [int(x) for x in ham.split(",") if x.strip()]
     except (IndexError, ValueError):
         log.error("geçersiz hazırla komutu: %s", komut)
         return 1
-
-    haber = con.execute("SELECT baslik_orj FROM haberler WHERE id = ?",
-                        (haber_id,)).fetchone()
-    if haber is None:
-        telegram_bot.sonucu_yaz(
-            mesaj_id, "⚠️ Bu haber bulunamadı (veritabanı güncellenmiş olabilir).")
+    if not haber_idler:
         return 1
 
-    baslik = (haber["baslik_orj"] or "")[:70]
-    # ⚠️ Düz metin: `sonucu_yaz` parse_mode göndermiyor, HTML etiketi
-    # kullanırsak kullanıcıya "<b>" diye görünür.
+    basliklar = {}
+    for hid in haber_idler:
+        r = con.execute("SELECT baslik_orj FROM haberler WHERE id = ?",
+                        (hid,)).fetchone()
+        if r:
+            basliklar[hid] = (r["baslik_orj"] or "")[:60]
+
+    if not basliklar:
+        telegram_bot.sonucu_yaz(
+            mesaj_id, "⚠️ Seçilen haberler bulunamadı "
+                      "(veritabanı güncellenmiş olabilir).")
+        return 1
+
     telegram_bot.sonucu_yaz(
-        mesaj_id, f"⏳ Hazırlanıyor: {baslik}\n\n"
-                  f"Metin ve görsel üretiliyor, birkaç dakika sürebilir.")
+        mesaj_id,
+        f"⏳ {len(basliklar)} haber hazırlanıyor:\n"
+        + "\n".join(f"  • {b}" for b in basliklar.values())
+        + "\n\nHer biri ayrı onay mesajı olarak gelecek.")
 
     # son_dakika akışını yeniden kullanıyoruz — görsel üretimi, imgbb
     # yüklemesi, doğrulama ve onay mesajı zaten orada.
     import son_dakika
-    sonuc = son_dakika.main(zorla_haber_id=haber_id)
-    if sonuc != 0:
-        telegram_bot.sonucu_yaz(
-            mesaj_id, f"⚠️ Hazırlanamadı: {baslik}\n\n"
-                      f"Ayrıntı için Actions kaydına bakılabilir.")
-    return sonuc
+
+    basarili, basarisiz = [], []
+    for hid in haber_idler:
+        if hid not in basliklar:
+            continue
+        try:
+            sonuc = son_dakika.main(zorla_haber_id=hid)
+        except Exception as e:                        # noqa: BLE001
+            log.exception("haber %s hazırlanamadı", hid)
+            sonuc = 1
+        (basarili if sonuc == 0 else basarisiz).append(basliklar[hid])
+
+    if basarisiz:
+        telegram_bot.mesaj_gonder(
+            f"⚠️ {len(basarisiz)} haber hazırlanamadı:\n"
+            + "\n".join(f"  • {b}" for b in basarisiz)
+            + ("\n\nDiğerleri onayına sunuldu." if basarili else ""))
+    return 0 if basarili else 1
 
 
 def main() -> int:

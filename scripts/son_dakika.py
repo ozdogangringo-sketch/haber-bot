@@ -502,13 +502,21 @@ def main(zorla_haber_id: int | None = None) -> int:
         suresi_gecmisi_iptal_et(con, ayarlar)
 
         # --- 2) Zaten onay bekleyen son dakika varsa yenisini kurma ---
-        acik = con.execute(
-            "SELECT COUNT(*) FROM haberler WHERE son_dakika = 1 "
-            "AND durum = 'onay_bekliyor'"
-        ).fetchone()[0]
-        if acik:
-            log.info("onay bekleyen son dakika turu var, yeni tur kurulmadı")
-            return 0
+        #
+        # ⚠️ KULLANICI SEÇİMİNDE BU KURAL UYGULANMIYOR. Öneri
+        # listesinden birden fazla haber seçilebiliyor ve hepsi sırayla
+        # hazırlanıyor; ilk tur onay beklerken durursa ikinci ve üçüncü
+        # seçim hiç üretilmez, kullanıcı da neden gelmediğini anlamaz.
+        # Kendiliğinden kurulan turlarda kural geçerli: aynı anda iki
+        # otomatik tekil post onayda bekleyip karışmasın.
+        if not zorla_haber_id:
+            acik = con.execute(
+                "SELECT COUNT(*) FROM haberler WHERE son_dakika = 1 "
+                "AND durum = 'onay_bekliyor'"
+            ).fetchone()[0]
+            if acik:
+                log.info("onay bekleyen son dakika turu var, yeni tur kurulmadı")
+                return 0
 
         # --- 3) Günlük sınır ---
         azami = ayarlar["genel"].get("son_dakika_gunluk_azami", 2)

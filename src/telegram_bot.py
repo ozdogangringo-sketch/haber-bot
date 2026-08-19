@@ -522,28 +522,31 @@ def _kacir(metin: str) -> str:
 
 def oneri_gonder(adaylar: list) -> int:
     """
-    Tekil post için BAŞLIK ÖNERİSİ gönderir — henüz metin/görsel yok.
+    Tekil post için BAŞLIK ÖNERİSİ — çoklu seçim.
 
     ⚠️ NEDEN İKİ AŞAMALI ONAY (19 Ağu 2026):
         Eskiden kontrol job'ı taze haberlere TAM metin üretiyor
-        (başlık + caption + detay + görsel alanları, ~4400 token),
-        sonra puanına bakıp eşiği geçmiyorsa ATIYORDU. Üretilen
-        metnin çoğu çöpe gidiyordu.
+        (~4400 token), sonra puanına bakıp eşiği geçmiyorsa
+        ATIYORDU. Üretilen metnin çoğu çöpe gidiyordu. Şimdi önce
+        yalnızca başlıklar puanlanıp buraya geliyor; tam metin ve
+        görsel yalnızca seçilenler için üretiliyor.
 
-        Şimdi önce yalnızca başlıklar puanlanıp buraya geliyor.
-        Tam metin ve görsel YALNIZCA kullanıcının seçtiği haber için
-        üretiliyor. Kontrol job'ı 2.81 dk'dan ~0.55 dk'ya indi ve bu
-        sayede kontrol sıklığı saat başından 20 dakikaya çıkabildi.
+    ⚠️ ÇOKLU SEÇİM WORKER'DA, GITHUB'DA DEĞİL. Numaralara basmak
+        yalnızca butonun metnine ✓ ekleyip çıkarıyor — Worker mesajı
+        anında düzenliyor, Actions hiç uyanmıyor. Tek bir "Hazırla"
+        basışında seçili olanların hepsi tek dispatch ile gidiyor.
+        Her seçimde Actions çalıştırmak 3 haber için 3 ayrı job
+        (~5 dk) demek olurdu.
 
     `adaylar`: [{id, puan, baslik, kaynak, kategori}] — puana göre sıralı.
     """
     if not adaylar:
         return 0
 
-    rakam = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+    rakam = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
     satirlar = ["📰 <b>Tekil post adayları</b>", ""]
-    butonlar = []
-    for i, a in enumerate(adaylar[:5]):
+    secim_butonlari = []
+    for i, a in enumerate(adaylar[:len(rakam)]):
         satirlar.append(
             f"{rakam[i]} <b>[{a['puan']}]</b> {_kacir(a['baslik'])}"
         )
@@ -551,12 +554,20 @@ def oneri_gonder(adaylar: list) -> int:
             f"     <i>{_kacir(a['kaynak'])} · {_kacir(a['kategori'])}</i>"
         )
         satirlar.append("")
-        butonlar.append({"text": rakam[i],
-                         "callback_data": f"hazirla:{a['id']}"})
+        secim_butonlari.append({"text": rakam[i],
+                                "callback_data": f"sec:{a['id']}"})
 
-    satirlar.append("<i>Seçtiğin haberin metni ve görseli üretilip "
-                    "onayına sunulur. Hiçbiri uygun değilse geç.</i>")
+    satirlar.append("<i>Numaralara basarak istediğin kadar haber seç, "
+                    "sonra Hazırla'ya bas. Seçilenler sırayla üretilip "
+                    "onayına sunulur.</i>")
 
-    menu = [butonlar, [{"text": "❌ Hiçbiri", "callback_data": "oneri_gec"}]]
+    # Butonlar dörderli satırlara bölünüyor — Telegram dar ekranda
+    # yan yana en fazla bu kadarını okunur gösteriyor.
+    satir_butonlar = [secim_butonlari[i:i + 4]
+                      for i in range(0, len(secim_butonlari), 4)]
+    menu = satir_butonlar + [
+        [{"text": "▶️ Hazırla (0)", "callback_data": "hazirla_secilenler"}],
+        [{"text": "❌ Hiçbiri", "callback_data": "oneri_gec"}],
+    ]
     # Başlıklar `_kacir` ile kaçırıldığı için HTML güvenli.
     return mesaj_gonder("\n".join(satirlar), menu, html=True)
