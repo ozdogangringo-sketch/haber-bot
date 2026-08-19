@@ -1,11 +1,12 @@
 # =========================================================
-#  AKŞAM TURUNU HAZIRLA
+#  TURU HAZIRLA  (sabah TR 08:07 · akşam TR 20:07)
 #
 #  RSS → metin → görsel → imgbb → Telegram onayı.
 #  YAYINLAMAZ; yalnızca hazırlar ve gruba sorar.
 #
 #  SAAT DİLİMİ TUZAĞI: cron UTC çalışıyor. Türkiye UTC+3 ve yaz
 #  saati uygulaması YOK, yani fark yıl boyunca sabit 3 saat.
+#      TR 08:07  ->  UTC 05:07
 #      TR 20:07  ->  UTC 17:07
 #
 #  Dakika neden :07: GitHub cron'ları tam saat başlarında yoğun
@@ -17,7 +18,13 @@ name: Turu Hazırla
 
 on:
   schedule:
-    - cron: "7 17 * * *"      # TR 20:07
+    # İKİ TUR (19 Ağu 2026). Tek turda günde 10 haber yayınlanıyordu ve
+    # havuzdaki haberlerin çoğu (gece/sabah saatlerinde çıkanlar dahil)
+    # akşama kadar bekleyip bayat halde yarışa giriyordu. Instagram
+    # carousel sınırı 10 olduğu için tek turda daha fazla haber vermek
+    # mümkün değil — kapasiteyi artırmanın tek yolu tur sayısı.
+    - cron: "7 5 * * *"       # TR 08:07 — gece biriken haberler
+    - cron: "7 17 * * *"      # TR 20:07 — günün geri kalanı
   workflow_dispatch:           # Actions ekranından elle de çalıştırılabilir
     inputs:
       kuru:

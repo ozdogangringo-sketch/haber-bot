@@ -18,7 +18,8 @@ name: Onay Hatırlat
 
 on:
   schedule:
-    - cron: "7 18,19,20 * * *"
+    # TR 09:07/10:07/11:07 (sabah turu) ve 21:07/22:07/23:07 (akşam turu)
+    - cron: "7 6,7,8,18,19,20 * * *"
   workflow_dispatch:
 
 concurrency:

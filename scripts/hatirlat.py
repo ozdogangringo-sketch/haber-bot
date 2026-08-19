@@ -45,6 +45,18 @@ HAVUZA_DON_SAATI_UTC = 20
 # turunda 3 saatlik pay var, elle kurulan turda yok.
 TAZE_TUR_DAKIKA = 90
 
+# ⚠️ TUR SONSUZA KADAR AÇIK KALMASIN.
+#
+# Havuza dönüş eskiden YALNIZCA saate bakıyordu (TR 23:00) çünkü günde
+# tek tur vardı. 19 Ağu 2026'da sabah turu (TR 08:07) eklendi ve o kural
+# yetersiz kaldı: sabah onaylanmayan tur akşam 23:00'e kadar açık
+# kalıyor, akşam turu kurulduğunda iki tur çakışıyordu.
+#
+# Artık tur şu kadar saat onaysız beklerse saat kaç olursa olsun havuza
+# dönüyor. 6 saat seçildi: sabah turuna öğlene kadar, akşam turuna gece
+# yarısına kadar süre tanıyor — ikisi de rahat, ama üst üste binmiyorlar.
+AZAMI_BEKLEME_SAAT = 6
+
 
 def _tur_yasi_dakika(haber) -> float | None:
     """Tur Telegram'a düşeli kaç dakika oldu? Bilinmiyorsa None."""
@@ -96,7 +108,11 @@ def main() -> int:
     if taze:
         log.info("tur %.0f dakikalık, kapatılmıyor", yas)
 
-    if simdi.hour >= HAVUZA_DON_SAATI_UTC and not taze:
+    cok_bekledi = yas is not None and yas >= AZAMI_BEKLEME_SAAT * 60
+    if cok_bekledi:
+        log.info("tur %.1f saattir onaysız, havuza dönüyor", yas / 60)
+
+    if (simdi.hour >= HAVUZA_DON_SAATI_UTC or cok_bekledi) and not taze:
         con.execute(
             "UPDATE haberler SET durum = 'yeni', telegram_message_id = NULL "
             "WHERE telegram_message_id = ?",
