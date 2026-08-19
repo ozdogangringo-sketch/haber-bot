@@ -150,8 +150,36 @@ yayınlandı ve üçü de doğrulandı. Threads jeton beklediği için atlandı.
 16 Ağustos turu **tamamen otomatikti**: cron 17:31'de hazırladı (7 dk),
 Telegram'a düştü, onaylandı, 17:58'de yayınlandı.
 
-**Günlük maliyet: $0.** Normal turda AI hiç çağrılmıyor (Commons/Pexels/
-gradyan bedava), Gemini metin ücretsiz kotada, jeton süresiz.
+**Maliyet (19 Ağu 2026'da ölçüldü) — "sıfır" DEĞİL, ~$2/ay.**
+
+Görsel tarafı gerçekten bedava: normal turda AI hiç çağrılmıyor
+(Commons/Pexels/gradyan), imgbb·Pexels·Telegram·Cloudflare ücretsiz
+katmanda, Instagram jetonu süresiz.
+
+Ücretli olan tek şey Gemini metin üretimi:
+
+| | |
+|---|---|
+| Ücretsiz kota | model başına **günde 20 istek** — iki modelle günde 40 |
+| Gerçek kullanım | ortalama **33 istek/gün** (yoğun günde 92) |
+| Bedava kotayı aşan | ~300 istek/ay |
+| Aylık maliyet | **~$1.81** (gemini-3.6-flash, 2026 fiyatı) |
+| Her istek ücretli olsaydı | ~$6.95/ay |
+| ⚠️ 1 Ocak 2027'den sonra | fiyat **iki katına** çıkıyor → ~$3.6/ay |
+
+⚠️ **Retry'lar da kotadan sayılıyor.** 429 alınan istek 3 kez
+deneniyor ve üçü de kotadan düşüyor; bu yüzden bedava kota
+göründüğünden erken bitiyor.
+
+⚠️ **Maliyet SESSİZ oluşuyor.** Ücretsiz kota bitince kod yedek
+(faturalı) anahtara geçiyor ve çalışmaya devam ediyor — log'a
+"Gemini yedek anahtarı kullanıldı" yazıyor ama kimse bakmıyor.
+Günlük rapora eklenmeli.
+
+**GitHub Actions:** 7 günlük ölçümle **1356 dk/ay**, private repo
+kotası 2000 dk/ay → şu an **$0**, ama pay yalnızca %32. Aşım
+Linux'ta $0.008/dk. Sıkışırsa `son-dakika.yml` cron'u 2 saatte bire
+çekilir (bkz. 1b).
 
 ---
 
