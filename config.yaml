@@ -42,7 +42,24 @@ genel:
 
   # Günde en fazla kaç son dakika postu. Akşam turuyla birlikte günde
   # 3 post eder; Instagram için sağlıklı aralık, takipçi yorulmuyor.
-  son_dakika_gunluk_azami: 2
+  # Gün içi tekil post sayısı. 19 Ağu 2026'da 2'den 10'a çıkarıldı:
+  # havuzda yayınlanmayı bekleyen 100+ haber birikiyordu.
+  son_dakika_gunluk_azami: 10
+  # Tek kategori günü domine etmesin — kategori başına günlük sınır
+  son_dakika_kategori_azami: 3
+  # ⚠️ KATEGORİ BAZLI EŞİK. Tek eşik (8) spor ve ekonomiyi tamamen
+  # dışlıyordu: ölçüldü, o kategorilerde 8+ puan alan haber SIFIR,
+  # en yükseği 7. Önem puanı kategoriye göre farklı dağılıyor, bu
+  # yüzden eşik de kategoriye göre veriliyor. Gece hepsine +1 ekleniyor.
+  son_dakika_kategori_esikleri:
+    turkiye: 8
+    dunya: 8
+    ekonomi: 7
+    spor: 7
+    bilim: 7
+    teknoloji: 7
+    kultur: 7
+    yasam: 7
 
   # "SON DAKİKA" ETİKETİ hangi puandan itibaren basılsın.
   # Tetikleme eşiği 8, ama 8 "önemli haber" demek; 9-10 ise

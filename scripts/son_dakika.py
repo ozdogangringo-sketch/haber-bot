@@ -64,18 +64,47 @@ def gece_mi() -> bool:
     return saat >= GECE_BASI_TR or saat < GECE_SONU_TR
 
 
-def gecerli_esik(ayarlar: dict) -> int:
+def gecerli_esik(ayarlar: dict, kategori: str | None = None) -> int:
     """
-    Gece eşiği daha yüksek.
+    Bu haberin tekil post olabilmesi için gereken önem puanı.
 
-    Sebep: gece hazırlanan post sabaha kalıyor, yani onaylandığında
-    5-8 saatlik bir haber oluyor. Bu gecikmeyi ancak gerçekten büyük
-    bir olay hak ediyor — sıradan bir haber akşam turuna kalsın.
+    İKİ ŞEY BELİRLİYOR:
+
+    1. GECE Mİ — gece eşiği daha yüksek. Gece hazırlanan post sabaha
+       kalıyor, yani onaylandığında 5-8 saatlik bir haber oluyor; bu
+       gecikmeyi ancak gerçekten büyük bir olay hak ediyor.
+
+    2. KATEGORİ — ⚠️ TEK EŞİK SPOR VE EKONOMİYİ TAMAMEN DIŞLIYORDU.
+       Ölçüldü (19 Ağu 2026, son 3 gün): ekonomi 18 haberin 8+ alanı
+       SIFIR (en yükseği 7), spor 15 haberin 8+ alanı SIFIR (en yükseği
+       7). Eşik 8 iken o kategorilerden tekil post çıkması matematiksel
+       olarak imkansızdı.
+
+       Sebep, önem puanının kendisinin kategoriye göre farklı
+       dağılması: "ülke gündemi" haberleri doğaları gereği daha yüksek
+       puan alıyor. Aynı çatı altında yarıştırmak yerine her kategoriye
+       kendi eşiği veriliyor — bu, ön elemedeki kategori katsayısı
+       mantığının tekil postlara uygulanmış hali.
     """
     g = ayarlar["genel"]
-    if gece_mi():
-        return g.get("gece_puan_esigi", 9)
-    return g.get("son_dakika_puan_esigi", 8)
+    taban = (g.get("gece_puan_esigi", 9) if gece_mi()
+             else g.get("son_dakika_puan_esigi", 8))
+
+    esikler = g.get("son_dakika_kategori_esikleri", {}) or {}
+    if kategori and kategori in esikler:
+        # Gece kuralı kategori eşiğinde de geçerli: bir puan daha zor.
+        return esikler[kategori] + (1 if gece_mi() else 0)
+    return taban
+
+
+def bugunku_kategori_sayisi(con, kategori: str) -> int:
+    """Bugün bu kategoriden kaç tekil post yayınlandı?"""
+    return con.execute(
+        "SELECT COUNT(*) FROM haberler WHERE son_dakika = 1 "
+        "AND durum = 'yayinlandi' AND kategori = ? "
+        "AND date(gonderim_zamani) = date('now')",
+        (kategori,),
+    ).fetchone()[0]
 
 
 def omru_bitti_mi(gonderim: str, ayarlar: dict) -> bool:
@@ -165,20 +194,36 @@ def aday_bul(con, ayarlar: dict):
     metin ürettirmek kotayı yakar; akşam turu zaten adaylara metin
     üretiyor, buradaki iş onların arasından fırlayanı seçmek.
     """
-    esik = gecerli_esik(ayarlar)
     sinir = (datetime.now(timezone.utc)
              - timedelta(hours=TAZELIK_SAAT)).isoformat()
+    kat_azami = ayarlar["genel"].get("son_dakika_kategori_azami", 3)
 
-    adaylar = [
-        h for h in con.execute(
-            "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
-            "AND ig_baslik IS NOT NULL AND onem_puani >= ? "
-            "AND (son_dakika IS NULL OR son_dakika = 0) "
-            "ORDER BY onem_puani DESC, yayin_tarihi DESC",
-            (esik,),
-        )
-        if (h["yayin_tarihi"] or "") >= sinir
-    ]
+    # Eşik artık kategoriye göre değiştiği için SQL'de süzemiyoruz;
+    # en düşük eşikle çekip Python tarafında her habere kendi eşiğini
+    # uyguluyoruz. Havuz zaten 'metin_hazir' ile sınırlı, maliyeti yok.
+    esikler = list((ayarlar["genel"].get("son_dakika_kategori_esikleri") or {}).values())
+    taban = min([gecerli_esik(ayarlar)] + [e for e in esikler]) if esikler else gecerli_esik(ayarlar)
+
+    adaylar = []
+    for h in con.execute(
+        "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
+        "AND ig_baslik IS NOT NULL AND onem_puani >= ? "
+        "AND (son_dakika IS NULL OR son_dakika = 0) "
+        "ORDER BY onem_puani DESC, yayin_tarihi DESC",
+        (taban,),
+    ):
+        if (h["yayin_tarihi"] or "") < sinir:
+            continue
+        if (h["onem_puani"] or 0) < gecerli_esik(ayarlar, h["kategori"]):
+            continue
+        # ⚠️ Tek kategori günü domine etmesin. Gündem haberleri sayıca
+        # baskın olduğu için, sınır olmadan günün bütün tekil postları
+        # "turkiye"den çıkardı ve spor/ekonomi için açılan kapı yine
+        # kapanmış olurdu.
+        if bugunku_kategori_sayisi(con, h["kategori"] or "") >= kat_azami:
+            continue
+        adaylar.append(h)
+
     return adaylar[0] if adaylar else None
 
 
