@@ -141,6 +141,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | ~~"Atla" butonu~~ | **GEÇERSİZ.** Tek-haber tasarımından kalmaydı; carousel'de 10 haber var, "sıradakini öner" anlamsız. Yerine aşağıdaki menü geldi. |
 | Onay butonları | İki katmanlı menü (15 Ağu 2026): **Ana menü** → `✅ Yayınla` / `🔄 Metinleri yeniden üret` / `🎨 Bir slaytın görselini değiştir` / `❌ Bu turu atla`. **Slayt menüsü** → 1-10 arası seçim → `🔀 Başka fotoğraf (bedava)` / `🎨 AI ile üret (~$0.04)`. |
 | Menü gezinme nerede | **Worker'da, GitHub'da değil.** Actions'ı uyandırmak 30+ saniye sürüyor, menü açmak anında olmalı. Yalnızca gerçek eylemler (`yayinla`, `iptal`, `metin_yenile`, `slayt_ai:N`, `slayt_foto:N`) `repository_dispatch` ile GitHub'a gidiyor. |
+| ⚠️ WORKER GIT'LE DEPLOY OLMUYOR | `worker/index.js` değiştirilip push edilince Cloudflare'e **gitmiyor** — ayrı bir servis. `cd worker && npx wrangler deploy` şart. 19 Ağu 2026'da unutuldu: yeni `hazirla:` butonu Telegram'da "tanınmayan komut" verdi, kod doğruydu ama Worker eski sürümdeydi. Belirtisi tam olarak bu: buton çalışmıyor ama Actions'ta hiç kayıt yok, çünkü istek GitHub'a hiç ulaşmıyor. |
 | ⚠️ Menü ikilemesi | Buton düzeni **iki yerde** tanımlı: `src/telegram_bot.py` ve `worker/index.js`. Birini değiştirirsen diğerini de değiştir. Slayt sayısı `callback_data`'ya gömülü (`slayt_menu:10`) — Worker'ın turda kaç slayt olduğunu bilmesinin başka yolu yok. |
 | Secrets | `.env` (yerel) + GitHub Actions Secrets (uzak). Koda gömülmez. |
 
