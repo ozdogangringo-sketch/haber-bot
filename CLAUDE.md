@@ -352,6 +352,36 @@ basılan o. Kayıtların `kaynak` alanı da `TRT Haber` yapıldı.
 Kural: bir kaynağı kapatırken **iki sütunu birden** düzelt —
 `kategori` (şerit rengi, ön eleme) ve `kaynak` (slaytta görünen ad).
 
+**1l. ⚠️ GECE OTOMATİK YAYIN PRATİKTE HİÇ ÇALIŞMIYOR — eşik ulaşılamaz.**
+
+Kullanıcı bildirdi (19 Ağu 2026): "gece hiç yayınlanmıyor haber".
+Özellik açık (`genel.gece_otomatik_yayin: true`), cron'lar gece
+düzenli çalışıyor, dört katman da sağlam — ama yayın çıkmıyor.
+
+Ölçüldü, sebep tek: **gece eşiği 9 ve hiçbir haber 9 almıyor.**
+
+| saat (TR) | eşik | sonuç |
+|---|---|---|
+| 23:33 · 01:33 · 04:47 · 06:05 | 9 (gece) | dördünde de "haber yok" |
+| 07:46 · 08:40 | 8 (gündüz) | ikisinde de hemen onaya sunuldu |
+
+Son 24 saatte **11 haber 8+ aldı, 9 alan SIFIR**. Sabah eşik 8'e
+düşer düşmez haber bulunuyor — yani havuz dolu, kapı kapalı.
+
+⚠️ Bu, "★ Önem puanı" satırındaki kalibrasyon sorununun ikinci yüzü:
+prompt siyasi ölçeğe kalibre olduğu için 9 neredeyse hiç verilmiyor
+ve 9'a bağlı HER ŞEY sessizce ölüyor — gece yayını da,
+`son_dakika_etiket_esigi` (SON DAKİKA ibaresi) de.
+
+Dört katman ayrıca ÖLÇÜLDÜ ve gerçekten ayıklıyor: 6 adayın 3'ü
+geçti, 3'ü reddedildi (1 riskli kategori, 2 çapraz denetim). Yani
+eşiği düşürmek "kontrolsüz yayın" demek değil, asıl süzgeç katmanlar.
+
+**Karar (19 Ağu):** eşik 9'da BIRAKILDI. Önce yeni önem promptunun
+puan dağılımını yükseltip yükseltmediği ölçülecek; 9 gerçekten
+ulaşılabilir hale geldiyse eşiğe hiç dokunulmayacak. Yükselmezse
+eşik 8'e indirilecek.
+
 ### Geçmiş notlar (güncelleme: 14 Ağustos 2026)
 
 **Adım 1 BİTTİ ve kullanıcının makinesinde doğrulandı.** 8/8 kaynak çalışıyor,

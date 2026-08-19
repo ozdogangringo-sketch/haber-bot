@@ -252,6 +252,15 @@ def cesitlendir(adaylar: list, adet: int, ayarlar: dict,
     # aranıyor — engellenen şey tekrar, devam eden olay değil.
     gecmis_esik = s.get("gecmis_ortak_kelime_esigi", ortak_esik + 1)
 
+    # ⚠️ BÜYÜK OLAY GÜNÜN ÖZETİNDE DE YER ALIR.
+    # Gündüz son dakika olarak paylaşılan bir haber, gerçekten büyük
+    # bir olaysa akşam özetinde tekrar görünmeli — özet o günü anlatıyor
+    # ve günün en önemli olayını atlarsa özet olmaktan çıkar. Tekrar
+    # engeli sıradan haberler için var: aynı istifayı üç kez göstermek
+    # takipçiye yeni bir şey söylemiyor, ama bir depremi hem anında hem
+    # akşam özetinde vermek doğru davranış.
+    muafiyet = s.get("gecmis_muafiyet_puani", 9)
+
     secilen = []
     konular = []                      # tur içi — eşik: ortak_esik
     onceki_konular = list(gecmis_konular or [])   # yayınlanmış — eşik: gecmis_esik
@@ -266,8 +275,10 @@ def cesitlendir(adaylar: list, adet: int, ayarlar: dict,
         # bir ortak özel isim. Tek başına kelime sayısı "Resmi Gazete'de
         # yayımlandı" gibi kalıplarda yanlış eşleşme veriyordu.
         isimler = _ozel_isimler(haber["ig_baslik"] or haber["baslik_orj"])
-        if any(len(kelimeler & ok) >= gecmis_esik and (isimler & oi)
-               for ok, oi in onceki_konular):
+        yeterince_buyuk = (haber["onem_puani"] or 0) >= muafiyet
+        if not yeterince_buyuk and any(
+                len(kelimeler & ok) >= gecmis_esik and (isimler & oi)
+                for ok, oi in onceki_konular):
             log.info("konu son %s günde zaten yayınlandı, atlanıyor: %s",
                      (s.get("gecmis_konu_gun", 2)),
                      (haber["ig_baslik"] or haber["baslik_orj"])[:60])

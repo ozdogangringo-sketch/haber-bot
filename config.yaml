@@ -171,6 +171,9 @@ secim:
   # Geçmiş için eşik daha yüksek: devam eden olayı değil,
   # aynı haberin tekrarını engellemek istiyoruz
   gecmis_ortak_kelime_esigi: 3
+  # Bu puanın üstündeki haberler tekrar engelinden MUAF: gündüz son
+  # dakika olarak paylaşılan büyük bir olay, akşam özetinde de yer alır
+  gecmis_muafiyet_puani: 9
 
 
 # =========================================================
