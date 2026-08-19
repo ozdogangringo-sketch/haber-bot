@@ -300,7 +300,19 @@ def main() -> int:
             # Metni hazır aday yoksa, yüksek puanlı olabilecek TAZE
             # haberlere metin ürettirip bir daha bak. Sadece birkaç tane —
             # her saat başı havuza metin üretmek kotayı yakar.
-            yeniler = secim.on_eleme(con, ayarlar, kac=5)
+            # ⚠️ ACTIONS KOTASININ EN BÜYÜK KALEMİ BURASI.
+            # Ölçüldü (19 Ağu 2026): kontrol job'ının ana adımı 26 sn
+            # ile 540 sn arasında değişiyor; uzun olanlar tam da bu
+            # metin üretiminin çalıştığı çalışmalar. Kontrol günde ~18
+            # kez koşuyor, yani aylık ~1518 dk — Pro kotasının yarısı.
+            #
+            # 5'ten 3'e indirildi: artık günde 2 tur var (sabah+akşam)
+            # ve ikisi toplam ~50 adaya metin üretiyor, havuzda sürekli
+            # 100+ hazır metin duruyor. Buradaki üretim yalnızca çok
+            # taze bir haberi yakalamak için; kalabalık olması gerekmiyor.
+            yeniler = secim.on_eleme(
+                con, ayarlar,
+                kac=ayarlar["genel"].get("son_dakika_ek_metin_adedi", 3))
             if yeniler:
                 metinleri_uret(ayarlar=ayarlar, haberler=yeniler)
                 aday = aday_bul(con, ayarlar)

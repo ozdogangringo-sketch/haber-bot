@@ -47,6 +47,9 @@ genel:
   son_dakika_gunluk_azami: 10
   # Tek kategori günü domine etmesin — kategori başına günlük sınır
   son_dakika_kategori_azami: 3
+  # Kontrol job'ı aday bulamazsa kaç habere metin üretsin.
+  # Actions kotasının en büyük kalemi bu; 5'ten 3'e indirildi.
+  son_dakika_ek_metin_adedi: 3
   # ⚠️ KATEGORİ BAZLI EŞİK. Tek eşik (8) spor ve ekonomiyi tamamen
   # dışlıyordu: ölçüldü, o kategorilerde 8+ puan alan haber SIFIR,
   # en yükseği 7. Önem puanı kategoriye göre farklı dağılıyor, bu
