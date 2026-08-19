@@ -52,6 +52,27 @@ genel:
   # Tekil post önerisinde kaç başlık TEK Gemini isteğiyle puanlanacak.
   # Bunların en iyi 5'i Telegram'a öneri olarak gidiyor.
   oneri_aday_adedi: 10
+  # ⚠️ ÖNERİ EŞİKLERİ, TAM METİN EŞİKLERİNDEN 2 PUAN DÜŞÜK.
+  # Sebep ölçüldü (19 Ağu 2026): toplu başlık puanlaması aynı habere
+  # tam metin puanlamasından ortalama 1.5-1.8 puan DÜŞÜK veriyor.
+  # Model 10 haberi yan yana görünce birbirleriyle kıyaslayıp
+  # katılaşıyor ve elinde makale gövdesi değil yalnızca başlık+özet
+  # oluyor. Özeti 200'den 800 karaktere çıkarmak sapmayı yalnızca
+  # 0.2 puan iyileştirdi — yani sorun bilgi miktarı değil, bağlam.
+  # Prompta "her haberi kendi başına değerlendir" notu eklendi, sapma
+  # 1.8'den 1.6'ya indi ama tamamen kapanmadı.
+  # Bu yüzden öneri aşaması kendi eşiğini kullanıyor. Zaten burada
+  # eleme kesin değil: eşiği geçen haber YAYINLANMIYOR, yalnızca
+  # kullanıcıya öneriliyor — son sözü insan söylüyor.
+  oneri_kategori_esikleri:
+    turkiye: 6
+    dunya: 6
+    ekonomi: 5
+    spor: 5
+    bilim: 5
+    teknoloji: 5
+    kultur: 5
+    yasam: 5
   son_dakika_ek_metin_adedi: 4
   # Tekil post adayı bu kadar saatten taze olmalı. 3 saat çok dardı:
   # ölçüldü, hazır metinlerin %98'i bu filtreye takılıyordu.

@@ -254,6 +254,21 @@ def _konu_imzasi(baslik: str) -> tuple[set, set]:
     return kelimeler, isimler
 
 
+def oneri_esigi(ayarlar: dict, kategori: str | None) -> int:
+    """
+    ÖNERİ aşamasının eşiği — tam metin eşiğinden ayrı.
+
+    ⚠️ Toplu başlık puanlaması aynı habere tam metin puanlamasından
+    ortalama 1.5-1.8 puan DÜŞÜK veriyor (ölçüldü). Aynı eşiği
+    kullanmak öneri akışını tamamen kilitliyordu: hiçbir başlık 8'e
+    ulaşamadığı için öneri hiç gönderilmiyordu.
+    """
+    g = ayarlar["genel"]
+    esikler = g.get("oneri_kategori_esikleri", {}) or {}
+    taban = esikler.get(kategori, 6)
+    return taban + (1 if gece_mi() else 0)
+
+
 def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     """
     Taze başlıkları ucuz yoldan puanlayıp Telegram'a ÖNERİ gönderir.
@@ -314,7 +329,7 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
         puan = puanlar.get(h["id"])
         if puan is None:
             continue
-        if puan < gecerli_esik(ayarlar, h["kategori"]):
+        if puan < oneri_esigi(ayarlar, h["kategori"]):
             continue
         if bugunku_kategori_sayisi(con, h["kategori"] or "") >= kat_azami:
             continue

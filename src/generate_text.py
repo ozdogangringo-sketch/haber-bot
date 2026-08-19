@@ -284,9 +284,23 @@ görmek isteme derecesi. Devlet önceliği değil, TAKİPÇİ önceliği ölçü
 Bu üçünü ORTALAMA. Birinde çok güçlüyse diğerleri zayıf diye düşürme:
 çok konuşulacak bir olay, dar bir kesimi ilgilendirse bile yüksek alır.
 
-  9-10 — ülke gündemini belirleyen olay
-         büyük deprem/afet · savaş veya ateşkes kararı · seçim sonucu
-         · geniş kesimi etkileyen ekonomik karar · çok can kaybı
+  9-10 — günün EN ÖNEMLİ birkaç haberinden biri. Ertesi gün insanlar
+         hâlâ bundan konuşuyorsa buraya girer.
+         · büyük deprem, sel, yangın, afet
+         · savaş, ateşkes, sınır ötesi operasyon kararı
+         · seçim sonucu, hükümet krizi, istifa eden bakan/başkan
+         · herkesin cebini etkileyen karar: asgari ücret, büyük zam,
+           faiz kararı, vergi düzenlemesi
+         · çok sayıda can kaybı olan kaza (uçak, tren, maden, deprem)
+         · tanınan bir ismin ölümü ya da ağır bir suça karışması
+         · büyük çaplı operasyon, toplu gözaltı, kayyum ataması
+         · milli takımın büyük turnuvadaki sonucu, tarihi şampiyonluk
+         · salgın ilanı, geniş bölgeyi kapsayan sağlık uyarısı
+
+         ⚠️ 9 VERMEKTEN ÇEKİNME. Bu ölçek yalnızca siyasi olaylar için
+         değil. Bir haber yukarıdaki tanıma uyuyorsa 9 ver; "daha
+         önemlisi olabilir" diye 7-8'e çekme. Gün içinde birkaç haber
+         9 alabilir, bu normaldir.
 
   7-8  — çoğu insanın bilmek isteyeceği haber. Siyaset ŞART DEĞİL,
          aşağıdakiler de bu banda girer:
@@ -643,6 +657,16 @@ TOPLU_PUAN_SEMASI = {
 TOPLU_PUAN_PROMPT = """Aşağıda numaralı haber başlıkları var. Her birine
 1-10 arası bir ÖNEM PUANI ver ve yalnızca puanları döndür.
 
+⚠️ HER HABERİ KENDİ BAŞINA DEĞERLENDİR — listedeki diğerleriyle
+KIYASLAMA. Buradaki haberler rastgele bir zaman diliminden geliyor;
+aralarında "en iyisi" olmak bir haberi önemli, "en kötüsü" olmak
+önemsiz yapmaz. Liste zayıfsa hepsine düşük puan verme; liste güçlüyse
+sıralamak için birine yapay olarak düşük puan verme.
+
+Ölçüt mutlak: "Türkiye'deki ortalama bir takipçi bu haberi görmek
+ister mi?" Aynı haber tek başına gelseydi kaç verirdin, burada da onu
+ver. Aynı puanı birden çok habere vermekten çekinme.
+
 onem_puani (1-10) — Türkiye'deki ortalama bir takipçinin bu haberi
 görmek isteme derecesi. Devlet önceliği değil, TAKİPÇİ önceliği.
   * Etki: kaç kişinin hayatına dokunuyor?
@@ -650,9 +674,14 @@ görmek isteme derecesi. Devlet önceliği değil, TAKİPÇİ önceliği.
   * Konuşulurluk: insanlar bunu birbirine anlatır mı, merak eder mi?
 Birinde çok güçlüyse diğerleri zayıf diye düşürme.
 
-  9-10 — ülke gündemini belirleyen olay: büyük deprem/afet · savaş
-         veya ateşkes kararı · seçim sonucu · geniş kesimi etkileyen
-         ekonomik karar · çok can kaybı
+  9-10 — günün EN ÖNEMLİ birkaç haberinden biri. Ertesi gün insanlar
+         hâlâ bundan konuşuyorsa buraya girer: büyük afet · savaş ya da
+         ateşkes kararı · seçim sonucu, istifa eden bakan/başkan ·
+         herkesin cebini etkileyen karar (asgari ücret, büyük zam,
+         faiz) · çok can kaybı olan kaza · tanınan bir ismin ölümü ya
+         da ağır suça karışması · büyük operasyon, kayyum · milli
+         takımın büyük turnuva sonucu · salgın ilanı.
+         ⚠️ 9 VERMEKTEN ÇEKİNME — gün içinde birkaç haber 9 alabilir.
   7-8  — çoğu insanın bilmek isteyeceği haber. Siyaset ŞART DEĞİL:
          dikkat çekici bilim/uzay keşfi · herkesi ilgilendiren sağlık
          bulgusu · çok konuşulacak adli olay · tanınan ismin karıştığı
