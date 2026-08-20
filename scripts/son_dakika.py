@@ -37,7 +37,7 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    ayar, caption, db, db_senkron, hata_bildir, dogrula, facebook, fetch_news, instagram,
+    aday, ayar, caption, db, db_senkron, hata_bildir, dogrula, facebook, fetch_news, instagram,
     make_image, otomatik_onay, threads,
     secim, slaytlar, telegram_bot, upload_image,
 )
@@ -319,49 +319,30 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
             metinleri_uret(ayarlar=ayarlar, haberler=yuksek[:1])
             return METIN_URETILDI
 
-    kat_azami = ayarlar["genel"].get("son_dakika_kategori_azami", 3)
-    s = ayarlar.get("secim", {}) or {}
-    ortak_esik = s.get("konu_ortak_kelime_esigi", 2)
-    gecmis_esik = s.get("gecmis_ortak_kelime_esigi", ortak_esik + 1)
+    # ⚠️ ELEME KURALLARI ARTIK `src/aday.py`'DE — burada tekrar YOK.
+    #
+    # Tazelik, eşik, kategori sınırı, geçmiş tekrarı ve liste içi
+    # mükerrer denetimi tek kapıdan geçiyor. Önce bu kurallar üç ayrı
+    # fonksiyona kopyalanmıştı ve biri hep unutuluyordu (1j, 1p).
+    #
+    # Puanlar yukarıda DB'ye yazıldı; haberleri yeniden çekiyoruz ki
+    # `aday.uygun_mu` `onem_puani` alanını dolu görsün.
+    idler = [h["id"] for h in ham]
+    isaret = ",".join("?" * len(idler))
+    puanli_ham = list(con.execute(
+        f"SELECT * FROM haberler WHERE id IN ({isaret})", idler))
+    # Orijinal sırayı koru (ağırlık + tazelik sırası)
+    sira = {hid: i for i, hid in enumerate(idler)}
+    puanli_ham.sort(key=lambda h: sira.get(h["id"], 999))
 
-    # ⚠️ ÖNERİ LİSTESİNDE AYNI OLAY İKİ KEZ GÖRÜNMESİN.
-    # İlk sürümde Kolombiya depremi hem TRT Dünya hem AA Dünya
-    # satırıyla listeye girdi — kullanıcıya aynı haberi iki numara
-    # olarak sunmak seçimi zorlaştırıyor ve listede yer israfı.
-    # Ayrıca son günlerde YAYINLANMIŞ konular da öneriye girmemeli.
-    gecmis = secim.yayinlanmis_konular(con, ayarlar)
+    baglam = aday.Baglam.kur(aday.ONERI, ayarlar, con)
+    uygunlar = aday.sec(puanli_ham, baglam)
 
-    onceki = []
-    adaylar = []
-    for h in ham:
-        puan = puanlar.get(h["id"])
-        if puan is None:
-            continue
-        if puan < oneri_esigi(ayarlar, h["kategori"]):
-            continue
-        if bugunku_kategori_sayisi(con, h["kategori"] or "") >= kat_azami:
-            continue
-
-        kelimeler, isimler = secim.konu_imzasi(h["baslik_orj"])
-        # Liste içi tekrar. ⚠️ Burada da ORTAK ÖZEL İSİM şartı var:
-        # yalnızca kelime saymak "Kolombiya'da 7,4 büyüklüğündeki
-        # depremde..." ile "Endonezya'daki 7,7 büyüklüğündeki
-        # depremde..." haberlerini aynı olay sayıyordu — ikisi de
-        # deprem, kelimeler tutuyor ama olaylar farklı. Ayırt eden
-        # şey ülke/kişi adı.
-        if any(len(kelimeler & k) >= ortak_esik and (isimler & i)
-               for k, i in onceki):
-            continue
-        # Son günlerde zaten yayınlanmış konu
-        if any(len(kelimeler & ok) >= gecmis_esik and (isimler & oi)
-               for ok, oi in gecmis):
-            continue
-
-        onceki.append((kelimeler, isimler))
-        adaylar.append({"id": h["id"], "puan": puan,
-                        "baslik": h["baslik_orj"],
-                        "kaynak": h["kaynak"],
-                        "kategori": h["kategori"] or "-"})
+    adaylar = [{"id": h["id"], "puan": h["onem_puani"],
+                "baslik": h["baslik_orj"],
+                "kaynak": h["kaynak"],
+                "kategori": h["kategori"] or "-"}
+               for h in uygunlar]
     adaylar.sort(key=lambda a: a["puan"], reverse=True)
 
     if not adaylar:

@@ -122,9 +122,18 @@ def test_mukerrer_her_akista_var() -> None:
         if not isinstance(dugum, ast.FunctionDef) or dugum.name not in beklenen:
             continue
         govde = ast.get_source_segment(kaynak, dugum) or ""
-        denetle("yayinlanmis_konular" in govde,
+        # ⚠️ İKİ KABUL EDİLEBİLİR YOL:
+        #   1. `aday.Baglam` kullanmak — kural tek kapıdan geliyor
+        #   2. doğrudan `yayinlanmis_konular` çağırmak (eski yol)
+        # Aday kapısı tercih edilen; eski yol henüz bağlanmamış
+        # akışlar için geçerli kalıyor.
+        korumali = ("yayinlanmis_konular" in govde
+                    or "aday.Baglam" in govde
+                    or "Baglam.kur" in govde)
+        denetle(korumali,
                 f"{dugum.name}() geçmiş tekrar denetimi yapıyor",
-                "aday seçen her akışta gerekli")
+                "aday seçen her akışta gerekli (aday.Baglam ya da "
+                "yayinlanmis_konular)")
         beklenen.discard(dugum.name)
     for eksik in beklenen:
         denetle(False, f"{eksik}() bulunamadı", "fonksiyon silinmiş olabilir")
