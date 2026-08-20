@@ -35,6 +35,7 @@ from src import (                                  # noqa: E402
     ayar, caption, db, db_senkron, dogrula, facebook, instagram, slaytlar,
     telegram_bot, threads, upload_image,
 )
+from src import generate_text                      # noqa: E402
 from src.generate_text import metinleri_uret       # noqa: E402
 
 log = logging.getLogger("onay")
@@ -47,7 +48,7 @@ _ayarlar_onbellek: dict = {}
 # taşımıyor; buraya eklenmezse main() daha en başta hata verip çıkıyor.
 # (`/tur` buraya girmiyor — workflow onu `hazirla.py`'ye yönlendiriyor,
 #  bu script'e hiç uğramıyor.)
-MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv"}
+MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara"}
 
 
 def turu_getir(con, mesaj_id: int) -> list:
@@ -667,6 +668,125 @@ def durum_bildir(con, ayarlar) -> int:
 
 
 
+def _arama_skoru(haber, kelimeler: list[str]) -> int:
+    """
+    Arama isabetini artıran basit skor.
+
+    ⚠️ NEDEN GEREKTİ: yalnızca "kelime geçiyor mu" bakmak alakasız
+    sonuç veriyordu. Ölçüldü (20 Ağu 2026): "/haber asgari ücret"
+    aramasında dönen 3 haberin hiçbiri asgari ücretle ilgili değildi
+    — kelimeler özet metninde ayrı bağlamlarda geçiyordu.
+
+    Başlıkta geçmek özette geçmekten çok daha güçlü bir sinyal.
+    """
+    baslik = (haber["baslik_orj"] or "").lower()
+    ozet = (haber["ozet_orj"] or "").lower()
+    skor = 0
+    for k in kelimeler:
+        if k in baslik:
+            skor += 10
+        elif k in ozet:
+            skor += 2
+    return skor
+
+
+def haber_ara(con, ayarlar, komut: str) -> int:
+    """
+    `/haber <konu>` — havuzda arama yapıp bulunanları öneri olarak sunar.
+
+    ⚠️ KULLANICININ YAZDIĞI METİNDEN POST ÜRETİLMİYOR. Projenin en
+    temel kuralı "yalnızca kaynak metinde yazanı kullan, uydurma"
+    (bkz. CLAUDE.md Adım 2). Tek cümlelik bir istekten haber metni
+    üretmek tam da o kuralın yasakladığı şey olurdu — üstelik en
+    tehlikeli biçimde, çünkü çıktı gerçek bir haber gibi görünür.
+
+    Bunun yerine havuzdaki GERÇEK haberlerde arama yapılıyor. Seçilen
+    haberin metni her zaman kendi kaynağından üretiliyor.
+    """
+    konu = komut.split(":", 1)[1].strip() if ":" in komut else ""
+    if len(konu) < 3:
+        telegram_bot.mesaj_gonder("Aramak istediğin konuyu yaz:\n"
+                                  "/haber galatasaray transfer")
+        return 1
+
+    kelimeler = [k for k in konu.lower().split() if len(k) >= 3][:5]
+    if not kelimeler:
+        telegram_bot.mesaj_gonder(f"'{konu}' araması çok kısa.")
+        return 1
+
+    # Her kelime başlıkta VEYA özette geçmeli (VE mantığı — daha isabetli)
+    kosul = " AND ".join(
+        "(lower(baslik_orj) LIKE ? OR lower(ozet_orj) LIKE ?)" for _ in kelimeler
+    )
+    parametreler = []
+    for k in kelimeler:
+        parametreler += [f"%{k}%", f"%{k}%"]
+
+    ham = list(con.execute(
+        f"""SELECT * FROM haberler
+            WHERE {kosul}
+              AND durum NOT IN ('yayinlandi', 'onay_bekliyor')
+              AND cekilme_zamani > datetime('now', '-3 day')
+            ORDER BY yayin_tarihi DESC LIMIT 30""",
+        parametreler,
+    ))
+    # Başlıkta geçenler önce
+    ham.sort(key=lambda h: _arama_skoru(h, kelimeler), reverse=True)
+
+    # ⚠️ Hiçbir kelimesi BAŞLIKTA geçmeyenler (skor < 10) eleniyor.
+    # Ölçüldü: "/haber asgari ücret" bu eşik olmadan üç alakasız haber
+    # döndürüyordu — kelimeler özet metninde ayrı bağlamlarda geçiyordu.
+    # Alakasız sonuç göstermek, "bulunamadı" demekten kötü: kullanıcı
+    # yanlış haberi seçip yayınlayabilir.
+    guclu = [h for h in ham if _arama_skoru(h, kelimeler) >= 10]
+
+    # Aynı olayın farklı kaynaklardan gelen kopyalarını ele
+    onceki, bulunan = [], []
+    for h in guclu:
+        kelime_kumesi, isimler = secim.konu_imzasi(h["baslik_orj"])
+        if any(len(kelime_kumesi & ok) >= 2 and (isimler & oi)
+               for ok, oi in onceki):
+            continue
+        onceki.append((kelime_kumesi, isimler))
+        bulunan.append(h)
+        if len(bulunan) >= 8:
+            break
+
+    if not bulunan:
+        telegram_bot.mesaj_gonder(
+            f"🔎 '{konu}' için havuzda haber bulunamadı.\n\n"
+            f"Havuz son 3 günü kapsıyor. Haber çok yeniyse henüz "
+            f"çekilmemiş olabilir — kontrol yarım saatte bir çalışıyor.")
+        return 0
+
+    # Puanı olmayanları toplu puanla (ucuz: tek istek)
+    puansiz = [h for h in bulunan if h["onem_puani"] is None]
+    if puansiz:
+        yeni = generate_text.basliklari_puanla(puansiz, ayarlar)
+        for haber_id, puan in yeni.items():
+            con.execute("UPDATE haberler SET onem_puani = ? WHERE id = ?",
+                        (puan, haber_id))
+        con.commit()
+        bulunan = list(con.execute(
+            "SELECT * FROM haberler WHERE id IN (%s)"
+            % ",".join("?" * len(bulunan)),
+            [h["id"] for h in bulunan],
+        ))
+
+    adaylar = [{"id": h["id"], "puan": h["onem_puani"] or 0,
+                "baslik": h["baslik_orj"], "kaynak": h["kaynak"],
+                "kategori": h["kategori"] or "-"}
+               for h in bulunan]
+    adaylar.sort(key=lambda a: a["puan"], reverse=True)
+
+    telegram_bot.mesaj_gonder(
+        f"🔎 '{konu}' için {len(adaylar)} haber bulundu:")
+    telegram_bot.oneri_gonder(adaylar)
+    db_senkron.hemen_kaydet(f"Haber araması: {konu[:40]}")
+    log.info("'%s' araması: %d sonuç", konu, len(adaylar))
+    return 0
+
+
 def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
     """
     Telegram'da SEÇİLEN başlık önerilerini sırayla tam posta dönüştürür.
@@ -779,6 +899,8 @@ def main() -> int:
     # ── Tekil post ÖNERİSİ ──────────────────────────────────────
     # Bu komutlar bir TURA bağlı değil: öneri mesajı henüz tur değil,
     # yalnızca başlık listesi. Haber id'si komutun içinde geliyor.
+    if komut.startswith("ara:"):
+        return haber_ara(con, ayarlar, komut)
     if komut.startswith("hazirla:"):
         return oneriyi_hazirla(con, ayarlar, komut, mesaj_id)
     if komut == "oneri_gec":

@@ -235,54 +235,6 @@ def taze_adaylar(con, ayarlar: dict, kac: int) -> list:
 METIN_URETILDI = -1
 
 
-def _konu_imzasi(baslik: str) -> tuple[set, set]:
-    """
-    Öneri listesinde tekrar denetimi için (kelimeler, özel isimler).
-
-    ⚠️ `secim._ozel_isimler`'den farkı: BAŞLIĞIN İLK KELİMESİNİ DE
-    sayıyor. O fonksiyon ilk kelimeyi bilerek atlıyor (her başlık
-    büyük harfle başlar, orada büyük harf özel isim işareti değil) —
-    ama haber başlıkları çok sık yer adıyla başlıyor: "Kolombiya'da
-    7,4 büyüklüğündeki depremde…". İlk kelime atlanınca iki Kolombiya
-    haberinin ortak özel ismi kalmıyor ve tekrar yakalanamıyordu.
-
-    Burada yanlış pozitif riski düşük: yalnızca aynı öneri listesindeki
-    5 başlık karşılaştırılıyor, geçmişe karşı denetim değil.
-    """
-    kelimeler = secim._anahtar_kelimeler(baslik)
-    isimler = set()
-    for ham in (baslik or "").replace("'", " ").split():
-        temiz = "".join(k for k in ham if k.isalnum())
-        if len(temiz) >= 4 and temiz[:1].isupper():
-            kucuk = temiz.lower()
-            if kucuk not in secim.ETKISIZ_KELIMELER:
-                isimler.add(kucuk)
-    return kelimeler, isimler
-
-
-def oneri_esigi(ayarlar: dict, kategori: str | None) -> int:
-    """
-    ÖNERİ aşamasının eşiği — tam metin eşiğinden ayrı.
-
-    ⚠️ Toplu başlık puanlaması aynı habere tam metin puanlamasından
-    ortalama 1.5-1.8 puan DÜŞÜK veriyor (ölçüldü). Aynı eşiği
-    kullanmak öneri akışını tamamen kilitliyordu: hiçbir başlık 8'e
-    ulaşamadığı için öneri hiç gönderilmiyordu.
-
-    ⚠️ GECE KURALI BURADA UYGULANMIYOR — bilerek. Yayın eşiğinde
-    gece +1 var, çünkü gece çıkan post sabaha kadar kimsenin
-    onayından geçmeden yayında kalıyor. Ama ÖNERİ yayın değil,
-    yalnızca insana sunma: mesaj gece gelir, kullanıcı sabah bakıp
-    seçer. Gece kuralını buraya da uygulamak, gece toplanan
-    haberlerin hiç önerilmemesine yol açıyordu — sabaha kadar
-    beklerken 5 saatlik tazelik penceresini de aşıyor ve o haberler
-    tamamen görünmez oluyordu.
-    """
-    g = ayarlar["genel"]
-    esikler = g.get("oneri_kategori_esikleri", {}) or {}
-    return esikler.get(kategori, 6)
-
-
 def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     """
     Taze başlıkları ucuz yoldan puanlayıp Telegram'a ÖNERİ gönderir.
@@ -371,7 +323,7 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
         if bugunku_kategori_sayisi(con, h["kategori"] or "") >= kat_azami:
             continue
 
-        kelimeler, isimler = _konu_imzasi(h["baslik_orj"])
+        kelimeler, isimler = secim.konu_imzasi(h["baslik_orj"])
         # Liste içi tekrar. ⚠️ Burada da ORTAK ÖZEL İSİM şartı var:
         # yalnızca kelime saymak "Kolombiya'da 7,4 büyüklüğündeki
         # depremde..." ile "Endonezya'daki 7,7 büyüklüğündeki

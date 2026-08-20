@@ -313,9 +313,37 @@ export default {
                 "/ayar — gece otomatik yayın, eşikler, kanallar\n" +
                 "/tamamla — yarım kalan Threads zincirini tamamla\n" +
                 "/arsiv — paylaşılmamış eski turları Threads'e gönder\n" +
+                "/haber <konu> — havuzda ara, çıkanları öneri olarak sun\n" +
                 "/yardim — bu mesaj\n\n" +
                 "Onay mesajındaki butonlarla yayınlayabilir, slaytları " +
                 "değiştirebilir veya turu atlayabilirsin.");
+            return new Response("ok");
+        }
+
+        // /haber <konu> — havuzda arama yapıp öneri sunar.
+        //
+        // ⚠️ KULLANICININ YAZDIĞI METİNDEN POST ÜRETİLMİYOR. Projenin
+        // en temel kuralı "yalnızca kaynak metinde yazanı kullan";
+        // tek cümlelik bir istekten haber metni üretmek tam da o
+        // kuralın yasakladığı şey. Bunun yerine havuzdaki gerçek
+        // haberlerde arama yapılıyor ve eşleşenler öneri olarak
+        // sunuluyor — seçilenin metni kendi kaynağından üretiliyor.
+        if (komutMetni === "/haber") {
+            const konu = msj.text.trim().slice(komutMetni.length).trim();
+            if (konu.length < 3) {
+                await mesajGonder(env, sohbet,
+                    "Aramak istediğin konuyu yaz:\n/haber galatasaray transfer");
+                return new Response("ok");
+            }
+            // Komut GitHub'a "ara:<konu>" olarak gidiyor. Konu
+            // client_payload içinde taşınıyor, callback_data sınırı
+            // burada geçerli değil.
+            const iletildi = await githubaIlet(env, `ara:${konu.slice(0, 120)}`,
+                null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? `🔎 "${konu.slice(0, 60)}" havuzda aranıyor…`
+                    : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }
 

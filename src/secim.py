@@ -222,6 +222,33 @@ def _ozel_isimler(baslik: str) -> set[str]:
     return isimler
 
 
+def konu_imzasi(baslik: str) -> tuple[set[str], set[str]]:
+    """
+    Tekrar denetimi için (anahtar kelimeler, özel isimler).
+
+    ⚠️ `_ozel_isimler`'den farkı: BAŞLIĞIN İLK KELİMESİNİ DE sayıyor.
+    O fonksiyon ilk kelimeyi bilerek atlıyor (her başlık büyük harfle
+    başlar, orada büyük harf özel isim işareti değil) — ama haber
+    başlıkları çok sık yer/kişi adıyla başlıyor: "Kolombiya'da 7,4
+    büyüklüğündeki depremde…", "Gazzeli bebekler…". İlk kelime
+    atlanınca iki kopya haberin ortak özel ismi kalmıyor ve tekrar
+    yakalanamıyor.
+
+    Kısa listelerde (öneri, arama sonucu) kullanılıyor; geçmişe karşı
+    denetimde `_ozel_isimler` tercih ediliyor çünkü orada yanlış
+    pozitif maliyeti daha yüksek.
+    """
+    kelimeler = _anahtar_kelimeler(baslik)
+    isimler = set()
+    for ham in (baslik or "").replace("'", " ").split():
+        temiz = "".join(k for k in ham if k.isalnum())
+        if len(temiz) >= 4 and temiz[:1].isupper():
+            kucuk = temiz.lower()
+            if kucuk not in ETKISIZ_KELIMELER:
+                isimler.add(kucuk)
+    return kelimeler, isimler
+
+
 def _anahtar_kelimeler(baslik: str) -> set[str]:
     """
     Başlığın konusunu temsil eden kelimeler.
