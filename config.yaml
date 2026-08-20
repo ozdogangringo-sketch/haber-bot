@@ -473,6 +473,35 @@ kaynaklar:
     agirlik: 8
     aktif: true
 
+  # ⚠️ TEKNOLOJİ KAYNAKLARI (20 Ağu 2026). Önce tek kaynak vardı ve
+  # havuzun binde 5'ini üretiyordu (3 günde 11 haber). Kullanıcı
+  # "Google öğrencilere Gemini üyeliği verdi" tipi paylaşılabilir
+  # haberler istedi; o haberler tam bu kategoriden geliyor ama
+  # kategoriye hiç girmiyorlardı.
+  #
+  # Hepsi `scripts/kaynak_dogrula.py` ile ÖNCE ölçüldü:
+  #   Webrazzi        20 haber, %40 taze   ✓
+  #   ShiftDelete     20 haber, %100 taze  ✓
+  #   Donanım Haber   50 haber, %96 taze   ✓
+  #   Chip Online     kategori %0          ✗ EKLENMEDİ
+  - ad: "Webrazzi"
+    url: "https://webrazzi.com/feed"
+    kategori: "teknoloji"
+    agirlik: 7
+    aktif: true
+
+  - ad: "ShiftDelete"
+    url: "https://shiftdelete.net/feed"
+    kategori: "teknoloji"
+    agirlik: 7
+    aktif: true
+
+  - ad: "Donanım Haber"
+    url: "https://www.donanimhaber.com/rss/tum/"
+    kategori: "teknoloji"
+    agirlik: 7
+    aktif: true
+
   - ad: "NTV Dünya"
     url: "https://www.ntv.com.tr/dunya.rss"
     kategori: "dunya"

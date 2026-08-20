@@ -839,10 +839,23 @@ def haber_ara(con, ayarlar, komut: str) -> int:
     # yanlış haberi seçip yayınlayabilir.
     guclu = [h for h in ham if _arama_skoru(h, kelimeler) >= 10]
 
-    # Aynı olayın farklı kaynaklardan gelen kopyalarını ele
+    # Aynı olayın farklı kaynaklardan gelen kopyalarını ele.
+    #
+    # ⚠️ ARANAN KELİMELER KARŞILAŞTIRMAYA GİRMİYOR. Kullanıcı "mavi
+    # vatan" arayınca çıkan HER sonuç doğal olarak "mavi" ve "vatan"
+    # kelimelerini taşıyor; bunlar sayılınca alakasız iki haber bile
+    # "aynı olay" görünüyordu ve 29 sonuçtan geriye 1 tane kalıyordu
+    # (20 Ağu 2026, kullanıcı bildirdi).
+    #
+    # Aranan kelimeler çıkarılınca geriye haberi AYIRT EDEN kelimeler
+    # kalıyor: "Gölcük'te başladı" ile "insansız deniz aracı" artık
+    # farklı sayılıyor.
+    aranan = {k.lower() for k in kelimeler}
     onceki, bulunan = [], []
     for h in guclu:
         kelime_kumesi, isimler = secim.konu_imzasi(h["baslik_orj"])
+        kelime_kumesi = kelime_kumesi - aranan
+        isimler = isimler - aranan
         if any(len(kelime_kumesi & ok) >= 2 and (isimler & oi)
                for ok, oi in onceki):
             continue
