@@ -140,7 +140,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Tur ne zaman kapanır | TR 23:00'te **veya** 6 saat onaysız beklerse (`hatirlat.AZAMI_BEKLEME_SAAT`). ⚠️ Saat kuralı tek başına yetmiyordu: sabah turu eklenince, onaylanmayan sabah turu akşam 23:00'e kadar açık kalıp akşam turuyla çakışıyordu. |
 | Bayatlama sınırı | Yayın tarihinden **48 saat** sonra aday olmayı bırakır |
 | ~~"Atla" butonu~~ | **GEÇERSİZ.** Tek-haber tasarımından kalmaydı; carousel'de 10 haber var, "sıradakini öner" anlamsız. Yerine aşağıdaki menü geldi. |
-| Onay butonları | İki katmanlı menü (15 Ağu 2026): **Ana menü** → `✅ Yayınla` / `🔄 Metinleri yeniden üret` / `🎨 Bir slaytın görselini değiştir` / `❌ Bu turu atla`. **Slayt menüsü** → 1-10 arası seçim → `🔀 Başka fotoğraf (bedava)` / `🎨 AI ile üret (~$0.04)`. |
+| Onay butonları | İki katmanlı menü (15 Ağu 2026): **Ana menü** → `✅ Yayınla` / `🔄 Metinleri yeniden üret` / `🎨 Bir slaytın görselini değiştir` / `📋 Tekil atma, 10'lu tura bırak` / `❌ Bu turu atla`. ⚠️ "Tura bırak" ile "atla" farkı: atla haberi havuza döndürüyor ve haber yine tekil aday oluyor (bkz. 1s); "tura bırak" `sadece_tur=1` koyup tekil adaylıktan çıkarıyor. **Slayt menüsü** → 1-10 arası seçim → `🔀 Başka fotoğraf (bedava)` / `🎨 AI ile üret (~$0.04)`. |
 | Menü gezinme nerede | **Worker'da, GitHub'da değil.** Actions'ı uyandırmak 30+ saniye sürüyor, menü açmak anında olmalı. Yalnızca gerçek eylemler (`yayinla`, `iptal`, `metin_yenile`, `slayt_ai:N`, `slayt_foto:N`) `repository_dispatch` ile GitHub'a gidiyor. |
 | ⚠️ WORKER GIT'LE DEPLOY OLMUYOR | `worker/index.js` değiştirilip push edilince Cloudflare'e **gitmiyor** — ayrı bir servis. `cd worker && npx wrangler deploy` şart. 19 Ağu 2026'da unutuldu: yeni `hazirla:` butonu Telegram'da "tanınmayan komut" verdi, kod doğruydu ama Worker eski sürümdeydi. Belirtisi tam olarak bu: buton çalışmıyor ama Actions'ta hiç kayıt yok, çünkü istek GitHub'a hiç ulaşmıyor. |
 | ⚠️ Menü ikilemesi | Buton düzeni **iki yerde** tanımlı: `src/telegram_bot.py` ve `worker/index.js`. Birini değiştirirsen diğerini de değiştir. Slayt sayısı `callback_data`'ya gömülü (`slayt_menu:10`) — Worker'ın turda kaç slayt olduğunu bilmesinin başka yolu yok. |
@@ -594,6 +594,40 @@ metni üretilmemiş haberler, kaynak ağırlığına göre sıralı.
 
 Ayrıca `TAZELIK_SAAT` sabit 3'tü ve config'den okunmuyordu; artık
 `son_dakika_tazelik_saat: 5` ile ayarlanıyor, ek metin adedi 3→4.
+
+**1s. ⚠️ AYNI HABER TEKRAR TEKRAR TEKİL POST OLARAK SUNULUYORDU.**
+
+20 Ağu 2026, kullanıcı bildirdi: "Türkiye'de yağışlar son 66 yılın
+zirvesinde" haberi **23 dakika arayla iki kez** onaya düştü
+(mesaj 404 ve 410).
+
+Sebep tasarımdaydı: "Bu turu atla" haberi havuza döndürüyor
+(`durum='metin_hazir'`, `son_dakika=0`) ve haber bir sonraki
+kontrolde YİNE tekil aday oluyordu. "Onay verilmezse haber ELENMEZ"
+kararı doğru — ama tekil post olarak ısrar etmek yanlış.
+
+Çözüm: **`sadece_tur` kolonu + yeni düğme.** Onay menüsünde
+"📋 Tekil atma, 10'lu tura bırak" haberi tekil adaylıktan çıkarıyor
+ama havuzda bırakıyor; carousel turunda yarışmaya devam ediyor.
+`aday_bul` ve öneri havuzu bu işareti filtreliyor.
+
+**1t. ⚠️ `--kuru` VERİTABANINA YAZIYORDU — havuzu tüketiyordu.**
+
+`onerileri_gonder` toplu puanları kuru modda da DB'ye yazıyordu.
+`--kuru`nun sözleşmesi net: *üretir, Telegram'a göndermez,
+veritabanına yazmaz*. 20 Ağu'daki yapısal çalışmanın kuru testleri
+**82 haberi** öneri havuzundan düşürdü.
+
+Artık kuru modda puanlar yalnızca bellekte taşınıyor (`dict(h,
+onem_puani=...)`), eleme yine gerçek puanlarla yapılıyor ama kalıcı
+iz bırakmıyor.
+
+⚠️ Ayrıca öneri havuzu filtresinde `onem_puani IS NULL` şartı vardı
+ve bir haberi **bir kez puanlamak onu havuzdan düşürüyordu**. Puanın
+varlığı haberin değerlendirilmiş olduğunu göstermez —
+`oneri_gonderildi` işareti onu gösterir. Filtre düzeltildi ve kota
+israfı da önlendi: artık yalnızca puansız başlıklara Gemini çağrısı
+yapılıyor.
 
 ### Geçmiş notlar (güncelleme: 14 Ağustos 2026)
 
