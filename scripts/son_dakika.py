@@ -404,6 +404,132 @@ def aday_bul(con, ayarlar: dict):
     return secilen[0] if secilen else None
 
 
+def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
+                          story_url, metin) -> bool:
+    """
+    Gece: dört katmanlı denetimden geçen haberi insan onayı olmadan yayınlar.
+
+    Döner: `True` yayınlandıysa (çağıran hemen çıkmalı), `False` gece
+    değilse ya da denetim reddettiyse.
+
+    ⚠️ Bu blok `main()` içinde 104 satır olarak duruyordu ve fonksiyonu
+    334 satıra çıkaran en büyük parçaydı. Davranış AYNEN korundu —
+    yalnızca yeri değişti.
+
+    Gece kimse uyanık değil; büyük bir olayda hesabın sabaha kadar
+    sessiz kalması kötü. Ama insan onayını kaldırmak doğruluk
+    güvencesini de kaldırıyor, o yüzden yerine dört katman kondu.
+    ŞÜPHEDE REDDET: biri bile tereddüt ederse sabaha bırakılıyor.
+    """
+    # --- 6a) GECE: dört katmanlı denetimden geçerse otomatik yayınla ---
+    #
+    # Gece kimse uyanık değil; büyük bir olayda hesabın sabaha kadar
+    # sessiz kalması kötü. Ama insan onayını kaldırmak doğruluk
+    # güvencesini kaldırıyor, o yüzden yerine dört katman kondu.
+    # ŞÜPHEDE REDDET: biri bile tereddüt ederse sabaha bırakılıyor.
+    if not (gece_mi() and ayarlar["genel"].get("gece_otomatik_yayin", False)):
+        return False
+
+    uygun, katman_raporu = otomatik_onay.otomatik_yayinlanabilir(
+        con, taze, ayarlar
+    )
+    for satir in katman_raporu:
+        log.info("  %s", satir)
+
+    if uygun:
+        post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
+        baglanti = instagram.post_baglantisi(post_id, ayarlar)
+        # ⚠️ ID'LER SAKLANIYOR. Gece yayını insan onayı olmadan
+        # çıkıyor; sabah geri alınabilmesi için Facebook ve
+        # Threads kimlikleri şart. Önce yalnızca Instagram id'si
+        # yazılıyordu ve o postlar geri alınamıyordu.
+        fb_id = None
+        story_id = None
+        if story_url:
+            try:
+                story_id = instagram.story_yayinla(story_url, ayarlar)
+            except Exception as e:
+                log.warning("story yayınlanamadı: %s", e)
+        if (ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"):
+            try:
+                fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
+                if story_url:
+                    facebook.story_yayinla(story_url, ayarlar)
+            except Exception as e:
+                log.warning("Facebook paylaşılamadı: %s", e)
+        th_gonderi_id = None
+        if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
+                and threads.kullanilabilir_mi()):
+            try:
+                # Zincir: ana halka haberin kendisi, sonraki
+                # halkalar ayrıntı sayfaları. Threads'in 500
+                # karakter sınırı tek gönderiye sığdırmaya izin
+                # vermiyor.
+                # tarihli=False: haber ŞU AN oluyor, Threads
+                # gönderinin yaşını zaten gösteriyor.
+                halkalar = caption.threads_halkalari(
+                    [taze], urller, son_dakika=True,
+                    ayarlar=ayarlar, tarihli=False,
+                )
+                th_id, th_adet = threads.zincir_yayinla(halkalar)
+                th_gonderi_id = th_id
+                if th_adet < len(halkalar):
+                    log.warning("Threads zinciri yarım: %s/%s halka",
+                                th_adet, len(halkalar))
+            except Exception as e:
+                log.warning("Threads paylaşılamadı: %s", e)
+
+        con.execute(
+            "UPDATE haberler SET durum = 'yayinlandi', son_dakika = 1, "
+            "ig_post_id = ?, gorsel_url = ?, detay_url = ?, story_url = ?, "
+            "facebook_post_id = ?, threads_post_id = ?, story_post_id = ?, "
+            "gonderim_zamani = datetime('now') WHERE id = ?",
+            (post_id, urller[0], json.dumps(urller[1:]),
+             story_url, fb_id, th_gonderi_id, story_id, aday["id"]),
+        )
+        con.commit()
+        sayaci_artir(con)
+
+        # Sabah görmek için: ne yayınlandı, hangi denetimlerden
+        # geçti. Beğenilmezse Instagram'dan silinebilir.
+        telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
+        bildirim_id = telegram_bot.mesaj_gonder(
+            "🌙 GECE OTOMATİK YAYINLANDI\n"
+            f"{taze['ig_baslik']}\n\n"
+            + "\n".join(katman_raporu)
+            + f"\n\n{baglanti or post_id}\n\n"
+            "Uygun bulmazsan aşağıdaki düğmeyle geri alabilirsin: "
+            "Facebook ve Threads otomatik silinir, Instagram'ı "
+            "elle silmen gerekir."
+        )
+
+        # ⚠️ TUR KİMLİĞİ OLARAK BİLDİRİM MESAJININ ID'Sİ.
+        # Gece yayını onay mesajı üretmiyor, yani ortada bir
+        # `telegram_message_id` yok; kaldırma komutu turu bununla
+        # buluyor. Yazılmazsa "kaldır" düğmesi turu bulamıyor —
+        # üstelik geri almanın en çok gerektiği senaryo bu, çünkü
+        # post insan onayı olmadan çıkıyor.
+        con.execute(
+            "UPDATE haberler SET telegram_message_id = ? WHERE id = ?",
+            (bildirim_id, aday["id"]),
+        )
+        con.commit()
+        telegram_bot.butonlari_ayarla(
+            bildirim_id,
+            [[{"text": "🗑 Bu yayını kaldır",
+               "callback_data": f"kaldir:{bildirim_id}"}]],
+        )
+        # Onay dallarında olduğu gibi burada da hemen push:
+        # "kaldır" düğmesi GitHub'daki veritabanına bakıyor ve
+        # workflow'un son adımını beklemek gereksiz risk.
+        db_senkron.hemen_kaydet("Gece otomatik yayın")
+        log.info("gece otomatik yayınlandı: %s", post_id)
+        return 0
+
+    log.info("otomatik yayın reddedildi, sabaha bırakılıyor")
+    return False
+
+
 def main(zorla_haber_id: int | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
@@ -568,109 +694,10 @@ def main(zorla_haber_id: int | None = None) -> int:
             return 0
 
         # --- 6a) GECE: dört katmanlı denetimden geçerse otomatik yayınla ---
-        #
-        # Gece kimse uyanık değil; büyük bir olayda hesabın sabaha kadar
-        # sessiz kalması kötü. Ama insan onayını kaldırmak doğruluk
-        # güvencesini kaldırıyor, o yüzden yerine dört katman kondu.
-        # ŞÜPHEDE REDDET: biri bile tereddüt ederse sabaha bırakılıyor.
-        if gece_mi() and ayarlar["genel"].get("gece_otomatik_yayin", False):
-            uygun, katman_raporu = otomatik_onay.otomatik_yayinlanabilir(
-                con, taze, ayarlar
-            )
-            for satir in katman_raporu:
-                log.info("  %s", satir)
+        if gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
+                                 story_url, metin):
+            return 0
 
-            if uygun:
-                post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
-                baglanti = instagram.post_baglantisi(post_id, ayarlar)
-                # ⚠️ ID'LER SAKLANIYOR. Gece yayını insan onayı olmadan
-                # çıkıyor; sabah geri alınabilmesi için Facebook ve
-                # Threads kimlikleri şart. Önce yalnızca Instagram id'si
-                # yazılıyordu ve o postlar geri alınamıyordu.
-                fb_id = None
-                story_id = None
-                if story_url:
-                    try:
-                        story_id = instagram.story_yayinla(story_url, ayarlar)
-                    except Exception as e:
-                        log.warning("story yayınlanamadı: %s", e)
-                if (ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"):
-                    try:
-                        fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
-                        if story_url:
-                            facebook.story_yayinla(story_url, ayarlar)
-                    except Exception as e:
-                        log.warning("Facebook paylaşılamadı: %s", e)
-                th_gonderi_id = None
-                if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
-                        and threads.kullanilabilir_mi()):
-                    try:
-                        # Zincir: ana halka haberin kendisi, sonraki
-                        # halkalar ayrıntı sayfaları. Threads'in 500
-                        # karakter sınırı tek gönderiye sığdırmaya izin
-                        # vermiyor.
-                        # tarihli=False: haber ŞU AN oluyor, Threads
-                        # gönderinin yaşını zaten gösteriyor.
-                        halkalar = caption.threads_halkalari(
-                            [taze], urller, son_dakika=True,
-                            ayarlar=ayarlar, tarihli=False,
-                        )
-                        th_id, th_adet = threads.zincir_yayinla(halkalar)
-                        th_gonderi_id = th_id
-                        if th_adet < len(halkalar):
-                            log.warning("Threads zinciri yarım: %s/%s halka",
-                                        th_adet, len(halkalar))
-                    except Exception as e:
-                        log.warning("Threads paylaşılamadı: %s", e)
-
-                con.execute(
-                    "UPDATE haberler SET durum = 'yayinlandi', son_dakika = 1, "
-                    "ig_post_id = ?, gorsel_url = ?, detay_url = ?, story_url = ?, "
-                    "facebook_post_id = ?, threads_post_id = ?, story_post_id = ?, "
-                    "gonderim_zamani = datetime('now') WHERE id = ?",
-                    (post_id, urller[0], json.dumps(urller[1:]),
-                     story_url, fb_id, th_gonderi_id, story_id, aday["id"]),
-                )
-                con.commit()
-                sayaci_artir(con)
-
-                # Sabah görmek için: ne yayınlandı, hangi denetimlerden
-                # geçti. Beğenilmezse Instagram'dan silinebilir.
-                telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
-                bildirim_id = telegram_bot.mesaj_gonder(
-                    "🌙 GECE OTOMATİK YAYINLANDI\n"
-                    f"{taze['ig_baslik']}\n\n"
-                    + "\n".join(katman_raporu)
-                    + f"\n\n{baglanti or post_id}\n\n"
-                    "Uygun bulmazsan aşağıdaki düğmeyle geri alabilirsin: "
-                    "Facebook ve Threads otomatik silinir, Instagram'ı "
-                    "elle silmen gerekir."
-                )
-
-                # ⚠️ TUR KİMLİĞİ OLARAK BİLDİRİM MESAJININ ID'Sİ.
-                # Gece yayını onay mesajı üretmiyor, yani ortada bir
-                # `telegram_message_id` yok; kaldırma komutu turu bununla
-                # buluyor. Yazılmazsa "kaldır" düğmesi turu bulamıyor —
-                # üstelik geri almanın en çok gerektiği senaryo bu, çünkü
-                # post insan onayı olmadan çıkıyor.
-                con.execute(
-                    "UPDATE haberler SET telegram_message_id = ? WHERE id = ?",
-                    (bildirim_id, aday["id"]),
-                )
-                con.commit()
-                telegram_bot.butonlari_ayarla(
-                    bildirim_id,
-                    [[{"text": "🗑 Bu yayını kaldır",
-                       "callback_data": f"kaldir:{bildirim_id}"}]],
-                )
-                # Onay dallarında olduğu gibi burada da hemen push:
-                # "kaldır" düğmesi GitHub'daki veritabanına bakıyor ve
-                # workflow'un son adımını beklemek gereksiz risk.
-                db_senkron.hemen_kaydet("Gece otomatik yayın")
-                log.info("gece otomatik yayınlandı: %s", post_id)
-                return 0
-
-            log.info("otomatik yayın reddedildi, sabaha bırakılıyor")
 
         # --- 6b) Onaya sun ---
         telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
