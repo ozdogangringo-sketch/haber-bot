@@ -777,11 +777,28 @@ def _arama_skoru(haber, kelimeler: list[str]) -> int:
     — kelimeler özet metninde ayrı bağlamlarda geçiyordu.
 
     Başlıkta geçmek özette geçmekten çok daha güçlü bir sinyal.
+
+    ⚠️ TÜRKÇE "İ" TUZAĞI — ARAMA BU YÜZDEN ÇALIŞMIYORDU (20 Ağu 2026).
+    Python'da `"İsrail".lower()` → `"i̇srail"` üretiyor: küçük i'nin
+    ARDINDAN ayrı bir birleştirme noktası (U+0307) geliyor. Kullanıcının
+    yazdığı düz "israil" bu diziyle EŞLEŞMİYOR.
+
+    Sonuç: havuzda 71 İsrail haberi varken `/haber israil` "bulunamadı"
+    diyordu. Aynı tuzak "İstanbul", "İzmir", "İngiltere" için de
+    geçerli — yani en çok aranacak kelimelerin bir kısmı tamamen
+    görünmezdi.
+
+    Çözüm `dogrula._sadelestir`: Türkçe harfleri indirgiyor ve
+    birleştirme işaretlerini atıyor, böylece "israil" ↔ "İsrail"
+    eşleşiyor. Aynı fonksiyon başlık denetiminde de kullanılıyor.
     """
-    baslik = (haber["baslik_orj"] or "").lower()
-    ozet = (haber["ozet_orj"] or "").lower()
+    baslik = dogrula._sadelestir(haber["baslik_orj"] or "")
+    ozet = dogrula._sadelestir(haber["ozet_orj"] or "")
     skor = 0
     for k in kelimeler:
+        k = dogrula._sadelestir(k).strip()
+        if not k:
+            continue
         if k in baslik:
             skor += 10
         elif k in ozet:
@@ -813,23 +830,27 @@ def haber_ara(con, ayarlar, komut: str) -> int:
         telegram_bot.mesaj_gonder(f"'{konu}' araması çok kısa.")
         return 1
 
-    # Her kelime başlıkta VEYA özette geçmeli (VE mantığı — daha isabetli)
-    kosul = " AND ".join(
-        "(lower(baslik_orj) LIKE ? OR lower(ozet_orj) LIKE ?)" for _ in kelimeler
-    )
-    parametreler = []
-    for k in kelimeler:
-        parametreler += [f"%{k}%", f"%{k}%"]
-
-    ham = list(con.execute(
-        f"""SELECT * FROM haberler
-            WHERE {kosul}
-              AND durum NOT IN ('yayinlandi', 'onay_bekliyor')
-              AND cekilme_zamani > datetime('now', '-3 day')
-            ORDER BY yayin_tarihi DESC LIMIT 30""",
-        parametreler,
+    # ⚠️ ELEME SQL'DE DEĞİL PYTHON'DA — SQLite Türkçe bilmiyor.
+    #
+    # Önce `lower(baslik_orj) LIKE '%israil%'` kullanılıyordu ve arama
+    # ÇALIŞMIYORDU: SQLite'ın `lower()` fonksiyonu ASCII-only, "İ"yi
+    # dönüştürmüyor. Üstelik Python'un `.lower()`'ı da "İsrail"i
+    # "i̇srail" yapıyor (i + birleştirme noktası U+0307), yani iki
+    # taraftan birden eşleşme kaçıyordu.
+    #
+    # Ölçüldü (20 Ağu 2026): havuzda 71 İsrail haberi varken
+    # `/haber israil` "bulunamadı" diyordu. Aynı tuzak İstanbul, İzmir,
+    # İngiltere için de geçerliydi.
+    #
+    # Havuz son 3 günle sınırlı (~1600 kayıt); Python'da elemek ucuz ve
+    # `dogrula._sadelestir` Türkçe'yi doğru indirgiyor.
+    havuz = list(con.execute(
+        """SELECT * FROM haberler
+           WHERE durum NOT IN ('yayinlandi', 'onay_bekliyor')
+             AND cekilme_zamani > datetime('now', '-3 day')
+           ORDER BY yayin_tarihi DESC""",
     ))
-    # Başlıkta geçenler önce
+    ham = [h for h in havuz if _arama_skoru(h, kelimeler) > 0][:30]
     ham.sort(key=lambda h: _arama_skoru(h, kelimeler), reverse=True)
 
     # ⚠️ Hiçbir kelimesi BAŞLIKTA geçmeyenler (skor < 10) eleniyor.
