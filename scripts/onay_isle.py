@@ -491,10 +491,14 @@ def yayin_planla(con, ayarlar, haberler, dakika: int, mesaj_id, basan) -> int:
     """
     Turu ileri bir saate planlar. Yayın o ana kadar YAPILMIYOR.
 
-    ⚠️ HASSASİYET ±30 DAKİKA. Zamanı gelen turu son dakika kontrolü
-    yayınlıyor ve o cron 30 dakikada bir çalışıyor. Menüdeki
-    seçeneklerin 30'un katı olmasının sebebi bu — "15 dk" düğmesi
-    gerçekte 15-45 dakika arası yayınlar ve kullanıcıya yalan söylerdi.
+    ⚠️ HASSASİYET ±1 SAAT — cron'da yazandan KÖTÜ.
+    `son-dakika.yml` cron'u "5,35" yani 30 dakikada bir, ama GitHub
+    zamanlanmış çalıştırmaların bir kısmını atlıyor. 20 Ağu 2026'da
+    ÖLÇÜLDÜ: bir gündeki 17 çalıştırmanın aralıkları 9-98 dakika
+    arasında değişti, ortalama 56 dakika. Yani "30 dk" düğmesi
+    gerçekte 30-90 dakika sonra yayınlıyor.
+    Mesajda kullanıcıya bir SAATLİK pencere söylemenin sebebi bu —
+    cron'un vaat ettiği süreyi değil, ölçülen süreyi söylüyoruz.
 
     ⚠️ PLANLANMIŞ TUR İKİ ZAMAN AŞIMINDAN KORUNMALI, yoksa yayın anı
     gelmeden tur havuza döner:
@@ -518,8 +522,8 @@ def yayin_planla(con, ayarlar, haberler, dakika: int, mesaj_id, basan) -> int:
         mesaj_id,
         f"🕒 Yayın {sure} sonraya planlandı — "
         f"TR {tr:%H:%M} ({basan or 'bilinmiyor'}).\n"
-        f"Kontrol 30 dakikada bir çalıştığı için yayın "
-        f"TR {tr:%H:%M}–{(tr + timedelta(minutes=30)):%H:%M} arasında çıkar.\n"
+        f"Kontrol saatte bir çalıştığı için yayın "
+        f"TR {tr:%H:%M}–{(tr + timedelta(minutes=60)):%H:%M} arasında çıkar.\n"
         "Vazgeçersen aşağıdaki düğmeyle planı iptal edebilirsin.",
         butonlar={"inline_keyboard": [
             [{"text": "⏹ Planı iptal et", "callback_data": "plan_iptal"}]]},
