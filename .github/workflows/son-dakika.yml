@@ -38,6 +38,12 @@ on:
     - cron: "5,35 4-19 * * *"
     # UTC 20:05,22:05,00:05,02:05 = TR 23:05,01:05,03:05,05:05 (gece)
     - cron: "5 20,22,0,2 * * *"
+  # Telegram'daki "🔄 Son dakika kontrolünü tekrar çalıştır" düğmesi
+  # buraya geliyor. Önce böyle bir yol yoktu ve son dakika hatasındaki
+  # düğme akşam turunu tetikliyordu.
+  repository_dispatch:
+    types: [son_dakika_calistir]
+
   workflow_dispatch:
     inputs:
       kuru:

@@ -72,7 +72,11 @@ const AYAR_SEC  = /^ayarsec:[a-z_]+\.[a-z_]+:[a-z0-9]{1,10}$/;
 // "tur_tekrar" ve "tur_metinsiz" GitHub'da tur kurdurur; "ayrinti"
 // GitHub'a HİÇ gitmez — Worker ham hata metnini repodan okuyup anında
 // cevaplıyor, Actions dakikası harcamıyoruz.
-const HATA_EYLEM = /^hata:(tur_tekrar|tur_metinsiz)$/;
+const HATA_EYLEM = /^hata:(tur_tekrar|tur_metinsiz|sondakika_tekrar)$/;
+// Son dakika kontrolü kendi workflow'unda çalışıyor; tur eylemlerinden
+// AYRI bir event'e gitmeli, yoksa "son dakika hatası" düğmesi akşam
+// turunu tetikliyor (20 Ağu 2026'da tam olarak bu oldu).
+const SONDAKIKA_EYLEM = "hata:sondakika_tekrar";
 const HATA_AYRINTI = "hata:ayrinti";
 
 function eylemMi(veri) {
@@ -261,7 +265,9 @@ async function githubaIlet(env, komut, mesajId, basanKisi) {
     body: JSON.stringify({
       // Tur kurma ayrı bir workflow (hazirla.yml); onay akışıyla aynı
       // event'i paylaşırsa yayinla.yml onu da işlemeye kalkıyor.
-      event_type: HATA_EYLEM.test(komut) ? "tur_hazirla" : "telegram_onay",
+      event_type: komut === SONDAKIKA_EYLEM
+        ? "son_dakika_calistir"
+        : (HATA_EYLEM.test(komut) ? "tur_hazirla" : "telegram_onay"),
       client_payload: {
         komut,
         mesaj_id: mesajId,

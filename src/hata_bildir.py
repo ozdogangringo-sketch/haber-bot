@@ -184,8 +184,25 @@ def tani(hata) -> dict:
     }
 
 
-def _butonlar(eylem: str) -> list | None:
-    """Hataya uygun eylem düğmeleri."""
+def _butonlar(eylem: str, nerede: str = "") -> list | None:
+    """
+    Hataya uygun eylem düğmeleri.
+
+    ⚠️ DÜĞME HATANIN GELDİĞİ YERE UYMALI (20 Ağu 2026).
+    Önce yalnızca iki eylem vardı (`tur_tekrar`, `tur_metinsiz`) ve
+    ikisi de AKŞAM TURUNU tetikliyordu. Son dakika kontrolü patladığında
+    da aynı düğmeler geliyordu; kullanıcı "Son dakika turu hazırlanamadı"
+    mesajındaki "🔄 Turu yeniden hazırla"ya bastı ve 40 dakika sonra
+    10 slaytlık AKŞAM TURU geldi — ne olduğunu anlamadı, haklı olarak.
+    """
+    # Son dakika akışından gelen hatalarda tur düğmeleri yanlış hedefi
+    # vuruyor; kontrolün kendisini yeniden çalıştırmak gerekiyor.
+    if "son_dakika" in (nerede or ""):
+        satir = [{"text": "🔄 Son dakika kontrolünü tekrar çalıştır",
+                  "callback_data": "hata:sondakika_tekrar"}]
+        ikinci = [{"text": "🔍 Ham hata metni", "callback_data": "hata:ayrinti"}]
+        return [satir, ikinci]
+
     satir = []
     if eylem == "tur_tekrar":
         satir.append({"text": "🔄 Turu yeniden hazırla",
@@ -227,8 +244,9 @@ def bildir(baslik: str, hata, nerede: str = "") -> bool:
     try:
         teshis = tani(hata)
         metin = mesaji_kur(baslik, teshis, nerede)
+        teshis = {**teshis, "_nerede": nerede}
         telegram_bot.mesaj_gonder(
-            metin, butonlar=_butonlar(teshis["eylem"]))
+            metin, butonlar=_butonlar(teshis["eylem"], nerede))
         log.info("hata Telegram'a bildirildi: %s", teshis["ne_oldu"])
         return True
     except Exception as e:                       # noqa: BLE001
