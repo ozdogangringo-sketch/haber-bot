@@ -272,11 +272,16 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     sinir = (datetime.now(timezone.utc) - timedelta(hours=tazelik)).isoformat()
     azami = ayarlar["genel"].get("oneri_aday_adedi", 10)
 
-    # Henüz puanlanmamış VE önerilmemiş taze haberler
+    # Henüz ÖNERİLMEMİŞ taze haberler — puanı olsun ya da olmasın.
+    #
+    # ⚠️ Önce burada `onem_puani IS NULL` şartı da vardı ve haberi bir
+    # kez puanlamak onu havuzdan DÜŞÜRÜYORDU: puanlanmış ama önerilmemiş
+    # 78 haber bu şekilde görünmez oldu (kuru test çalıştırmaları
+    # puanları yazdığı için). Puanın varlığı haberin değerlendirilmiş
+    # olduğunu göstermez — `oneri_gonderildi` işareti onu gösterir.
     ham = list(con.execute(
         """SELECT * FROM haberler
            WHERE durum = 'yeni' AND yayin_tarihi >= ?
-             AND onem_puani IS NULL
              AND (oneri_gonderildi IS NULL OR oneri_gonderildi = 0)
              AND (sadece_tur IS NULL OR sadece_tur = 0)
            ORDER BY agirlik DESC, yayin_tarihi DESC LIMIT ?""",
@@ -286,9 +291,19 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
         log.info("önerilecek taze haber yok")
         return 0
 
-    puanlar = generate_text.basliklari_puanla(ham, ayarlar)
+    # Yalnızca PUANSIZ olanlara Gemini çağrısı — puanı olan haberin
+    # puanını yeniden üretmek kotayı boşa harcar.
+    puansiz = [h for h in ham if h["onem_puani"] is None]
+    puanlar = {h["id"]: h["onem_puani"]
+               for h in ham if h["onem_puani"] is not None}
+    if puansiz:
+        yeni_puanlar = generate_text.basliklari_puanla(puansiz, ayarlar)
+        if not yeni_puanlar and not puanlar:
+            log.warning("başlıklar puanlanamadı, öneri gönderilmedi")
+            return 0
+        puanlar.update(yeni_puanlar)
     if not puanlar:
-        log.warning("başlıklar puanlanamadı, öneri gönderilmedi")
+        log.info("puanlanabilen başlık yok")
         return 0
 
     # Puanları sakla — bir daha puanlamaya gerek kalmasın.
