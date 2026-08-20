@@ -423,13 +423,20 @@ def test_planlanmis_yayin_zaman_asimlarindan_muaf() -> None:
                 "planlanan_yayin IS NULL şartı yok — planlanan tur "
                 "yayın anı gelmeden havuza döner")
 
-    # Menüdeki her seçenek kontrol sıklığının katı olmalı, yoksa düğme
-    # gerçekte veremeyeceği bir saat vaat eder.
-    tb = (KOK / "src/telegram_bot.py").read_text(encoding="utf-8")
-    dakikalar = [int(d) for d in re.findall(r'yayinla_sonra:(\d+)', tb)]
-    denetle(bool(dakikalar) and all(d % 30 == 0 for d in dakikalar),
-            "yayın zamanı seçenekleri kontrol sıklığının (30 dk) katı",
-            f"30'a bölünmeyen seçenek var: {dakikalar}")
+    # Kullanıcıya söylenen PENCERE, kontrolün gerçek aralığından kısa
+    # olmamalı — kısa olursa düğme tutamayacağı bir söz verir.
+    oi = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    pencere = re.search(r'timedelta\(minutes=(\d+)\)\):%H:%M\} arasında', oi)
+    denetle(bool(pencere), "yayın planı mesajı bir PENCERE söylüyor",
+            "tek bir saat söyleniyor — cron atlanınca yalan olur")
+    if pencere:
+        # son-dakika.yml'deki en büyük gündüz aralığı
+        yml = (KOK / ".github/workflows/son-dakika.yml").read_text(encoding="utf-8")
+        gunduz = [c for c in re.findall(r'cron:\s*"([^"]+)"', yml)
+                  if not re.match(r'^\S+\s+(20|23|2)[,\s]', c)]
+        denetle(int(pencere.group(1)) >= 90,
+                "söylenen pencere kontrol aralığından kısa değil",
+                f"pencere {pencere.group(1)} dk ama cron 90 dakikada bir: {gunduz}")
 
 
 def main() -> int:
