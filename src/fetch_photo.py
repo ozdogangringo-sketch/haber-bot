@@ -279,7 +279,8 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20) -> dict | None:
         "gsrlimit": str(aday_sayisi),
         "prop": "imageinfo",
         "iiprop": "url|size|extmetadata",
-        "iiurlwidth": "1600",                # ölçeklenmiş sürüm yeter
+        "iiurlwidth": "2000",   # ⚠️ 1600'dü: portre kırpması sonrası 1080
+                                #    genişliğe çıkarken pay kalmıyordu
     }
 
     try:

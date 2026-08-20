@@ -43,6 +43,20 @@ log = logging.getLogger(__name__)
 # story fotoğrafsız çıktı. Tek liste tutmak bunu tekrarlanmaz kılıyor.
 FOTOGRAFLI_KATMANLAR = ("haber", "commons", "pexels")
 
+
+def _kalite(g: dict, katman: str) -> int:
+    """
+    JPEG kalitesi katmana göre seçiliyor.
+
+    ⚠️ Fotoğraf arka planlı slaytlarda yüksek kalite gözle görülür fark
+    yaratıyor; düz zeminli sayfalarda (detay slaytları) yaratmıyor —
+    orada yalnızca dosyayı şişiriyor. Instagram sınırı 8 MB, bizim
+    slaytlar ~200 KB, yani fotoğraflı tarafta bol alan var.
+    """
+    if katman in FOTOGRAFLI_KATMANLAR:
+        return g.get("jpeg_kalite_foto", g["jpeg_kalite"])
+    return g["jpeg_kalite"]
+
 # Bunlardan hangilerinde "ARŞİV GÖRSELİ" ibaresi basılsın?
 # `haber` katmanı HARİÇ: o görsel olayın kendi fotoğrafı, arşiv değil.
 ARSIV_KATMANLARI = ("commons", "pexels")
@@ -67,10 +81,17 @@ def _gorseli_indir(url: str, g: dict):
 
     ⚠️ BOYUT DENETİMİ ŞART. `og:image` bazen sitenin logosu ya da
     paylaşım rozeti oluyor; 1080x1350'ye büyütülünce bulanık bir leke
-    çıkıyor. Asgari genişlik altındakiler eleniyor ve akış bir sonraki
-    katmana (Commons/Pexels) düşüyor.
+    çıkıyor. Eşiğin altındakiler eleniyor ve akış bir sonraki katmana
+    (Commons/Pexels) düşüyor.
+
+    ⚠️ YÜKSEKLİK DE DENETLENİYOR. Önce yalnızca genişliğe bakılıyordu ve
+    1200x400 gibi geniş bantlı bir görsel eşiği geçiyordu; 4:5 orana
+    kırpılınca elde kalan alan çok küçük oluyor ve slayt gözle görülür
+    biçimde bulanıklaşıyordu. Bu katman zincirin BİRİNCİ sırasında,
+    yani en sık kullanılan yol.
     """
-    asgari = g.get("haber_gorseli_asgari_genislik", 600)
+    asgari = g.get("haber_gorseli_asgari_genislik", 1080)
+    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 800)
     try:
         cevap = requests.get(url, timeout=20,
                              headers={"User-Agent": "Mozilla/5.0"})
@@ -81,8 +102,9 @@ def _gorseli_indir(url: str, g: dict):
         log.warning("haber görseli indirilemedi: %s", e)
         return None
 
-    if foto.width < asgari:
-        log.info("haber görseli küçük (%spx), atlanıyor", foto.width)
+    if foto.width < asgari or foto.height < asgari_y:
+        log.info("haber görseli küçük (%sx%s, asgari %sx%s), atlanıyor",
+                 foto.width, foto.height, asgari, asgari_y)
         return None
     return foto.convert("RGB")
 
@@ -193,7 +215,7 @@ def slayt_uret(haber, ayarlar: dict) -> tuple[Path, str, str]:
 
     yol = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
     # Instagram PNG kabul etmiyor — JPEG şart
-    gorsel.save(yol, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+    gorsel.save(yol, "JPEG", quality=_kalite(g, katman), optimize=True)
     log.info("slayt üretildi [%s] #%s → %s", katman, haber["id"], yol.name)
     return yol, katman, atif
 
@@ -268,7 +290,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
         kategori=haber["kategori"] or "",
     )
     yol1 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
-    gorsel1.save(yol1, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+    gorsel1.save(yol1, "JPEG", quality=_kalite(g, katman), optimize=True)
 
     # --- Slayt 2: detay ---
     # ig_caption zaten haberin 2-3 cümlelik özü; ayrı bir alan üretmek
@@ -333,6 +355,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
         )
         ek = "" if len(sayfalar) == 1 else f"-{i}"
         yol2 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}-detay{ek}.jpg"
+        # ⚠️ Detay sayfaları DÜZ ZEMİN — yüksek kalite dosyayı şişirir,
+        # görsel fayda sağlamaz. Bilerek `jpeg_kalite` kullanılıyor.
         gorsel2.save(yol2, "JPEG", quality=g["jpeg_kalite"], optimize=True)
         detay_yollari.append(yol2)
 
@@ -359,7 +383,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
             ulke_adi=_alan(haber, "ulke_adi") or None,
         )
         yol3 = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
-        story.save(yol3, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+        story.save(yol3, "JPEG", quality=_kalite(g, katman), optimize=True)
     except Exception as e:
         # Story ikincil; patlarsa post yine çıkmalı.
         log.warning("story görseli üretilemedi: %s", e)

@@ -359,8 +359,18 @@ gorsel:
 
   # og:image bazen sitenin logosu ya da paylaşım rozeti oluyor; bu
   # genişliğin altındakiler eleniyor, yoksa büyütülünce bulanık çıkıyor.
-  haber_gorseli_asgari_genislik: 600
-  jpeg_kalite: 90          # Instagram PNG kabul etmiyor, JPEG şart
+  # ⚠️ ESKİDEN 600'DÜ VE YÜKSEKLİK HİÇ DENETLENMİYORDU.
+  # og:image katmanı zincirin BİRİNCİ sırasında; 1200x400 gibi geniş
+  # bantlı bir foto bu eşiği geçip 4:5'e kırpılınca ciddi kalite kaybı
+  # oluyordu. Slayt 1080x1350 basıldığı için kaynak en az o kadar olmalı.
+  haber_gorseli_asgari_genislik: 1080
+  haber_gorseli_asgari_yukseklik: 800
+  # Düz zeminli sayfalar (detay slaytları) — fotoğraf yok, yüksek
+  # kalite dosyayı gereksiz şişiriyor.
+  jpeg_kalite: 90
+  # ⚠️ FOTOĞRAF ARKA PLANLI slaytlar için ayrı kalite. Instagram dosya
+  # sınırı 8 MB, bizim slaytlar ~200 KB — artırmak için bol alan var.
+  jpeg_kalite_foto: 95          # Instagram PNG kabul etmiyor, JPEG şart
   deneme_sayisi: 3
   zaman_asimi: 180         # görsel üretimi metinden yavaş
 
