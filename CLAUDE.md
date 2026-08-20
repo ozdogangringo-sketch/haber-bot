@@ -103,6 +103,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Telegram komutları | `/durum` · `/tur` · `/ayar` · `/tamamla` · `/arsiv` · `/yardim`. Buton menüsü yalnızca açık onay mesajı varken işe yarıyordu; tur kapanınca elde tutamak kalmıyordu. `/yardim` Worker'da anında cevaplanıyor. |
 | Ayar paneli (18 Ağu 2026) | `/ayar` → çalışma ayarları Telegram'dan değiştirilebiliyor (`src/ayar.py`). **İki katman:** `config.yaml` varsayılan, `ayarlar` tablosu üste biner — DB her job sonunda commit edildiği için değişiklik kalıcı. ⚠️ **BEYAZ LİSTE ZORUNLU** (`DEGISTIRILEBILIR`, 6 anahtar): gruba herkes yazabildiği için keyfi anahtar kabul etmek botu grup üzerinden yönetilebilir kılardı. Alt menü Worker'da açılıyor ama seçenekler **düğmeye gömülü** (`ayarmenu:yol:true-false`) — menü üçüncü bir yerde tekrarlanmasın diye. |
 | Haber dışa aktarımı | `scripts/haber_disa_aktar.py` → `data/disa-aktarim/haberler-TARİH.xlsx`. Kategori kategori ayrı sayfa + ÖZET sayfası. **SENİN PUANIN** ve **Notun** sütunları boş ve sarı: kullanıcı doldurup geri gönderiyor, Gemini'nin kalibrasyonu insan yargısıyla karşılaştırılabiliyor. `--gun N` / `--tumu`. |
+| ★ Tekil post ÇOKLU SEÇİM (20 Ağu 2026) | Öneri mesajında numaralara basmak butona ✓ ekleyip çıkarıyor ve "Hazırla (N)" sayacını güncelliyor — **Worker'da, Actions hiç uyanmıyor**. Tek "Hazırla" basışında seçilenlerin hepsi tek dispatch ile gidiyor ve sırayla üretiliyor. Her seçimde Actions çalıştırmak 3 haber için 3 ayrı job (~5 dk) demekti. ⚠️ id'ler buton METİNLERİNDEN okunuyor, `callback_data`'dan değil — 64 baytlık sınıra takılmamak için. |
 | ★ Tekil post İKİ AŞAMALI (19 Ağu 2026) | **1)** Kontrol job'ı taze başlıkları TEK Gemini isteğiyle toplu puanlıyor (~1500 token) ve eşiği geçenleri numaralı butonlarla öneriyor. **2)** Kullanıcı seçince tam metin + görsel + imgbb yalnızca o haber için üretiliyor. Eskiden her aday için tam metin (~4400 token) üretilip eşiği geçmezse ATILIYORDU. Ölçüldü: kontrol **2.81 → 0.55 dk**, sıklık **20 → 36/gün**, Actions **1686 → 594 dk/ay**. |
 | ⚠️ Gece: yüksek puanlı haber öneriye DÜŞMEZ | Öneri akışı haberi `durum='yeni'` ve **metinsiz** bırakıyor, `aday_bul` ise yalnızca `metin_hazir` olanlara bakıyor. Yani gece gelen büyük bir haber öneriye düşerse otomatik yayınlanmaz, sabaha kadar bekler — tam da otomatik yayının önlemek istediği şey. Çözüm: toplu puanı `oneri_otomatik_uretim_esigi` (8) üstündeki başlık öneri yerine doğrudan metni üretilip normal akışa bırakılıyor. Eşik 8, çünkü toplu puan tam metin puanından ~1.6 düşük geliyor ve yayın eşiği 9 olan haber burada 7-8 görünüyor. |
 | Gece öneri kuralı | Öneri eşiğinde gece **+1 YOK** (yayın eşiğinde var). Gerekçe: öneri yayın değil, insana sunma — mesaj gece gelir, kullanıcı sabah seçer. Gece kuralını öneriye de uygulamak, gece toplanan haberlerin hiç önerilmemesine ve sabaha kadar beklerken tazelik penceresini aşıp görünmez olmasına yol açıyordu. |
@@ -150,7 +151,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 
 ## 4. ŞU ANKİ DURUM
 
-### 🟢 BOT YAYINDA — son güncelleme 19 Ağustos 2026
+### 🟢 BOT YAYINDA — son güncelleme 20 Ağustos 2026
 
 Tüm adımlar bitti. Sistem kendi başına çalışıyor ve **gerçek postlar
 yayınlandı**:
@@ -629,6 +630,56 @@ varlığı haberin değerlendirilmiş olduğunu göstermez —
 israfı da önlendi: artık yalnızca puansız başlıklara Gemini çağrısı
 yapılıyor.
 
+**1u. ⚠️ YAYINLANMIŞ TUR ÜZERİNDE İŞLEM YAPILABİLİYORDU — bot postu
+yayınladığını UNUTUYORDU.**
+
+20 Ağu 2026, kullanıcı "o haber Instagram'da paylaşılmış" diye ısrar
+etti; veritabanı `durum='metin_hazir'` diyordu. Instagram API'ye
+sorulunca haklı çıktı: post 10:00:23'te yayınlanmıştı
+(instagram.com/p/DcQf4w1nJA7).
+
+Zincir:
+1. 09:59 — tur başarıyla yayınlandı: Instagram + Facebook + story +
+   Threads 4/4, veritabanı yazıldı ve **push edildi** (log doğruladı).
+2. 10:00 — aynı onay mesajından `ertele` komutu geldi ve
+   **YAYINLANMIŞ haberin durumunu `ertelendi` yaptı.**
+3. Haber havuza döndü; sistem onu "yayınlanmamış" sandı.
+4. 11:33 ve 11:56 — aynı haber iki kez daha tekil post olarak onaya
+   sunuldu. Kullanıcının bildirdiği mükerrer sunumun kök sebebi buydu.
+
+`turu_getir` durum filtresi yapmıyor ve hiçbir komut "bu tur zaten
+yayınlandı mı" diye bakmıyordu.
+
+Düzeltme: değiştirici komutlar (`yayinla`, `iptal`, `ertele`,
+`tura_birak`, `metin_yenile`, `slayt_*`) yayınlanmış turda
+**reddediliyor** ve kullanıcıya post bağlantısı gösteriliyor.
+`kaldir` hariç — o zaten yayınlanmış turu hedefliyor.
+
+⚠️ Bu aynı zamanda **ÇİFT YAYIN** riskini de kapatıyor: "Yayınla" iki
+kez basılırsa ikincisi reddediliyor.
+
+⚠️ **DERS: veritabanı gerçeğin tek kaynağı değil.** Bot Instagram'a
+yayın yapıyor ama kayıt sonradan bozulabiliyor. "Yayınlandı mı?"
+sorusunun kesin cevabı Instagram API'sinde:
+`GET /{ig_user_id}/media?fields=id,caption,timestamp`.
+
+**1v. ⚠️ PARAMETRELİ KOMUTLARDA ÖN EKE BAKILMALI.**
+
+`/haber istanbulda hava` komutu `ara:istanbulda hava` olarak geliyor
+ama `MESAJSIZ_KOMUTLAR` düz üyelik testi yapıyordu (`"ara"` listede mi).
+Eşleşme tutmadığı için komut "MESAJ_ID eksik" ile ölüyordu — Worker
+"aranıyor…" diyor, job sessizce hata veriyordu. Aynı desen `/durum`
+için de yaşanmıştı. Artık `komut.split(":", 1)[0]` ile ön eke
+bakılıyor.
+
+**1y. İki kez atlanan haber tekil olarak dayatılmıyor.**
+
+"Bu turu atla" haberi havuza döndürüyor ve haber bir sonraki
+kontrolde yine tekil aday oluyordu. `iptal()` artık
+`ertelenme_sayisi` sayacını artırıyor; **iki atlamadan sonra**
+`sadece_tur = 1` konuyor, yani haber yalnızca 10'lu turda yarışıyor.
+Haber kaybolmuyor, sadece tekil post olarak ısrar edilmiyor.
+
 ### Geçmiş notlar (güncelleme: 14 Ağustos 2026)
 
 **Adım 1 BİTTİ ve kullanıcının makinesinde doğrulandı.** 8/8 kaynak çalışıyor,
@@ -941,6 +992,25 @@ hatirlatma_sayisi, ertelenme_sayisi, durum, ig_post_id, hata_mesaji`
 **Ders:** bir düzeltmeyi uygularken aynı işi yapan DİĞER kod yolunu da ara.
 Tarih düzeltmesi ve caption seçimi, ikisi de yalnızca bir dosyaya uygulandı;
 onaylı yayınlar başka dosyadan çıktığı için düzeltme onlara hiç işlemedi.
+
+### `scripts/son_dakika.py` yapısı
+
+`main()` 334 satırdı; tek fonksiyonda RSS çekme, puanlama, öneri,
+görsel üretimi, gece otomatik yayın ve Telegram onayı vardı — test
+edilemez, güvenle değiştirilemez. Bölündü (20 Ağu 2026), **206 satır**:
+
+| fonksiyon | işi |
+|---|---|
+| `onerileri_gonder` | taze başlıkları toplu puanlayıp Telegram'a öneriyor |
+| `aday_bul` | metni hazır haberlerden tekil post adayı seçiyor |
+| `gece_otomatik_yayinla` | dört katmanlı denetim + gece yayını |
+| `onaya_sun` | Telegram onay mesajı + veritabanı |
+
+⚠️ `gece_otomatik_yayinla` **`(yayinlandi, katman_raporu)`** dönüyor,
+yalnızca bool değil: yayın reddedildiğinde haber onaya sunuluyor ve o
+mesajda HANGİ katmanın reddettiği yazılı olmalı. İlk bölme denemesinde
+yalnızca bool dönüyordu ve rapor sessizce kayboluyordu — kod taşınırken
+sözdizimi bozulmuyor, testler geçiyor, ama bir BİLGİ akmayı bırakıyor.
 
 ### `src/aday.py` — seçim kurallarının TEK kapısı
 
