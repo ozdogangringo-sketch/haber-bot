@@ -53,6 +53,17 @@ OLAY_SINYALLERI = [
     "yangın", "çöktü", "düştü", "kaza", "istifa", "görevden al", "zam",
     "operasyon", "baskın", "saldır", "yürürlüğe", "erteledi", "geriledi",
     "yükseldi",
+    # ⚠️ FAYDA/FIRSAT SİNYALLERİ (20 Ağu 2026).
+    #
+    # Kullanıcı "Google öğrencilere Gemini üyeliği verdi" gibi haberleri
+    # istedi: insanların tanıdıklarına GÖNDERDİĞİ, işe yarayan haberler.
+    # Ölçüldü — o başlık bu listeden 0 puan alıyordu (rakam yok, olay
+    # fiili yok), oysa "3 araç çarpıştı, 2 yaralı" 20 puan alıyordu.
+    # Bu yüzden fırsat haberleri ön elemede metin bile üretilmeden
+    # eleniyordu.
+    "ücretsiz", "bedava", "indirim", "kampanya", "burs", "hibe",
+    "destek paketi", "başvuru", "erişime açtı", "erişime açıldı",
+    "hediye", "fırsat", "son gün", "uzatıldı", "yürürlükte",
 ]
 
 # Başlıkta "biri bir şey DEDİ" sinyali — puanı düşürür.

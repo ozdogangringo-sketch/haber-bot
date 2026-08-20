@@ -336,6 +336,11 @@ Bu üçünü ORTALAMA. Birinde çok güçlüyse diğerleri zayıf diye düşürm
          · büyük spor sonucu, şampiyonluk, milli takım başarısı
          · geniş ilgi gören kültür/sinema/müzik gelişmesi
          · gündelik hayatı değiştiren düzenleme (trafik, okul, fatura)
+         · ★ HERKESİN YARARLANABİLECEĞİ SOMUT İMKÂN: ücretsiz erişim,
+           kampanya, burs, hibe, indirim, yeni ücretsiz hizmet
+           (örnek: "Google öğrencilere Gemini Pro'yu ücretsiz açtı",
+            "Şu tarihe kadar başvuranlara ulaşım kartı bedava")
+         · son başvuru tarihi olan fırsatlar — kaçırılırsa geri gelmez
 
   4-6  — orta: ilgi alanına göre değişir, rutin gelişme
   1-3  — niş veya önemsiz
@@ -350,6 +355,14 @@ mü bildirdi?
   · "X kararı alındı / yasa çıktı / imzalandı" -> gerçek sonuç, yüksek olabilir
 Açıklamanın İÇİNDE somut ve yeni bir bilgi varsa (rakam, tarih, karar,
 taahhüt) o zaman puanı o bilgiye göre ver, açıklama olduğuna bakma.
+
+⚠️ İSTİSNA — SOMUT İMKÂN DUYURUSU AÇIKLAMA DEĞİLDİR:
+Bir şirket ya da kurum insanların DOĞRUDAN yararlanabileceği bir şey
+duyuruyorsa (ücretsiz erişim, indirim, burs, kampanya, yeni hizmet)
+bu "biri konuştu" değil, OLAYDIR — düşürme, 7-8 bandında değerlendir.
+  · "Google öğrencilere Gemini Pro'yu ücretsiz açtı"  -> 7-8
+  · "Bakan yapay zekânın önemini vurguladı"            -> 3-5
+Ayrım şu: birincisinde okuyucunun YAPABİLECEĞİ bir şey var.
 
 {bilgi_uyarisi}
 HABER
@@ -723,6 +736,10 @@ Birinde çok güçlüyse diğerleri zayıf diye düşürme.
          olay · büyük kaza/yangın/salgın · büyük spor sonucu · geniş
          ilgi gören kültür-sinema gelişmesi · gündelik hayatı
          değiştiren düzenleme
+         · ★ HERKESİN YARARLANABİLECEĞİ SOMUT İMKÂN: ücretsiz erişim,
+           kampanya, burs, hibe, indirim, yeni ücretsiz hizmet, son
+           başvuru tarihi olan fırsat
+           (örnek: "Google öğrencilere Gemini Pro'yu ücretsiz açtı")
   4-6  — orta: ilgi alanına göre değişir, rutin gelişme
   1-3  — niş veya önemsiz
 
@@ -732,6 +749,12 @@ Bir yetkilinin konuşmuş olması tek başına haber değildir:
   · "X kınadı / temenni etti / mesaj yayımladı" -> 3-5
   · protokol, ziyaret, tören, anma              -> 3-4
   · "X kararı alındı / yasa çıktı / imzalandı"  -> gerçek sonuç, yüksek
+
+⚠️ İSTİSNA — SOMUT İMKÂN DUYURUSU AÇIKLAMA DEĞİLDİR:
+Bir şirket ya da kurum insanların DOĞRUDAN yararlanabileceği bir şey
+duyuruyorsa (ücretsiz erişim, indirim, burs, kampanya, yeni hizmet)
+bu "biri konuştu" değil, OLAYDIR — düşürme, 7-8 bandında değerlendir.
+Ayrım: birincisinde okuyucunun YAPABİLECEĞİ bir şey var.
 
 HABERLER
 {liste}
