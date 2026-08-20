@@ -382,20 +382,29 @@ def tur_icin_sec(con, ayarlar: dict) -> list:
     # sıradanlaştırıyor.
     asgari = (ayarlar.get("secim", {}) or {}).get("asgari_onem_puani", 0)
 
-    adaylar = [
-        h for h in con.execute(
-            "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
-            "AND ig_baslik IS NOT NULL"
-        )
-        if _yas_saat(h) <= sinir_saat and (h["onem_puani"] or 0) >= asgari
-    ]
+    adaylar = list(con.execute(
+        "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
+        "AND ig_baslik IS NOT NULL"
+    ))
 
+    # Skor sıralaması ÖNCE: aday kapısı verilen sırayı koruyor, yani
+    # en iyi haberler önce denenmiş oluyor.
     adaylar.sort(key=lambda h: skor(h, ayarlar), reverse=True)
-    # Düz sıralamadan almak yerine çeşitlendiriyoruz: aynı olayın
-    # haberleri birbirine yakın puan aldığı için üst üste diziliyordu.
-    # Son günlerde yayınladığımız olayları tekrar seçmeyelim.
-    secilen = cesitlendir(adaylar, g["slayt_sayisi"], ayarlar,
-                          gecmis_konular=yayinlanmis_konular(con, ayarlar))
+
+    # ⚠️ ELEME KURALLARI `src/aday.py`'DE — burada tekrar YOK.
+    #
+    # Tazelik (bayatlama sınırı), asgari önem puanı, aynı olayın
+    # tekrarı ve son günlerde yayınlanmış konu denetimi tek kapıdan
+    # geçiyor. Bu kurallar önce üç ayrı yere kopyalanmıştı ve biri
+    # hep unutuluyordu (1j, 1p).
+    # ⚠️ GEÇ İMPORT — KARŞILIKLI BAĞIMLILIK VAR.
+    # `aday.py` bu modülün `konu_imzasi` ve `yayinlanmis_konular`
+    # fonksiyonlarını kullanıyor; modül başında import edersek
+    # döngüsel import oluşur ve ikisi de yüklenemez.
+    from . import aday
+
+    baglam = aday.Baglam.kur(aday.TUR, ayarlar, con)
+    secilen = aday.sec(adaylar, baglam, adet=g["slayt_sayisi"])
 
     log.info("tur seçimi: %d adaydan %d haber", len(adaylar), len(secilen))
     return secilen

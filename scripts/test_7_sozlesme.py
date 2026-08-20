@@ -139,8 +139,11 @@ def test_mukerrer_her_akista_var() -> None:
         denetle(False, f"{eksik}() bulunamadı", "fonksiyon silinmiş olabilir")
 
     secim_kaynak = (KOK / "src" / "secim.py").read_text(encoding="utf-8")
-    denetle("yayinlanmis_konular(con, ayarlar)" in secim_kaynak,
-            "tur_icin_sec() geçmiş tekrar denetimi yapıyor")
+    # `tur_icin_sec` aday kapısına bağlandı; kural oradan geliyor.
+    denetle("aday.Baglam.kur(aday.TUR" in secim_kaynak
+            or "yayinlanmis_konular(con, ayarlar)" in secim_kaynak,
+            "tur_icin_sec() geçmiş tekrar denetimi yapıyor",
+            "aday.Baglam ya da yayinlanmis_konular")
 
 
 # ─────────────────────────────────────────────────────────────
