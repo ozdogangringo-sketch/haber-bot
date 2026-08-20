@@ -44,6 +44,43 @@ log = logging.getLogger(__name__)
 #   yok           -> otomatik çözümü olmayan hata, yalnızca bilgi
 KATALOG = [
     {
+        "desen": r"database is locked|database table is locked",
+        "ne_oldu": "Veritabanı kilitli olduğu için yazılamadı.",
+        "neden": ("İki kod yolu aynı anda veritabanına yazmaya çalıştı. "
+                  "20 Ağu 2026'da çoklu seçimde görüldü: onay işleyici "
+                  "kendi bağlantısını açık tutarken tur kurucu ayrı bir "
+                  "bağlantıdan yazmak istedi. WAL modu ve 30 sn bekleme "
+                  "ile düzeltildi."),
+        "ne_yapilir": ("Aynı haberi tekrar seçmek genelde yeterli. "
+                       "Tekrarlıyorsa iki job aynı anda çalışıyor "
+                       "olabilir — workflow'ların `veritabani` "
+                       "concurrency grubunda olduğunu doğrula."),
+        "eylem": "yok",
+    },
+    {
+        "desen": r"story yayınlanamadı|STORIES",
+        "ne_oldu": "Post yayınlandı ama Instagram story'si atılamadı.",
+        "neden": ("Story görselini de Instagram imgbb'den kendisi "
+                  "çekiyor ve o çekme başarısız oldu (2207052). Carousel "
+                  "geçip story'nin geçmemesi olağan — aynı anda farklı "
+                  "isteklerdeler."),
+        "ne_yapilir": ("Post yayında, içerik kaybı YOK. Story ikincil "
+                       "kanal; istersen uygulamadan elle paylaşabilirsin. "
+                       "Sık tekrarlıyorsa imgbb yerine başka bir "
+                       "barındırıcı denenebilir."),
+        "eylem": "yok",
+    },
+    {
+        "desen": r"metin üretilemedi|Gemini çağrısı başarısız",
+        "ne_oldu": "Seçilen haberin metni üretilemedi.",
+        "neden": ("Gemini isteği başarısız oldu — kota, güvenlik filtresi "
+                  "ya da ağ hatası. Haber havuzda duruyor, kaybolmadı."),
+        "ne_yapilir": ("Birkaç dakika sonra aynı haberi tekrar seçmek "
+                       "genelde yeterli. Kota dolduysa metinsiz tur "
+                       "seçeneği var."),
+        "eylem": "tur_metinsiz",
+    },
+    {
         "desen": r"WEBPAGE_CURL_FAILED|failed to send message #\d+",
         "ne_oldu": "Telegram slayt görsellerini indiremedi.",
         "neden": ("Telegram görselleri imgbb'den KENDİSİ çekiyor ve o çekme "
@@ -137,7 +174,11 @@ def tani(hata) -> dict:
         "neden": "Bu hata kataloğa kayıtlı değil.",
         "ne_yapilir": ("Ham hata metni aşağıda. Tekrarlıyorsa "
                        "`src/hata_bildir.py` içindeki katalog genişletilmeli."),
-        "eylem": "yok",
+        # ⚠️ Bilinmeyen hatada da eylem sunuluyor. Önce "yok"tu ve
+        # kullanıcı yalnızca "ham hata metni" düğmesini görüyordu —
+        # yani hiçbir şey yapamıyordu. Turu yeniden denemek çoğu geçici
+        # arızayı zaten çözüyor.
+        "eylem": "tur_tekrar",
         "tanindi": False,
         "ham": ham,
     }
