@@ -405,12 +405,17 @@ def aday_bul(con, ayarlar: dict):
 
 
 def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
-                          story_url, metin) -> bool:
+                          story_url, metin) -> tuple[bool, list]:
     """
     Gece: dört katmanlı denetimden geçen haberi insan onayı olmadan yayınlar.
 
-    Döner: `True` yayınlandıysa (çağıran hemen çıkmalı), `False` gece
-    değilse ya da denetim reddettiyse.
+    Döner: `(yayinlandi, katman_raporu)`.
+
+    ⚠️ RAPOR DA DÖNÜYOR — yalnızca bool yetmiyor. Gece otomatik yayın
+    reddedildiğinde haber onaya sunuluyor ve o onay mesajında HANGİ
+    katmanın reddettiği yazılı olmalı; insan kararını ona bakarak
+    veriyor. İlk bölme denemesinde yalnızca bool dönüyordu ve rapor
+    sessizce kayboluyordu.
 
     ⚠️ Bu blok `main()` içinde 104 satır olarak duruyordu ve fonksiyonu
     334 satıra çıkaran en büyük parçaydı. Davranış AYNEN korundu —
@@ -428,7 +433,7 @@ def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
     # güvencesini kaldırıyor, o yüzden yerine dört katman kondu.
     # ŞÜPHEDE REDDET: biri bile tereddüt ederse sabaha bırakılıyor.
     if not (gece_mi() and ayarlar["genel"].get("gece_otomatik_yayin", False)):
-        return False
+        return False, []
 
     uygun, katman_raporu = otomatik_onay.otomatik_yayinlanabilir(
         con, taze, ayarlar
@@ -529,6 +534,51 @@ def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
     log.info("otomatik yayın reddedildi, sabaha bırakılıyor")
     return False
 
+
+def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
+              uyari, katman_raporu) -> int:
+    """
+    Hazırlanan tekil postu Telegram'da onaya sunar.
+
+    ⚠️ `main()` içinde 30 satırlık bir blok olarak duruyordu. Davranış
+    AYNEN korundu — yalnızca yeri değişti.
+
+    Onay mesajı gider gitmez veritabanı push ediliyor: onay düğmesi
+    GitHub'daki kopyaya bakıyor ve workflow'un son adımını beklersek
+    kullanıcı o aralıkta onayladığında yayın job'ı turu göremiyor
+    (17 Ağu 2026'da tam olarak bu oldu).
+    """
+    # --- 6b) Onaya sun ---
+    telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
+    mesaj_id = telegram_bot.onay_iste(
+        metin, len(urller),
+        uyari=(uyari or ""),
+        ozet=(f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {taze['onem_puani']}/10\n"
+              + ("🌙 Gece: sabah 08:00'e kadar bekler\n"
+                 if gece_mi() else
+                 f"⌛️ {OMUR_DAKIKA} dakika içinde onaylanmazsa iptal olur\n")
+              + ("\n".join(katman_raporu) if gece_mi() and katman_raporu
+                 else "")),
+    )
+
+    con.execute(
+        "UPDATE haberler SET durum = 'onay_bekliyor', son_dakika = 1, "
+        "telegram_message_id = ?, gorsel_url = ?, detay_url = ?, "
+        "story_url = ?, gonderim_zamani = datetime('now') WHERE id = ?",
+        (mesaj_id, urller[0], json.dumps(urller[1:]),
+         story_url, aday["id"]),
+    )
+    con.commit()
+    sayaci_artir(con)
+
+    # Onay butonu GitHub'daki veritabanına bakıyor. Workflow'un
+    # sonundaki commit adımını beklersek kullanıcı o aralıkta
+    # onayladığında yayın job'ı turu göremiyor — 17 Ağu 2026'da
+    # tam olarak bu oldu. O yüzden hemen kaydediyoruz.
+    db_senkron.hemen_kaydet("Son dakika onaya sunuldu")
+
+    log.info("son dakika onaya sunuldu (message_id=%s)", mesaj_id)
+    return 0
 
 def main(zorla_haber_id: int | None = None) -> int:
     logging.basicConfig(
@@ -694,42 +744,14 @@ def main(zorla_haber_id: int | None = None) -> int:
             return 0
 
         # --- 6a) GECE: dört katmanlı denetimden geçerse otomatik yayınla ---
-        if gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
-                                 story_url, metin):
+        yayinlandi, katman_raporu = gece_otomatik_yayinla(
+            con, ayarlar, aday, taze, urller, story_url, metin)
+        if yayinlandi:
             return 0
 
 
-        # --- 6b) Onaya sun ---
-        telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
-        mesaj_id = telegram_bot.onay_iste(
-            metin, len(urller),
-            uyari=(uyari or ""),
-            ozet=(f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {taze['onem_puani']}/10\n"
-                  + ("🌙 Gece: sabah 08:00'e kadar bekler\n"
-                     if gece_mi() else
-                     f"⌛️ {OMUR_DAKIKA} dakika içinde onaylanmazsa iptal olur\n")
-                  + ("\n".join(katman_raporu) if gece_mi() and katman_raporu
-                     else "")),
-        )
-
-        con.execute(
-            "UPDATE haberler SET durum = 'onay_bekliyor', son_dakika = 1, "
-            "telegram_message_id = ?, gorsel_url = ?, detay_url = ?, "
-            "story_url = ?, gonderim_zamani = datetime('now') WHERE id = ?",
-            (mesaj_id, urller[0], json.dumps(urller[1:]),
-             story_url, aday["id"]),
-        )
-        con.commit()
-        sayaci_artir(con)
-
-        # Onay butonu GitHub'daki veritabanına bakıyor. Workflow'un
-        # sonundaki commit adımını beklersek kullanıcı o aralıkta
-        # onayladığında yayın job'ı turu göremiyor — 17 Ağu 2026'da
-        # tam olarak bu oldu. O yüzden hemen kaydediyoruz.
-        db_senkron.hemen_kaydet("Son dakika onaya sunuldu")
-
-        log.info("son dakika onaya sunuldu (message_id=%s)", mesaj_id)
-        return 0
+        return onaya_sun(con, ayarlar, aday, taze, urller,
+                        story_url, metin, uyari, katman_raporu)
 
     except Exception as e:
         log.exception("son dakika turu hazırlanamadı")
