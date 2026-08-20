@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 
 import requests
@@ -287,6 +288,64 @@ def story_yayinla(gorsel_url: str, ayarlar: dict) -> str:
     story_id = d["id"]
     log.info("story yayınlandı (@%s): %s", hesap["username"], story_id)
     return story_id
+
+
+def son_yayinlanan_basliklar(ayarlar: dict, adet: int = 25) -> list[str]:
+    """
+    Instagram'da GERÇEKTEN yayınlanmış postların manşetlerini döndürür.
+
+    ⚠️ NEDEN GEREKTİ (20 Ağu 2026): mükerrer engeli veritabanındaki
+    `durum='yayinlandi'` kayıtlarına bakıyordu ve veritabanı yanlış
+    olabiliyor. Ölçüldü — "Merkez Bankası rezervleri" 17:47'de,
+    "TUFAN Kamikaze İDA" 17:19'da Instagram'da yayınlandı ama DB'de
+    ikisinin de hiçbir kaydı 'yayinlandi' değildi; ikisi de akşam
+    turuna yeniden girdi ve kullanıcı fark etti.
+
+    Aynı ders CLAUDE.md 1u'da zaten yazılıydı: bir haberin yayınlanıp
+    yayınlanmadığının kesin cevabı burada, veritabanında değil.
+
+    Caption biçimi "1. Manşet / 2. Manşet …" olduğu için numaralı
+    satırlar ayrı ayrı çıkarılıyor — tek postta 10 haber olabiliyor
+    ve hepsi ayrı ayrı karşılaştırılmalı.
+    """
+    try:
+        cevap = _istek("GET", f"/{_kullanici_id()}/media", ayarlar,
+                       fields="caption,timestamp", limit=adet)
+    except Exception as e:
+        # Ağ/jeton hatası mükerrer denetimini DURDURMAMALI — veritabanı
+        # katmanı yine çalışıyor, burası ek güvence.
+        log.warning("Instagram geçmişi okunamadı (%s); "
+                    "mükerrer denetimi yalnızca veritabanına bakacak", e)
+        return []
+
+    basliklar = []
+    for post in cevap.get("data", []):
+        # ⚠️ HER POST KENDİ İÇİNDE değerlendirilmeli. İlk yazımda
+        # "numarasız caption'ın ilk satırı manşettir" kuralı GLOBAL
+        # listeye bakıyordu; ilk posttan sonra liste hep dolu olduğu
+        # için tekil postların manşetleri HİÇ okunmadı ve "Merkez
+        # Bankası rezervleri" ile "TUFAN Kamikaze İDA" gözden kaçtı.
+        post_basliklari: list[str] = []
+        for satir in (post.get("caption") or "").splitlines():
+            satir = satir.strip()
+            if not satir:
+                continue
+            # "1. Manşet" / "10. Manşet" -> carousel turunun manşetleri
+            eslesme = re.match(r"^\d{1,2}[\.\)]\s+(.{15,})$", satir)
+            if eslesme:
+                post_basliklari.append(eslesme.group(1).strip())
+                continue
+            if post_basliklari:
+                continue
+            # Tekil postun caption'ı numarasız başlıyor: ilk anlamlı
+            # satır manşettir. Etiket satırlarını ("🔴 SON DAKİKA",
+            # hashtag'ler) atlıyoruz, yoksa manşet yerine onlar geçer.
+            sade = satir.lstrip("🔴🚨⚡️ ").strip()
+            if len(sade) > 25 and not sade.startswith("#") \
+                    and sade.upper() != sade:
+                post_basliklari.append(sade)
+        basliklar += post_basliklari
+    return basliklar
 
 
 def post_baglantisi(post_id: str, ayarlar: dict) -> str:

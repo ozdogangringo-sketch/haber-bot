@@ -669,6 +669,53 @@ yayın yapıyor ama kayıt sonradan bozulabiliyor. "Yayınlandı mı?"
 sorusunun kesin cevabı Instagram API'sinde:
 `GET /{ig_user_id}/media?fields=id,caption,timestamp`.
 
+**1z. ⚠️ MÜKERRER ENGELİ VERİTABANINA GÜVENİYORDU — Instagram'da
+yayınlanmış haber akşam turuna geri girdi.**
+
+20 Ağu 2026, kullanıcı bildirdi: "gündüz tekli attıklarımızdan var
+10'lu tur arasında". Ölçüldü ve haklı çıktı — Instagram'da
+**TR 17:47 "Merkez Bankası rezervleri"**, **TR 17:19 "TUFAN Kamikaze
+İDA"** yayınlanmıştı ve ikisi de 20:58 turunda yeniden vardı.
+
+Kök sebep kuralın kendisi DEĞİL: aynı turdaki **Endonezya depremi
+YAKALANDI** çünkü onun kaydı veritabanında doğru şekilde
+`durum='yayinlandi'` idi. Diğer ikisinde DB'de HİÇBİR kayıt
+'yayinlandi' değildi — yayın gerçekleşmiş ama kayıt bozulmuştu
+(1u'daki olayın aynısı). Yani **kural sağlamdı, beslendiği veri
+eksikti.**
+
+Düzeltme: `secim.yayinlanmis_konular` artık DB'ye ek olarak
+`instagram.son_yayinlanan_basliklar()` çağırıyor — caption'lardaki
+manşetler de geçmiş sayılıyor. İmza sayısı 55 → 120 oldu, elenme
+oranı **%13.3'te sabit kaldı** (aşırı eleme yok), üç mükerrer de
+yakalandı. Instagram'a ulaşılamazsa denetim DB ile devam ediyor,
+tur durmuyor.
+
+⚠️ **Caption ayrıştırması POST BAZINDA olmalı.** İlk yazımda
+"numarasız caption'ın ilk satırı manşettir" kuralı GLOBAL listeye
+bakıyordu; ilk posttan sonra liste hep dolu olduğu için tekil
+postların manşetleri HİÇ okunmadı ve düzeltme sessizce çalışmadı.
+
+⚠️ **Sözleşme testi bu yüzden ağa çıkmaya başladı.** `main()` artık
+`secim._IG_GECMIS_ONBELLEK = []` ile API yolunu kapatıyor — test
+0.14 saniyede bitiyor ve jeton olmadan da çalışıyor.
+
+**1y2. ⚠️ "1 SAAT ERTELE" TURU KİLİTLİYORDU.**
+
+20 Ağu 2026: kullanıcı 20:58'de erteledi, 21:58'de hatırlatma geldi
+("Yukarıdaki mesajdan yayınlayabilirsin") ama o mesajda **hiçbir
+düğme kalmamıştı.** Tur ne yayınlanabiliyor ne atlanabiliyordu.
+
+Sebep: `ertele()` sonucu `telegram_bot.sonucu_yaz()` ile yazıyordu ve
+o fonksiyon **butonları bilerek kaldırıyor** (çift yayını engellemek
+için, yayın/iptal gibi turu BİTİREN işlemlerde doğru davranış). Ama
+erteleme turu bitirmiyor.
+
+Düzeltme: `ertele()` artık `menuyu_geri_koy()` çağırıyor ve ertelemeyi
+ayrı bir mesajla bildiriyor. Sözleşme testi `telegram_bot.sonucu_yaz(`
+çağrısını denetliyor — ⚠️ düz metin araması yanlış alarm veriyordu,
+çünkü fonksiyonun docstring'inde "sonucu_yaz KULLANMA" uyarısı yazılı.
+
 **1v. ⚠️ PARAMETRELİ KOMUTLARDA ÖN EKE BAKILMALI.**
 
 `/haber istanbulda hava` komutu `ara:istanbulda hava` olarak geliyor

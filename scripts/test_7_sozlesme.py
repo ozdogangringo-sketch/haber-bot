@@ -439,7 +439,65 @@ def test_planlanmis_yayin_zaman_asimlarindan_muaf() -> None:
                 f"pencere {pencere.group(1)} dk ama cron 90 dakikada bir: {gunduz}")
 
 
+def test_mukerrer_instagrama_da_bakiyor() -> None:
+    """
+    Mükerrer denetimi yalnızca veritabanına güvenemez.
+
+    20 Ağu 2026'da ölçüldü: "Merkez Bankası rezervleri" TR 17:47'de,
+    "TUFAN Kamikaze İDA" TR 17:19'da Instagram'da yayınlandı ama
+    veritabanında ikisinin de hiçbir kaydı 'yayinlandi' değildi ve
+    ikisi de akşam turuna yeniden girdi. Aynı turdaki Endonezya haberi
+    DB'de doğru kayıtlıydı ve kural onu YAKALADI — yani kural sağlamdı,
+    beslendiği veri eksikti.
+    """
+    kaynak = (KOK / "src/secim.py").read_text(encoding="utf-8")
+    denetle("_instagram_gecmisi" in kaynak,
+            "mükerrer denetimi Instagram geçmişini de okuyor",
+            "yalnızca veritabanına bakıyor — DB bozulursa mükerrer geçer")
+
+    ig = (KOK / "src/instagram.py").read_text(encoding="utf-8")
+    denetle("def son_yayinlanan_basliklar" in ig,
+            "instagram.son_yayinlanan_basliklar() var")
+
+    # ⚠️ Her post KENDİ içinde değerlendirilmeli. İlk yazımda
+    # "numarasız caption'ın ilk satırı manşettir" kuralı global listeye
+    # bakıyordu ve ilk posttan sonra tekil postların manşetleri hiç
+    # okunmadı — düzeltilen kusur tam olarak buydu.
+    denetle("post_basliklari" in ig,
+            "caption ayrıştırması post bazında yapılıyor",
+            "global listeye bakılıyor: tekil post manşetleri okunmaz")
+
+
+def test_ertelemede_menu_kaliyor() -> None:
+    """
+    "1 saat ertele" turu KAPATMIYOR, sadece bekletiyor. Menü kalkarsa
+    tur kilitleniyor: ne yayınlanabiliyor ne atlanabiliyor.
+
+    20 Ağu 2026: kullanıcı 20:58'de erteledi, menü silindi, 21:58'de
+    gelen hatırlatma "yukarıdaki mesajdan yayınlayabilirsin" dedi ama
+    o mesajda hiçbir düğme yoktu.
+    """
+    kaynak = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    govde = kaynak.split("def ertele(")[1].split("\ndef ")[0]
+    # ⚠️ Docstring'e değil GERÇEK ÇAĞRIYA bak: bu fonksiyonun
+    # açıklamasında "sonucu_yaz KULLANMA" uyarısı yazılı ve düz metin
+    # araması onu ihlal sanıyordu.
+    denetle("telegram_bot.sonucu_yaz(" not in govde,
+            "ertele() butonları kaldıran sonucu_yaz'ı ÇAĞIRMIYOR",
+            "sonucu_yaz butonları siliyor — ertelenen tur kilitlenir")
+    denetle("menuyu_geri_koy" in govde,
+            "ertele() menüyü geri koyuyor")
+
+
 def main() -> int:
+    # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
+    # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
+    # çağrı yapılırsa test ağa bağımlı hale gelir, yavaşlar ve jeton
+    # yoksa patlar. Önbelleği boş doldurup API yolunu kapatıyoruz.
+    sys.path.insert(0, str(KOK))
+    from src import secim as _secim
+    _secim._IG_GECMIS_ONBELLEK = []
+
     for test in (
         test_mukerrer_engeli,
         test_mukerrer_her_akista_var,
@@ -454,6 +512,8 @@ def main() -> int:
         test_aday_kapisi_kurallari,
         test_aday_baglamlari_farkli_esik,
         test_planlanmis_yayin_zaman_asimlarindan_muaf,
+        test_mukerrer_instagrama_da_bakiyor,
+        test_ertelemede_menu_kaliyor,
     ):
         try:
             test()

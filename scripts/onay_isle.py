@@ -472,6 +472,19 @@ def iptal(con, haberler, mesaj_id, basan) -> int:
 
 
 def ertele(con, mesaj_id, basan) -> int:
+    """
+    Turu 1 saat erteler. Tur KAPANMIYOR — sadece bekliyor.
+
+    ⚠️ BURADA `sonucu_yaz` KULLANMA. O fonksiyon butonları kaldırıyor
+    (çift yayını engellemek için, doğru davranış) ama ertelemede tur
+    devam ediyor. 20 Ağu 2026'da tam bu oldu: kullanıcı 20:58'de
+    "1 saat ertele" dedi, menü silindi, 21:58'de gelen hatırlatma
+    "yukarıdaki mesajdan yayınlayabilirsin" dedi ama o mesajda artık
+    hiçbir düğme yoktu. Tur kilitlendi — ne yayınlanabiliyor ne
+    atlanabiliyordu.
+
+    Doğrusu: menü yerinde kalsın, erteleme AYRI bir mesajla bildirilsin.
+    """
     con.execute(
         "UPDATE haberler SET durum = 'ertelendi', "
         "ertelenme_sayisi = COALESCE(ertelenme_sayisi, 0) + 1 "
@@ -479,10 +492,12 @@ def ertele(con, mesaj_id, basan) -> int:
         (mesaj_id,),
     )
     con.commit()
-    telegram_bot.sonucu_yaz(
-        mesaj_id,
+    # Worker butona basıldığında menüyü kaldırmıştı; geri koyuyoruz.
+    menuyu_geri_koy(con, mesaj_id)
+    telegram_bot.mesaj_gonder(
         f"⏰ 1 saat ertelendi ({basan or 'bilinmiyor'}).\n"
-        "Bir sonraki hatırlatma turunda yeniden sorulacak.",
+        "Tur açık kalıyor — yukarıdaki mesajdan istediğin an "
+        "yayınlayabilirsin."
     )
     return 0
 

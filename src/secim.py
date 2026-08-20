@@ -301,7 +301,45 @@ def yayinlanmis_konular(con, ayarlar: dict) -> list[set]:
     # kelimesini atlıyor ve haber başlıkları çok sık yer adıyla
     # başlıyor ("Kolombiya'da...", "Ankara'da..."); ilk kelime
     # atlanınca ortak özel isim kalmıyor ve tekrar yakalanamıyor.
-    return [konu_imzasi(b) for b in ((r[0] or r[1]) for r in satirlar) if b]
+    basliklar = [b for b in ((r[0] or r[1]) for r in satirlar) if b]
+
+    # ⚠️ VERİTABANI TEK KAYNAK DEĞİL — Instagram'a da soruyoruz.
+    #
+    # 20 Ağu 2026'da ölçüldü: "Merkez Bankası rezervleri" TR 17:47'de,
+    # "TUFAN Kamikaze İDA" TR 17:19'da Instagram'da YAYINLANDI ama
+    # veritabanında ikisinin de hiçbir kaydı 'yayinlandi' değildi.
+    # İkisi de akşam turuna yeniden girdi. Aynı turdaki Endonezya
+    # haberi ise DB'de doğru kayıtlıydı ve kural onu YAKALADI — yani
+    # kural sağlam, beslendiği veri eksikti.
+    #
+    # CLAUDE.md 1u aynı dersi zaten yazıyordu: bir haberin yayınlanıp
+    # yayınlanmadığının kesin cevabı Instagram API'sinde.
+    basliklar += _instagram_gecmisi(ayarlar)
+
+    return [konu_imzasi(b) for b in basliklar if b]
+
+
+# Aynı süreçte tekrar tekrar API'ye gitmemek için. Tur seçimi ve
+# çeşitlendirme aynı çalıştırmada birden fazla kez soruyor.
+_IG_GECMIS_ONBELLEK: list[str] | None = None
+
+
+def _instagram_gecmisi(ayarlar: dict) -> list[str]:
+    """Instagram'da gerçekten yayınlanmış manşetler (bir kez okunur)."""
+    global _IG_GECMIS_ONBELLEK
+    if _IG_GECMIS_ONBELLEK is not None:
+        return _IG_GECMIS_ONBELLEK
+    try:
+        from src import instagram
+        _IG_GECMIS_ONBELLEK = instagram.son_yayinlanan_basliklar(ayarlar)
+        log.info("mükerrer denetimi: Instagram'dan %s manşet alındı",
+                 len(_IG_GECMIS_ONBELLEK))
+    except Exception as e:
+        # Instagram'a ulaşılamıyorsa denetim veritabanıyla devam etsin;
+        # mükerrer riski artar ama tur DURMAMALI.
+        log.warning("Instagram geçmişi alınamadı: %s", e)
+        _IG_GECMIS_ONBELLEK = []
+    return _IG_GECMIS_ONBELLEK
 
 
 def cesitlendir(adaylar: list, adet: int, ayarlar: dict,
