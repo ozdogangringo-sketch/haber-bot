@@ -868,6 +868,42 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
     return 0 if basarili else 1
 
 
+
+def tura_birak(con, haberler, mesaj_id, basan) -> int:
+    """
+    Haberi TEKİL post adaylığından çıkarır, carousel turunda bırakır.
+
+    ⚠️ "Bu turu atla"dan farkı: atla haberi havuza döndürüyor
+    (`durum='metin_hazir'`, `son_dakika=0`) ve haber bir sonraki
+    kontrolde YİNE tekil aday oluyordu. 20 Ağu 2026'da "Türkiye'de
+    yağışlar son 66 yılın zirvesinde" haberi 23 dakika arayla iki kez
+    onaya sunuldu; kullanıcı aynı haberi tekrar tekrar görüyordu.
+
+    Bu komut `sadece_tur = 1` işareti koyuyor: haber havuzda kalıyor ve
+    10'lu turda yarışmaya devam ediyor, ama bir daha tekil post olarak
+    sunulmuyor.
+    """
+    idler = [h["id"] for h in haberler]
+    isaret = ",".join("?" * len(idler))
+    con.execute(
+        f"UPDATE haberler SET sadece_tur = 1, son_dakika = 0, "
+        f"telegram_message_id = NULL, "
+        f"durum = CASE WHEN ig_baslik IS NOT NULL THEN 'metin_hazir' "
+        f"             ELSE 'yeni' END "
+        f"WHERE id IN ({isaret})", idler)
+    con.commit()
+    db_senkron.hemen_kaydet("Tekil adaylıktan çıkarıldı")
+
+    baslik = (haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"] or "")[:60]
+    telegram_bot.sonucu_yaz(
+        mesaj_id,
+        f"📋 Tekil post olarak sunulmayacak: {baslik}\n\n"
+        "Haber havuzda duruyor ve 10'lu turda yarışmaya devam edecek.",
+        bildir=False)
+    log.info("tekil adaylıktan çıkarıldı: %s (basan=%s)", idler, basan)
+    return 0
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)-7s %(message)s",
@@ -951,6 +987,8 @@ def main() -> int:
     try:
         if komut == "yayinla":
             return yayinla(con, ayarlar, haberler, mesaj_id, basan)
+        if komut == "tura_birak":
+            return tura_birak(con, haberler, mesaj_id, basan)
         if komut == "iptal":
             return iptal(con, haberler, mesaj_id, basan)
         if komut == "kaldir":

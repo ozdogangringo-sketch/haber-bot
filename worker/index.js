@@ -27,7 +27,7 @@
 // GitHub'a iletilecek gerçek eylemler. İş yapan komutlar.
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
-                  "ayar", "tamamla", "arsiv", "oneri_gec"];
+                  "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
 const PARAMETRELI_EYLEM =
   /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil):([1-9]|10)$/;
@@ -115,6 +115,9 @@ function anaMenu(adet) {
       [{ text: "🔄 Tüm metinleri yeniden üret", callback_data: "metin_yenile" }],
       [{ text: `🎨 Slayt düzenle (${adet} slayt)`, callback_data: `slayt_menu:${adet}` }],
       [{ text: "⏰ 1 saat ertele", callback_data: "ertele" }],
+      // ⚠️ Menü İKİ YERDE tanımlı (telegram_bot.py ve burada);
+      // birini değiştirirken diğerini de değiştir.
+      [{ text: "📋 Tekil atma, 10'lu tura bırak", callback_data: "tura_birak" }],
       [{ text: "❌ Bu turu atla", callback_data: "iptal" }],
     ],
   };

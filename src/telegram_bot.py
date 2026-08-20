@@ -191,6 +191,13 @@ def ana_menu(adet: int) -> dict:
         [{"text": f"🎨 Slayt düzenle ({adet} slayt)",
           "callback_data": f"slayt_menu:{adet}"}],
         [{"text": "⏰ 1 saat ertele", "callback_data": "ertele"}],
+        # ⚠️ "Atla" ile farkı: atla haberi havuza döndürüyor ve haber
+        # bir sonraki kontrolde YİNE tekil post adayı oluyordu — 20 Ağu
+        # 2026'da "Türkiye'de yağışlar son 66 yılın zirvesinde" haberi
+        # 23 dakika arayla iki kez sunuldu. Bu düğme haberi tekil
+        # adaylıktan çıkarıyor ama turda bırakıyor.
+        [{"text": "📋 Tekil atma, 10'lu tura bırak",
+          "callback_data": "tura_birak"}],
         [{"text": "❌ Bu turu atla", "callback_data": "iptal"}],
     ]}
 

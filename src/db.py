@@ -68,6 +68,17 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # Bu haber TEKİL post olarak bir daha sunulmasın — yalnızca
+    # carousel turunda yayınlansın.
+    #
+    # ⚠️ NEDEN GEREKTİ (20 Ağu 2026): "Türkiye'de yağışlar son 66 yılın
+    # zirvesinde" haberi 23 dakika arayla İKİ KEZ tekil post olarak
+    # onaya sunuldu. Kullanıcı "atla" dediğinde haber havuza dönüyor
+    # (`durum='metin_hazir'`, `son_dakika=0`) ve bir sonraki kontrolde
+    # yeniden aday oluyor — kısır döngü. "Onay verilmezse haber
+    # ELENMEZ" kararı doğru, ama tekil post olarak ısrar etmek yanlış.
+    # Bu işaret haberi turda bırakıyor, tekil adaylıktan çıkarıyor.
+    "sadece_tur": "INTEGER DEFAULT 0",
     # Tekil post için BAŞLIK ÖNERİSİ olarak Telegram'a gönderildi mi?
     #
     # ⚠️ Aynı haberi her kontrolde tekrar önermeyi engelliyor. Kontrol

@@ -278,6 +278,7 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
            WHERE durum = 'yeni' AND yayin_tarihi >= ?
              AND onem_puani IS NULL
              AND (oneri_gonderildi IS NULL OR oneri_gonderildi = 0)
+             AND (sadece_tur IS NULL OR sadece_tur = 0)
            ORDER BY agirlik DESC, yayin_tarihi DESC LIMIT ?""",
         (sinir, azami),
     ))
@@ -290,11 +291,22 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
         log.warning("başlıklar puanlanamadı, öneri gönderilmedi")
         return 0
 
-    # Puanları sakla — bir daha puanlamaya gerek kalmasın
-    for haber_id, puan in puanlar.items():
-        con.execute("UPDATE haberler SET onem_puani = ? WHERE id = ?",
-                    (puan, haber_id))
-    con.commit()
+    # Puanları sakla — bir daha puanlamaya gerek kalmasın.
+    #
+    # ⚠️ KURU ÇALIŞMADA YAZMIYORUZ. `--kuru`nun sözleşmesi net: üretir,
+    # Telegram'a göndermez, VERİTABANINA YAZMAZ. Bu blok kuru modda da
+    # yazınca test çalıştırmaları öneri havuzunu tüketiyordu: puanlanan
+    # haber `onem_puani IS NULL` filtresine artık takılmadığı için bir
+    # daha öneriye giremiyordu. 20 Ağu 2026'da yapılan yapısal
+    # çalışmanın kuru testleri 82 haberi bu şekilde havuzdan düşürdü.
+    #
+    # Kuru modda puanlar yalnızca bellekte kalıyor; gerçek çalıştırma
+    # onları yeniden üretir (tek toplu istek, ~1500 token).
+    if not kuru:
+        for haber_id, puan in puanlar.items():
+            con.execute("UPDATE haberler SET onem_puani = ? WHERE id = ?",
+                        (puan, haber_id))
+        con.commit()
 
     # ⚠️ GECE OTOMATİK YAYIN ADAYINI ÖNERİYE DÜŞÜRME.
     #
@@ -325,12 +337,20 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     # mükerrer denetimi tek kapıdan geçiyor. Önce bu kurallar üç ayrı
     # fonksiyona kopyalanmıştı ve biri hep unutuluyordu (1j, 1p).
     #
-    # Puanlar yukarıda DB'ye yazıldı; haberleri yeniden çekiyoruz ki
-    # `aday.uygun_mu` `onem_puani` alanını dolu görsün.
+    # `aday.uygun_mu` puanı haberin üstünden okuyor, o yüzden puanların
+    # kayıtlara işlenmiş olması gerekiyor.
+    #
+    # ⚠️ Gerçek çalıştırmada puanlar DB'ye yazıldı, yeniden çekiyoruz.
+    # KURU çalışmada DB'ye yazmıyoruz (havuzu tüketmesin), o yüzden
+    # puanı bellekte kayıtlara işliyoruz — eleme yine gerçek puanlarla
+    # yapılıyor, yalnızca kalıcı iz bırakmıyor.
     idler = [h["id"] for h in ham]
-    isaret = ",".join("?" * len(idler))
-    puanli_ham = list(con.execute(
-        f"SELECT * FROM haberler WHERE id IN ({isaret})", idler))
+    if kuru:
+        puanli_ham = [dict(h, onem_puani=puanlar.get(h["id"])) for h in ham]
+    else:
+        isaret = ",".join("?" * len(idler))
+        puanli_ham = list(con.execute(
+            f"SELECT * FROM haberler WHERE id IN ({isaret})", idler))
     # Orijinal sırayı koru (ağırlık + tazelik sırası)
     sira = {hid: i for i, hid in enumerate(idler)}
     puanli_ham.sort(key=lambda h: sira.get(h["id"], 999))
@@ -396,6 +416,9 @@ def aday_bul(con, ayarlar: dict):
         "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
         "AND ig_baslik IS NOT NULL AND onem_puani >= ? "
         "AND (son_dakika IS NULL OR son_dakika = 0) "
+        # ⚠️ Kullanıcı "tura bırak" dediyse bir daha tekil aday olmasın.
+        # Bu işaret olmadan haber her kontrolde yeniden sunuluyordu.
+        "AND (sadece_tur IS NULL OR sadece_tur = 0) "
         "ORDER BY onem_puani DESC, yayin_tarihi DESC",
         (taban,),
     ))
