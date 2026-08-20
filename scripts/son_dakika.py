@@ -709,9 +709,17 @@ def main(zorla_haber_id: int | None = None) -> int:
 
     except Exception as e:
         log.exception("son dakika turu hazırlanamadı")
-        if not kuru:
-            # Ham traceback yerine teşhis edilmiş, eylem düğmeli mesaj.
-            hata_bildir.son_ham_hata_kaydet(traceback.format_exc())
+        # Ham metni her durumda sakla — "🔍 Ham hata metni" düğmesi
+        # bunu okuyor.
+        hata_bildir.son_ham_hata_kaydet(traceback.format_exc())
+        # ⚠️ KULLANICI SEÇİMİNDE BURADAN BİLDİRİM GÖNDERİLMİYOR.
+        # `onay_isle.oneriyi_hazirla` zaten hangi haberlerin
+        # hazırlanamadığını ve DOĞRU tekrar düğmesini ("bu haberleri
+        # yeniden dene") gönderiyor. Buradan da bildirirsek kullanıcı
+        # iki mesaj alıyor ve buradaki düğme yanlış oluyor: "Turu
+        # yeniden hazırla" AKŞAM turunu tetikliyor, seçilen haberi
+        # değil.
+        if not kuru and not zorla_haber_id:
             hata_bildir.bildir("Son dakika turu hazırlanamadı", e, nerede="son_dakika.py")
         return 1
 

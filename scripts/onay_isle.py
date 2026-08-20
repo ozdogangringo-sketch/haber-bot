@@ -845,13 +845,26 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
         except Exception as e:                        # noqa: BLE001
             log.exception("haber %s hazırlanamadı", hid)
             sonuc = 1
-        (basarili if sonuc == 0 else basarisiz).append(basliklar[hid])
+        if sonuc == 0:
+            basarili.append(basliklar[hid])
+        else:
+            basarisiz.append((hid, basliklar[hid]))
 
     if basarisiz:
+        # ⚠️ TEKRAR DENEME DÜĞMESİ ŞART. Önce yalnızca düz metin
+        # gönderiliyordu ve kullanıcı hazırlanamayan haberi bir daha
+        # deneyemiyordu — öneri mesajının butonları da silinmiş
+        # oluyordu, yani haber tamamen erişilemez hale geliyordu.
+        # Hataların çoğu geçici (Gemini kotası, Instagram medya
+        # indirme), yani tekrar denemek gerçekten çözüyor.
+        idler = ",".join(str(hid) for hid, _ in basarisiz)
         telegram_bot.mesaj_gonder(
             f"⚠️ {len(basarisiz)} haber hazırlanamadı:\n"
-            + "\n".join(f"  • {b}" for b in basarisiz)
-            + ("\n\nDiğerleri onayına sunuldu." if basarili else ""))
+            + "\n".join(f"  • {b}" for _, b in basarisiz)
+            + ("\n\nDiğerleri onayına sunuldu." if basarili else "")
+            + "\n\nHataların çoğu geçicidir (kota, medya indirme).",
+            [[{"text": f"🔄 {len(basarisiz)} haberi tekrar dene",
+               "callback_data": f"hazirla:{idler}"}]])
     return 0 if basarili else 1
 
 
