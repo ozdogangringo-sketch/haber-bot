@@ -279,17 +279,58 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     # 78 haber bu şekilde görünmez oldu (kuru test çalıştırmaları
     # puanları yazdığı için). Puanın varlığı haberin değerlendirilmiş
     # olduğunu göstermez — `oneri_gonderildi` işareti onu gösterir.
-    ham = list(con.execute(
+    # ⚠️ SIRALAMA AĞIRLIĞA GÖRE YAPILMIYOR — KATEGORİ BAZLI.
+    #
+    # Önce `ORDER BY agirlik DESC LIMIT 10` vardı ve öneri akışını
+    # pratikte tek kaynağa kilitliyordu. Ölçüldü (20 Ağu 2026): taze
+    # havuzda ağırlığı 9-10 olan **85 haber** var, yani 10'luk dilim
+    # HER ZAMAN TRT/BBC/AA'dan doluyordu. Ağırlığı 8 olan NTV Teknoloji
+    # bu dilime matematiksel olarak hiç giremiyordu — kullanıcının
+    # istediği "Google öğrencilere Gemini verdi" tipi haberler tam da
+    # o kaynaklardan geliyor.
+    #
+    # Kanıt: tarih boyunca `oneri_gonderildi=1` olan yalnızca 11 haber
+    # vardı ve 7'si TRT'ydi.
+    #
+    # Çözüm, `secim.on_eleme`'de zaten ölçülmüş olan kalıp: haberler
+    # önce KENDİ kategorisinde sıralanıyor, sonra kategori katsayısıyla
+    # ağırlıklandırılıyor. O değişiklik ön elemede kategori çeşidini
+    # 2'den 5'e çıkarmıştı.
+    havuz = list(con.execute(
         """SELECT * FROM haberler
            WHERE durum = 'yeni' AND yayin_tarihi >= ?
              AND (oneri_gonderildi IS NULL OR oneri_gonderildi = 0)
-             AND (sadece_tur IS NULL OR sadece_tur = 0)
-           ORDER BY agirlik DESC, yayin_tarihi DESC LIMIT ?""",
-        (sinir, azami),
+             AND (sadece_tur IS NULL OR sadece_tur = 0)""",
+        (sinir,),
     ))
-    if not ham:
+    if not havuz:
         log.info("önerilecek taze haber yok")
         return 0
+
+    s_ayar = ayarlar.get("secim", {}) or {}
+    katsayilar = s_ayar.get("kategori_katsayilari", {}) or {}
+    varsayilan = s_ayar.get("kategori_varsayilan_katsayi", 0.6)
+    azalma = s_ayar.get("kategori_sira_azalmasi", 0.88)
+
+    kategoriler: dict[str, list] = {}
+    for h in havuz:
+        kategoriler.setdefault(h["kategori"] or "diger", []).append(h)
+
+    puanli = []
+    for kat, liste in kategoriler.items():
+        # Kategori içinde: taze + içerik sinyali (LLM yok, bedava)
+        liste.sort(key=lambda h: (secim._icerik_puani(h["baslik_orj"])
+                                  - secim._yas_saat(h)), reverse=True)
+        katsayi = katsayilar.get(kat, varsayilan)
+        for sira, h in enumerate(liste):
+            puanli.append((katsayi * (azalma ** sira), h))
+    puanli.sort(key=lambda x: x[0], reverse=True)
+    ham = [h for _, h in puanli[:azami]]
+
+    log.info("öneri havuzu: %d haberden %d aday (%d kategori, %d kaynak)",
+             len(havuz), len(ham),
+             len({h["kategori"] for h in ham}),
+             len({h["kaynak"] for h in ham}))
 
     # Yalnızca PUANSIZ olanlara Gemini çağrısı — puanı olan haberin
     # puanını yeniden üretmek kotayı boşa harcar.
@@ -676,14 +717,27 @@ def main(zorla_haber_id: int | None = None) -> int:
         # seçim hiç üretilmez, kullanıcı da neden gelmediğini anlamaz.
         # Kendiliğinden kurulan turlarda kural geçerli: aynı anda iki
         # otomatik tekil post onayda bekleyip karışmasın.
+        # ⚠️ BU KAPI ARTIK ÖNERİYİ DURDURMUYOR — yalnızca TUR KURMAYI.
+        #
+        # Ölçüldü (20 Ağu 2026): onay ömrü 60 dakika, kontrol 30 dakikada
+        # bir çalışıyor. Yani onayda bekleyen HER tur, iki kontrolü
+        # öneri göstermeden yakıyordu. Son dört günde 25 tekil post
+        # yayınlandı; her biri +1 saatlik öneri sessizliği demek.
+        # Kullanıcı "yarım saatte bir gelen öneriler gelmiyor" derken
+        # bunu görüyordu.
+        #
+        # Öneri göndermek YAYIN DEĞİL, yalnızca başlık listesi sunmak.
+        # Mükerrer gönderimi `oneri_gonderildi` ve `sadece_tur`
+        # işaretleri zaten engelliyor.
+        acik_tur_var = False
         if not zorla_haber_id:
-            acik = con.execute(
+            acik_tur_var = con.execute(
                 "SELECT COUNT(*) FROM haberler WHERE son_dakika = 1 "
                 "AND durum = 'onay_bekliyor'"
-            ).fetchone()[0]
-            if acik:
-                log.info("onay bekleyen son dakika turu var, yeni tur kurulmadı")
-                return 0
+            ).fetchone()[0] > 0
+            if acik_tur_var:
+                log.info("onay bekleyen tur var — tur kurulmayacak, "
+                         "öneri akışı yine de çalışacak")
 
         # --- 3) Günlük sınır ---
         azami = ayarlar["genel"].get("son_dakika_gunluk_azami", 2)
@@ -699,6 +753,11 @@ def main(zorla_haber_id: int | None = None) -> int:
             asgari_agirlik=ayarlar["genel"].get("son_dakika_asgari_agirlik", 9),
         )
         log.info("RSS: %s yeni haber", rapor["eklenen"])
+
+        if acik_tur_var:
+            # Tur kurulamaz ama öneri gönderilebilir.
+            onerileri_gonder(con, ayarlar, kuru=kuru)
+            return 0
 
         if zorla_haber_id:
             # Kullanıcı Telegram'da bir ÖNERİYİ seçti. Eşik/tazelik
