@@ -470,6 +470,38 @@ bakılarak doğru kaynak/kategoriye taşındı.
 
 Ölçüldü (son 3 gün): **spor 50 → 100, kultur 0 → 21.**
 
+**1o. ⚠️ "database is locked" — BAĞLANTI KAPATILMIYORDU.**
+
+20 Ağu 2026, kullanıcı bildirdi: "2 tanesini seçtim, birini oluşturdu
+ama birini oluşturamadı". Çoklu seçimde ilk haber üretiliyor, ikincisi
+`sqlite3.OperationalError: database is locked` ile düşüyordu.
+
+Kök sebep: `son_dakika.main()` bir bağlantı açıyor ama **hiç
+kapatmıyordu**. Tek çalıştırmada zararsız (süreç bitince kapanır), ama
+`onay_isle` çoklu seçimde bu fonksiyonu ARKA ARKAYA çağırıyor —
+birinci çağrının bağlantısı hâlâ açıkken ikincisi yeni bağlantı açıp
+yazmaya çalışıyor ve kilide takılıyor.
+
+⚠️ **WAL modu tek başına YETMİYOR.** İlk denemede `journal_mode=WAL`
+açıldı ve hata devam etti. Ölçüldü: WAL okuyucu-yazar eşzamanlılığını
+çözüyor, **İKİ YAZARI değil**. Commit edilmemiş bir yazma işlemi
+WAL'da da tüm veritabanını kilitliyor.
+
+Üç katman birlikte gerekiyor:
+1. `finally: con.close()` — asıl düzeltme
+2. `onay_isle` her üretimden önce `con.commit()` (kilidi bırakır)
+3. `journal_mode=WAL` + `busy_timeout=30000` (okuma/yazma çakışmasına)
+
+⚠️ WAL modu DOSYADA saklanıyor, `PRAGMA` ile her açılışta ayarlamak
+yetmiyor: başka bağlantı açıkken WAL'a geçiş özel kilit isteyip
+başarısız oluyor ve veritabanı sessizce `delete` modunda kalıyor.
+Bu yüzden `data/haber.db` WAL modunda commit edildi.
+
+⚠️ WAL yan etkisi: yazılanlar önce `haber.db-wal` dosyasına gidiyor,
+git'e yalnızca `haber.db` commit ediliyor. `db_senkron._wal_bosalt()`
+commit öncesi checkpoint alıyor — alınmasaydı o turda yazılan HER ŞEY
+kaybolurdu.
+
 **1n. ⚠️ TEKİL POST 5 SAAT BOYUNCA HİÇ ÇIKMADI — havuz doluydu, hepsi
 "bayat" sayılıyordu.**
 

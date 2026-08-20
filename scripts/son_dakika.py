@@ -715,6 +715,26 @@ def main(zorla_haber_id: int | None = None) -> int:
             hata_bildir.bildir("Son dakika turu hazırlanamadı", e, nerede="son_dakika.py")
         return 1
 
+    finally:
+        # ⚠️ BAĞLANTIYI KAPAT — "database is locked" hatasının ASIL
+        # sebebi buydu (20 Ağu 2026).
+        #
+        # `main()` bir bağlantı açıyor ama hiç kapatmıyordu. Tek
+        # çalıştırmada zararsızdı (süreç bitince kapanıyor), ama çoklu
+        # seçimde `onay_isle` bu fonksiyonu ARKA ARKAYA çağırıyor:
+        # birinci çağrının bağlantısı hâlâ açıkken ikincisi yeni bir
+        # bağlantı açıp yazmaya çalışıyor ve kilide takılıyordu.
+        # Kullanıcı "2 tanesini seçtim birini oluşturdu" derken tam
+        # olarak bunu görüyordu.
+        #
+        # WAL modu tek başına yetmiyor: WAL okuyucu-yazar
+        # eşzamanlılığını çözüyor, İKİ YAZARI değil.
+        try:
+            con.commit()
+        except Exception:                             # noqa: BLE001
+            pass
+        con.close()
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
