@@ -159,6 +159,104 @@ def sayaci_artir(con) -> None:
     db.ayar_yaz(con, _bugun_anahtari(), bugunku_sayi(con) + 1)
 
 
+# Planlanan saatin ne kadar üstüne çıkılırsa yayın vazgeçilir.
+# Sebep: cron atlanabiliyor (GitHub cron gecikmesi 5-30 dk, nadiren
+# tamamen kaçıyor). 4 saat geciken bir "şimdi yayınla" kararı artık
+# kullanıcının verdiği karar değil — haber bayatlamış olur.
+PLAN_AZAMI_GECIKME_SAAT = 4
+
+
+def planli_yayinlari_isle(con, ayarlar: dict) -> int:
+    """
+    Zamanı gelen planlanmış turları yayınlar.
+
+    Bu, "yayınla" düğmesinin alt menüsünden seçilen gecikmeli yayının
+    ikinci yarısı. Neden burada: GitHub Actions'ta "N dakika sonra
+    çalıştır" diye bir şey YOK. İki seçenek vardı —
+      * job içinde `sleep` beklemek: 2 saatlik plan 120 dakika Actions
+        kotası yakardı, kota zaten sınırda (bkz. CLAUDE.md);
+      * zamanı veritabanına yazıp mevcut bir cron'a baktırmak.
+    İkincisi seçildi ve EK MALİYETİ SIFIR — bu kontrol zaten 30
+    dakikada bir çalışıyor, tek eklenen bir SELECT.
+
+    Bedeli hassasiyet: yayın planlanan saatle onu izleyen 30 dakika
+    arasında çıkar. Menüdeki seçeneklerin 30'un katı olması bu yüzden.
+    """
+    simdi = datetime.now(timezone.utc)
+    bekleyen = list(con.execute(
+        "SELECT DISTINCT telegram_message_id AS mid, planlanan_yayin "
+        "FROM haberler WHERE planlanan_yayin IS NOT NULL "
+        "AND durum = 'onay_bekliyor' AND telegram_message_id IS NOT NULL"))
+    if not bekleyen:
+        return 0
+
+    # onay_isle bu modülü import ediyor (çoklu seçimde tekil post
+    # üretmek için); tepede import edersek döngü oluşur.
+    sys.path.insert(0, str(KOK / "scripts"))
+    import onay_isle                                   # noqa: E402
+
+    yayinlanan = 0
+    for satir in bekleyen:
+        mesaj_id = satir["mid"]
+        try:
+            an = datetime.fromisoformat(satir["planlanan_yayin"])
+        except (TypeError, ValueError):
+            log.warning("planlanan_yayin okunamadı (%s), plan siliniyor", mesaj_id)
+            con.execute("UPDATE haberler SET planlanan_yayin = NULL "
+                        "WHERE telegram_message_id = ?", (mesaj_id,))
+            con.commit()
+            continue
+
+        if simdi < an:
+            kalan = (an - simdi).total_seconds() / 60
+            log.info("planlı yayın %s: %.0f dakika var", mesaj_id, kalan)
+            continue
+
+        gecikme = (simdi - an).total_seconds() / 3600
+        if gecikme > PLAN_AZAMI_GECIKME_SAAT:
+            log.warning("planlı yayın %s %.1f saat gecikmiş, iptal", mesaj_id, gecikme)
+            con.execute("UPDATE haberler SET planlanan_yayin = NULL "
+                        "WHERE telegram_message_id = ?", (mesaj_id,))
+            con.commit()
+            try:
+                telegram_bot.sonucu_yaz(
+                    mesaj_id,
+                    f"⌛️ Planlanan yayın {gecikme:.0f} saat gecikti, "
+                    "yapılmadı.\nHaber elenmedi — tur onay bekliyor.")
+            except Exception as e:
+                log.warning("gecikme mesajı yazılamadı: %s", e)
+            continue
+
+        haberler = onay_isle.turu_getir(con, mesaj_id)
+        if not haberler:
+            log.warning("planlı yayın %s: tur bulunamadı", mesaj_id)
+            con.execute("UPDATE haberler SET planlanan_yayin = NULL "
+                        "WHERE telegram_message_id = ?", (mesaj_id,))
+            con.commit()
+            continue
+
+        log.info("planlı yayın zamanı geldi: %s", mesaj_id)
+        # Planı ÖNCE temizliyoruz: yayın yarıda patlarsa bir sonraki
+        # kontrol aynı turu tekrar yayınlamaya kalkmasın (çift post).
+        con.execute("UPDATE haberler SET planlanan_yayin = NULL "
+                    "WHERE telegram_message_id = ?", (mesaj_id,))
+        con.commit()
+        try:
+            onay_isle.yayinla(con, ayarlar, haberler, mesaj_id, "zamanlanmış")
+            yayinlanan += 1
+        except Exception as e:
+            log.exception("planlı yayın patladı (%s)", mesaj_id)
+            try:
+                # `nerede` önemli: hata mesajındaki eylem düğmesi buna
+                # bakıyor. "son_dakika" yazmazsak "yeniden hazırla"
+                # düğmesi akşam turunu tetikler (20 Ağu 2026'da oldu).
+                hata_bildir.bildir("Zamanlanmış yayın yapılamadı", e,
+                                   nerede="son_dakika.py")
+            except Exception:
+                pass
+    return yayinlanan
+
+
 def suresi_gecmisi_iptal_et(con, ayarlar: dict) -> None:
     """
     1 saati dolmuş, onaylanmamış son dakika turunu düşürür.
@@ -169,7 +267,11 @@ def suresi_gecmisi_iptal_et(con, ayarlar: dict) -> None:
     bekleyen = list(con.execute(
         "SELECT DISTINCT telegram_message_id, gonderim_zamani FROM haberler "
         "WHERE son_dakika = 1 AND durum = 'onay_bekliyor' "
-        "AND gonderim_zamani IS NOT NULL"
+        "AND gonderim_zamani IS NOT NULL "
+        # ⚠️ Planlanmış tur bu kuraldan MUAF. Ömür 60 dakika olduğu
+        # için "1 saat sonra yayınla" planı yayın anı gelmeden kendi
+        # kendini iptal ederdi.
+        "AND planlanan_yayin IS NULL"
     ))
 
     for satir in bekleyen:
@@ -707,6 +809,7 @@ def main(zorla_haber_id: int | None = None) -> int:
             log.info("%s haber 'hata' durumundan havuza döndürüldü", onarilan)
 
         # --- 1) Süresi geçmiş turu düşür ---
+        planli_yayinlari_isle(con, ayarlar)
         suresi_gecmisi_iptal_et(con, ayarlar)
 
         # --- 2) Zaten onay bekleyen son dakika varsa yenisini kurma ---

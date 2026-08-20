@@ -27,10 +27,18 @@
 // GitHub'a iletilecek gerçek eylemler. İş yapan komutlar.
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
-                  "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak"];
+                  "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak",
+                  "plan_iptal"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
 const PARAMETRELI_EYLEM =
   /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil|gorsel_kabul|gorsel_yeni):([1-9]|10)$/;
+
+// Zamanlanmış yayın: "yayinla_sonra:60" -> 60 dakika sonra yayınla.
+// ⚠️ DEĞERLER 30'UN KATLARI ve serbest sayı DEĞİL. Zamanı gelen turu
+// son dakika kontrolü yayınlıyor, o cron 30 dakikada bir çalışıyor;
+// "15 dk" kabul etseydik gerçekte 15-45 dakika arası yayınlanır ve
+// düğme yalan söylerdi.
+const YAYINLA_SONRA = /^yayinla_sonra:(30|60|120|180|240)$/;
 
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
@@ -50,7 +58,8 @@ const SECILENLERI_HAZIRLA = "hazirla_secilenler";
 // Menü gezinme komutları. Bunlar GitHub'a GİTMİYOR — Actions'ı uyandırmak
 // 30+ saniye sürüyor ve menü açmak anında olmalı. Worker mesajın
 // butonlarını doğrudan düzenliyor.
-const MENU_GEZINME = /^(slayt_menu:(\d{1,2})|geri:(\d{1,2})|slayt:([1-9]|10):(\d{1,2}))$/;
+const MENU_GEZINME =
+  /^(slayt_menu:(\d{1,2})|geri:(\d{1,2})|slayt:([1-9]|10):(\d{1,2})|yayin_menu:(\d{1,2})|yayin_geri:(\d{1,2}))$/;
 
 // Yayından kaldırma. Tur id'si komuta GÖMÜLÜ ("kaldir:144") çünkü bu
 // düğme yayın sonucu mesajında duruyor ve o mesajın kendi message_id'si
@@ -82,6 +91,7 @@ const HATA_AYRINTI = "hata:ayrinti";
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 64) return false;
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
+    || YAYINLA_SONRA.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA;
 }
@@ -111,7 +121,7 @@ function ayarAltMenu(yol, kodlar) {
 function anaMenu(adet) {
   return {
     inline_keyboard: [
-      [{ text: "✅ Yayınla", callback_data: "yayinla" }],
+      [{ text: "✅ Yayınla", callback_data: `yayin_menu:${adet}` }],
       [{ text: "🔄 Tüm metinleri yeniden üret", callback_data: "metin_yenile" }],
       [{ text: `🎨 Slayt düzenle (${adet} slayt)`, callback_data: `slayt_menu:${adet}` }],
       [{ text: "⏰ 1 saat ertele", callback_data: "ertele" }],
@@ -119,6 +129,22 @@ function anaMenu(adet) {
       // birini değiştirirken diğerini de değiştir.
       [{ text: "📋 Tekil atma, 10'lu tura bırak", callback_data: "tura_birak" }],
       [{ text: "❌ Bu turu atla", callback_data: "iptal" }],
+    ],
+  };
+}
+
+// ⚠️ src/telegram_bot.py -> yayin_zamani_menusu() ile BİREBİR AYNI olmalı.
+// İki sütun: dar telefon ekranında düğme metinleri kırpılmasın.
+function yayinZamaniMenusu(adet) {
+  return {
+    inline_keyboard: [
+      [{ text: "▶️ Şimdi", callback_data: "yayinla" },
+       { text: "30 dk", callback_data: "yayinla_sonra:30" }],
+      [{ text: "1 saat", callback_data: "yayinla_sonra:60" },
+       { text: "2 saat", callback_data: "yayinla_sonra:120" }],
+      [{ text: "3 saat", callback_data: "yayinla_sonra:180" },
+       { text: "4 saat", callback_data: "yayinla_sonra:240" }],
+      [{ text: "← Geri", callback_data: `yayin_geri:${adet}` }],
     ],
   };
 }
@@ -465,6 +491,10 @@ export default {
         menu = slaytSecimMenusu(Number(gezinme[2]));
       } else if (komut.startsWith("geri:")) {
         menu = anaMenu(Number(gezinme[3]));
+      } else if (komut.startsWith("yayin_menu:")) {
+        menu = yayinZamaniMenusu(Number(gezinme[6]));
+      } else if (komut.startsWith("yayin_geri:")) {
+        menu = anaMenu(Number(gezinme[7]));
       } else {
         // "slayt:3:10" -> 3. slayt seçildi, turda 10 slayt var
         menu = slaytIslemMenusu(Number(gezinme[4]), Number(gezinme[5]));

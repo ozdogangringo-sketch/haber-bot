@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 KOK = Path(__file__).resolve().parent.parent
@@ -483,6 +484,62 @@ def ertele(con, mesaj_id, basan) -> int:
         f"⏰ 1 saat ertelendi ({basan or 'bilinmiyor'}).\n"
         "Bir sonraki hatırlatma turunda yeniden sorulacak.",
     )
+    return 0
+
+
+def yayin_planla(con, ayarlar, haberler, dakika: int, mesaj_id, basan) -> int:
+    """
+    Turu ileri bir saate planlar. Yayın o ana kadar YAPILMIYOR.
+
+    ⚠️ HASSASİYET ±30 DAKİKA. Zamanı gelen turu son dakika kontrolü
+    yayınlıyor ve o cron 30 dakikada bir çalışıyor. Menüdeki
+    seçeneklerin 30'un katı olmasının sebebi bu — "15 dk" düğmesi
+    gerçekte 15-45 dakika arası yayınlar ve kullanıcıya yalan söylerdi.
+
+    ⚠️ PLANLANMIŞ TUR İKİ ZAMAN AŞIMINDAN KORUNMALI, yoksa yayın anı
+    gelmeden tur havuza döner:
+      * `son_dakika.suresi_gecmisi_iptal_et` — 60 dakikada iptal eder,
+        yani "1 saat sonra" planı bile kendi kendini öldürürdü.
+      * `hatirlat.py` — 6 saat onaysız turu kapatır ve bu arada
+        gereksiz hatırlatma mesajları atardı.
+    İkisi de `planlanan_yayin IS NULL` şartıyla bu turu atlıyor.
+    """
+    an = datetime.now(timezone.utc) + timedelta(minutes=dakika)
+    con.execute(
+        "UPDATE haberler SET planlanan_yayin = ? WHERE telegram_message_id = ?",
+        (an.isoformat(), mesaj_id),
+    )
+    con.commit()
+    db_senkron.hemen_kaydet(f"yayın planlandı ({dakika} dk)")
+
+    tr = an.astimezone(timezone(timedelta(hours=3)))
+    sure = f"{dakika} dakika" if dakika < 60 else f"{dakika // 60} saat"
+    telegram_bot.sonucu_yaz(
+        mesaj_id,
+        f"🕒 Yayın {sure} sonraya planlandı — "
+        f"TR {tr:%H:%M} ({basan or 'bilinmiyor'}).\n"
+        f"Kontrol 30 dakikada bir çalıştığı için yayın "
+        f"TR {tr:%H:%M}–{(tr + timedelta(minutes=30)):%H:%M} arasında çıkar.\n"
+        "Vazgeçersen aşağıdaki düğmeyle planı iptal edebilirsin.",
+        butonlar={"inline_keyboard": [
+            [{"text": "⏹ Planı iptal et", "callback_data": "plan_iptal"}]]},
+    )
+    log.info("yayın planlandı: %s (%s dk)", an.isoformat(), dakika)
+    return 0
+
+
+def plani_iptal_et(con, mesaj_id, basan) -> int:
+    """Planlanan yayını geri alır; tur normal onay bekler hale döner."""
+    con.execute(
+        "UPDATE haberler SET planlanan_yayin = NULL "
+        "WHERE telegram_message_id = ?", (mesaj_id,))
+    con.commit()
+    db_senkron.hemen_kaydet("yayın planı iptal edildi")
+    telegram_bot.sonucu_yaz(
+        mesaj_id,
+        f"⏹ Yayın planı iptal edildi ({basan or 'bilinmiyor'}).\n"
+        "Tur onay bekliyor.")
+    menuyu_geri_koy(con, mesaj_id)
     return 0
 
 
@@ -1138,8 +1195,9 @@ def main() -> int:
         #
         # "kaldir" hariç: o komut zaten yayınlanmış turu hedefliyor.
         DEGISTIRICI = {"yayinla", "iptal", "ertele", "tura_birak",
-                       "metin_yenile"}
-        if (komut in DEGISTIRICI or komut.startswith("slayt_")) and any(
+                       "metin_yenile", "plan_iptal"}
+        if (komut in DEGISTIRICI or komut.startswith("slayt_")
+                or komut.startswith("yayinla_sonra:")) and any(
                 h["durum"] == "yayinlandi" for h in haberler):
             post = next((h["ig_post_id"] for h in haberler
                          if h["ig_post_id"]), None)
@@ -1163,6 +1221,11 @@ def main() -> int:
             return yayindan_kaldir(con, ayarlar, haberler, mesaj_id, basan)
         if komut == "ertele":
             return ertele(con, mesaj_id, basan)
+        if komut == "plan_iptal":
+            return plani_iptal_et(con, mesaj_id, basan)
+        if komut.startswith("yayinla_sonra:"):
+            return yayin_planla(con, ayarlar, haberler,
+                                int(komut.split(":")[1]), mesaj_id, basan)
         if komut == "metin_yenile":
             return metin_yenile(con, ayarlar, haberler, mesaj_id)
         # Görsel onay düğmeleri

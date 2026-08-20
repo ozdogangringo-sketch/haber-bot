@@ -398,6 +398,40 @@ def test_aday_baglamlari_farkli_esik() -> None:
     con.close()
 
 
+def test_planlanmis_yayin_zaman_asimlarindan_muaf() -> None:
+    """
+    Planlanmış yayın (yayınla > "2 saat sonra") turu yayın anına kadar
+    `onay_bekliyor` durumunda bekletiyor. Bu projede turu bekletmeyi
+    zaman aşımına bağlayan İKİ ayrı mekanizma var ve ikisi de bu turu
+    yayın anı gelmeden öldürebilir:
+
+      * `son_dakika.suresi_gecmisi_iptal_et` — 60 dakikada iptal eder,
+        yani "1 saat sonra" planı bile kendini iptal ederdi;
+      * `hatirlat.py` — 6 saat sonra havuza döndürür ve o ana kadar
+        her saat gereksiz hatırlatma atar.
+
+    ⚠️ Bu denetim tam olarak bu projenin tekrar eden hata sınıfı için
+    var: kural doğru yazılıyor ama AYNI İŞİ YAPAN diğer kod yolunda
+    unutuluyor (bkz. CLAUDE.md 1j, 1p, 1f).
+    """
+    for dosya, fonksiyon in (("scripts/son_dakika.py", "60 dakikalık iptal"),
+                             ("scripts/hatirlat.py", "6 saatlik kapatma")):
+        kaynak = (KOK / dosya).read_text(encoding="utf-8")
+        # Turu seçen SELECT'te muafiyet şartı olmalı
+        denetle("planlanan_yayin IS NULL" in kaynak,
+                f"planlı yayın {fonksiyon} kuralından muaf ({dosya})",
+                "planlanan_yayin IS NULL şartı yok — planlanan tur "
+                "yayın anı gelmeden havuza döner")
+
+    # Menüdeki her seçenek kontrol sıklığının katı olmalı, yoksa düğme
+    # gerçekte veremeyeceği bir saat vaat eder.
+    tb = (KOK / "src/telegram_bot.py").read_text(encoding="utf-8")
+    dakikalar = [int(d) for d in re.findall(r'yayinla_sonra:(\d+)', tb)]
+    denetle(bool(dakikalar) and all(d % 30 == 0 for d in dakikalar),
+            "yayın zamanı seçenekleri kontrol sıklığının (30 dk) katı",
+            f"30'a bölünmeyen seçenek var: {dakikalar}")
+
+
 def main() -> int:
     for test in (
         test_mukerrer_engeli,
@@ -412,6 +446,7 @@ def main() -> int:
         test_carousel_siniri,
         test_aday_kapisi_kurallari,
         test_aday_baglamlari_farkli_esik,
+        test_planlanmis_yayin_zaman_asimlarindan_muaf,
     ):
         try:
             test()

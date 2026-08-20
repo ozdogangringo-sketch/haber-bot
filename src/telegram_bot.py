@@ -186,7 +186,7 @@ def _istek(metot: str, **parametreler) -> dict:
 def ana_menu(adet: int) -> dict:
     """Onay mesajının ilk buton seti."""
     return {"inline_keyboard": [
-        [{"text": "✅ Yayınla", "callback_data": "yayinla"}],
+        [{"text": "✅ Yayınla", "callback_data": f"yayin_menu:{adet}"}],
         [{"text": "🔄 Tüm metinleri yeniden üret", "callback_data": "metin_yenile"}],
         [{"text": f"🎨 Slayt düzenle ({adet} slayt)",
           "callback_data": f"slayt_menu:{adet}"}],
@@ -199,6 +199,28 @@ def ana_menu(adet: int) -> dict:
         [{"text": "📋 Tekil atma, 10'lu tura bırak",
           "callback_data": "tura_birak"}],
         [{"text": "❌ Bu turu atla", "callback_data": "iptal"}],
+    ]}
+
+
+def yayin_zamani_menusu(adet: int) -> dict:
+    """
+    "Yayınla" düğmesinin alt menüsü: şimdi mi, sonra mı?
+
+    ⚠️ SEÇENEKLER 30 DAKİKANIN KATLARI. Zamanı gelen turu son dakika
+    kontrolü yayınlıyor ve o cron 30 dakikada bir çalışıyor; "15 dk"
+    seçeneği koysaydık gerçekte 15-45 dakika arası yayınlanırdı ve
+    düğme yalan söylemiş olurdu.
+
+    İki sütun: dar ekranda okunur kalsın.
+    """
+    return {"inline_keyboard": [
+        [{"text": "▶️ Şimdi", "callback_data": "yayinla"},
+         {"text": "30 dk", "callback_data": "yayinla_sonra:30"}],
+        [{"text": "1 saat", "callback_data": "yayinla_sonra:60"},
+         {"text": "2 saat", "callback_data": "yayinla_sonra:120"}],
+        [{"text": "3 saat", "callback_data": "yayinla_sonra:180"},
+         {"text": "4 saat", "callback_data": "yayinla_sonra:240"}],
+        [{"text": "← Geri", "callback_data": f"yayin_geri:{adet}"}],
     ]}
 
 
@@ -411,7 +433,8 @@ def mesaji_guncelle(message_id: int, metin: str, menu: dict) -> None:
             raise
 
 
-def sonucu_yaz(message_id: int, metin: str, bildir: bool = False) -> None:
+def sonucu_yaz(message_id: int, metin: str, bildir: bool = False,
+               butonlar: dict | None = None) -> None:
     """
     Onay mesajını sonuçla günceller ve butonları kaldırır.
 
@@ -419,6 +442,9 @@ def sonucu_yaz(message_id: int, metin: str, bildir: bool = False) -> None:
     basar ve ikinci kez yayınlamaya çalışırız.
 
     `bildir=True` sonucu AYRICA yeni bir mesaj olarak gönderir.
+
+    `butonlar` verilirse klavye BOŞALTILMAZ, verilen düzen konur —
+    zamanlanmış yayında "planı iptal et" düğmesinin kalması gerekiyor.
 
     ⚠️ NEDEN GEREKİYOR: `editMessageText` var olan mesajı değiştiriyor ve
     Telegram düzenlemede BİLDİRİM ÜRETMİYOR. Onay mesajı sohbette
@@ -430,7 +456,8 @@ def sonucu_yaz(message_id: int, metin: str, bildir: bool = False) -> None:
     Düzenleme yine de yapılıyor — butonları kaldırmanın başka yolu yok.
     """
     _istek("editMessageText", chat_id=_sohbet_id(), message_id=message_id,
-           text=metin[:4096], reply_markup={"inline_keyboard": []},
+           text=metin[:4096],
+           reply_markup=butonlar or {"inline_keyboard": []},
            disable_web_page_preview=True)
 
     if bildir:

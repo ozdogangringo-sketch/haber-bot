@@ -68,6 +68,13 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # Zamanlanmış yayın: bu tur ne zaman yayınlanacak (ISO 8601, UTC).
+    #
+    # ⚠️ HASSASİYET ±30 DAKİKA. Zamanı gelen turu son dakika kontrolü
+    # yayınlıyor ve o cron 30 dakikada bir çalışıyor. Daha hassas olması
+    # için cron sıklaştırılmalı; ölçüldü (20 Ağu 2026): 15 dakikaya
+    # çıkarmak Actions kullanımını 594'ten 1122 dk/ay'a taşıyor.
+    "planlanan_yayin": "TEXT",
     # "🔀 Başka fotoğraf" düğmesine kaç kez basıldı — Commons/Pexels
     # aday listesinde kaçıncı sıradayız.
     #

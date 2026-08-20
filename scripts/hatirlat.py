@@ -78,7 +78,12 @@ def bekleyen_tur(con):
     # Buraya karışırsa aynı tur iki yerden yönetilmiş oluyor ve
     # hatırlatma, birazdan iptal olacak bir turu işaret ediyor.
     return list(con.execute(
-        "SELECT * FROM haberler WHERE durum IN ('onay_bekliyor', 'ertelendi') "
+        # ⚠️ Planlanmış yayın (yayınla > "2 saat sonra") burada
+        # GÖRÜNMEMELİ: 6 saatlik bekleme kuralı turu havuza döndürür
+        # ve o ana kadar her saat gereksiz hatırlatma atılırdı.
+        # Zamanı gelince son dakika kontrolü yayınlıyor.
+        "SELECT * FROM haberler WHERE planlanan_yayin IS NULL "
+        "AND durum IN ('onay_bekliyor', 'ertelendi') "
         "AND telegram_message_id IS NOT NULL "
         "AND (son_dakika IS NULL OR son_dakika = 0) "
         "ORDER BY onem_puani DESC, yayin_tarihi DESC"
