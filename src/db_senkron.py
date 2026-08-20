@@ -96,6 +96,25 @@ def _birlestir() -> None:
         _calistir("git", "rebase", "--abort")
 
 
+def _wal_bosalt() -> None:
+    """
+    WAL dosyasındaki değişiklikleri ana veritabanına yazar.
+
+    ⚠️ ŞART. 20 Ağu 2026'da `journal_mode=WAL` açıldı ("database is
+    locked" hatası için). WAL modunda yazılanlar önce `haber.db-wal`
+    dosyasına gidiyor; git'e yalnızca `haber.db` commit ediliyor.
+    Checkpoint alınmazsa o turda yazılan HER ŞEY (haberler, üretilen
+    metinler, tur kaydı) commit'e girmez ve runner kapanınca kaybolur.
+    """
+    try:
+        import sqlite3
+        from .db import DB_YOLU
+        with sqlite3.connect(DB_YOLU, timeout=30) as con:
+            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except Exception as e:                              # noqa: BLE001
+        log.warning("WAL boşaltılamadı: %s", e)
+
+
 def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
     """
     data/haber.db'yi commit edip push eder.
@@ -108,6 +127,7 @@ def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
     _calistir("git", "config", "user.name", "haber-bot")
     _calistir("git", "config", "user.email", "bot@users.noreply.github.com")
 
+    _wal_bosalt()
     yollar = ["data/haber.db"] + list(ek_yollar or [])
     tamam, _ = _calistir("git", "add", *yollar)
     if not tamam:

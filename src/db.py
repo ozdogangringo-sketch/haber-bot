@@ -153,11 +153,27 @@ EK_KOLONLAR = {
 
 
 def baglan():
-    """Veritabanına bağlan. Dosya yoksa oluşturur."""
+    """
+    Veritabanına bağlan. Dosya yoksa oluşturur.
+
+    ⚠️ "database is locked" HATASININ ÇÖZÜMÜ BURADA (20 Ağu 2026).
+    Öneri listesinden iki haber seçildiğinde ilki üretiliyor, ikincisi
+    bu hatayla düşüyordu. Sebep: `onay_isle` kendi bağlantısını açık
+    tutarken `son_dakika`yı çağırıyor, o da AYRI bir bağlantı açıp
+    yazmaya çalışıyor.
+
+    Varsayılan `journal_mode=delete`'te tek yazar bütün veritabanını
+    kilitliyor. WAL modunda okuyucular yazarı engellemiyor ve iki
+    bağlantı yan yana çalışabiliyor. `busy_timeout` da 5 sn'den 30
+    sn'ye çıkarıldı: görsel üretimi ve imgbb yüklemesi sırasında
+    yazma birkaç saniye bekleyebiliyor, 5 saniye dar kalıyordu.
+    """
     DB_YOLU.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB_YOLU)
+    con = sqlite3.connect(DB_YOLU, timeout=30)
     con.row_factory = sqlite3.Row       # sonuçlara sütun adıyla erişebilmek için
     con.execute("PRAGMA foreign_keys = ON")
+    con.execute("PRAGMA journal_mode = WAL")
+    con.execute("PRAGMA busy_timeout = 30000")
     return con
 
 

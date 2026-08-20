@@ -21,3 +21,9 @@ logs/
 
 # macOS Finder çöpü — Windows/Linux tarafında anlamsız
 .DS_Store
+
+# SQLite WAL yardımcı dosyaları — veritabanının kendisi (data/haber.db)
+# BİLEREK izleniyor ama bunlar geçici. Commit öncesi
+# db_senkron._wal_bosalt() içerikleri ana dosyaya aktarıyor.
+data/haber.db-wal
+data/haber.db-shm

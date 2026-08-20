@@ -543,7 +543,11 @@ def oneri_gonder(adaylar: list) -> int:
     if not adaylar:
         return 0
 
-    rakam = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
+    # ⚠️ 3 İLE SINIRLI. Kontrol yarım saatte bir çalışıyor; 8 öneri
+    # gün boyunca okunamayacak kadar mesaj üretiyordu. Kullanıcı
+    # tercihi (20 Ağu 2026): "yarım saatte bir çalışacağı için 3
+    # öneriyle sınırlayalım".
+    rakam = ["1️⃣", "2️⃣", "3️⃣"]
     satirlar = ["📰 <b>Tekil post adayları</b>", ""]
     secim_butonlari = []
     for i, a in enumerate(adaylar[:len(rakam)]):

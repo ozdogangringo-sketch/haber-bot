@@ -83,6 +83,33 @@ def _sonuclari_kur(haberler: list) -> list[dict]:
     ]
 
 
+def _yayin_ozeti(haberler: list) -> str:
+    """
+    Yayın sonucu mesajına konan başlık özeti.
+
+    ⚠️ NEDEN GEREKTİ (20 Ağu 2026): sonuç mesajı yalnızca "5 slayt
+    yayınlandı" diyordu. Gün içinde birden çok tekil post çıkınca
+    hangisinin yayınlandığı anlaşılmıyordu — özellikle çoklu seçimde
+    art arda üç onay mesajı geliyor ve hepsi birbirinin aynısı
+    görünüyor.
+
+    Tek haberlik tekil postta başlık + kısa özet, çok haberli turda
+    numaralı manşet listesi basılıyor.
+    """
+    if not haberler:
+        return ""
+    if len(haberler) == 1:
+        h = haberler[0]
+        baslik = (h["ig_baslik"] or h["baslik_orj"] or "").strip()
+        ozet = (h["slayt_ozet"] or "").strip()
+        return f"📌 {baslik}" + (f"\n{ozet}" if ozet else "")
+    satirlar = []
+    for sira, h in enumerate(haberler[:10], start=1):
+        baslik = (h["ig_baslik"] or h["baslik_orj"] or "").strip()
+        satirlar.append(f"{sira}. {baslik}")
+    return "\n".join(satirlar)
+
+
 def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     if any(h["durum"] == "yayinlandi" for h in haberler):
         telegram_bot.mesaj_gonder("⚠️ Bu tur zaten yayınlanmış, tekrar gönderilmedi.")
@@ -217,7 +244,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     telegram_bot.sonucu_yaz(
         mesaj_id,
         f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}{th_notu}\n"
-        f"Onaylayan: {basan or 'bilinmiyor'}\n"
+        f"\n{_yayin_ozeti(haberler)}\n"
+        f"\nOnaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",
         bildir=True,
     )
@@ -687,6 +715,11 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
     for hid in haber_idler:
         if hid not in basliklar:
             continue
+        # ⚠️ KİLİDİ BIRAK. `son_dakika.main` kendi bağlantısını açıp
+        # yazıyor; bizim açık işlemimiz dururken "database is locked"
+        # alıyordu. Commit hem kilidi bırakıyor hem o ana kadarki
+        # değişiklikleri kalıcı kılıyor.
+        con.commit()
         try:
             sonuc = son_dakika.main(zorla_haber_id=hid)
         except Exception as e:                        # noqa: BLE001
