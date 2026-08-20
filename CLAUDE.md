@@ -470,6 +470,42 @@ bakılarak doğru kaynak/kategoriye taşındı.
 
 Ölçüldü (son 3 gün): **spor 50 → 100, kultur 0 → 21.**
 
+**1r. ⚠️ TELEGRAM AKIŞI DERİN İNCELEME (20 Ağu 2026) — dört kusur.**
+
+Kullanıcı "sürekli Telegram'da hata alıyoruz, çok yavaş" deyince
+uçtan uca ölçüldü. Başarı oranı 34/40 idi; kalan 6 hatanın hepsi
+aşağıdaki dört sebepten geliyordu.
+
+**(a) `NameError: name 'oneri_esigi' is not defined`** — fonksiyon bir
+düzenleme sırasında silinmiş, çağrısı kalmıştı. Son dakika kontrolü
+HER çalıştığında patlıyordu.
+
+⚠️ **Bütünlük testi bunu göremedi**: yalnızca `modul.fonksiyon()`
+biçimindeki çağrıları denetliyordu, düz `fonksiyon()` çağrıları
+kapsam dışıydı. Kod sözdizimi açısından geçerliydi, test TEMİZ
+geçiyordu. `test_0_butunluk.tanimsiz_isimleri_bul()` eklendi — aynı
+dosyada çağrılan ama hiçbir yerde tanımlanmayan isimleri yakalıyor.
+Doğrulandı: fonksiyon kasten silinince test hatayı buluyor.
+
+**(b) Hata düğmesi yanlış hedefi vuruyordu.** `hata_bildir`'de
+yalnızca `tur_tekrar` ve `tur_metinsiz` vardı, ikisi de AKŞAM TURUNU
+kuruyordu. Kullanıcı "Son dakika turu hazırlanamadı" mesajındaki
+"🔄 Turu yeniden hazırla"ya bastı ve 10 slaytlık akşam turu geldi.
+Artık `_butonlar()` hatanın geldiği yere (`nerede`) bakıyor;
+son dakika hatalarında `hata:sondakika_tekrar` → `son_dakika_calistir`
+event'i, `son-dakika.yml` bunu dinliyor.
+
+**(c) Yavaşlığın sebebi kuyruk değil, ÖLÜ KAPIYI ÇALMAK.** Ölçüldü:
+tur 13 dakika sürüyor ve %92'si metin üretiminde. Kuyrukta bekleme
+yalnızca 4-58 saniye. Gerçek sebep: ücretsiz kota günde 20 istek,
+tur 25 adaya metin üretiyor. Kota bitince her haber aynı tükenmiş
+model/anahtarı 3 kez deniyordu (2+4+6 sn), yani haber başına ~12
+saniye saf bekleme. `generate_text._TUKENMIS` kümesi eklendi: günlük
+kota hatası veren (model, anahtar) ikilisi aynı süreçte bir daha
+denenmiyor. Kazanım: 25 adaylık turda 20 dk → 0.4 dk boşa bekleme.
+
+**(d)** Mükerrer yayın — bkz. 1p.
+
 **1p. ⚠️ TURDA YAYINLANAN HABER BİR SAAT SONRA TEKİL POST OLARAK ÇIKTI.**
 
 20 Ağu 2026, kullanıcı bildirdi. Aynı olay iki gönderi:

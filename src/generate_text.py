@@ -49,6 +49,31 @@ UC_NOKTA = "https://generativelanguage.googleapis.com/v1beta/models/{model}:gene
 # 503 = model yoğun, 429 = kota/hız sınırı, 500/502/504 = sunucu hıçkırığı
 GECICI_HATALAR = {429, 500, 502, 503, 504}
 
+# ⚠️ GÜNLÜK KOTASI TÜKENMİŞ (model, anahtar) İKİLİLERİ.
+#
+# Ölçüldü (20 Ağu 2026): akşam turu 13 dakika sürüyordu ve süresinin
+# %92'si metin üretimindeydi. Log'a bakınca sebep açıktı — ücretsiz
+# kota günde 20 istek, tur 25 adaya metin üretiyor. Kota bitince HER
+# HABER aynı ölü kapıyı 3 kez çalıyordu:
+#     429 -> 2 sn bekle -> 429 -> 4 sn bekle -> 429 -> 6 sn bekle
+# yani haber başına ~12 saniye SAF BEKLEME, 25 haberde 5 dakika.
+#
+# Bir model+anahtar ikilisi günlük kota hatası verdiyse aynı süreç
+# içinde bir daha denenmiyor; doğrudan sıradaki modele/anahtara
+# geçiliyor. Süreç bitince küme de gidiyor, yani ertesi çalıştırmada
+# kota yeniden deneniyor (Pasifik gece yarısı sıfırlanıyor).
+_TUKENMIS: set[tuple[str, str]] = set()
+
+
+def _gunluk_kota_hatasi(cevap) -> bool:
+    """429 cevabı GÜNLÜK kota mı, yoksa dakikalık hız sınırı mı?"""
+    try:
+        mesaj = cevap.json().get("error", {}).get("message", "")
+    except Exception:                                 # noqa: BLE001
+        return False
+    # Google günlük kotayı "PerDay" içeren quotaId ile bildiriyor.
+    return "PerDay" in mesaj or "per day" in mesaj.lower()
+
 # Gemini'den JSON istiyoruz. Şema vermek, "bazen düz metin döndürme"
 # sorununu tamamen ortadan kaldırıyor.
 CEVAP_SEMASI = {
@@ -431,6 +456,10 @@ def _anahtarla_dene(prompt, ayarlar, modeller, anahtar, anahtar_adi):
     kota_doldu = False
 
     for model in modeller:
+        if (model, anahtar_adi) in _TUKENMIS:
+            log.debug("%s/%s bugünlük tükenmiş, atlanıyor", model, anahtar_adi)
+            kota_doldu = True
+            continue
         for deneme in range(1, g["deneme_sayisi"] + 1):
             try:
                 cevap = requests.post(
@@ -460,6 +489,12 @@ def _anahtarla_dene(prompt, ayarlar, modeller, anahtar, anahtar_adi):
             son_hata = f"HTTP {cevap.status_code}: {cevap.text[:200]}"
             if cevap.status_code == 429:
                 kota_doldu = True
+                if _gunluk_kota_hatasi(cevap):
+                    # Günlük kota bitmiş: bu ikiliyi bir daha deneme.
+                    _TUKENMIS.add((model, anahtar_adi))
+                    log.warning("%s/%s günlük kotası doldu, bu çalıştırmada "
+                                "bir daha denenmeyecek", model, anahtar_adi)
+                    break
 
             if cevap.status_code in GECICI_HATALAR:
                 bekle = 2 * deneme          # 2, 4, 6 saniye
