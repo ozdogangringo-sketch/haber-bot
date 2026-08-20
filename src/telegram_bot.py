@@ -318,17 +318,46 @@ def tur_ozeti(haberler: list, uyari_sayisi: int = 0) -> str:
     )
 
 
-def foto_gonder(url: str, aciklama: str = "") -> int:
+def foto_gonder(url: str, aciklama: str = "",
+                butonlar: list | None = None) -> int:
     """
     Tek fotoğraf gönderir.
 
     Slayt görseli değiştirildiğinde kullanılıyor: yeni görseli link
     olarak vermek yerine göstermek gerekiyor, yoksa beğenip beğenmediğini
     anlamak için tarayıcı açman lazım.
+
+    `butonlar` verilirse fotoğrafın altına inline klavye eklenir —
+    "bu görseli kullan / başka dene" onayı için.
     """
+    ek = {"reply_markup": {"inline_keyboard": butonlar}} if butonlar else {}
     sonuc = _istek("sendPhoto", chat_id=_sohbet_id(), photo=url,
-                   caption=aciklama[:1024])
+                   caption=aciklama[:1024], **ek)
     return sonuc["message_id"]
+
+
+def mesajlari_sil(mesaj_idleri: list[int]) -> int:
+    """
+    Verilen mesajları siler. Kaç tanesinin silindiğini döner.
+
+    ⚠️ ALBÜM YENİLEMEK İÇİN GEREKLİ. Telegram'da media group ATOMİK bir
+    birim: `editMessageMedia` albümdeki tek bir fotoğrafı değiştiremiyor.
+    Slayt görseli değişince üstteki albümü güncel göstermenin tek yolu
+    eskisini silip yeniden göndermek.
+
+    Bot yalnızca KENDİ mesajlarını silebiliyor (grupta yönetici değil),
+    yani kullanıcının yazdıkları risk altında değil. Silinemeyen mesaj
+    sessizce atlanıyor: 48 saatten eski mesajlar silinemiyor ve bu
+    beklenen bir durum, turu düşürmemeli.
+    """
+    silinen = 0
+    for mid in mesaj_idleri or []:
+        try:
+            _istek("deleteMessage", chat_id=_sohbet_id(), message_id=mid)
+            silinen += 1
+        except Exception as e:                        # noqa: BLE001
+            log.debug("mesaj silinemedi (%s): %s", mid, e)
+    return silinen
 
 
 def onay_iste(caption: str, slayt_adedi: int, uyari: str = "",

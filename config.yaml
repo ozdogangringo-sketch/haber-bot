@@ -290,7 +290,6 @@ gorsel:
   # basarsan devreye giriyor — maliyet ancak o zaman doğuyor.
   # haberde_ai'yi true yaparsan her slayt AI olur; bilerek yap.
   kapakta_ai: false
-  haberde_ai: false
 
   # MALİYET EMNİYETİ — günde en fazla kaç AI görseli üretilebilir.
   # Normalde 0 kullanılıyor; bu pay tamamen Telegram'daki elle yeniden

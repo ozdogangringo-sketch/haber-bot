@@ -30,7 +30,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
 const PARAMETRELI_EYLEM =
-  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil):([1-9]|10)$/;
+  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil|gorsel_kabul|gorsel_yeni):([1-9]|10)$/;
 
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları

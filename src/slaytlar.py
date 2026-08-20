@@ -109,16 +109,43 @@ def _gorseli_indir(url: str, g: dict):
     return foto.convert("RGB")
 
 
-def arkaplan_sec(haber, ayarlar: dict) -> tuple[Image.Image, str, str]:
+def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
+                 atlanacak: int = 0) -> tuple[Image.Image, str, str]:
     """
     Habere arka plan bulur. (görüntü, katman_adı, atıf_metni) döner.
 
     Katmanlar tek tek denenip ilk tutan alınıyor. Bir katman patlarsa
     (ağ hatası, kota, bozuk dosya) sonrakine geçiliyor — görsel
     bulunamadı diye postun kaçmaması gerekiyor.
+
+    ⚠️ `zorla_ai` ve `atlanacak` — TELEGRAM DÜĞMELERİ İÇİN (20 Ağu 2026).
+
+    Bu iki parametre eklenene kadar "🎨 AI ile üret" ve "🔀 Başka
+    fotoğraf" düğmeleri HİÇBİR İŞE YARAMIYORDU. `onay_isle` bir
+    `gorsel.haberde_ai` bayrağı set ediyordu ama bu fonksiyon o bayrağı
+    hiç okumuyordu; her iki düğme de aşağıdaki sabit zinciri baştan
+    çalıştırıyordu. Zincirin her adımı deterministik (`adaylar[0]`,
+    rastgelelik yok), dolayısıyla sonuç her seferinde tıpatıp aynıydı.
+
+    `zorla_ai=True`  → zinciri atla, doğrudan Gemini'den görsel üret
+    `atlanacak=N`    → Commons/Pexels'te N'inci adayı al (0 = en iyisi)
     """
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
+
+    # --- AI: kullanıcı açıkça istediyse zinciri atla ---
+    if zorla_ai:
+        try:
+            gorsel = make_image.arkaplan_uret_ai(
+                haber["kategori"] or "turkiye", ayarlar)
+            if gorsel is not None and gorsel.size != (genislik, yukseklik):
+                gorsel = gorsel.resize((genislik, yukseklik), Image.LANCZOS)
+            if gorsel is not None:
+                log.info("arka plan: AI ile üretildi (#%s)", haber["id"])
+                return gorsel, "ai", ""
+            log.warning("AI görsel üretemedi, normal zincire düşülüyor")
+        except Exception as e:                        # noqa: BLE001
+            log.warning("AI görsel hatası (%s), normal zincire düşülüyor", e)
 
     # --- 0) Haberin kendi görseli (og:image) ---
     #
@@ -149,7 +176,7 @@ def arkaplan_sec(haber, ayarlar: dict) -> tuple[Image.Image, str, str]:
     konu = _alan(haber, "gorsel_konu")
     if konu:
         try:
-            sonuc = fetch_photo.konu_icin_fotograf(konu)
+            sonuc = fetch_photo.konu_icin_fotograf(konu, atlanacak=atlanacak)
             if sonuc:
                 foto, kayit = sonuc
                 return (
@@ -165,7 +192,7 @@ def arkaplan_sec(haber, ayarlar: dict) -> tuple[Image.Image, str, str]:
     terim = _alan(haber, "gorsel_temsili")
     if terim:
         try:
-            sonuc = fetch_stock.konu_icin_fotograf(terim)
+            sonuc = fetch_stock.konu_icin_fotograf(terim, atlanacak=atlanacak)
             if sonuc:
                 foto, kayit = sonuc
                 return (
@@ -185,18 +212,23 @@ def arkaplan_sec(haber, ayarlar: dict) -> tuple[Image.Image, str, str]:
     )
 
 
-def slayt_uret(haber, ayarlar: dict) -> tuple[Path, str, str]:
+def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
+               atlanacak: int = 0) -> tuple[Path, str, str]:
     """
     Tek bir haberin slaytını üretip diske yazar.
 
     (dosya_yolu, katman_adı, atıf_metni) döner. Atıf metni caption'ın
     sonuna eklenecek — Commons'taki CC BY görselleri için bu hukuken şart,
     Pexels'te zorunlu değil ama veriyoruz.
+
+    `zorla_ai` / `atlanacak`: Telegram'daki görsel değiştirme düğmeleri
+    için — bkz. `arkaplan_sec`.
     """
     g = ayarlar["gorsel"]
     make_image.CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
-    arkaplan, katman, atif = arkaplan_sec(haber, ayarlar)
+    arkaplan, katman, atif = arkaplan_sec(
+        haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak)
 
     gorsel = make_image.yaziyi_bas(
         arkaplan,
@@ -257,7 +289,9 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
     return sonuclar
 
 
-def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
+def son_dakika_uret(haber, ayarlar: dict, con=None,
+                    zorla_ai: bool = False,
+                    atlanacak: int = 0) -> list[dict]:
     """
     Son dakika postunun iki slaytını üretir.
 
@@ -275,7 +309,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None) -> list[dict]:
     # lazım. `slayt_uret` yalnızca yazılmış slaytı döndürüyor; story'yi
     # ondan üretmeye kalkmak yazının üstüne yazı basmak oluyor —
     # 17 Ağu 2026'da yayınlanan story'de tam olarak bu oldu.
-    ham_arkaplan, katman, atif = arkaplan_sec(haber, ayarlar)
+    ham_arkaplan, katman, atif = arkaplan_sec(
+        haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak)
 
     gorsel1 = make_image.yaziyi_bas(
         ham_arkaplan.copy(),

@@ -91,7 +91,8 @@ def _aday_puani(foto: dict) -> int:
     return puan
 
 
-def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI) -> dict | None:
+def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
+                 atlanacak: int = 0) -> dict | None:
     """
     Pexels'te arar, en uygun adayın kaydını döner. Bulamazsa None.
 
@@ -138,7 +139,14 @@ def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI) -> dict | None:
         return None
 
     adaylar.sort(key=lambda a: a["puan"], reverse=True)
-    return adaylar[0]
+    # ⚠️ `atlanacak` — "başka fotoğraf" düğmesi için. Önce hep
+    # `adaylar[0]` dönüyordu, yani düğmeye kaç kez basılırsa basılsın
+    # aynı fotoğraf geliyordu. Liste biterse başa dönüyoruz: kullanıcı
+    # sırayla gezinsin, hiç sonuç alamamaktansa tekrar görsün.
+    if atlanacak:
+        log.info("Pexels: %s. aday alınıyor (%s aday var)",
+                 atlanacak % len(adaylar) + 1, len(adaylar))
+    return adaylar[atlanacak % len(adaylar)]
 
 
 def fotografi_indir(kayit: dict) -> Image.Image | None:
@@ -164,14 +172,15 @@ def atif_metni(kayit: dict) -> str:
     return f"Temsili foto: {sanatci} (Pexels)"
 
 
-def konu_icin_fotograf(terim: str) -> tuple[Image.Image, dict] | None:
+def konu_icin_fotograf(terim: str,
+                       atlanacak: int = 0) -> tuple[Image.Image, dict] | None:
     """
     Tek adımda: ara + indir. Bulamazsa None.
 
     `fetch_photo.konu_icin_fotograf` ile aynı imza — katman seçici
     ikisini de aynı şekilde çağırabilsin diye bilinçli.
     """
-    kayit = fotograf_ara(terim)
+    kayit = fotograf_ara(terim, atlanacak=atlanacak)
     if not kayit:
         return None
     gorsel = fotografi_indir(kayit)

@@ -139,6 +139,21 @@ def tanimsiz_isimleri_bul(yol: str, agac: ast.AST) -> list[str]:
                 and isinstance(dugum.func, ast.Name)
                 and dugum.func.id not in tanimli):
             eksik.append(f"{yol}:{dugum.lineno} — {dugum.func.id}() tanımlı değil")
+
+    # ⚠️ EKSİK IMPORT DENETİMİ (20 Ağu 2026).
+    #
+    # `onay_isle.py` içinde `secim.konu_imzasi(...)` çağrılıyordu ama
+    # `secim` hiç import edilmemişti. Yukarıdaki denetim bunu göremiyor
+    # çünkü `modul.fonksiyon()` bir `ast.Attribute`, düz `ast.Name`
+    # değil. Kod sözdizimi açısından geçerliydi ve hata ancak `/haber`
+    # komutu çalıştırıldığında NameError olarak çıkacaktı.
+    for dugum in ast.walk(agac):
+        if (isinstance(dugum, ast.Attribute)
+                and isinstance(dugum.value, ast.Name)
+                and dugum.value.id not in tanimli):
+            eksik.append(f"{yol}:{dugum.lineno} — "
+                         f"'{dugum.value.id}' tanımlı/import değil "
+                         f"(.{dugum.attr} olarak kullanılıyor)")
     return eksik
 
 

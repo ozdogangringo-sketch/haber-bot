@@ -32,8 +32,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    ayar, caption, db, db_senkron, dogrula, facebook, instagram, slaytlar,
-    telegram_bot, threads, upload_image,
+    ayar, caption, db, db_senkron, dogrula, facebook, instagram, secim,
+    slaytlar, telegram_bot, threads, upload_image,
 )
 from src import generate_text                      # noqa: E402
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -595,17 +595,33 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
 
     # slayt_ai / slayt_foto / metin sonrası: slaytı yeniden üret
     taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
-    if komut == "slayt_ai":
-        ayarlar = {**ayarlar, "gorsel": {**ayarlar["gorsel"], "haberde_ai": True}}
-    yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+
+    # ⚠️ İKİ DÜĞME DE ARTIK GERÇEKTEN FARKLI SONUÇ ÜRETİYOR (20 Ağu 2026).
+    #
+    # Önce burada yalnızca `gorsel.haberde_ai` bayrağı set ediliyordu ve
+    # `slaytlar.arkaplan_sec` o bayrağı HİÇ OKUMUYORDU. Sonuç: her iki
+    # düğme de sabit katman zincirini (og:image → Commons → Pexels)
+    # baştan çalıştırıyor, zincirin her adımı deterministik olduğu için
+    # tıpatıp aynı görseli üretiyordu. Kullanıcı "AI ile üret desem de
+    # diğerini seçsem de aynı görüntü geliyor" diye bildirdi; kanıt
+    # `gorsel_sayac_adet`in 14 Ağustos'tan beri 1'de kalmasıydı — AI
+    # bir kez bile çağrılmamıştı.
+    zorla_ai = (komut == "slayt_ai")
+    deneme = (taze["gorsel_deneme"] or 0) + 1 if komut == "slayt_foto" else 0
+    yol, katman, atif = slaytlar.slayt_uret(
+        taze, ayarlar, zorla_ai=zorla_ai, atlanacak=deneme)
 
     yukleme = upload_image.gorsel_yukle(yol, ayarlar)
-    # Atıf da güncelleniyor: katman değişince (Pexels → AI gibi) eski
-    # atıf yanlış kalır ve caption'a yanlış lisans bilgisi girer.
+
+    # ⚠️ ADAY ALANLARA YAZILIYOR, ASIL ALANLARA DEĞİL.
+    # Önce `gorsel_url` doğrudan güncelleniyordu: kullanıcı yeni görseli
+    # beğenmese bile geri dönüş yoktu ve eski dosya da üzerine
+    # yazıldığı için diskte kalmıyordu. Artık onay bekliyor.
     con.execute(
-        "UPDATE haberler SET gorsel_url = ?, gorsel_kaynagi = ?, "
-        "gorsel_atif = ?, gorsel_yolu = ? WHERE id = ?",
-        (yukleme["url"], katman, atif, str(yol), haber["id"]),
+        "UPDATE haberler SET gorsel_url_aday = ?, gorsel_kaynagi_aday = ?, "
+        "gorsel_atif_aday = ?, gorsel_yolu_aday = ?, gorsel_deneme = ? "
+        "WHERE id = ?",
+        (yukleme["url"], katman, atif, str(yol), deneme, haber["id"]),
     )
     con.commit()
 
@@ -614,9 +630,63 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     simge = telegram_bot.KATMAN_SIMGE.get(katman, "▫️")
     telegram_bot.foto_gonder(
         yukleme["url"],
-        f"{simge} {sira}. slayt yenilendi — {katman}\n"
-        f"{taze['ig_baslik'] or ''}",
+        f"{simge} {sira}. slayt için yeni görsel — {katman}\n"
+        f"{taze['ig_baslik'] or ''}\n\n"
+        f"Beğendiysen onayla; onaylamazsan slayt eski görselle kalır.",
+        butonlar=[[
+            {"text": "✅ Bunu kullan", "callback_data": f"gorsel_kabul:{sira}"},
+            {"text": "🔄 Başka dene", "callback_data": f"gorsel_yeni:{sira}"},
+        ]],
     )
+    return 0
+
+
+def gorseli_kabul_et(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
+    """
+    Değiştirilen görseli kalıcı yapar ve albümü yeniler.
+
+    ⚠️ TELEGRAM ALBÜMÜNDE TEK FOTOĞRAF DEĞİŞTİRİLEMİYOR. Media group
+    atomik bir birim; `editMessageMedia` albüm öğelerinde çalışmıyor.
+    Üstteki albümü güncel göstermenin tek yolu eskisini silip yeniden
+    göndermek — kullanıcı "önceki gönderi mesajımızda o resim
+    güncellenmeli ki yayınla dediğimde güncel hali yayınlansın" dedi.
+    """
+    if sira < 1 or sira > len(haberler):
+        telegram_bot.mesaj_gonder(f"⚠️ {sira}. slayt bulunamadı.")
+        return 1
+    haber = haberler[sira - 1]
+    if not haber["gorsel_url_aday"]:
+        telegram_bot.mesaj_gonder(
+            "⚠️ Onay bekleyen bir görsel yok — muhtemelen zaten uygulandı.")
+        return 0
+
+    con.execute(
+        "UPDATE haberler SET gorsel_url = gorsel_url_aday, "
+        "gorsel_kaynagi = gorsel_kaynagi_aday, gorsel_atif = gorsel_atif_aday, "
+        "gorsel_yolu = gorsel_yolu_aday, "
+        "gorsel_url_aday = NULL, gorsel_yolu_aday = NULL, "
+        "gorsel_kaynagi_aday = NULL, gorsel_atif_aday = NULL "
+        "WHERE id = ?", (haber["id"],))
+    con.commit()
+    db_senkron.hemen_kaydet("Slayt görseli değiştirildi")
+
+    # Albümü yenile: eskisini sil, yenisini gönder.
+    yeniler = turu_getir(con, mesaj_id)
+    urller = [h["gorsel_url"] for h in yeniler if h["gorsel_url"]]
+    eski_albom = db.ayar_oku(con, f"albom_{mesaj_id}", "")
+    if eski_albom:
+        try:
+            telegram_bot.mesajlari_sil(json.loads(eski_albom))
+        except Exception as e:                        # noqa: BLE001
+            log.warning("eski albüm silinemedi: %s", e)
+    try:
+        yeni_idler = telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
+        db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(yeni_idler or []))
+    except Exception as e:                            # noqa: BLE001
+        log.warning("albüm yenilenemedi: %s", e)
+
+    telegram_bot.mesaj_gonder(f"✅ {sira}. slaytın görseli güncellendi.")
+    log.info("slayt %s görseli kabul edildi (haber=%s)", sira, haber["id"])
     return 0
 
 
@@ -1061,6 +1131,15 @@ def main() -> int:
             return ertele(con, mesaj_id, basan)
         if komut == "metin_yenile":
             return metin_yenile(con, ayarlar, haberler, mesaj_id)
+        # Görsel onay düğmeleri
+        if komut.startswith("gorsel_kabul:"):
+            return gorseli_kabul_et(
+                con, ayarlar, haberler, int(komut.split(":")[1]), mesaj_id)
+        if komut.startswith("gorsel_yeni:"):
+            # "Başka dene" = aynı slaytın fotoğrafını bir sonraki adayla
+            # yeniden üret. `slayt_islemi` sayacı kendisi artırıyor.
+            return slayt_islemi(con, ayarlar, haberler, "slayt_foto",
+                                int(komut.split(":")[1]), mesaj_id)
         if ":" in komut:
             ad, sira = komut.split(":", 1)
             sonuc = slayt_islemi(con, ayarlar, haberler, ad, int(sira), mesaj_id)

@@ -68,6 +68,19 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # "🔀 Başka fotoğraf" düğmesine kaç kez basıldı — Commons/Pexels
+    # aday listesinde kaçıncı sıradayız.
+    #
+    # ⚠️ Bu sayaç olmadan düğme HİÇ İŞE YARAMIYORDU: katmanlar her
+    # zaman `adaylar[0]` döndürüyordu, yani kaç kez basılırsa basılsın
+    # aynı fotoğraf geliyordu (20 Ağu 2026).
+    "gorsel_deneme": "INTEGER DEFAULT 0",
+    # Değiştirilen görselin ADAY URL'si — kullanıcı onaylayana kadar
+    # `gorsel_url` üzerine yazılmıyor.
+    "gorsel_url_aday": "TEXT",
+    "gorsel_yolu_aday": "TEXT",
+    "gorsel_kaynagi_aday": "TEXT",
+    "gorsel_atif_aday": "TEXT",
     # Bu haber TEKİL post olarak bir daha sunulmasın — yalnızca
     # carousel turunda yayınlansın.
     #

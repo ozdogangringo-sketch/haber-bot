@@ -248,7 +248,7 @@ def _aday_puani(baslik: str, genislik: int, yukseklik: int,
     return puan
 
 
-def fotograf_ara(konu: str, aday_sayisi: int = 20) -> dict | None:
+def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict | None:
     """
     Konu için lisansı uygun VE isabetli bir fotoğraf bulur.
 
@@ -332,7 +332,11 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20) -> dict | None:
         return None
 
     adaylar.sort(key=lambda a: a["puan"], reverse=True)
-    return adaylar[0]
+    # ⚠️ `atlanacak` — bkz. fetch_stock.fotograf_ara. Liste biterse başa dön.
+    if atlanacak:
+        log.info("Commons: %s. aday alınıyor (%s aday var)",
+                 atlanacak % len(adaylar) + 1, len(adaylar))
+    return adaylar[atlanacak % len(adaylar)]
 
 
 def fotografi_indir(kayit: dict) -> Image.Image | None:
@@ -360,12 +364,13 @@ def atif_metni(kayit: dict) -> str:
     return "Foto: " + " / ".join(p for p in parcalar if p) + " (Wikimedia Commons)"
 
 
-def konu_icin_fotograf(konu: str) -> tuple[Image.Image, dict] | None:
+def konu_icin_fotograf(konu: str,
+                       atlanacak: int = 0) -> tuple[Image.Image, dict] | None:
     """
     Tek adımda: ara + indir. Bulamazsa None.
     Çağıran taraf None gelirse soyut/gradyan arka plana düşmeli.
     """
-    kayit = fotograf_ara(konu)
+    kayit = fotograf_ara(konu, atlanacak=atlanacak)
     if not kayit:
         return None
     gorsel = fotografi_indir(kayit)

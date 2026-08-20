@@ -22,6 +22,7 @@ HATA POLİTİKASI:
     ertesi gün fark etmektense hatayı anında görmek gerekiyor.
 """
 
+import json
 import logging
 import sys
 import traceback
@@ -165,7 +166,10 @@ def main() -> int:
         secilen = [sira_ile.get(h["id"], h) for h in secilen]
 
         urller = [y["url"] for y in yuklemeler]
-        telegram_bot.slaytlari_gonder(
+        # ⚠️ Albüm id'leri saklanıyor — slayt görseli değiştirilip
+        # onaylandığında albüm silinip yeniden gönderiliyor (Telegram'da
+        # media group atomik, tek fotoğraf düzenlenemiyor).
+        albom_idler = telegram_bot.slaytlari_gonder(
             urller, [h["ig_baslik"] or h["baslik_orj"] for h in secilen]
         )
         ozet = telegram_bot.tur_ozeti(secilen, isaretli)
@@ -181,6 +185,7 @@ def main() -> int:
                 (mesaj_id, story_url if haber is secilen[0] else None,
                  haber["id"]),
             )
+        db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(albom_idler or []))
         con.commit()
         # Onay butonu GitHub'daki veritabanına bakıyor. Workflow'un
         # sonundaki commit adımını beklersek kullanıcı o aralıkta

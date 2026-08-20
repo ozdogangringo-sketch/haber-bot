@@ -587,7 +587,11 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
     (17 Ağu 2026'da tam olarak bu oldu).
     """
     # --- 6b) Onaya sun ---
-    telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
+    # ⚠️ ALBÜM ID'LERİ SAKLANIYOR. Slayt görseli değiştirilip
+    # onaylandığında albümün yenilenmesi gerekiyor (Telegram'da media
+    # group atomik, tek fotoğraf düzenlenemiyor) ve bunun için eski
+    # albümü silmek şart. Önce bu id'ler dönüyor ama atılıyordu.
+    albom_idler = telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
     mesaj_id = telegram_bot.onay_iste(
         metin, len(urller),
         uyari=(uyari or ""),
