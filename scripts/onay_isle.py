@@ -427,16 +427,45 @@ def iptal(con, haberler, mesaj_id, basan) -> int:
     # bu oldu — iptal edilen haber bir daha aday olamadı.
     con.execute(
         "UPDATE haberler SET telegram_message_id = NULL, son_dakika = 0, "
+        "ertelenme_sayisi = COALESCE(ertelenme_sayisi, 0) + 1, "
         "durum = CASE WHEN ig_baslik IS NOT NULL THEN 'metin_hazir' "
         "             ELSE 'yeni' END "
         "WHERE telegram_message_id = ?",
         (mesaj_id,),
     )
+
+    # ⚠️ İKİ KEZ ATLANAN HABER BİR DAHA TEKİL SUNULMUYOR.
+    #
+    # 20 Ağu 2026: "Türkiye'de yağışlar son 66 yılın zirvesinde" haberi
+    # üç kez tekil post olarak onaya düştü. Kullanıcı her seferinde
+    # "atla" dedi, haber havuza döndü ve bir sonraki kontrolde YİNE
+    # aday oldu — kısır döngü. "Onay verilmezse haber ELENMEZ" kararı
+    # doğru ama ısrar etmek yanlış: ikinci atlamadan sonra haber
+    # yalnızca 10'lu turda yarışıyor.
+    #
+    # Turda hâlâ görünüyor, yani haber kaybolmuyor; sadece tekil post
+    # olarak dayatılmıyor.
+    ATLAMA_SINIRI = 2
+    con.execute(
+        "UPDATE haberler SET sadece_tur = 1 "
+        "WHERE id IN ({}) AND COALESCE(ertelenme_sayisi, 0) >= ?".format(
+            ",".join("?" * len(haberler))),
+        [h["id"] for h in haberler] + [ATLAMA_SINIRI],
+    )
+    yeter = con.execute(
+        "SELECT COUNT(*) FROM haberler WHERE id IN ({}) "
+        "AND sadece_tur = 1".format(",".join("?" * len(haberler))),
+        [h["id"] for h in haberler],
+    ).fetchone()[0]
     con.commit()
+
+    ek = ("\n\n📋 Bu haber ikinci kez atlandı; artık tekil post olarak "
+          "sunulmayacak, yalnızca 10'lu turda yarışacak." if yeter else "")
     telegram_bot.sonucu_yaz(
         mesaj_id,
         f"❌ Bu tur atlandı ({basan or 'bilinmiyor'}).\n"
-        f"{len(haberler)} haber havuza döndü, sonraki turda yeniden yarışacak.",
+        f"{len(haberler)} haber havuza döndü, sonraki turda yeniden yarışacak."
+        + ek,
     )
     return 0
 
@@ -921,7 +950,12 @@ def main() -> int:
     # taşımıyor. Eskiden kontrol ikisini birden şart koşuyordu ve komut
     # aşağıdaki kendi dalına HİÇ ULAŞAMIYORDU — `/durum` yazınca Worker
     # "Durum sorgulanıyor…" diyor, job ise sessizce hata verip ölüyordu.
-    if komut not in MESAJSIZ_KOMUTLAR and not mesaj_id:
+    # ⚠️ PARAMETRELİ KOMUTLARDA ÖN EKE BAK. `/haber istanbulda hava`
+    # buraya `ara:istanbulda hava` olarak geliyor; düz üyelik testi
+    # ("ara" listede mi) tutmuyordu ve komut "MESAJ_ID eksik" ile
+    # ölüyordu. 20 Ağu 2026'da `/haber` denendiğinde tam olarak bu oldu.
+    if (komut.split(":", 1)[0] not in MESAJSIZ_KOMUTLAR
+            and komut not in MESAJSIZ_KOMUTLAR and not mesaj_id):
         log.error("MESAJ_ID eksik (komut=%s)", komut)
         return 1
 
@@ -985,6 +1019,36 @@ def main() -> int:
         return 1
 
     try:
+        # ⚠️ YAYINLANMIŞ TUR ÜZERİNDE DEĞİŞTİRİCİ İŞLEM YAPILAMAZ.
+        #
+        # 20 Ağu 2026: "Türkiye'de yağışlar son 66 yılın zirvesinde"
+        # haberi 09:59'da başarıyla yayınlandı (Instagram + Facebook +
+        # story + Threads 4/4, veritabanı push edildi). Bir dakika
+        # sonra aynı onay mesajından `ertele` komutu geldi ve
+        # YAYINLANMIŞ haberin durumunu `ertelendi` yaptı. Haber havuza
+        # döndü, sistem onu "yayınlanmamış" sandı ve aynı gün iki kez
+        # daha tekil post olarak onaya sundu.
+        #
+        # Kullanıcı postu Instagram'da görüyor ama bot bilmiyordu.
+        # `turu_getir` durum filtresi yapmıyor, bu yüzden koruma burada.
+        #
+        # "kaldir" hariç: o komut zaten yayınlanmış turu hedefliyor.
+        DEGISTIRICI = {"yayinla", "iptal", "ertele", "tura_birak",
+                       "metin_yenile"}
+        if (komut in DEGISTIRICI or komut.startswith("slayt_")) and any(
+                h["durum"] == "yayinlandi" for h in haberler):
+            post = next((h["ig_post_id"] for h in haberler
+                         if h["ig_post_id"]), None)
+            baglanti = instagram.post_baglantisi(post, ayarlar) if post else ""
+            log.warning("yayınlanmış tur üzerinde '%s' reddedildi", komut)
+            telegram_bot.sonucu_yaz(
+                mesaj_id,
+                "⚠️ Bu tur ZATEN YAYINLANDI, işlem yapılmadı.\n\n"
+                f"{baglanti or post or ''}\n\n"
+                "Yayını geri almak için sonuç mesajındaki "
+                "🗑 düğmesini kullan.")
+            return 0
+
         if komut == "yayinla":
             return yayinla(con, ayarlar, haberler, mesaj_id, basan)
         if komut == "tura_birak":
