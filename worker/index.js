@@ -40,6 +40,13 @@ const PARAMETRELI_EYLEM =
 // düğme yalan söylerdi.
 const YAYINLA_SONRA = /^yayinla_sonra:(30|60|120|180|240)$/;
 
+// Turdaki bir haberi başkasıyla değiştirme.
+//   "haber_degistir:3"      -> 3. slayt için 2 alternatif iste
+//   "haber_sec:3:16380"     -> 3. slayta 16380 numaralı haberi koy
+// id yalnızca rakam; slayt numarası 1-10 (Instagram carousel sınırı).
+const HABER_DEGISTIR = /^haber_degistir:([1-9]|10)$/;
+const HABER_SEC = /^haber_sec:([1-9]|10):\d{1,8}$/;
+
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
 // puanlayıp öneriyor, tam metin ve görsel ancak bu butona basılınca
@@ -92,6 +99,7 @@ function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 64) return false;
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
     || YAYINLA_SONRA.test(veri)
+    || HABER_DEGISTIR.test(veri) || HABER_SEC.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA;
 }
@@ -171,6 +179,7 @@ function slaytIslemMenusu(sira, adet) {
       [{ text: `🎨 ${sira}. slayt: AI ile üret (~$0.04)`, callback_data: `slayt_ai:${sira}` }],
       [{ text: `✏️ ${sira}. slaytın metnini yenile`, callback_data: `slayt_metin:${sira}` }],
       [{ text: `📄 ${sira}. slaytın kaynak metnini göster`, callback_data: `slayt_kaynak:${sira}` }],
+      [{ text: `🔄 ${sira}. slaytın HABERİNİ değiştir`, callback_data: `haber_degistir:${sira}` }],
       [{ text: `🗑 ${sira}. slaytı çıkar`, callback_data: `slayt_sil:${sira}` }],
       [{ text: "← Geri", callback_data: `slayt_menu:${adet}` }],
     ],

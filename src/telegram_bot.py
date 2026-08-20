@@ -202,6 +202,23 @@ def ana_menu(adet: int) -> dict:
     ]}
 
 
+def alternatif_menusu(sira: int, adaylar: list, adet: int) -> dict:
+    """
+    Bir slaytın yerine gelebilecek haberleri sunar.
+
+    Başlık DÜĞMENİN ÜSTÜNDE yazıyor çünkü `callback_data` 64 baytla
+    sınırlı — oraya yalnızca haber id'si sığıyor. Düğme metni de
+    Telegram'da tek satıra kırpıldığı için 60 karakterde kesiliyor.
+    """
+    tuslar = []
+    for a in adaylar:
+        baslik = (a["ig_baslik"] or a["baslik_orj"] or "")[:58]
+        tuslar.append([{"text": f"✅ {baslik}",
+                        "callback_data": f"haber_sec:{sira}:{a['id']}"}])
+    tuslar.append([{"text": "← Vazgeç", "callback_data": f"geri:{adet}"}])
+    return {"inline_keyboard": tuslar}
+
+
 def yayin_zamani_menusu(adet: int) -> dict:
     """
     "Yayınla" düğmesinin alt menüsü: şimdi mi, sonra mı?
@@ -265,6 +282,8 @@ def slayt_islem_menusu(sira: int, adet: int) -> dict:
           "callback_data": f"slayt_metin:{sira}"}],
         [{"text": f"📄 {sira}. slaytın kaynak metnini göster",
           "callback_data": f"slayt_kaynak:{sira}"}],
+        [{"text": f"🔄 {sira}. slaytın HABERİNİ değiştir",
+          "callback_data": f"haber_degistir:{sira}"}],
         [{"text": f"🗑 {sira}. slaytı çıkar",
           "callback_data": f"slayt_sil:{sira}"}],
         [{"text": "← Geri", "callback_data": f"slayt_menu:{adet}"}],

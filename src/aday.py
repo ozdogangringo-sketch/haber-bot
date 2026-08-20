@@ -257,3 +257,70 @@ def sec(haberler, baglam: Baglam, adet: int | None = None) -> list:
         log.info("[%s] eleme: %s", baglam.ad,
                  ", ".join(f"{k}={v}" for k, v in sorted(sebepler.items())))
     return secilen
+
+
+def alternatifler(con, ayarlar: dict, mevcut, turdaki_idler,
+                  adet: int = 2) -> list:
+    """
+    Turdaki bir haberin YERİNE konabilecek adaylar.
+
+    Kullanıcı onay mesajında bir slaydı beğenmezse ("bu haberi
+    değiştir") buradan gelen alternatifler sunuluyor.
+
+    ⚠️ KURALLAR YENİDEN YAZILMIYOR — `uygun_mu` çağrılıyor. Bu
+    dosyanın var olma sebebi tam da bu: bu projedeki kusurların çoğu
+    "kural yanlıştı" değil, "kural doğru ama BİR YERDE uygulanmamıştı"
+    hatasıydı (CLAUDE.md 1j, 1p, 1z). Yeni bir akış açarken kuralları
+    kopyalamak o hatayı yeniden üretmek olurdu.
+
+    Sıralama: önce AYNI KATEGORİDEN olanlar. Sebep sadece konu
+    yakınlığı değil — turun kategori dengesi zaten `cesitlendir` ile
+    kurulmuş durumda; ekonomi haberini sporla değiştirmek o dengeyi
+    bozar.
+    """
+    havuz = list(con.execute(
+        "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
+        "AND ig_baslik IS NOT NULL AND gorsel_url IS NOT NULL"
+    ))
+    if not havuz:
+        # Görseli hazır aday yoksa metni hazır olanlarla devam: slayt
+        # değiştirme anında üretiliyor, görsel şart değil.
+        havuz = list(con.execute(
+            "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
+            "AND ig_baslik IS NOT NULL"
+        ))
+
+    baglam = Baglam.kur(TUR, ayarlar, con)
+    # Turdaki DİĞER haberler de "aynı listede" sayılmalı, yoksa
+    # değiştirilen haberin yerine turdaki BAŞKA bir haberin benzeri
+    # gelebilir ve tur yine mükerrer olur.
+    # ⚠️ `_secilenler` haber satırı değil, (kelimeler, özel_isimler)
+    # imzası tutuyor — `uygun_mu` onu öyle açıyor.
+    baglam._secilenler = [
+        secim.konu_imzasi(_baslik(h))
+        for h in _turdakiler(con, turdaki_idler) if h["id"] != mevcut["id"]
+    ]
+
+    uygunlar = []
+    for h in havuz:
+        if h["id"] in turdaki_idler:
+            continue
+        tamam, _ = uygun_mu(h, baglam)
+        if tamam:
+            uygunlar.append(h)
+
+    kategori = mevcut["kategori"]
+    uygunlar.sort(key=lambda h: (h["kategori"] != kategori,
+                                 -(h["onem_puani"] or 0),
+                                 _yas_saat(h)))
+    log.info("[degistir] %s haberden %s alternatif bulundu (kategori=%s)",
+             len(havuz), len(uygunlar), kategori)
+    return uygunlar[:adet]
+
+
+def _turdakiler(con, idler) -> list:
+    if not idler:
+        return []
+    isaret = ",".join("?" * len(idler))
+    return list(con.execute(
+        f"SELECT * FROM haberler WHERE id IN ({isaret})", tuple(idler)))

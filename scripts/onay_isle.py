@@ -33,7 +33,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    ayar, caption, db, db_senkron, dogrula, facebook, instagram, secim,
+    aday, ayar, caption, db, db_senkron, dogrula, facebook, instagram,
+    secim,
     slaytlar, telegram_bot, threads, upload_image,
 )
 from src import generate_text                      # noqa: E402
@@ -718,6 +719,131 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     return 0
 
 
+def _albumu_yenile(con, mesaj_id: int) -> None:
+    """
+    Üstteki slayt albümünü siler ve güncel hâlini yeniden gönderir.
+
+    ⚠️ TELEGRAM ALBÜMÜNDE TEK FOTOĞRAF DEĞİŞTİRİLEMİYOR. Media group
+    atomik bir birim; `editMessageMedia` albüm öğelerinde çalışmıyor.
+    Albümü güncel göstermenin tek yolu eskisini silip yeniden göndermek.
+
+    ⚠️ İKİ YERDEN çağrılıyor (görsel değiştirme ve haber değiştirme).
+    Kopyalamak yerine tek fonksiyon: bu projedeki kusurların çoğu aynı
+    işi yapan iki kod yolundan birinin unutulmasıydı.
+    """
+    yeniler = turu_getir(con, mesaj_id)
+    urller = [h["gorsel_url"] for h in yeniler if h["gorsel_url"]]
+    eski_albom = db.ayar_oku(con, f"albom_{mesaj_id}", "")
+    if eski_albom:
+        try:
+            telegram_bot.mesajlari_sil(json.loads(eski_albom))
+        except Exception as e:                        # noqa: BLE001
+            log.warning("eski albüm silinemedi: %s", e)
+    try:
+        yeni_idler = telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
+        db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(yeni_idler or []))
+    except Exception as e:                            # noqa: BLE001
+        log.warning("albüm yenilenemedi: %s", e)
+
+
+def haber_degistir(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
+    """
+    Turdaki bir haberin yerine geçebilecek 2 alternatifi sunar.
+
+    Kullanıcı isteği (20 Ağu 2026): "10'lu tur geldi, akşam
+    haberlerden bir ya da birkaçını değiştirebilmeliyim; değiştir
+    dediğim her haber için haber başı 2 öneri gelsin".
+
+    Bu adım YALNIZCA öneriyor — değiştirme, kullanıcı alternatiflerden
+    birini seçince yapılıyor. Sebep: değiştirme slayt üretimi ve albüm
+    yenilemesi demek, geri alması pahalı.
+    """
+    if sira < 1 or sira > len(haberler):
+        telegram_bot.mesaj_gonder(f"⚠️ {sira}. slayt bulunamadı.")
+        return 1
+    mevcut = haberler[sira - 1]
+    idler = [h["id"] for h in haberler]
+
+    adaylar = aday.alternatifler(con, ayarlar, mevcut, idler, adet=2)
+    if not adaylar:
+        telegram_bot.mesaj_gonder(
+            f"⚠️ {sira}. slayt için uygun alternatif bulunamadı.\n"
+            "Havuzda metni hazır, bayatlamamış ve daha önce "
+            "yayınlanmamış haber kalmamış olabilir.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
+
+    telegram_bot.mesaj_gonder(
+        f"🔄 {sira}. slayt şu an:\n"
+        f"«{mevcut['ig_baslik'] or mevcut['baslik_orj']}»\n\n"
+        "Yerine hangisi gelsin?",
+        butonlar=telegram_bot.alternatif_menusu(sira, adaylar,
+                                                len(haberler))["inline_keyboard"])
+    log.info("slayt %s için %s alternatif sunuldu", sira, len(adaylar))
+    return 0
+
+
+def haberi_degistir_uygula(con, ayarlar, haberler, sira: int, yeni_id: int,
+                           mesaj_id: int) -> int:
+    """
+    Seçilen alternatifi tura koyar, eskisini havuza döndürür.
+
+    ⚠️ ESKİ HABER ELENMİYOR — `metin_hazir` olarak havuza dönüyor ve
+    sonraki turlarda yeniden yarışıyor. Projedeki genel kural bu:
+    onaylanmayan haber kaybolmaz.
+    """
+    if sira < 1 or sira > len(haberler):
+        telegram_bot.mesaj_gonder(f"⚠️ {sira}. slayt bulunamadı.")
+        return 1
+    eski = haberler[sira - 1]
+    yeni = con.execute("SELECT * FROM haberler WHERE id = ?",
+                       (yeni_id,)).fetchone()
+    if not yeni:
+        telegram_bot.mesaj_gonder("⚠️ Seçilen haber bulunamadı.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 1
+    if yeni["telegram_message_id"]:
+        telegram_bot.mesaj_gonder(
+            "⚠️ Bu haber bu arada başka bir tura girmiş, kullanılamaz.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
+
+    # Slaytı ÜRET — hata olursa tura hiç dokunmuyoruz.
+    try:
+        yol, katman, atif = slaytlar.slayt_uret(dict(yeni), ayarlar)
+        url = upload_image.gorsel_yukle(yol, ayarlar)["url"]
+    except Exception as e:                            # noqa: BLE001
+        log.exception("alternatif slaytı üretilemedi")
+        telegram_bot.mesaj_gonder(
+            f"⚠️ Yeni haberin slaytı üretilemedi: {type(e).__name__}: {e}\n"
+            "Tur değişmedi.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 1
+
+    # Eski haber havuza, yeni haber tura. `tur` alanı korunuyor ki
+    # sıralama bozulmasın.
+    con.execute(
+        "UPDATE haberler SET durum = 'metin_hazir', telegram_message_id = NULL, "
+        "tur = NULL WHERE id = ?", (eski["id"],))
+    con.execute(
+        "UPDATE haberler SET durum = 'onay_bekliyor', telegram_message_id = ?, "
+        "tur = ?, gorsel_yolu = ?, gorsel_url = ?, gorsel_kaynagi = ?, "
+        "gorsel_atif = ?, gonderim_zamani = ? WHERE id = ?",
+        (mesaj_id, eski["tur"], str(yol), url, katman, atif,
+         eski["gonderim_zamani"], yeni_id))
+    con.commit()
+    db_senkron.hemen_kaydet(f"Turda {sira}. haber değiştirildi")
+
+    _albumu_yenile(con, mesaj_id)
+    menuyu_geri_koy(con, mesaj_id)
+    telegram_bot.mesaj_gonder(
+        f"✅ {sira}. slayt değiştirildi:\n"
+        f"«{yeni['ig_baslik'] or yeni['baslik_orj']}»\n\n"
+        "Eski haber elenmedi, havuza döndü.")
+    log.info("slayt %s: %s -> %s", sira, eski["id"], yeni_id)
+    return 0
+
+
 def gorseli_kabul_et(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
     """
     Değiştirilen görseli kalıcı yapar ve albümü yeniler.
@@ -747,21 +873,7 @@ def gorseli_kabul_et(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
     con.commit()
     db_senkron.hemen_kaydet("Slayt görseli değiştirildi")
 
-    # Albümü yenile: eskisini sil, yenisini gönder.
-    yeniler = turu_getir(con, mesaj_id)
-    urller = [h["gorsel_url"] for h in yeniler if h["gorsel_url"]]
-    eski_albom = db.ayar_oku(con, f"albom_{mesaj_id}", "")
-    if eski_albom:
-        try:
-            telegram_bot.mesajlari_sil(json.loads(eski_albom))
-        except Exception as e:                        # noqa: BLE001
-            log.warning("eski albüm silinemedi: %s", e)
-    try:
-        yeni_idler = telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
-        db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(yeni_idler or []))
-    except Exception as e:                            # noqa: BLE001
-        log.warning("albüm yenilenemedi: %s", e)
-
+    _albumu_yenile(con, mesaj_id)
     telegram_bot.mesaj_gonder(f"✅ {sira}. slaytın görseli güncellendi.")
     log.info("slayt %s görseli kabul edildi (haber=%s)", sira, haber["id"])
     return 0
@@ -1217,7 +1329,9 @@ def main() -> int:
         DEGISTIRICI = {"yayinla", "iptal", "ertele", "tura_birak",
                        "metin_yenile", "plan_iptal"}
         if (komut in DEGISTIRICI or komut.startswith("slayt_")
-                or komut.startswith("yayinla_sonra:")) and any(
+                or komut.startswith("yayinla_sonra:")
+                or komut.startswith("haber_degistir:")
+                or komut.startswith("haber_sec:")) and any(
                 h["durum"] == "yayinlandi" for h in haberler):
             post = next((h["ig_post_id"] for h in haberler
                          if h["ig_post_id"]), None)
@@ -1249,6 +1363,14 @@ def main() -> int:
         if komut == "metin_yenile":
             return metin_yenile(con, ayarlar, haberler, mesaj_id)
         # Görsel onay düğmeleri
+        # Haber değiştirme: önce alternatif sun, sonra uygula
+        if komut.startswith("haber_degistir:"):
+            return haber_degistir(con, ayarlar, haberler,
+                                  int(komut.split(":")[1]), mesaj_id)
+        if komut.startswith("haber_sec:"):
+            _, sira, yeni = komut.split(":")
+            return haberi_degistir_uygula(con, ayarlar, haberler,
+                                          int(sira), int(yeni), mesaj_id)
         if komut.startswith("gorsel_kabul:"):
             return gorseli_kabul_et(
                 con, ayarlar, haberler, int(komut.split(":")[1]), mesaj_id)
