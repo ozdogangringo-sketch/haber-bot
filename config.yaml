@@ -78,7 +78,6 @@ genel:
     teknoloji: 5
     kultur: 5
     yasam: 5
-  son_dakika_ek_metin_adedi: 4
   # Tekil post adayı bu kadar saatten taze olmalı. 3 saat çok dardı:
   # ölçüldü, hazır metinlerin %98'i bu filtreye takılıyordu.
   son_dakika_tazelik_saat: 5

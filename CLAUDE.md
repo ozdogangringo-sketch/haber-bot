@@ -908,6 +908,41 @@ hatirlatma_sayisi, ertelenme_sayisi, durum, ig_post_id, hata_mesaji`
 Tarih düzeltmesi ve caption seçimi, ikisi de yalnızca bir dosyaya uygulandı;
 onaylı yayınlar başka dosyadan çıktığı için düzeltme onlara hiç işlemedi.
 
+### İKİ TEST KATMANI — kod değiştirdikten sonra ikisini de çalıştır
+
+```bash
+python scripts/test_0_butunluk.py    # çağrılar ve imzalar geçerli mi
+python scripts/test_7_sozlesme.py    # kurallar her yerde uygulanmış mı
+```
+
+`.github/workflows/testler.yml` ikisini de her push'ta çalıştırıyor —
+`src/`, `scripts/`, `worker/`, `config.yaml` değişince tetikleniyor.
+Ağa çıkmıyor, veritabanına dokunmuyor, saniyeler sürüyor.
+
+⚠️ **Neden İKİ katman:** bütünlük testi kodun ÇAĞRILABİLİR olduğunu
+denetliyor (fonksiyon var mı, imza uyuyor mu). Sözleşme testi kodun
+DOĞRU DAVRANDIĞINI denetliyor. Bu projedeki kusurların çoğu ikinci
+kategoride ve ortak desenleri şu: **aynı kural birden fazla yerde
+yaşıyor ve biri unutuluyor.**
+
+`test_7_sozlesme.py` şu anda 46 denetim yapıyor ve hepsi gerçek bir
+olaydan doğdu:
+
+| denetim | hangi olaydan doğdu |
+|---|---|
+| mükerrer engeli her akışta var mı | 1p — aynı olay bir saat arayla iki kez yayınlandı |
+| config'deki her ayar okunuyor mu | `instagram.deneme_sayisi` ölü ayardı |
+| sabit kodlanmış eşik yok | `TAZELIK_SAAT=3` config'i eziyordu |
+| prompt kopyaları tutarlı | puan bandı bir prompta uygulandı, ikincisi unutuldu |
+| Worker ↔ Python buton uyumu | yeni buton Telegram'da "tanınmayan komut" verdi |
+| YAML'da çıplak `git rebase` yok | 1d/1f — repoyu detached HEAD'de kilitledi |
+| öneri eşiği < yayın eşiği | toplu puanlama 1.6 puan düşük veriyor |
+
+⚠️ **Testi yazarken yanlış pozitife dikkat:** ilk sürüm YAML'lardaki
+*uyarı yorumlarını* ihlal sanıp 4 sahte hata verdi. Yorum satırları
+atlanıyor. Yanlış alarm veren test, hiç olmayan testten kötüdür —
+insan onu görmezden gelmeye başlar.
+
 ### `test_0_butunluk.py` — ÖNCE BUNU ÇALIŞTIR
 
 Scriptleri **çalıştırmadan** ayrıştırıp her `modul.fonksiyon()` çağrısının

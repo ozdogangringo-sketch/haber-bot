@@ -1,0 +1,44 @@
+# =========================================================
+#  TESTLER — her push'ta çalışır
+#
+#  NİYE VAR: bu projede kusurların çoğu "aynı kural birden fazla
+#  yerde yaşıyor ve biri unutuluyor" deseninde. Örnekler:
+#    * mükerrer engeli üç yerde gerekiyordu, ikisine konmuştu
+#    * prompt'un bir kopyası güncellendi, ikincisi unutuldu
+#    * config'deki ayar kod tarafından hiç okunmuyordu
+#    * `oneri_esigi` silindi, hata ancak GECE cron çalışınca çıktı
+#
+#  Bu testler ağa çıkmıyor, veritabanına dokunmuyor, para
+#  harcamıyor — saniyeler sürüyor. Amaç: bozuk kodu push anında
+#  yakalamak, gece yarısı cron patlayana kadar beklememek.
+# =========================================================
+
+name: Testler
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "scripts/**"
+      - "worker/**"
+      - "config.yaml"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Bütünlük testi (çağrılar ve imzalar)
+        run: python scripts/test_0_butunluk.py
+
+      - name: Sözleşme testleri (davranış kuralları)
+        run: python scripts/test_7_sozlesme.py
