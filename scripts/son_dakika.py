@@ -235,6 +235,25 @@ def taze_adaylar(con, ayarlar: dict, kac: int) -> list:
 METIN_URETILDI = -1
 
 
+def oneri_esigi(ayarlar: dict, kategori: str | None) -> int:
+    """
+    ÖNERİ aşamasının eşiği — tam metin eşiğinden ayrı.
+
+    ⚠️ Toplu başlık puanlaması aynı habere tam metin puanlamasından
+    ortalama 1.5-1.8 puan DÜŞÜK veriyor (ölçüldü). Aynı eşiği
+    kullanmak öneri akışını tamamen kilitliyordu: hiçbir başlık 8'e
+    ulaşamadığı için öneri hiç gönderilmiyordu.
+
+    ⚠️ GECE KURALI BURADA UYGULANMIYOR — bilerek. Yayın eşiğinde gece
+    +1 var, çünkü gece çıkan post kimsenin onayından geçmeden yayında
+    kalıyor. Ama ÖNERİ yayın değil, yalnızca insana sunma: mesaj gece
+    gelir, kullanıcı sabah bakıp seçer.
+    """
+    g = ayarlar["genel"]
+    esikler = g.get("oneri_kategori_esikleri", {}) or {}
+    return esikler.get(kategori, 6)
+
+
 def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     """
     Taze başlıkları ucuz yoldan puanlayıp Telegram'a ÖNERİ gönderir.

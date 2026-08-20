@@ -22,6 +22,7 @@ BU TEST NE YAPIYOR:
 """
 
 import ast
+import builtins
 import importlib
 import inspect
 import sys
@@ -91,6 +92,54 @@ def argumanlari_denetle(fn, cagri: ast.Call) -> str | None:
             return f"'{ad}' diye bir parametresi yok"
 
     return None
+
+
+
+def tanimsiz_isimleri_bul(yol: str, agac: ast.AST) -> list[str]:
+    """
+    Dosya İÇİNDE çağrılan ama hiçbir yerde tanımlanmamış isimleri bulur.
+
+    ⚠️ NEDEN GEREKTİ (20 Ağu 2026): `son_dakika.py` içinde
+    `oneri_esigi(...)` çağrılıyordu ama fonksiyon bir düzenleme
+    sırasında silinmişti. Bütünlük testi bunu GÖREMEDİ çünkü yalnızca
+    `modul.fonksiyon()` biçimindeki çağrıları denetliyordu; düz
+    `fonksiyon()` çağrıları kapsam dışıydı.
+
+    Sonuç: kod sözdizimi açısından geçerliydi, test temiz geçti, ve
+    hata ancak GECE YARISI cron çalışınca ortaya çıktı —
+    `NameError: name 'oneri_esigi' is not defined`. Tam olarak bu
+    testin var olma sebebi olan senaryo.
+    """
+    tanimli = set(dir(builtins))
+    for dugum in ast.walk(agac):
+        if isinstance(dugum, (ast.FunctionDef, ast.AsyncFunctionDef,
+                              ast.ClassDef)):
+            tanimli.add(dugum.name)
+            # Parametreler ve yerel değişkenler
+            if isinstance(dugum, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                a = dugum.args
+                for arg in (a.args + a.posonlyargs + a.kwonlyargs
+                            + ([a.vararg] if a.vararg else [])
+                            + ([a.kwarg] if a.kwarg else [])):
+                    tanimli.add(arg.arg)
+        elif isinstance(dugum, (ast.Import, ast.ImportFrom)):
+            for ad in dugum.names:
+                tanimli.add((ad.asname or ad.name).split(".")[0])
+        elif isinstance(dugum, ast.Name) and isinstance(dugum.ctx, ast.Store):
+            tanimli.add(dugum.id)
+        elif isinstance(dugum, ast.ExceptHandler) and dugum.name:
+            tanimli.add(dugum.name)
+        elif isinstance(dugum, (ast.comprehension,)):
+            pass
+
+    eksik = []
+    for dugum in ast.walk(agac):
+        # Yalnızca ÇAĞRILAN düz isimler: fonksiyon() biçimi
+        if (isinstance(dugum, ast.Call)
+                and isinstance(dugum.func, ast.Name)
+                and dugum.func.id not in tanimli):
+            eksik.append(f"{yol}:{dugum.lineno} — {dugum.func.id}() tanımlı değil")
+    return eksik
 
 
 def config_denetle() -> list[str]:
@@ -196,6 +245,9 @@ def main() -> int:
             if sorun:
                 hatalar.append(f"{yol}:{dugum.lineno} — "
                                f"{esleme[takma]}.{fn_ad}(): {sorun}")
+
+        # Aynı dosyada tanımsız fonksiyon çağrısı var mı?
+        hatalar += tanimsiz_isimleri_bul(yol, agac)
 
     hatalar += config_denetle()
 
