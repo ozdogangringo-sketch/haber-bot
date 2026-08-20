@@ -908,6 +908,42 @@ hatirlatma_sayisi, ertelenme_sayisi, durum, ig_post_id, hata_mesaji`
 Tarih düzeltmesi ve caption seçimi, ikisi de yalnızca bir dosyaya uygulandı;
 onaylı yayınlar başka dosyadan çıktığı için düzeltme onlara hiç işlemedi.
 
+### `src/aday.py` — seçim kurallarının TEK kapısı
+
+"Bu haber şu bağlamda yayınlanabilir mi?" sorusu artık tek yerde
+cevaplanıyor. Bağlamlar: `tur` (carousel), `tekil` (gün içi post),
+`oneri` (Telegram başlık önerisi).
+
+```python
+baglam = aday.Baglam.kur("tekil", ayarlar, con)
+secilen = aday.sec(havuz, baglam, adet=1)
+```
+
+⚠️ **NİYE GEREKTİ:** bu projedeki kusurların çoğu "kural yanlıştı"
+değil, **"kural doğru ama bir yerde uygulanmamıştı"** hatasıydı —
+1j, 1p, tazelik sabiti. Kurallar tek kapıda toplanınca o hata sınıfı
+yapısal olarak imkânsızlaşıyor: yeni akış `uygun_mu()` çağırıyor ve
+bütün kurallar otomatik geliyor.
+
+**Yan kazanç — teşhis.** `aday.sec` elenme sebeplerini sayıp
+logluyor:
+
+```
+[tekil] eleme: bayat=247, bu konu son günlerde yayınlandı=2, puan yetersiz=12
+```
+
+"Tekil post 5 saat çıkmadı" olayında havuzun %98'inin tazelik
+filtresine takıldığı ancak elle sorgu yazılarak bulunmuştu; artık log
+doğrudan söylüyor.
+
+⚠️ **`konu_imzasi` vs `_ozel_isimler`** — tekrar denetiminde
+`secim.konu_imzasi()` kullanılır. Farkı: başlığın İLK kelimesini de
+sayar. `_ozel_isimler` onu bilerek atlıyor (her başlık büyük harfle
+başlar) ama haber başlıkları çok sık yer adıyla başlıyor
+("Kolombiya'da…", "Ankara'da…") ve ilk kelime atlanınca ortak özel
+isim kalmıyor, tekrar YAKALANAMIYOR. Sözleşme testi bu kusuru
+`aday.py`'nin ilk sürümünde yakaladı.
+
 ### İKİ TEST KATMANI — kod değiştirdikten sonra ikisini de çalıştır
 
 ```bash

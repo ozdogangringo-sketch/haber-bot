@@ -286,8 +286,11 @@ def yayinlanmis_konular(con, ayarlar: dict) -> list[set]:
              AND gonderim_zamani > datetime('now', ?)""",
         (f"-{gun} day",),
     ).fetchall()
-    return [(_anahtar_kelimeler(b), _ozel_isimler(b))
-            for b in ((r[0] or r[1]) for r in satirlar) if b]
+    # ⚠️ `konu_imzasi` — `_ozel_isimler` DEĞİL. İkincisi başlığın ilk
+    # kelimesini atlıyor ve haber başlıkları çok sık yer adıyla
+    # başlıyor ("Kolombiya'da...", "Ankara'da..."); ilk kelime
+    # atlanınca ortak özel isim kalmıyor ve tekrar yakalanamıyor.
+    return [konu_imzasi(b) for b in ((r[0] or r[1]) for r in satirlar) if b]
 
 
 def cesitlendir(adaylar: list, adet: int, ayarlar: dict,
@@ -340,7 +343,11 @@ def cesitlendir(adaylar: list, adet: int, ayarlar: dict,
         # İki şart BİRLİKTE aranıyor: yeterince ortak kelime VE en az
         # bir ortak özel isim. Tek başına kelime sayısı "Resmi Gazete'de
         # yayımlandı" gibi kalıplarda yanlış eşleşme veriyordu.
-        isimler = _ozel_isimler(haber["ig_baslik"] or haber["baslik_orj"])
+        # ⚠️ `konu_imzasi` — geçmiş denetiminde kullanılan imzayla AYNI
+        # olmalı. `yayinlanmis_konular` konu_imzasi ile kuruluyor;
+        # burada farklı bir fonksiyon kullanmak iki tarafı kıyaslanamaz
+        # hale getirir ve tekrar sessizce yakalanamaz.
+        _, isimler = konu_imzasi(haber["ig_baslik"] or haber["baslik_orj"])
         yeterince_buyuk = (haber["onem_puani"] or 0) >= muafiyet
         if not yeterince_buyuk and any(
                 len(kelimeler & ok) >= gecmis_esik and (isimler & oi)
