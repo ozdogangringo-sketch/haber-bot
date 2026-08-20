@@ -378,6 +378,21 @@ def aday_bul(con, ayarlar: dict):
              - timedelta(hours=_tazelik_saat(ayarlar))).isoformat()
     kat_azami = ayarlar["genel"].get("son_dakika_kategori_azami", 3)
 
+    # ⚠️ SON GÜNLERDE YAYINLANMIŞ OLAYI TEKRAR SEÇME.
+    #
+    # 20 Ağu 2026: sabah turunda (05:55) "Rusya'nın Kiev ve Jitomir'e
+    # füzeli saldırısında en az 10 kişi..." yayınlandı; bir saat sonra
+    # (06:56) "Rus ordusu Kiev'i füzelerle vurdu: En az 8 kişi..."
+    # TEKİL post olarak çıktı. Aynı olay, iki ayrı gönderi.
+    #
+    # Bu denetim `onerileri_gonder` ve `secim.tur_icin_sec` içinde
+    # vardı ama BURADA yoktu — metni hazır bir haber, turda yayınlanan
+    # olayın benzeri olsa bile aday olabiliyordu.
+    s = ayarlar.get("secim", {}) or {}
+    gecmis_esik = s.get("gecmis_ortak_kelime_esigi",
+                        s.get("konu_ortak_kelime_esigi", 2) + 1)
+    gecmis = secim.yayinlanmis_konular(con, ayarlar)
+
     # Eşik artık kategoriye göre değiştiği için SQL'de süzemiyoruz;
     # en düşük eşikle çekip Python tarafında her habere kendi eşiğini
     # uyguluyoruz. Havuz zaten 'metin_hazir' ile sınırlı, maliyeti yok.
@@ -401,6 +416,15 @@ def aday_bul(con, ayarlar: dict):
         # "turkiye"den çıkardı ve spor/ekonomi için açılan kapı yine
         # kapanmış olurdu.
         if bugunku_kategori_sayisi(con, h["kategori"] or "") >= kat_azami:
+            continue
+        # Bu olayı son günlerde zaten yayınladık mı?
+        baslik = h["ig_baslik"] or h["baslik_orj"]
+        kelimeler = secim._anahtar_kelimeler(baslik)
+        isimler = secim._ozel_isimler(baslik)
+        if any(len(kelimeler & ok) >= gecmis_esik and (isimler & oi)
+               for ok, oi in gecmis):
+            log.info("konu son günlerde yayınlanmış, atlanıyor: %s",
+                     baslik[:60])
             continue
         adaylar.append(h)
 

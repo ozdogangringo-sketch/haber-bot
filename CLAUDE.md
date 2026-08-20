@@ -470,6 +470,29 @@ bakılarak doğru kaynak/kategoriye taşındı.
 
 Ölçüldü (son 3 gün): **spor 50 → 100, kultur 0 → 21.**
 
+**1p. ⚠️ TURDA YAYINLANAN HABER BİR SAAT SONRA TEKİL POST OLARAK ÇIKTI.**
+
+20 Ağu 2026, kullanıcı bildirdi. Aynı olay iki gönderi:
+* 05:55 (tur) — "Rusya'nın Kiev ve Jitomir'e füzeli saldırısında en
+  az 10 kişi hayatını kaybetti"
+* 06:56 (tekil) — "Rus ordusu Kiev'i füzelerle vurdu: En az 8 kişi
+  hayatını kaybetti"
+
+Kural doğru çalışsaydı elerdi (4 ortak kelime + ortak özel isim
+"kiev"). Sorun kuralın kendisinde değil, **nerede uygulandığındaydı**:
+`secim.yayinlanmis_konular()` denetimi `onerileri_gonder` ve
+`secim.tur_icin_sec` içinde vardı ama **`aday_bul`'da YOKTU**. Metni
+hazır bir haber, turda yayınlanan olayın benzeri olsa bile tekil post
+adayı olabiliyordu.
+
+⚠️ Bu, 1j'deki dersin tekrarı: *bir düzeltmeyi uygularken aynı işi
+yapan DİĞER kod yolunu da ara.* Mükerrer engeli üç yerde gerekiyordu,
+ikisine konmuştu.
+
+Ölçüldü: denetim aşırı değil — son 24 saatte metni hazır 78 haberin
+yalnızca 6'sı (%8) eleniyor ve elenenler gerçekten daha önce
+yayınlanmış konuların varyasyonları.
+
 **1o. ⚠️ "database is locked" — BAĞLANTI KAPATILMIYORDU.**
 
 20 Ağu 2026, kullanıcı bildirdi: "2 tanesini seçtim, birini oluşturdu
