@@ -1,0 +1,22 @@
+# Görsel barındırıcı adaylarını RUNNER'DAN test eder.
+#
+# ⚠️ Neden ayrı workflow: yerel test yanıltıcı. catbox.moe ev
+# bağlantısından çalışıyor ama GitHub runner'ın veri merkezi IP'sinden
+# "412 Invalid uploader" veriyor. Yedek barındırıcı seçmeden önce
+# burayı çalıştır.
+name: Barındırıcı Testi
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python scripts/test_barindirici.py
