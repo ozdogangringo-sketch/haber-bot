@@ -50,7 +50,10 @@ _ayarlar_onbellek: dict = {}
 # taşımıyor; buraya eklenmezse main() daha en başta hata verip çıkıyor.
 # (`/tur` buraya girmiyor — workflow onu `hazirla.py`'ye yönlendiriyor,
 #  bu script'e hiç uğramıyor.)
-MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara"}
+# ⚠️ `haber_sec`/`haber_vazgec` tur id'sini KOMUTTA taşıyor; Worker'ın
+# gönderdiği mesaj_id alternatif mesajına ait ve işe yaramıyor.
+MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
+                     "haber_sec", "haber_vazgec"}
 
 
 def turu_getir(con, mesaj_id: int) -> list:
@@ -777,8 +780,8 @@ def haber_degistir(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
         f"🔄 {sira}. slayt şu an:\n"
         f"«{mevcut['ig_baslik'] or mevcut['baslik_orj']}»\n\n"
         "Yerine hangisi gelsin?",
-        butonlar=telegram_bot.alternatif_menusu(sira, adaylar,
-                                                len(haberler))["inline_keyboard"])
+        butonlar=telegram_bot.alternatif_menusu(
+            sira, adaylar, mesaj_id)["inline_keyboard"])
     log.info("slayt %s için %s alternatif sunuldu", sira, len(adaylar))
     return 0
 
@@ -1268,6 +1271,23 @@ def main() -> int:
     # İkinci sebep daha ince: "ayar:genel.gece_otomatik_yayin" içinde ":"
     # var; aşağıdaki `":" in komut` dalına düşerse slayt işlemi sanılıp
     # `int(sira)` çağrısında patlar.
+    # ⚠️ BU KOMUTLAR TUR MESAJ ID'SİNİ KENDİ İÇİNDE TAŞIYOR ve ayrı bir
+    # mesajın düğmesinden geliyor. `mesaj_id` (Worker'ın gönderdiği)
+    # alternatif mesajını işaret ediyor, turu DEĞİL — bu yüzden
+    # `turu_getir` kontrolünden önce ele alınmalılar.
+    if komut.startswith("haber_sec:"):
+        _, sira, yeni_id, tur_mid = komut.split(":")
+        tur = turu_getir(con, int(tur_mid))
+        if not tur:
+            telegram_bot.mesaj_gonder("⚠️ Değiştirilecek tur bulunamadı.")
+            return 1
+        return haberi_degistir_uygula(con, ayarlar, tur, int(sira),
+                                      int(yeni_id), int(tur_mid))
+    if komut.startswith("haber_vazgec:"):
+        menuyu_geri_koy(con, int(komut.split(":")[1]))
+        telegram_bot.mesaj_gonder("Haber değiştirilmedi.")
+        return 0
+
     if komut == "ayar":
         return ayar_paneli(con, ayarlar)
     if komut == "tamamla":
@@ -1367,10 +1387,7 @@ def main() -> int:
         if komut.startswith("haber_degistir:"):
             return haber_degistir(con, ayarlar, haberler,
                                   int(komut.split(":")[1]), mesaj_id)
-        if komut.startswith("haber_sec:"):
-            _, sira, yeni = komut.split(":")
-            return haberi_degistir_uygula(con, ayarlar, haberler,
-                                          int(sira), int(yeni), mesaj_id)
+
         if komut.startswith("gorsel_kabul:"):
             return gorseli_kabul_et(
                 con, ayarlar, haberler, int(komut.split(":")[1]), mesaj_id)

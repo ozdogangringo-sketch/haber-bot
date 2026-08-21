@@ -489,6 +489,57 @@ def test_ertelemede_menu_kaliyor() -> None:
             "ertele() menüyü geri koyuyor")
 
 
+def test_ayri_mesajdaki_dugme_tur_id_tasiyor() -> None:
+    """
+    Onay mesajından BAŞKA bir mesajda duran her düğme, hedef turun
+    id'sini kendi içinde taşımalı.
+
+    Worker düğmeye basıldığında `cb.message.message_id` gönderiyor —
+    yani düğmenin BULUNDUĞU mesajın id'sini. Ayrı bir mesajdaki düğme
+    için bu değer turu göstermez.
+
+    ⚠️ İKİ KEZ YAŞANDI:
+      * `kaldir` (yayın sonucu mesajı) — çözülmüş, id gömülü.
+      * `haber_sec` (alternatif mesajı) — 20 Ağu 2026, düğmeye basıldı
+        ve job "mesaj_id=487 için haber bulunamadı" ile düştü; tur
+        474'tü. Aynı tuzak, yeni kod yolu.
+    """
+    tb = (KOK / "src/telegram_bot.py").read_text(encoding="utf-8")
+    # (fonksiyon, komut, callback_data'da bulunması gereken değişken)
+    for menu, komut, degisken in (
+            ("alternatif_menusu", "haber_sec", "tur_mesaj_id"),
+            ("alternatif_menusu", "haber_vazgec", "tur_mesaj_id"),
+            ("sonucu_yaz", "kaldir", "message_id")):
+        govde = tb.split(f"def {menu}(")[1].split("\ndef ")[0]
+        satirlar = [s for s in govde.splitlines() if f"{komut}:" in s]
+        denetle(bool(satirlar) and any(degisken in s for s in satirlar),
+                f"{menu}: '{komut}' düğmesi tur mesaj id'sini taşıyor",
+                f"callback_data'da {degisken} yok — Worker'ın gönderdiği "
+                "mesaj id'si o düğmenin bulunduğu mesaja ait, turu "
+                "göstermez")
+
+
+def test_havuza_donen_haber_metnini_koruyor() -> None:
+    """
+    Onaylanmayan tur havuza dönerken METNİ OLAN haber 'metin_hazir'
+    olmalı, 'yeni' değil.
+
+    'yeni' yapılırsa sonraki tur o haberi Gemini'ye TEKRAR gönderiyor
+    ve zaten üretilmiş metin için ikinci kez kota harcanıyor. Ücretsiz
+    kota model başına günde 20 istek — bu israf doğrudan turu düşürüyor.
+
+    ⚠️ Kural İKİ YERDE yaşıyor ve biri unutulmuştu: `son_dakika`
+    baştan doğru yapıyordu, `hatirlat.py` 20 Ağu 2026'da 10 haberlik
+    bir turu 'yeni' yazarak havuza döndürdü.
+    """
+    for dosya in ("scripts/hatirlat.py", "scripts/son_dakika.py"):
+        kaynak = (KOK / dosya).read_text(encoding="utf-8")
+        denetle("ig_baslik IS NOT NULL THEN 'metin_hazir'" in kaynak,
+                f"havuza dönen haber metnini koruyor ({dosya})",
+                "durum düz 'yeni' yapılıyor — üretilmiş metin çöpe "
+                "gidiyor ve Gemini kotası ikinci kez harcanıyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -514,6 +565,8 @@ def main() -> int:
         test_planlanmis_yayin_zaman_asimlarindan_muaf,
         test_mukerrer_instagrama_da_bakiyor,
         test_ertelemede_menu_kaliyor,
+        test_ayri_mesajdaki_dugme_tur_id_tasiyor,
+        test_havuza_donen_haber_metnini_koruyor,
     ):
         try:
             test()

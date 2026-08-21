@@ -118,18 +118,33 @@ def main() -> int:
         log.info("tur %.1f saattir onaysız, havuza dönüyor", yas / 60)
 
     if (simdi.hour >= HAVUZA_DON_SAATI_UTC or cok_bekledi) and not taze:
+        # ⚠️ METNİ OLAN HABER 'metin_hazir'E DÖNER, 'yeni'YE DEĞİL.
+        # 'yeni' yapılırsa sonraki tur o haberi Gemini'ye TEKRAR
+        # gönderiyor ve zaten üretilmiş metin için ikinci kez kota
+        # harcanıyor. 20 Ağu 2026'da 10 haberlik tur kapanırken tam
+        # bu oldu — hepsi 'yeni' yazıldı.
+        # `son_dakika.suresi_gecmisi_iptal_et` bunu baştan doğru
+        # yapıyordu; kural iki yerde yaşıyor ve biri unutulmuştu
+        # (CLAUDE.md 1f/1j'deki desenin aynısı).
         con.execute(
-            "UPDATE haberler SET durum = 'yeni', telegram_message_id = NULL "
+            "UPDATE haberler SET telegram_message_id = NULL, "
+            "durum = CASE WHEN ig_baslik IS NOT NULL THEN 'metin_hazir' "
+            "             ELSE 'yeni' END "
             "WHERE telegram_message_id = ?",
             (mesaj_id,),
         )
         con.commit()
         try:
+            # ⚠️ bildir=True ŞART. `editMessageText` Telegram'da
+            # BİLDİRİM ÜRETMİYOR; onay mesajı sohbette yukarıda kaldığı
+            # için kullanıcı turun kapandığını hiç görmüyor ve ertesi
+            # gün "tur neden yayınlanmadı" diye soruyor (20 Ağu 2026).
             telegram_bot.sonucu_yaz(
                 mesaj_id,
                 f"🌙 Onay gelmedi, tur kapandı.\n"
                 f"{len(haberler)} haber havuza döndü — elenmediler, "
                 f"yarınki turda yeniden yarışacaklar.",
+                bildir=True,
             )
         except Exception as e:
             # Mesaj düzenlenemese bile veritabanı doğru; tur kapanmış olmalı

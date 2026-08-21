@@ -202,20 +202,30 @@ def ana_menu(adet: int) -> dict:
     ]}
 
 
-def alternatif_menusu(sira: int, adaylar: list, adet: int) -> dict:
+def alternatif_menusu(sira: int, adaylar: list, tur_mesaj_id: int) -> dict:
     """
     Bir slaytın yerine gelebilecek haberleri sunar.
 
-    Başlık DÜĞMENİN ÜSTÜNDE yazıyor çünkü `callback_data` 64 baytla
-    sınırlı — oraya yalnızca haber id'si sığıyor. Düğme metni de
-    Telegram'da tek satıra kırpıldığı için 60 karakterde kesiliyor.
+    ⚠️ TUR MESAJ ID'Sİ DÜĞMEYE GÖMÜLÜ. Bu menü AYRI bir mesajda
+    duruyor ve o mesajın kendi `message_id`'si turunkinden farklı;
+    Worker `cb.message.message_id` gönderdiği için tur bulunamıyor.
+    20 Ağu 2026'da tam bu oldu: düğmeye basıldı, job
+    "mesaj_id=487 için haber bulunamadı" ile düştü, tur 474'tü.
+
+    Aynı tuzak `kaldir:{tur_id}` düğmesinde zaten çözülmüştü —
+    CLAUDE.md'de kayıtlı. Yeni bir ayrı-mesaj düğmesi eklerken bu
+    deseni kullan.
+
+    Başlık düğme METNİNDE, `callback_data`'da değil: 64 bayt sınırı.
     """
     tuslar = []
     for a in adaylar:
         baslik = (a["ig_baslik"] or a["baslik_orj"] or "")[:58]
-        tuslar.append([{"text": f"✅ {baslik}",
-                        "callback_data": f"haber_sec:{sira}:{a['id']}"}])
-    tuslar.append([{"text": "← Vazgeç", "callback_data": f"geri:{adet}"}])
+        tuslar.append([{
+            "text": f"✅ {baslik}",
+            "callback_data": f"haber_sec:{sira}:{a['id']}:{tur_mesaj_id}"}])
+    tuslar.append([{"text": "← Vazgeç",
+                    "callback_data": f"haber_vazgec:{tur_mesaj_id}"}])
     return {"inline_keyboard": tuslar}
 
 

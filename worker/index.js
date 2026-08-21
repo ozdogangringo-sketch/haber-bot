@@ -45,7 +45,10 @@ const YAYINLA_SONRA = /^yayinla_sonra:(30|60|120|180|240)$/;
 //   "haber_sec:3:16380"     -> 3. slayta 16380 numaralı haberi koy
 // id yalnızca rakam; slayt numarası 1-10 (Instagram carousel sınırı).
 const HABER_DEGISTIR = /^haber_degistir:([1-9]|10)$/;
-const HABER_SEC = /^haber_sec:([1-9]|10):\d{1,8}$/;
+// ⚠️ Tur mesaj id'si komutun İÇİNDE ("haber_sec:5:16380:474"). Bu düğme
+// ayrı bir mesajda duruyor; cb.message.message_id turu göstermiyor.
+const HABER_SEC = /^haber_sec:([1-9]|10):\d{1,8}:\d{1,12}$/;
+const HABER_VAZGEC = /^haber_vazgec:\d{1,12}$/;
 
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
@@ -100,6 +103,7 @@ function eylemMi(veri) {
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
     || YAYINLA_SONRA.test(veri)
     || HABER_DEGISTIR.test(veri) || HABER_SEC.test(veri)
+    || HABER_VAZGEC.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA;
 }
