@@ -94,22 +94,14 @@ def bekleyen_tur(con):
     ))
 
 
-def main() -> int:
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s %(levelname)-7s %(message)s",
-                        datefmt="%H:%M:%S")
+def _turu_isle(con, mesaj_id: int, haberler: list, simdi) -> None:
+    """
+    Tek bir turu değerlendirir: hatırlat, kapat ya da dokunma.
 
-    yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
-    db.kur()
-    con = db.baglan()
-
-    haberler = bekleyen_tur(con)
-    if not haberler:
-        log.info("onay bekleyen tur yok, yapacak bir şey yok")
-        return 0
-
-    mesaj_id = haberler[0]["telegram_message_id"]
-    simdi = datetime.now(timezone.utc)
+    `main` her açık tur için ayrı ayrı çağırıyor — önce yalnızca
+    en yüksek puanlı haberin turu işleniyordu ve diğerleri
+    sonsuza kadar açık kalıyordu.
+    """
 
     # --- Gece: havuza döndür (ama taze turu değil) ---
     yas = _tur_yasi_dakika(haberler[0])
@@ -154,7 +146,7 @@ def main() -> int:
             # Mesaj düzenlenemese bile veritabanı doğru; tur kapanmış olmalı
             log.warning("sonuç mesajı yazılamadı: %s", e)
         log.info("%s haber havuza döndürüldü", len(haberler))
-        return 0
+        return
 
     # --- Erken saat: hatırlat ---
     sayi = (haberler[0]["hatirlatma_sayisi"] or 0) + 1
@@ -170,6 +162,44 @@ def main() -> int:
         f"Onay gelmezse gece havuza dönecek — haberler elenmiyor."
     )
     log.info("hatırlatma gönderildi (%s.)", sayi)
+    return
+
+
+
+
+def main() -> int:
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)-7s %(message)s",
+                        datefmt="%H:%M:%S")
+
+    yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    db.kur()
+    con = db.baglan()
+
+    haberler = bekleyen_tur(con)
+    if not haberler:
+        log.info("onay bekleyen tur yok, yapacak bir şey yok")
+        return 0
+
+    # ⚠️ AYNI ANDA BİRDEN FAZLA AÇIK TUR OLABİLİR ve hepsi işlenmeli.
+    #
+    # 21 Ağu 2026: sabah 09:23'te kurulan tur hiç kapanmadı çünkü bu
+    # fonksiyon yalnızca `haberler[0]`ın turunu işliyordu. Akşam yeni
+    # tur kurulunca hatırlatma hep ONU görüyor, sabahki tur sonsuza
+    # kadar açık kalıyordu. Kullanıcı "sırada 20 küsür bekliyor"
+    # uyarısını böyle aldı: 10 + 10 + 1 = 21 haber, üç tur birden.
+    turlar: dict = {}
+    for h in haberler:
+        turlar.setdefault(h["telegram_message_id"], []).append(h)
+    log.info("%s açık tur var: %s", len(turlar), list(turlar))
+
+    simdi = datetime.now(timezone.utc)
+    for mesaj_id, tur_haberleri in sorted(turlar.items()):
+        try:
+            _turu_isle(con, mesaj_id, tur_haberleri, simdi)
+        except Exception as e:                        # noqa: BLE001
+            # Bir turun hatası diğerlerini engellememeli.
+            log.exception("tur %s işlenemedi: %s", mesaj_id, e)
     return 0
 
 

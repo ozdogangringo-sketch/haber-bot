@@ -942,6 +942,25 @@ def test_etki_dogrulamasi() -> None:
             "etki kontrolü haberin durumuna bakıyor")
 
 
+def test_hatirlatma_tum_turlari_isliyor() -> None:
+    """
+    Aynı anda birden fazla açık tur olabilir ve HEPSİ işlenmeli.
+
+    21 Ağu 2026: sabah 09:23'te kurulan tur hiç kapanmadı çünkü
+    `hatirlat.main` yalnızca `haberler[0]`ın turunu işliyordu. Akşam
+    yeni tur kurulunca hatırlatma hep onu görüyor, sabahki tur
+    sonsuza kadar açık kalıyordu. Kullanıcı "sırada 20 küsür
+    bekliyor" uyarısını böyle aldı (10 + 10 + 1 = 21 haber).
+    """
+    kaynak = (KOK / "scripts/hatirlat.py").read_text(encoding="utf-8")
+    denetle("_turu_isle" in kaynak,
+            "hatırlatma her turu ayrı ayrı işliyor",
+            "yalnızca ilk tur işleniyor, diğerleri sonsuza kadar açık kalır")
+    ana = kaynak.split("def main(")[1]
+    denetle("turlar.setdefault" in ana or "for mesaj_id, tur_haberleri" in ana,
+            "açık turlar mesaj id'sine göre gruplanıyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -981,6 +1000,7 @@ def main() -> int:
         test_arama_yazim_toleransi,
         test_gunluk_sinir_gercek_yayini_sayiyor,
         test_etki_dogrulamasi,
+        test_hatirlatma_tum_turlari_isliyor,
     ):
         try:
             test()
