@@ -444,30 +444,39 @@ kaynaklar:
 
   # ---------- KATEGORİ BESLEMELERİ ----------
   - ad: "AA Bilim-Teknoloji"
+    gosterim_adi: "AA"
     url: "https://www.aa.com.tr/tr/rss/default?cat=bilim-teknoloji"
     kategori: "bilim"
     agirlik: 9
     aktif: true
 
   - ad: "AA Ekonomi"
+
+    gosterim_adi: "AA"
     url: "https://www.aa.com.tr/tr/rss/default?cat=ekonomi"
     kategori: "ekonomi"
     agirlik: 9
     aktif: true
 
   - ad: "AA Kültür"
+
+    gosterim_adi: "AA"
     url: "https://www.aa.com.tr/tr/rss/default?cat=kultur"
     kategori: "kultur"
     agirlik: 8
     aktif: true
 
   - ad: "AA Spor"
+
+    gosterim_adi: "AA"
     url: "https://www.aa.com.tr/tr/rss/default?cat=spor"
     kategori: "spor"
     agirlik: 8
     aktif: true
 
   - ad: "NTV Teknoloji"
+
+    gosterim_adi: "NTV"
     url: "https://www.ntv.com.tr/teknoloji.rss"
     kategori: "teknoloji"
     agirlik: 8
@@ -503,6 +512,8 @@ kaynaklar:
     aktif: true
 
   - ad: "NTV Dünya"
+
+    gosterim_adi: "NTV"
     url: "https://www.ntv.com.tr/dunya.rss"
     kategori: "dunya"
     agirlik: 8
@@ -515,18 +526,24 @@ kaynaklar:
     aktif: true
 
   - ad: "Habertürk Spor"
+
+    gosterim_adi: "HABERTÜRK"
     url: "https://www.haberturk.com/rss/kategori/spor.xml"
     kategori: "spor"
     agirlik: 7
     aktif: true
 
   - ad: "TRT Ekonomi"
+
+    gosterim_adi: "TRT HABER"
     url: "https://www.trthaber.com/xml_mobile.php?tur=xml_genel&kategori=ekonomi"
     kategori: "ekonomi"
     agirlik: 10
     aktif: true
 
   - ad: "TRT Dünya"
+
+    gosterim_adi: "TRT HABER"
     url: "https://www.trthaber.com/xml_mobile.php?tur=xml_genel&kategori=dunya"
     kategori: "dunya"
     agirlik: 10
@@ -544,12 +561,16 @@ kaynaklar:
   # segmentini MUTLAKA doğrula.
 
   - ad: "AA Dünya"
+
+    gosterim_adi: "AA"
     url: "https://www.aa.com.tr/tr/rss/default?cat=dunya"
     kategori: "dunya"
     agirlik: 9
     aktif: true
 
   - ad: "Motorsport TR"
+
+    gosterim_adi: "MOTORSPORT"
     url: "https://tr.motorsport.com/rss/all/news/"
     kategori: "spor"
     agirlik: 7

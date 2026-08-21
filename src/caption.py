@@ -27,7 +27,7 @@ import re
 from datetime import date
 
 from . import filtre
-from .make_image import tarih_metni
+from .make_image import kaynak_gosterim_adi, tarih_metni
 
 AZAMI_KARAKTER = 2200
 AZAMI_HASHTAG = 30
@@ -319,8 +319,11 @@ def caption_kur(
 
     kaynaklar = []
     for haber in haberler:
-        if haber["kaynak"] not in kaynaklar:
-            kaynaklar.append(haber["kaynak"])
+        # Besleme adı değil yayın kuruluşu: "AA Ekonomi" -> "AA".
+        # Slayttaki alt bilgiyle tutarlı olmalı.
+        ad = kaynak_gosterim_adi(haber["kaynak"], ayarlar)
+        if ad not in kaynaklar:
+            kaynaklar.append(ad)
     kaynak_satiri = "Kaynaklar: " + ", ".join(kaynaklar)
 
     ham_etiketler = _hashtaglari_birlestir(haberler)

@@ -233,7 +233,7 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
     gorsel = make_image.yaziyi_bas(
         arkaplan,
         haber["ig_baslik"] or haber["baslik_orj"],
-        haber["kaynak"],
+        make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
         ayarlar,
         ozet=_alan(haber, "slayt_ozet") or None,
         # Fotoğraf katmanlarında görsel o olayın belgesi değil; gradyanda
@@ -315,7 +315,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     gorsel1 = make_image.yaziyi_bas(
         ham_arkaplan.copy(),
         haber["ig_baslik"] or haber["baslik_orj"],
-        haber["kaynak"],
+        make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
         ayarlar,
         ozet=_alan(haber, "slayt_ozet") or None,
         arsiv_ibaresi=katman in ARSIV_KATMANLARI,
@@ -378,7 +378,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         gorsel2 = make_image.detay_slayti(
             haber["ig_baslik"] or haber["baslik_orj"],
             detay,
-            haber["kaynak"],
+            make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
             ayarlar,
             kategori=haber["kategori"],
             son_dakika=son_dakika_mi and i == 1,
@@ -401,7 +401,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         story = make_image.story_haber(
             haber["ig_baslik"] or haber["baslik_orj"],
             _alan(haber, "slayt_ozet"),
-            haber["kaynak"],
+            make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
             ayarlar,
             # Gradyan katmanında ham arka planı geçmiyoruz: story kendi
             # ölçüsünde yeni bir gradyan üretsin, 4:5'liği esnetmesin.

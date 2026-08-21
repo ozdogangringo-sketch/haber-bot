@@ -369,6 +369,29 @@ Kural: bir kaynağı `config.yaml`'den çıkarırken
 `UPDATE haberler SET kategori=... WHERE kaynak='<ad>'` ile eski
 kayıtları da düzelt.
 
+**1i2. Slaytta artık BESLEME adı değil YAYIN KURULUŞU yazıyor
+(20 Ağu 2026, kısmi düzeltme).**
+
+Kullanıcı sordu: *"ABD Katar yakıt ikmal uçağı haberi neden AA
+ekonomi kategorisinde, normal mi?"* — haber savunma haberi ama
+slaytta **AA EKONOMİ** yazıyordu.
+
+Sebep 1k'nin devamı: slayta basılan `kaynak` alanı ve o alan RSS
+BESLEMESİNİN adı ("AA Ekonomi", "TRT Dünya", "NTV Teknoloji").
+Besleme adı bizim iç kaydımız — tekrar engeli, ağırlık ve ölçüm ona
+bakıyor — ama okuyucuya gösterilmesi gereken yayın kuruluşu.
+
+Çözüm: `config.yaml → kaynaklar[].gosterim_adi` (11 kaynağa eklendi)
++ `make_image.kaynak_gosterim_adi()`. Slayt, story ve caption'daki
+kaynak listesi bu adı kullanıyor; tanımsızsa besleme adı olduğu gibi
+kalıyor. `haberler.kaynak` DEĞİŞMEDİ, yani geçmiş kayıtlar ve tekrar
+engeli bozulmadı (1h/1k'da eski kayıtları düzeltmek gerekmişti,
+burada gerekmiyor — tam da bu yüzden ayrı alan seçildi).
+
+⚠️ Bu, kategori kusurunun yalnızca GÖRÜNEN yüzü. `kategori` kolonu
+hâlâ beslemeden geliyor ve şerit rengini, ön elemedeki kategori
+payını o belirliyor — aşağıdaki madde hâlâ geçerli.
+
 **1i. ⚠️ KATEGORİ HABERİN DEĞİL, KAYNAĞIN ÖZELLİĞİ (açık kusur).**
 
 `fetch_news.py:292` → `kategori=kaynak["kategori"]`. Haberin içeriğine

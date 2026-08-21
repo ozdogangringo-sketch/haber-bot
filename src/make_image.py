@@ -1218,6 +1218,33 @@ AYLAR = ["OCAK", "ŞUBAT", "MART", "NİSAN", "MAYIS", "HAZİRAN",
          "TEMMUZ", "AĞUSTOS", "EYLÜL", "EKİM", "KASIM", "ARALIK"]
 
 
+def kaynak_gosterim_adi(kaynak: str, ayarlar: dict) -> str:
+    """
+    Slaytta ve caption'da görünecek kaynak adı.
+
+    ⚠️ NEDEN GEREKTİ (20 Ağu 2026): slayta RSS BESLEMESİNİN adı
+    basılıyordu. "ABD, Katar'a yakıt ikmal uçağı satışını onayladı"
+    haberi AA'nın ekonomi beslemesinden geldiği için slaytta
+    **AA EKONOMİ** yazdı ve kullanıcı haklı olarak "bu haber neden
+    ekonomi kategorisinde" diye sordu — haber ekonomi değil, savunma.
+
+    Besleme adı bizim İÇ kaydımız (tekrar engeli ve ölçüm ona bakıyor);
+    okuyucuya gösterilmesi gereken YAYIN KURULUŞU. Eşleme
+    `config.yaml → kaynaklar[].gosterim_adi` alanında; tanımlı değilse
+    besleme adı olduğu gibi kullanılıyor.
+
+    ⚠️ Bu kategori kusurunun YALNIZCA GÖRÜNEN yüzü. `kategori` kolonu
+    hâlâ beslemeden geliyor (CLAUDE.md 1i) ve şerit rengini o
+    belirliyor — ayrı bir iş.
+    """
+    if not kaynak:
+        return ""
+    for k in (ayarlar or {}).get("kaynaklar", []):
+        if k.get("ad") == kaynak:
+            return k.get("gosterim_adi") or kaynak
+    return kaynak
+
+
 def tarih_metni(gun: date | None = None) -> str:
     """
     '15 AĞUSTOS 2026' üretir.
@@ -1396,7 +1423,9 @@ def gorsel_uret(haber, ayarlar: dict, con=None) -> Path:
         arkaplan = arkaplan_uret_yedek(kategori, g["genislik"], g["yukseklik"], g)
         kaynak_tipi = "yedek"
 
-    gorsel = yaziyi_bas(arkaplan, baslik, haber["kaynak"], ayarlar)
+    gorsel = yaziyi_bas(arkaplan, baslik,
+                        kaynak_gosterim_adi(haber["kaynak"], ayarlar),
+                        ayarlar)
 
     yol = CIKTI_KLASORU / f"haber-{haber['id']}.jpg"
     # Instagram PNG kabul etmiyor — JPEG şart
