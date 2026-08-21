@@ -66,6 +66,50 @@ def _anahtar() -> str:
     return a
 
 
+def _catboxa_yukle(yol: Path, zaman_asimi: int = 60) -> dict:
+    """
+    imgbb çöktüğünde devreye giren yedek barındırıcı.
+
+    ⚠️ NEDEN GEREKTİ (21 Ağu 2026): imgbb bakıma girdi
+    (`"Imgbb is currently down for maintenance."`, code 100) ve bot
+    hiçbir post atamaz oldu — görsel yüklenemeyince ne tur ne tekil
+    post çıkıyor. Tek barındırıcıya bağlı olmak tek arıza noktasıydı.
+
+    Tekrar denemek BURADA İŞE YARAMAZ: servis kapalıyken 3 deneme de
+    aynı cevabı veriyor (ölçüldü). Çözüm başka bir kapıya gitmek.
+
+    catbox.moe anahtar istemiyor ve doğrudan public URL veriyor.
+    Instagram'ın indirebildiği GERÇEK BİR CONTAINER İLE doğrulandı
+    (21 Ağu 2026): status_code = FINISHED, "ready to be published".
+    Silme bağlantısı vermiyor, o alan boş dönüyor.
+
+    ⚠️ CATBOX BOT USER-AGENT'LARINI ENGELLİYOR. Ölçüldü:
+        User-Agent yok      -> bağlantı kesiliyor
+        python-requests/... -> bağlantı kesiliyor
+        Mozilla/5.0         -> 200
+        facebookexternalhit -> 200   (Instagram bunu kullanıyor)
+    Yani Instagram indirebiliyor ama BİZİM kendi doğrulama
+    isteklerimizde User-Agent vermek zorundayız; yoksa "URL ölü"
+    sanılır.
+    """
+    with open(yol, "rb") as f:
+        cevap = requests.post(
+            "https://catbox.moe/user/api.php",
+            data={"reqtype": "fileupload"},
+            files={"fileToUpload": (yol.name, f, "image/jpeg")},
+            timeout=zaman_asimi,
+        )
+    if cevap.status_code != 200 or not cevap.text.startswith("http"):
+        raise RuntimeError(
+            f"catbox yüklemesi başarısız: HTTP {cevap.status_code}: "
+            f"{cevap.text[:150]}")
+    return {
+        "url": cevap.text.strip(),
+        "silme_url": None,
+        "boyut_kb": round(yol.stat().st_size / 1024, 1),
+    }
+
+
 def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
     """
     Tek bir görseli yükler.
@@ -123,6 +167,19 @@ def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
             time.sleep(GECICI_BEKLEME)
             continue
         break
+
+    # ⚠️ İMGBB TAMAMEN KAPALIYSA TEKRAR DENEMEK ANLAMSIZ — yedeğe geç.
+    # Bakım hatası (code 100) geçici bir dalgalanma değil; 3 deneme de
+    # aynı cevabı veriyor. Post atamamaktansa başka barındırıcı.
+    if (ayarlar.get("gorsel", {}) or {}).get("yedek_barindirici", True):
+        log.warning("imgbb başarısız (%s), yedek barındırıcıya geçiliyor",
+                    str(son_hata)[:120])
+        try:
+            sonuc = _catboxa_yukle(Path(yol), g["zaman_asimi"])
+            log.info("yedek barındırıcıya yüklendi: %s", sonuc["url"])
+            return sonuc
+        except Exception as e:                        # noqa: BLE001
+            log.error("yedek barındırıcı da olmadı: %s", str(e)[:150])
 
     raise RuntimeError(f"imgbb yüklemesi başarısız: {son_hata}")
 

@@ -49,7 +49,8 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Onay kanalı | **Telegram bot**, inline butonlarla → **"Daily Brief" GRUBUNA** (özel sohbete değil) |
 | Onay yetkisi | **Gruptaki herkes** onaylayabilir/atlayabilir. Kullanıcı bilerek böyle istedi; kimin bastığını kontrol eden bir kısıt YOK. |
 | Onay tetikleme | **Cloudflare Worker** → `repository_dispatch` → anında yayın |
-| Görsel hosting | **imgbb** (Instagram public URL zorunlu kılıyor) |
+| Görsel hosting | **imgbb**, yedeği **catbox.moe** (Instagram public URL zorunlu kılıyor) |
+| ⚠️ imgbb TEK ARIZA NOKTASIYDI | 21 Ağu 2026: imgbb bakıma girdi (`"Imgbb is currently down for maintenance."`, code 100) ve bot **hiçbir post atamaz** oldu — görsel yüklenemeyince ne tur ne tekil post çıkıyor. Tekrar denemek işe yaramıyor, servis kapalıyken 3 deneme de aynı cevabı veriyor. `gorsel.yedek_barindirici` ile catbox.moe devreye giriyor; Instagram'ın indirebildiği **gerçek container ile doğrulandı** (FINISHED). ⚠️ **catbox bot User-Agent'larını engelliyor**: `python-requests` ve UA'sız istek bağlantıyı kesiyor, `Mozilla/5.0` ve `facebookexternalhit` geçiyor — Instagram indirebiliyor ama bizim doğrulama isteklerimiz UA vermek zorunda. |
 | Haber teması | Öncelik **Türkiye gündemi**; dünya haberi sadece önem puanı ≥8 ise |
 | Post biçimi | **CAROUSEL** (kaydırmalı). **Kapak YOK, 10 haber** = 10 slayt. Instagram sınırı 10. |
 | ~~Kapak slaytı~~ | **DENENDİ VE ELENDİ (15 Ağu 2026).** Kapak+9 haber düzeni üretilip gösterildi; kullanıcı 10 haberi tercih etti. `kapak_ciz`/`kapak_uret` kodu `make_image.py`'de DURUYOR — fikir değişirse `kapak_var: true` yeterli, yeniden yazma. |

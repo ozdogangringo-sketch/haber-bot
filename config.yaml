@@ -394,6 +394,11 @@ gorsel:
   jpeg_kalite: 90
   # ⚠️ FOTOĞRAF ARKA PLANLI slaytlar için ayrı kalite. Instagram dosya
   # sınırı 8 MB, bizim slaytlar ~200 KB — artırmak için bol alan var.
+  # imgbb çökerse catbox.moe'ye düş. 21 Ağu 2026'da imgbb bakıma
+  # girdi ve bot hiçbir post atamadı — tek barındırıcı tek arıza
+  # noktasıydı. false yaparsan imgbb patladığında tur da düşer.
+  yedek_barindirici: true
+
   jpeg_kalite_foto: 95          # Instagram PNG kabul etmiyor, JPEG şart
   deneme_sayisi: 3
   zaman_asimi: 180         # görsel üretimi metinden yavaş
