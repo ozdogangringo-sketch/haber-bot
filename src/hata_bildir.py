@@ -203,6 +203,18 @@ def _butonlar(eylem: str, nerede: str = "") -> list | None:
         ikinci = [{"text": "🔍 Ham hata metni", "callback_data": "hata:ayrinti"}]
         return [satir, ikinci]
 
+    # Yayın patladıysa en çok istenen şey tekrar denemek. Düğme önce
+    # Instagram'a soruyor, çift yayın yapmıyor (bkz.
+    # onay_isle.yeniden_yayinla).
+    if eylem.startswith("yeniden_yayinla:"):
+        return [
+            [{"text": "🔄 Tekrar yayınla", "callback_data": eylem}],
+            [{"text": "🔍 Yayın durumunu kontrol et",
+              "callback_data": eylem.replace("yeniden_yayinla:",
+                                             "yayin_kontrol:")}],
+            [{"text": "🔍 Ham hata metni", "callback_data": "hata:ayrinti"}],
+        ]
+
     satir = []
     if eylem == "tur_tekrar":
         satir.append({"text": "🔄 Turu yeniden hazırla",

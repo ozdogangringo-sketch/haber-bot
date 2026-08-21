@@ -55,6 +55,14 @@ const HABER_DEGISTIR = /^haber_degistir:([1-9]|10)$/;
 const HABER_SEC = /^haber_sec:\d{1,8}:\d{1,8}:\d{1,12}$/;
 const HABER_VAZGEC = /^haber_vazgec:\d{1,12}$/;
 
+// Yayın doğrulama düğmeleri. Tur mesaj id'si komutun İÇİNDE — bu
+// düğmeler yayın sonucu / hata mesajında duruyor ve o mesajların
+// message_id'si turunkinden farklı.
+//   yayin_kontrol:{turMesajId}   -> Instagram'a sorup durumu bildirir
+//   yeniden_yayinla:{turMesajId} -> önce kontrol, yayınlanmamışsa yayınlar
+const YAYIN_KONTROL = /^yayin_kontrol:\d{1,12}$/;
+const YENIDEN_YAYINLA = /^yeniden_yayinla:\d{1,12}$/;
+
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
 // puanlayıp öneriyor, tam metin ve görsel ancak bu butona basılınca
@@ -109,6 +117,7 @@ function eylemMi(veri) {
     || YAYINLA_SONRA.test(veri)
     || HABER_DEGISTIR.test(veri) || HABER_SEC.test(veri)
     || HABER_VAZGEC.test(veri)
+    || YAYIN_KONTROL.test(veri) || YENIDEN_YAYINLA.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA;
 }

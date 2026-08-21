@@ -20,6 +20,7 @@ TEKRAR BASMA KORUMASI:
     basılabiliyor; o yüzden durum da denetleniyor.
 """
 
+import html
 import json
 import logging
 import os
@@ -53,7 +54,9 @@ _ayarlar_onbellek: dict = {}
 # ⚠️ `haber_sec`/`haber_vazgec` tur id'sini KOMUTTA taşıyor; Worker'ın
 # gönderdiği mesaj_id alternatif mesajına ait ve işe yaramıyor.
 MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
-                     "haber_sec", "haber_vazgec"}
+                     "haber_sec", "haber_vazgec",
+                     # Tur id'sini KOMUTTA taşıyorlar (ayrı mesajın düğmesi)
+                     "yayin_kontrol", "yeniden_yayinla"}
 
 
 def turu_getir(con, mesaj_id: int) -> list:
@@ -293,8 +296,16 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
         # Zincir yarım kaldıysa tek tuşla tamamlanabilsin. Komutu
         # ("/tamamla") bilmek zorunda bırakmak, kullanıcının eksik
         # halkaları ELLE yazmasına yol açtı (21 Ağu 2026).
-        ek_dugmeler=([[{"text": "🔗 Threads zincirini tamamla",
-                        "callback_data": "tamamla"}]] if th_yarim else None),
+        # Her yayın sonucunda "durumu kontrol et": veritabanı ile
+        # Instagram ayrışabiliyor (20 Ağu 2026'da bir `ertele` komutu
+        # yayınlanmış turun kaydını bozdu) ve kuyrukta iptal edilen bir
+        # komut kullanıcıyı yayınlandı mı bilemez halde bırakıyordu.
+        ek_dugmeler=(
+            ([[{"text": "🔗 Threads zincirini tamamla",
+                "callback_data": "tamamla"}]] if th_yarim else [])
+            + [[{"text": "🔍 Yayın durumunu kontrol et",
+                 "callback_data": f"yayin_kontrol:{mesaj_id}"}]]
+        ),
     )
     return 0
 
@@ -550,6 +561,115 @@ def ertele(con, mesaj_id, basan) -> int:
         "yayınlayabilirsin."
     )
     return 0
+
+
+def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
+    """
+    Bu turun GERÇEKTEN yayınlanıp yayınlanmadığını Instagram'a sorar.
+
+    ⚠️ VERİTABANI GERÇEĞİN TEK KAYNAĞI DEĞİL. 20 Ağu 2026'da bir tur
+    yayınlandı, bir dakika sonra gelen `ertele` komutu kaydı bozdu ve
+    sistem postu "yayınlanmamış" sandı; aynı haber iki kez daha onaya
+    sunuldu. 21 Ağu'da da bir yayın komutu kuyrukta sessizce iptal
+    edildi ve kullanıcı yayınlandı mı bilemedi.
+
+    Bu düğme iki kaynağı da gösteriyor: veritabanı ne diyor, Instagram
+    ne diyor. Uyuşmuyorlarsa Instagram doğrudur.
+    """
+    haberler = turu_getir(con, mesaj_id)
+    if not haberler:
+        telegram_bot.mesaj_gonder(
+            "⚠️ Bu mesaja bağlı tur bulunamadı — kapanmış olabilir.")
+        return 0
+
+    db_durum = haberler[0]["durum"]
+    post_id = next((h["ig_post_id"] for h in haberler if h["ig_post_id"]), None)
+    basliklar = [(h["ig_baslik"] or h["baslik_orj"] or "") for h in haberler]
+
+    satirlar = [f"🔍 <b>YAYIN DURUMU</b> ({len(haberler)} haber)", ""]
+    satirlar.append(f"Veritabanı : <code>{html.escape(db_durum)}</code>")
+
+    try:
+        gecmis = instagram.son_yayinlanan_basliklar(ayarlar)
+        bulunan = []
+        for b in basliklar:
+            kel, ozel = secim.konu_imzasi(b)
+            for g in gecmis:
+                gk, go = secim.konu_imzasi(g)
+                if (len(secim.ortak_kelime(kel, gk)) >= 3
+                        and secim.ortak_kelime(ozel, go)):
+                    bulunan.append(b)
+                    break
+        if bulunan:
+            satirlar.append(f"Instagram  : ✅ <b>{len(bulunan)}/{len(basliklar)} "
+                            "haber yayında görünüyor</b>")
+            for b in bulunan[:3]:
+                satirlar.append(f"   • {html.escape(b[:56])}")
+        else:
+            satirlar.append("Instagram  : ❌ <b>bu haberler yayında YOK</b>")
+    except Exception as e:                            # noqa: BLE001
+        satirlar.append(f"Instagram  : ⚠️ sorulamadı ({type(e).__name__})")
+        bulunan = []
+
+    if post_id:
+        satirlar += ["", instagram.post_baglantisi(post_id, ayarlar) or post_id]
+
+    if not bulunan and db_durum != "yayinlandi":
+        satirlar += ["", "Yayınlanmamış görünüyor — aşağıdaki düğmeyle "
+                         "tekrar deneyebilirsin."]
+        tuslar = [[{"text": "🔄 Tekrar yayınla",
+                    "callback_data": f"yeniden_yayinla:{mesaj_id}"}]]
+    else:
+        tuslar = None
+
+    telegram_bot.mesaj_gonder("\n".join(satirlar), html=True, butonlar=tuslar)
+    return 0
+
+
+def yeniden_yayinla(con, ayarlar, mesaj_id: int, basan) -> int:
+    """
+    Yayınlanamamış bir turu yeniden yayınlar.
+
+    ⚠️ ÖNCE INSTAGRAM'A SORUYOR. Çift yayın, yayınlanamamaktan çok daha
+    kötü: takipçi aynı postu iki kez görüyor ve Instagram'dan API ile
+    silinemiyor (Graph API izin vermiyor, yalnızca uygulamadan).
+    Veritabanı "yayınlanmadı" dese bile Instagram'da post varsa
+    yayınlamıyoruz.
+    """
+    haberler = turu_getir(con, mesaj_id)
+    if not haberler:
+        telegram_bot.mesaj_gonder("⚠️ Tur bulunamadı.")
+        return 0
+    if haberler[0]["durum"] == "yayinlandi":
+        post = next((h["ig_post_id"] for h in haberler if h["ig_post_id"]), None)
+        telegram_bot.mesaj_gonder(
+            "✅ Bu tur zaten yayınlanmış, tekrar yayınlanmadı.\n"
+            f"{instagram.post_baglantisi(post, ayarlar) if post else ''}")
+        return 0
+
+    try:
+        gecmis = instagram.son_yayinlanan_basliklar(ayarlar)
+        for h in haberler:
+            kel, ozel = secim.konu_imzasi(h["ig_baslik"] or h["baslik_orj"] or "")
+            for g in gecmis:
+                gk, go = secim.konu_imzasi(g)
+                if (len(secim.ortak_kelime(kel, gk)) >= 3
+                        and secim.ortak_kelime(ozel, go)):
+                    telegram_bot.mesaj_gonder(
+                        "⚠️ Bu haber Instagram'da ZATEN VAR, tekrar "
+                        f"yayınlanmadı:\n«{g[:70]}»\n\n"
+                        "Veritabanı kaydı bozulmuş olabilir.")
+                    return 0
+    except Exception as e:                            # noqa: BLE001
+        # Instagram'a ulaşılamıyorsa yayınlamıyoruz: çift yayın riski
+        # belirsizlikten daha pahalı.
+        telegram_bot.mesaj_gonder(
+            f"⚠️ Instagram'a sorulamadı ({type(e).__name__}), çift yayın "
+            "riskine karşı yayınlanmadı. Biraz sonra tekrar dene.")
+        return 0
+
+    telegram_bot.mesaj_gonder("🔄 Yeniden yayınlanıyor…")
+    return yayinla(con, ayarlar, haberler, mesaj_id, basan or "tekrar")
 
 
 def tur_onayla(con, ayarlar, haberler, mesaj_id) -> int:
@@ -1409,6 +1529,10 @@ def main() -> int:
             return 1
         return haberi_degistir_uygula(con, ayarlar, tur, int(eski_id),
                                       int(yeni_id), int(tur_mid))
+    if komut.startswith("yayin_kontrol:"):
+        return yayin_durumu_kontrol(con, ayarlar, int(komut.split(":")[1]))
+    if komut.startswith("yeniden_yayinla:"):
+        return yeniden_yayinla(con, ayarlar, int(komut.split(":")[1]), basan)
     if komut.startswith("haber_vazgec:"):
         menuyu_geri_koy(con, int(komut.split(":")[1]))
         telegram_bot.mesaj_gonder("Haber değiştirilmedi.")
