@@ -503,7 +503,8 @@ def mesaji_guncelle(message_id: int, metin: str, menu: dict) -> None:
 
 
 def sonucu_yaz(message_id: int, metin: str, bildir: bool = False,
-               butonlar: dict | None = None) -> None:
+               butonlar: dict | None = None,
+               ek_dugmeler: list | None = None) -> None:
     """
     Onay mesajını sonuçla günceller ve butonları kaldırır.
 
@@ -514,6 +515,10 @@ def sonucu_yaz(message_id: int, metin: str, bildir: bool = False,
 
     `butonlar` verilirse klavye BOŞALTILMAZ, verilen düzen konur —
     zamanlanmış yayında "planı iptal et" düğmesinin kalması gerekiyor.
+
+    `ek_dugmeler` yalnızca `bildir=True` ile gönderilen YENİ mesaja
+    ekleniyor. Yarım kalan Threads zinciri için: kullanıcı `/tamamla`
+    komutunu ezberlemek zorunda kalmasın.
 
     ⚠️ NEDEN GEREKİYOR: `editMessageText` var olan mesajı değiştiriyor ve
     Telegram düzenlemede BİLDİRİM ÜRETMİYOR. Onay mesajı sohbette
@@ -536,9 +541,11 @@ def sonucu_yaz(message_id: int, metin: str, bildir: bool = False,
             # sabah uyanıp postu tek tuşla geri alabilmek gerekiyor.
             # Tur id'si düğmeye gömülü, çünkü bu YENİ bir mesaj ve kendi
             # message_id'si turunkinden farklı.
-            butonlar = [[{"text": "🗑 Bu yayını kaldır",
-                          "callback_data": f"kaldir:{message_id}"}]]
-            mesaj_gonder(metin, butonlar=butonlar)
+            tuslar = [[{"text": "🗑 Bu yayını kaldır",
+                        "callback_data": f"kaldir:{message_id}"}]]
+            if ek_dugmeler:
+                tuslar = list(ek_dugmeler) + tuslar
+            mesaj_gonder(metin, butonlar=tuslar)
         except Exception as e:
             log.warning("sonuç bildirimi gönderilemedi: %s", e)
 

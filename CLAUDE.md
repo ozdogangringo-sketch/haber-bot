@@ -843,6 +843,19 @@ varyantı da tanıyor.
 kaydetmiyordu (`--ek assets/flags` yoktu) — indirilen bayrak repoya
 girmeyince her yayında yeniden iniyordu.
 
+**Yarım zincir artık tek tuşla tamamlanıyor.** Kesilme anında AYNI
+JOB'DA bir kez `zinciri_tamamla` deneniyor (kesilme sebebi geçici
+olduğu için çoğu zaman tutuyor); yine eksikse yayın sonucuna
+**🔗 Threads zincirini tamamla** düğmesi konuyor. Eskiden yalnızca
+`⚠️ 1/3 halka` yazıyordu — `/tamamla` komutu vardı ama mesajda ne
+komut ne düğme geçiyordu ve kullanıcı eksik halkaları ELLE yazdı.
+
+⚠️ **`th_yarim` KOŞULUN DIŞINDA tanımlı olmalı.** İlk yazımda bayrak
+`if threadse_de_at and kullanilabilir_mi()` bloğunun içindeydi; Threads
+kapalı olsaydı yayın sonucunu yazan satır `NameError` verecek ve
+BAŞARILI bir yayın kırmızı job'a dönecekti. Bütünlük testi bunu
+göremiyor (kod geçerli), `test_7_sozlesme` AST ile denetliyor.
+
 **Eski onay mesajının düğmesi artık HATA DEĞİL.** Kapanmış/atlanmış
 bir turun düğmesine basmak `return 1` veriyordu: job kırmızı, hata
 bildirimi düşüyor ve gerçek arızalar arasında kayboluyordu. Artık

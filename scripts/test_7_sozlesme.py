@@ -653,6 +653,42 @@ def test_git_degisiklik_yok_yanlis_alarm_vermiyor() -> None:
             "gerçek hata yutulursa veri kaybı sessizce geçer")
 
 
+def test_kosullu_tanimlanan_bayraklar() -> None:
+    """
+    Bir bayrak koşullu blokta tanımlanıp bloğun DIŞINDA okunuyorsa,
+    koşul çalışmadığında `NameError` verir.
+
+    21 Ağu 2026: `th_yarim` (Threads zinciri yarım mı) yalnızca
+    `if threadse_de_at and kullanilabilir_mi()` bloğunun içinde
+    tanımlanmıştı ve yayın sonucunu yazan satırda okunuyordu. Threads
+    kapalı olsaydı BAŞARILI bir yayın kırmızı job'a dönecekti.
+
+    ⚠️ Bütünlük testi bunu göremiyor — kod sözdizimi açısından geçerli,
+    hata ancak o dal çalışmadığında ortaya çıkıyor.
+    """
+    import ast
+    kaynak = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    agac = ast.parse(kaynak)
+
+    for islev in ast.walk(agac):
+        if not isinstance(islev, ast.FunctionDef) or islev.name != "yayinla":
+            continue
+        # Fonksiyon gövdesinin ÜST seviyesinde atanan isimler
+        ust_seviye = set()
+        for dugum in islev.body:
+            if isinstance(dugum, ast.Assign):
+                for h in dugum.targets:
+                    if isinstance(h, ast.Name):
+                        ust_seviye.add(h.id)
+        for bayrak in ("th_notu", "th_yarim", "th_gonderi_id"):
+            denetle(bayrak in ust_seviye,
+                    f"yayinla(): '{bayrak}' koşulsuz tanımlı",
+                    "yalnızca if/try içinde atanıyor — o dal "
+                    "çalışmazsa NameError")
+        return
+    denetle(False, "yayinla() fonksiyonu bulundu")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -684,6 +720,7 @@ def main() -> int:
         test_kategori_uc_yerde_tanimli,
         test_gecici_hatalar_400te_de_yakalaniyor,
         test_git_degisiklik_yok_yanlis_alarm_vermiyor,
+        test_kosullu_tanimlanan_bayraklar,
     ):
         try:
             test()

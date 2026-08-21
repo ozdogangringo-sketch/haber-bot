@@ -209,6 +209,11 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     # jeton alınmadan önce de kod güvenle çalışsın diye.
     th_notu = ""
     th_gonderi_id = None
+    # ⚠️ KOŞULUN DIŞINDA TANIMLI OLMALI. Aşağıdaki `if` bloğu Threads
+    # kapalıyken (`threadse_de_at: false`) veya jeton geçersizken hiç
+    # çalışmıyor; bayrak orada tanımlanırsa yayın sonucunu yazan satır
+    # NameError veriyor ve BAŞARILI bir yayın kırmızı job'a dönüyor.
+    th_yarim = False
     if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
             and threads.kullanilabilir_mi()):
         try:
@@ -229,12 +234,35 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
             )
             th_id, th_adet = threads.zincir_yayinla(halkalar)
             th_gonderi_id = th_id
+
+            # ⚠️ YARIM KALDIYSA HEMEN BİR KEZ TAMAMLAMAYI DENE.
+            #
+            # 21 Ağu 2026: zincir 2. halkada "Media Not Found" ile
+            # kesildi ve kullanıcı eksik halkaları ELLE yazmak zorunda
+            # kaldı. `/tamamla` komutu vardı ama mesajda ne komut ne
+            # düğme geçiyordu — kullanıcı varlığını bilmiyordu.
+            #
+            # Kesilme sebebi geçici olduğu için (container yarışı)
+            # saniyeler sonra ikinci deneme büyük olasılıkla tutuyor.
+            # Maliyeti düşük: yalnızca eksik halkalar gönderiliyor.
+            if th_adet < len(halkalar):
+                log.warning("zincir %s/%s kaldı, tamamlama deneniyor",
+                            th_adet, len(halkalar))
+                try:
+                    th_adet, _ = threads.zinciri_tamamla(th_id, halkalar)
+                except Exception as e:                # noqa: BLE001
+                    log.warning("otomatik tamamlama olmadı: %s", str(e)[:120])
+
             if th_adet == len(halkalar):
                 th_notu = f"\n🧵 Threads'e de paylaşıldı ({th_adet} halka)"
             else:
                 # Yarım zinciri "paylaşıldı" diye yazmak hatayı gizler.
+                # Düğme de veriliyor (aşağıda): kullanıcı komutu
+                # ezberlemek zorunda kalmasın.
+                th_yarim = True
                 th_notu = (f"\n⚠️ Threads zinciri yarım kaldı: "
-                           f"{th_adet}/{len(halkalar)} halka")
+                           f"{th_adet}/{len(halkalar)} halka\n"
+                           f"Aşağıdaki düğmeyle tamamlayabilirsin.")
             log.info("Threads: %s (%s/%s halka)", th_id, th_adet, len(halkalar))
         except Exception as e:
             log.warning("Threads paylaşılamadı: %s", e)
@@ -262,6 +290,11 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
         f"\nOnaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",
         bildir=True,
+        # Zincir yarım kaldıysa tek tuşla tamamlanabilsin. Komutu
+        # ("/tamamla") bilmek zorunda bırakmak, kullanıcının eksik
+        # halkaları ELLE yazmasına yol açtı (21 Ağu 2026).
+        ek_dugmeler=([[{"text": "🔗 Threads zincirini tamamla",
+                        "callback_data": "tamamla"}]] if th_yarim else None),
     )
     return 0
 
