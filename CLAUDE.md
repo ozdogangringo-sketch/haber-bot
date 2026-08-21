@@ -857,6 +857,15 @@ olduğu için çoğu zaman tutuyor); yine eksikse yayın sonucuna
 `⚠️ 1/3 halka` yazıyordu — `/tamamla` komutu vardı ama mesajda ne
 komut ne düğme geçiyordu ve kullanıcı eksik halkaları ELLE yazdı.
 
+⚠️ **AYRI MESAJDAKİ DÜĞME TUR ID'SİNİ TAŞIMALI — bu tuzak DÖRT KEZ
+tekrarladı**: `kaldir` (yayın sonucu), `haber_sec` (alternatif
+mesajı), `gorsel_kabul` ve `gorsel_yeni` (görsel önizlemesi).
+Worker basılan düğmenin **bulunduğu mesajın** id'sini gönderiyor;
+ayrı bir mesajdaki düğme için bu değer turu göstermiyor.
+21 Ağu 2026: kullanıcı görsel önizlemesindeki "🔄 Başka dene"ye bastı,
+job *"mesaj_id=657 artık geçerli değil"* dedi — tur 656, önizleme
+mesajı 657'ydi. `test_7_sozlesme` dördünü de denetliyor.
+
 ⚠️ **`th_yarim` KOŞULUN DIŞINDA tanımlı olmalı.** İlk yazımda bayrak
 `if threadse_de_at and kullanilabilir_mi()` bloğunun içindeydi; Threads
 kapalı olsaydı yayın sonucunu yazan satır `NameError` verecek ve

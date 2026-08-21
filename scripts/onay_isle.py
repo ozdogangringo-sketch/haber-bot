@@ -56,7 +56,8 @@ _ayarlar_onbellek: dict = {}
 MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
                      "haber_sec", "haber_vazgec",
                      # Tur id'sini KOMUTTA taşıyorlar (ayrı mesajın düğmesi)
-                     "yayin_kontrol", "yeniden_yayinla"}
+                     "yayin_kontrol", "yeniden_yayinla",
+                     "gorsel_kabul", "gorsel_yeni"}
 
 
 def turu_getir(con, mesaj_id: int) -> list:
@@ -951,9 +952,17 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         f"{simge} {sira}. slayt için yeni görsel — {katman}\n"
         f"{taze['ig_baslik'] or ''}\n\n"
         f"Beğendiysen onayla; onaylamazsan slayt eski görselle kalır.",
+        # ⚠️ TUR MESAJ ID'Sİ DÜĞMEYE GÖMÜLÜ. Bu önizleme AYRI bir
+        # mesajda duruyor ve Worker basılan düğmenin BULUNDUĞU mesajın
+        # id'sini gönderiyor. 21 Ağu 2026: kullanıcı "🔄 Başka dene"ye
+        # bastı, job "mesaj_id=657 artık geçerli değil" dedi — tur 656,
+        # önizleme mesajı 657'ydi.
+        # Aynı tuzak `kaldir` ve `haber_sec` düğmelerinde de yaşandı.
         butonlar=[[
-            {"text": "✅ Bunu kullan", "callback_data": f"gorsel_kabul:{sira}"},
-            {"text": "🔄 Başka dene", "callback_data": f"gorsel_yeni:{sira}"},
+            {"text": "✅ Bunu kullan",
+             "callback_data": f"gorsel_kabul:{sira}:{mesaj_id}"},
+            {"text": "🔄 Başka dene",
+             "callback_data": f"gorsel_yeni:{sira}:{mesaj_id}"},
         ]],
     )
     return 0
@@ -1529,6 +1538,22 @@ def main() -> int:
             return 1
         return haberi_degistir_uygula(con, ayarlar, tur, int(eski_id),
                                       int(yeni_id), int(tur_mid))
+    # ⚠️ Görsel önizleme düğmeleri tur id'sini KOMUTTA taşıyor
+    # ("gorsel_kabul:3:656"); Worker'ın gönderdiği mesaj_id önizleme
+    # mesajına ait ve turu göstermiyor.
+    if (komut.startswith("gorsel_kabul:")
+            or komut.startswith("gorsel_yeni:")) and komut.count(":") == 2:
+        ad, sira, tur_mid = komut.split(":")
+        tur = turu_getir(con, int(tur_mid))
+        if not tur:
+            telegram_bot.mesaj_gonder(
+                "⚠️ Görseli değiştirilecek tur bulunamadı.")
+            return 0
+        if ad == "gorsel_kabul":
+            return gorseli_kabul_et(con, ayarlar, tur, int(sira), int(tur_mid))
+        return slayt_islemi(con, ayarlar, tur, "slayt_foto",
+                            int(sira), int(tur_mid))
+
     if komut.startswith("yayin_kontrol:"):
         return yayin_durumu_kontrol(con, ayarlar, int(komut.split(":")[1]))
     if komut.startswith("yeniden_yayinla:"):

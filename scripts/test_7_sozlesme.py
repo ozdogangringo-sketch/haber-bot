@@ -504,16 +504,21 @@ def test_ayri_mesajdaki_dugme_tur_id_tasiyor() -> None:
         ve job "mesaj_id=487 için haber bulunamadı" ile düştü; tur
         474'tü. Aynı tuzak, yeni kod yolu.
     """
+    # ⚠️ BU TUZAK DÖRT KEZ TEKRARLADI: kaldir, haber_sec, gorsel_kabul,
+    # gorsel_yeni. Ayrı mesajda duran HER düğme tur id'sini taşımalı.
     tb = (KOK / "src/telegram_bot.py").read_text(encoding="utf-8")
-    # (fonksiyon, komut, callback_data'da bulunması gereken değişken)
-    for menu, komut, degisken in (
-            ("alternatif_menusu", "haber_sec", "tur_mesaj_id"),
-            ("alternatif_menusu", "haber_vazgec", "tur_mesaj_id"),
-            ("sonucu_yaz", "kaldir", "message_id")):
-        govde = tb.split(f"def {menu}(")[1].split("\ndef ")[0]
+    oi = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    # (dosya, fonksiyon, komut, callback_data'da bulunması gereken değişken)
+    for kaynak, menu, komut, degisken in (
+            (tb, "alternatif_menusu", "haber_sec", "tur_mesaj_id"),
+            (tb, "alternatif_menusu", "haber_vazgec", "tur_mesaj_id"),
+            (tb, "sonucu_yaz", "kaldir", "message_id"),
+            (oi, "slayt_islemi", "gorsel_kabul", "mesaj_id"),
+            (oi, "slayt_islemi", "gorsel_yeni", "mesaj_id")):
+        govde = kaynak.split(f"def {menu}(")[1].split("\ndef ")[0]
         satirlar = [s for s in govde.splitlines() if f"{komut}:" in s]
         denetle(bool(satirlar) and any(degisken in s for s in satirlar),
-                f"{menu}: '{komut}' düğmesi tur mesaj id'sini taşıyor",
+                f"{menu}(): '{komut}' düğmesi tur mesaj id'sini taşıyor",
                 f"callback_data'da {degisken} yok — Worker'ın gönderdiği "
                 "mesaj id'si o düğmenin bulunduğu mesaja ait, turu "
                 "göstermez")

@@ -33,7 +33,12 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
 const PARAMETRELI_EYLEM =
-  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil|gorsel_kabul|gorsel_yeni):([1-9]|10)$/;
+  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil):([1-9]|10)$/;
+
+// Görsel önizleme düğmeleri: "gorsel_kabul:{slayt}:{turMesajId}".
+// ⚠️ Tur id'si komutta — önizleme AYRI bir mesajda duruyor ve
+// cb.message.message_id turu göstermiyor.
+const GORSEL_ONAY = /^(gorsel_kabul|gorsel_yeni):([1-9]|10):\d{1,12}$/;
 
 // Zamanlanmış yayın: "yayinla_sonra:60" -> 60 dakika sonra yayınla.
 // ⚠️ DEĞERLER 30'UN KATLARI ve serbest sayı DEĞİL. Zamanı gelen turu
@@ -118,6 +123,7 @@ function eylemMi(veri) {
     || HABER_DEGISTIR.test(veri) || HABER_SEC.test(veri)
     || HABER_VAZGEC.test(veri)
     || YAYIN_KONTROL.test(veri) || YENIDEN_YAYINLA.test(veri)
+    || GORSEL_ONAY.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA;
 }
