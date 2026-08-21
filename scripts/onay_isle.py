@@ -34,7 +34,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    aday, ayar, caption, db, db_senkron, dogrula, facebook, instagram,
+    aday, ayar, caption, db, db_senkron, dogrula, facebook, fetch_news,
+    instagram,
     secim,
     slaytlar, telegram_bot, threads, upload_image,
 )
@@ -54,6 +55,7 @@ _ayarlar_onbellek: dict = {}
 # ⚠️ `haber_sec`/`haber_vazgec` tur id'sini KOMUTTA taşıyor; Worker'ın
 # gönderdiği mesaj_id alternatif mesajına ait ve işe yaramıyor.
 MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
+                     "havuz_guncelle",
                      "haber_sec", "haber_vazgec",
                      # Tur id'sini KOMUTTA taşıyorlar (ayrı mesajın düğmesi)
                      "yayin_kontrol", "yeniden_yayinla",
@@ -561,6 +563,53 @@ def ertele(con, mesaj_id, basan) -> int:
         "Tur açık kalıyor — yukarıdaki mesajdan istediğin an "
         "yayınlayabilirsin."
     )
+    return 0
+
+
+def havuzu_guncelle(con, ayarlar) -> int:
+    """
+    RSS kaynaklarını hemen tarar — bir sonraki cron'u beklemeden.
+
+    Kullanıcı isteği (21 Ağu 2026): *"yardım sekmesine veritabanı
+    güncelle / haber havuzunu güncelle gibisinden komut ekleyelim"*.
+    Sebep somuttu: sabah duyduğu bir haberi aradı, havuzda yoktu ve
+    kontrolün çalışmasını beklemek zorunda kaldı.
+
+    ⚠️ METİN ÜRETMİYOR, yalnızca RSS çekiyor. Gemini kotası günde 20
+    ücretsiz istekle sınırlı; elle tetiklenen her güncellemenin metin
+    üretmesi kotayı hızla bitirir. Çekilen haberler `durum='yeni'`
+    olarak havuza giriyor ve `/haber` aramasında ZATEN görünüyorlar —
+    metin, kullanıcı bir haberi seçtiğinde üretiliyor.
+    """
+    telegram_bot.mesaj_gonder("🔄 Kaynaklar taranıyor…")
+    try:
+        rapor = fetch_news.haberleri_cek(ayarlar)
+    except Exception as e:                            # noqa: BLE001
+        log.exception("havuz güncellenemedi")
+        telegram_bot.mesaj_gonder(
+            f"⚠️ Havuz güncellenemedi: {type(e).__name__}: {str(e)[:120]}")
+        return 1
+
+    toplam = con.execute(
+        "SELECT COUNT(*) FROM haberler "
+        "WHERE cekilme_zamani > datetime('now', '-3 day')").fetchone()[0]
+    hatali = rapor.get("hatali_kaynaklar") or []
+    satirlar = [
+        f"✅ <b>Havuz güncellendi</b>",
+        f"   yeni haber : <b>{rapor.get('eklenen', 0)}</b>",
+        f"   tekrar     : {rapor.get('tekrar', 0)}",
+        f"   bayat      : {rapor.get('eski', 0)}",
+        "",
+        f"Havuzda son 3 günde <b>{toplam}</b> haber var.",
+    ]
+    if hatali:
+        satirlar.append(f"\n⚠️ {len(hatali)} kaynak yanıt vermedi: "
+                        + ", ".join(str(k)[:20] for k in hatali[:4]))
+    if rapor.get("eklenen"):
+        satirlar.append("\nAradığın haberi şimdi <code>/haber &lt;konu&gt;</code> "
+                        "ile arayabilirsin.")
+    telegram_bot.mesaj_gonder("\n".join(satirlar), html=True)
+    db_senkron.hemen_kaydet("Havuz elle güncellendi")
     return 0
 
 
@@ -1214,6 +1263,41 @@ def durum_bildir(con, ayarlar) -> int:
 
 
 
+# Yazım hatası toleransı: iki kelime bu orandan benzerse aynı sayılıyor.
+#
+# ⚠️ YALNIZCA HİÇ SONUÇ ÇIKMAYINCA devreye giriyor. Ölçüldü (21 Ağu
+# 2026): doğru eşleşmeler 0.80-0.95, yanlış eşleşmeler 0.60-0.88
+# aralığında ve ARALIKLAR ÇAKIŞIYOR — "kayseri"/"kayseride" 0.88
+# (yanlış) ama "trump"/"trumb" 0.80 (doğru). Tek eşikle ayrılmıyorlar.
+# Çözüm sıralama: "kayseride" zaten normal aramada bulunuyor, fuzzy'ye
+# hiç gerek kalmıyor; fuzzy sadece gerçek yazım hatalarında çalışıyor.
+YAZIM_BENZERLIGI = 0.85
+
+
+def _yazim_yakin_mi(a: str, b: str) -> bool:
+    """İki kelime yazım hatası payıyla aynı mı? ("netenyahu"/"netanyahu")"""
+    from difflib import SequenceMatcher
+    if len(a) < 5 or len(b) < 5:
+        return False                       # kısa kelimede çok riskli
+    return SequenceMatcher(None, a, b).ratio() >= YAZIM_BENZERLIGI
+
+
+def _yazim_toleransli_skor(haber, kelimeler: list[str]) -> int:
+    """`_arama_skoru`nun yazım hatasına toleranslı hâli."""
+    baslik = dogrula._sadelestir(haber["baslik_orj"] or "")
+    ozet = dogrula._sadelestir(haber["ozet_orj"] or "")
+    skor = 0
+    for k in kelimeler:
+        k = dogrula._sadelestir(k).strip()
+        if not k:
+            continue
+        if any(_yazim_yakin_mi(k, s) for s in baslik.split()):
+            skor += 10
+        elif any(_yazim_yakin_mi(k, s) for s in ozet.split()):
+            skor += 2
+    return skor
+
+
 def _arama_skoru(haber, kelimeler: list[str]) -> int:
     """
     Arama isabetini artıran basit skor.
@@ -1300,6 +1384,20 @@ def haber_ara(con, ayarlar, komut: str) -> int:
     ham = [h for h in havuz if _arama_skoru(h, kelimeler) > 0][:30]
     ham.sort(key=lambda h: _arama_skoru(h, kelimeler), reverse=True)
 
+    # ⚠️ HİÇ SONUÇ YOKSA YAZIM HATASI OLABİLİR. 21 Ağu 2026: kullanıcı
+    # "netenyahu" yazdı, havuzda 22 Netanyahu haberi vardı ama tam
+    # eşleşme tutmadı ve "havuzda yok" cevabı geldi.
+    yazim_duzeltildi = False
+    if not ham:
+        ham = [h for h in havuz
+               if _yazim_toleransli_skor(h, kelimeler) > 0][:30]
+        ham.sort(key=lambda h: _yazim_toleransli_skor(h, kelimeler),
+                 reverse=True)
+        yazim_duzeltildi = bool(ham)
+        if yazim_duzeltildi:
+            log.info("'%s' tam eşleşmedi, yazım toleransıyla %s sonuç",
+                     konu, len(ham))
+
     # ⚠️ Hiçbir kelimesi BAŞLIKTA geçmeyenler (skor < 10) eleniyor.
     # Ölçüldü: "/haber asgari ücret" bu eşik olmadan üç alakasız haber
     # döndürüyordu — kelimeler özet metninde ayrı bağlamlarda geçiyordu.
@@ -1336,8 +1434,16 @@ def haber_ara(con, ayarlar, komut: str) -> int:
         telegram_bot.mesaj_gonder(
             f"🔎 '{konu}' için havuzda haber bulunamadı.\n\n"
             f"Havuz son 3 günü kapsıyor. Haber çok yeniyse henüz "
-            f"çekilmemiş olabilir — kontrol yarım saatte bir çalışıyor.")
+            f"çekilmemiş olabilir — kontrol 90 dakikada bir çalışıyor.\n"
+            f"Aşağıdaki düğmeyle havuzu hemen tazeleyebilirsin.",
+            butonlar=[[{"text": "🔄 Haber havuzunu güncelle",
+                        "callback_data": "havuz_guncelle"}]])
         return 0
+
+    if yazim_duzeltildi:
+        telegram_bot.mesaj_gonder(
+            f"ℹ️ '{konu}' tam olarak bulunamadı, yazıma en yakın "
+            "haberler gösteriliyor.")
 
     # Puanı olmayanları toplu puanla (ucuz: tek istek)
     puansiz = [h for h in bulunan if h["onem_puani"] is None]
@@ -1565,6 +1671,8 @@ def main() -> int:
 
     if komut == "ayar":
         return ayar_paneli(con, ayarlar)
+    if komut == "havuz_guncelle":
+        return havuzu_guncelle(con, ayarlar)
     if komut == "tamamla":
         return zinciri_tamamla(con, ayarlar)
     # ── Tekil post ÖNERİSİ ──────────────────────────────────────

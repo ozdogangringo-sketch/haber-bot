@@ -28,7 +28,7 @@
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak",
-                  "plan_iptal",
+                  "plan_iptal", "havuz_guncelle",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
                   "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
@@ -371,6 +371,20 @@ export default {
         const komutMetni = msj.text.trim().split(/[\s@]/)[0].toLowerCase();
         const sohbet = msj.chat ? msj.chat.id : null;
 
+        // /guncelle — RSS'i hemen tarar. Kullanıcı duyduğu bir haberi
+        // arayıp bulamadığında kontrolün çalışmasını beklemek zorunda
+        // kalıyordu (21 Ağu 2026, "Netanyahu tutuklama emri").
+        if (komutMetni === "/guncelle" || komutMetni === "/havuz") {
+            const iletildi = await githubaIlet(
+                env, "havuz_guncelle", null,
+                msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? "🔄 Kaynaklar taranıyor, sonucu birazdan yazacağım…"
+                    : "⚠️ İstek GitHub'a iletilemedi.");
+            return new Response("ok");
+        }
+
         if (komutMetni === "/yardim" || komutMetni === "/start") {
             // Yardım metni Worker'da duruyor: GitHub'ı uyandırmak 40+
             // saniye sürüyor, sabit bir metin için buna değmez.
@@ -382,6 +396,7 @@ export default {
                 "/tamamla — yarım kalan Threads zincirini tamamla\n" +
                 "/arsiv — paylaşılmamış eski turları Threads'e gönder\n" +
                 "/haber <konu> — havuzda ara, çıkanları öneri olarak sun\n" +
+                "/guncelle — kaynakları hemen tara, havuzu tazele\n" +
                 "/yardim — bu mesaj\n\n" +
                 "Onay mesajındaki butonlarla yayınlayabilir, slaytları " +
                 "değiştirebilir veya turu atlayabilirsin.");
