@@ -17,8 +17,23 @@ on:
 # Aynı anda iki komut işlenmesin: "yayınla" ile "iptal" çakışırsa
 # veritabanı tutarsız kalır. Sıraya alıyoruz, iptal ETMİYORUZ —
 # yarıda kesilen bir yayın çift post riski doğurur.
+# ⚠️ YAYIN KOMUTU KENDİ KUYRUĞUNDA — diğer komutlarla aynı grupta DEĞİL.
+#
+# 21 Ağu 2026: kullanıcı "▶️ Şimdi"ye bastı, komut kuyruğa girdi ve
+# birkaç dakika sonraki başka bir basış ONU İPTAL ETTİ. GitHub bir
+# concurrency grubunda yalnızca BİR bekleyen job tutuyor; yeni gelen
+# öncekini siliyor. `cancel-in-progress: false` bunu engellemiyor —
+# o yalnızca ÇALIŞAN job'ı koruyor, kuyruktakini değil.
+# Belirtisi: Telegram'da düğmeye basılıyor, Actions'ta job "cancelled"
+# görünüyor ve kullanıcıya hiçbir şey söylenmiyor.
+#
+# ⚠️ Grup ayrımı veritabanı çakışma riskini geri getirir mi:
+# `db_senkron` ikili dosya çakışmasını kendisi çözüyor (rebase +
+# --theirs, çözemezse abort). CLAUDE.md 1d'deki felaketin sebebi
+# grupların ayrı olması DEĞİL, YAML'daki ham `git rebase`'ti; o kod
+# yolu `scripts/db_kaydet.py` ile kapatıldı.
 concurrency:
-  group: veritabani
+  group: veritabani-yayin
   cancel-in-progress: false
 
 jobs:
@@ -87,3 +102,29 @@ jobs:
           # db_senkron çakışmayı kendisi çözüyor, çözemezse rebase'i
           # iptal edip repoyu temiz bırakıyor.
           python scripts/db_kaydet.py "Yayın sonucu" --ek assets/flags
+
+      # ⚠️ İPTAL SESSİZ OLMASIN. Kuyruktaki job silinirse kullanıcı
+      # düğmeye bastığını sanıyor ama hiçbir şey olmuyor — 21 Ağu
+      # 2026'da "yayınla komutum neden işe yaramadı" sorusunun cevabı
+      # tam olarak buydu.
+      - name: İptal edildiyse bildir
+        if: cancelled()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          KOMUT: ${{ github.event.client_payload.komut }}
+        run: |
+          python - <<'PY'
+          import os, requests
+          jeton = os.getenv("TELEGRAM_BOT_TOKEN")
+          sohbet = os.getenv("TELEGRAM_CHAT_ID")
+          komut = os.getenv("KOMUT", "?")
+          requests.post(
+              f"https://api.telegram.org/bot{jeton}/sendMessage",
+              json={"chat_id": sohbet,
+                    "text": f"⚠️ '{komut}' komutu KUYRUKTA İPTAL EDİLDİ.\n"
+                            "Arka arkaya birden fazla düğmeye basıldığında "
+                            "GitHub eski isteği siliyor.\n"
+                            "Düğmeye tekrar bas — bu sefer beklemeden çalışır."},
+              timeout=20)
+          PY

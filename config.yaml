@@ -692,14 +692,40 @@ icerik_filtresi:
   # varsayılan olarak DOKUNULMUYOR: Instagram görsel içi metni caption
   # kadar agresif taramıyor, ama yıldızlı başlık slaytta çok göze batıyor.
   captionda: true
-  # NOT: "gorselde" ayarı KALDIRILDI. Slayt görsellerindeki başlığa
-  # filtre uygulanmıyor ve uygulanması da istenmiyor: Instagram görsel
-  # içi metni caption kadar agresif taramıyor, ama yıldızlı başlık
-  # slaytta çok göze batıyor. Fikir değişirse slaytlar.py'de
-  # filtre.metni_yumusat() çağrısı eklenmeli.
+
+  # ⚠️ KARAR DEĞİŞTİ (21 Ağu 2026): slayt görselindeki başlığa da
+  # uygulanıyor. Önce "yıldızlı başlık slaytta göze batıyor" diye
+  # kapatılmıştı; kullanıcı benzer hesapların (mhahaber) görselin
+  # ÜSTÜNDE sansürlediğini gösterip aynısını istedi — Instagram
+  # erişimi için yaygın bir uygulama.
+  gorselde: true
 
   # Kelime KÖKÜ yazılır; ekli hâlleri de yakalanır ("intihar" -> "intiharı").
+  # ⚠️ KISA KÖK YAZMA — yanlış eşleşme yapar. Ölçüldü (21 Ağu 2026):
+  #     "vur" -> v*rgu, v*rgun
+  #     "öl"  -> ö*çüm, ö*çek
+  #     "kan" -> k*nser, k*nun, k*nıt
+  # Aşağıdaki 16 kökün tamamı "Ölçüm sonucu kanser taraması kanunla
+  # kanıtlandı, vurgu yapıldı" cümlesinde HİÇBİR yanlış eşleşme
+  # yapmıyor; yeni kelime eklerken aynı testi yap.
   yumusatilacak:
+    # Ölüm/şiddet (21 Ağu 2026'da eklendi, kullanıcı isteği)
+    - öldür
+    - öldü
+    - ölüm
+    - ölü
+    - vurarak
+    - vuruldu
+    - vurdu
+    - cinayet
+    - katlet
+    - bıçakla
+    - kurşun
+    - silahla
+    - infaz
+    - idam
+    - ceset
+    # Önceden var olanlar
     - intihar
     - tecavüz
     - porno

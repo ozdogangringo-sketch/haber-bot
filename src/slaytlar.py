@@ -31,7 +31,7 @@ from pathlib import Path
 import requests
 from PIL import Image
 
-from . import dogrula, fetch_article, fetch_photo, fetch_stock, make_image
+from . import filtre, dogrula, fetch_article, fetch_photo, fetch_stock, make_image
 
 log = logging.getLogger(__name__)
 
@@ -151,6 +151,26 @@ def _kullanilmis_stok_idler() -> set:
         # Tekrar engeli olmadan da slayt üretilebilir; tur DURMAMALI.
         log.warning("kullanılmış stok id'leri okunamadı: %s", e)
     return _KULLANILMIS_ONBELLEK
+
+
+def _slayt_metni(haber, alan: str, ayarlar: dict) -> str:
+    """
+    Slayta basılacak metni içerik filtresinden geçirir.
+
+    ⚠️ 21 Ağu 2026'ya kadar filtre YALNIZCA caption'da çalışıyordu;
+    slayt görselindeki başlık ham hâliyle basılıyordu. Kullanıcı benzer
+    hesapların görselin ÜSTÜNDE sansürlediğini gösterip aynısını istedi
+    (Instagram erişimi için yaygın uygulama).
+
+    `icerik_filtresi.gorselde: false` ile kapatılabilir.
+    """
+    ham = (haber[alan] if alan in haber.keys() else None) or ""
+    if alan == "ig_baslik" and not ham:
+        ham = haber["baslik_orj"] or ""
+    f = (ayarlar or {}).get("icerik_filtresi", {}) or {}
+    if not (f.get("aktif") and f.get("gorselde")):
+        return ham
+    return filtre.metni_yumusat(ham, f.get("yumusatilacak", []))
 
 
 def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
