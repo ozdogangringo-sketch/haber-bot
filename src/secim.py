@@ -457,3 +457,53 @@ def tur_icin_sec(con, ayarlar: dict) -> list:
 
     log.info("tur seçimi: %d adaydan %d haber", len(adaylar), len(secilen))
     return secilen
+
+
+# Türkçe ek toleransı için: iki kelime aynı kökten mi geliyor?
+# Ortak önek, kısa olanın bu oranı kadarsa aynı sayılıyor.
+KOK_ORANI = 0.8
+KOK_ASGARI_HARF = 4
+
+
+def _ayni_kok(a: str, b: str) -> bool:
+    """
+    "ceza" ile "cezası" aynı kelime mi? Türkçe için evet.
+
+    ⚠️ NEDEN GEREKTİ (20 Ağu 2026): aynı PFDK kararının iki haberi tek
+    tura girdi ve tur içi mükerrer denetimi yakalayamadı —
+      "PFDK Fenerbahçe ve Galatasaray dahil çok sayıda kulübe para CEZASI"
+      "PFDK Mahmut Uslu'ya 2 milyon 500 bin lira ve KULÜPLERE CEZA"
+    Ortak kelime yalnızca "pfdk" sayıldı (eşik 2), çünkü "ceza"≠"cezası"
+    ve "kulübe"≠"kulüplere". Türkçe sondan eklemeli bir dil; düz küme
+    kesişimi bu yüzden zayıf kalıyor.
+
+    Tam kök bulma (stemming) yapmıyoruz — bir kütüphane bağımlılığı
+    daha demek ve bu iş için gereğinden ağır. Ortak önek oranı yeterli.
+    """
+    if a == b:
+        return True
+    kisa, uzun = (a, b) if len(a) <= len(b) else (b, a)
+    if len(kisa) < KOK_ASGARI_HARF:
+        return False
+    ortak = 0
+    for x, y in zip(kisa, uzun):
+        if x != y:
+            break
+        ortak += 1
+    return ortak >= max(KOK_ASGARI_HARF, len(kisa) * KOK_ORANI)
+
+
+def ortak_kelime(kume1: set, kume2: set) -> set:
+    """
+    İki başlığın ortak kelimeleri — Türkçe eklerini tolere ederek.
+
+    Kesişim yerine bunu kullan: `kume1 & kume2` "ceza"/"cezası"
+    çiftini kaçırıyor.
+    """
+    ortak = set()
+    for a in kume1:
+        for b in kume2:
+            if _ayni_kok(a, b):
+                ortak.add(a)
+                break
+    return ortak

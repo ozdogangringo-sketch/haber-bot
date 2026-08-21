@@ -540,6 +540,33 @@ def test_havuza_donen_haber_metnini_koruyor() -> None:
                 "gidiyor ve Gemini kotası ikinci kez harcanıyor")
 
 
+def test_turkce_ek_toleransi() -> None:
+    """
+    Mükerrer denetimi düz küme kesişimi kullanamaz — Türkçe sondan
+    eklemeli bir dil.
+
+    20 Ağu 2026: aynı PFDK kararının iki haberi tek tura girdi.
+      "…çok sayıda kulübe para CEZASI verdi"
+      "…Mahmut Uslu'ya 2 milyon 500 bin lira ve kulüplere CEZA"
+    Düz kesişimde ortak kelime yalnızca "pfdk" (1) sayıldı, eşik 2.
+    """
+    from src import secim as _s
+    for a, b in (("ceza", "cezası"), ("deprem", "depremde"),
+                 ("endonezya", "endonezyada"), ("yangın", "yangını")):
+        denetle(_s._ayni_kok(a, b), f"ek toleransı: {a} ~ {b}")
+    # Yanlış eşleşme yapmamalı
+    for a, b in (("ankara", "antalya"), ("istanbul", "izmir"),
+                 ("kara", "deniz")):
+        denetle(not _s._ayni_kok(a, b), f"ek toleransı: {a} ≠ {b}",
+                "alakasız kelimeler eşleşiyor — tur boşalır")
+
+    # Kural aday kapısında GERÇEKTEN kullanılıyor mu (düz kesişim kalmasın)
+    kaynak = (KOK / "src/aday.py").read_text(encoding="utf-8")
+    denetle("secim.ortak_kelime(" in kaynak,
+            "aday kapısı ek-toleranslı karşılaştırma kullanıyor",
+            "düz `&` kesişimi kalmış — Türkçe ekler kaçar")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -567,6 +594,7 @@ def main() -> int:
         test_ertelemede_menu_kaliyor,
         test_ayri_mesajdaki_dugme_tur_id_tasiyor,
         test_havuza_donen_haber_metnini_koruyor,
+        test_turkce_ek_toleransi,
     ):
         try:
             test()

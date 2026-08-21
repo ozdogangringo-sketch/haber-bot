@@ -215,8 +215,13 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     kelimeler, isimler = secim.konu_imzasi(baslik)
 
     # 4) Aynı çağrıda daha önce seçilen bir haberin tekrarı mı?
+    # ⚠️ DÜZ KESİŞİM DEĞİL — Türkçe ekleri tolere eden karşılaştırma.
+    # "ceza"/"cezası", "kulübe"/"kulüplere" düz kesişimde farklı
+    # kelime sayılıyordu ve aynı PFDK kararının iki haberi tek tura
+    # girdi (20 Ağu 2026).
     for onceki_k, onceki_i in baglam._secilenler:
-        if len(kelimeler & onceki_k) >= baglam.liste_esigi and (isimler & onceki_i):
+        if (len(secim.ortak_kelime(kelimeler, onceki_k)) >= baglam.liste_esigi
+                and secim.ortak_kelime(isimler, onceki_i)):
             return False, "bu seçimde aynı olay zaten var"
 
     # 5) Son günlerde YAYINLANMIŞ bir olayın tekrarı mı?
@@ -226,8 +231,8 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     # özetinde de görünmeli — özet o günü anlatıyor.
     if puan < baglam.muafiyet_puani:
         for onceki_k, onceki_i in baglam.gecmis_konular:
-            if (len(kelimeler & onceki_k) >= baglam.gecmis_esik
-                    and (isimler & onceki_i)):
+            if (len(secim.ortak_kelime(kelimeler, onceki_k)) >= baglam.gecmis_esik
+                    and secim.ortak_kelime(isimler, onceki_i)):
                 return False, "bu konu son günlerde yayınlandı"
 
     return True, "uygun"
