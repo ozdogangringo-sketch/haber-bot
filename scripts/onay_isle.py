@@ -441,6 +441,11 @@ def iptal(con, haberler, mesaj_id, basan) -> int:
     con.execute(
         "UPDATE haberler SET telegram_message_id = NULL, son_dakika = 0, "
         "ertelenme_sayisi = COALESCE(ertelenme_sayisi, 0) + 1, "
+        # ⚠️ Haber 12 saat yeniden aday olmuyor (`atlanan_bekleme_saat`).
+        # Skor cezası dar havuzda yetmiyordu: atlanan 10 haberin 5'i bir
+        # sonraki turda geri geliyordu. `ertele` bunu YAZMIYOR — orada
+        # kullanıcı yayınlamak istiyor, sadece bekletiyor.
+        "atlanma_zamani = datetime('now'), "
         "durum = CASE WHEN ig_baslik IS NOT NULL THEN 'metin_hazir' "
         "             ELSE 'yeni' END "
         "WHERE telegram_message_id = ?",
@@ -564,7 +569,10 @@ def tur_yeniden_sec(con, ayarlar, haberler, mesaj_id) -> int:
     con.execute(
         "UPDATE haberler SET telegram_message_id = NULL, "
         "durum = 'metin_hazir', "
-        "ertelenme_sayisi = COALESCE(ertelenme_sayisi, 0) + 1 "
+        "ertelenme_sayisi = COALESCE(ertelenme_sayisi, 0) + 1, "
+        # Bu liste istenmedi: haberler 12 saat yeniden aday olmuyor,
+        # yoksa "başka haberler" düğmesi aynı listeyi geri getirir.
+        "atlanma_zamani = datetime('now') "
         "WHERE telegram_message_id = ?", (mesaj_id,))
     con.commit()
     db_senkron.hemen_kaydet("Tur başlıkları reddedildi")

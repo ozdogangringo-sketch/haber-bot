@@ -37,6 +37,11 @@ genel:
   # (~60 sn). Beğenilmeyecek bir liste için harcanmıyor.
   basliklari_once_sor: true
 
+  # Turdan atlanan haber kaç saat boyunca yeniden aday olmasın?
+  # Skor cezası (secim.ERTELEME_CEZASI) dar havuzda yetmiyordu;
+  # atlanan haberlerin yarısı bir sonraki turda geri geliyordu.
+  atlanan_bekleme_saat: 12
+
   yayin_yasi_siniri_saat: 36
 
   # --- SON DAKİKA (gün içi tekil postlar) ---

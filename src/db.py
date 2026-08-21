@@ -68,6 +68,14 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # Bu haber en son ne zaman turdan atlandı? (ISO, UTC)
+    #
+    # ⚠️ SKOR CEZASI TEK BAŞINA YETMİYOR. 20 Ağu 2026'da ölçüldü:
+    # atlanan 10 haberin 5'i bir sonraki turda geri geldi. Sebep havuzun
+    # dar olması — 8 puanlık bir haber 15 puan ceza yese bile 6 puanlık
+    # taze haberin önünde kalıyor. Kullanıcının "atla" demesi
+    # "sıralamada geri at" değil, "şimdi bunu istemiyorum" demek.
+    "atlanma_zamani": "TEXT",
     # Bu haber daha önce (tekil post olarak) yayınlandı mı?
     #
     # Muafiyetle tura giren 9+ puanlı haberler için: haber turda KALIYOR

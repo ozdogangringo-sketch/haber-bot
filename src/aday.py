@@ -84,6 +84,7 @@ class Baglam:
     gecmis_esik: int
     liste_esigi: int                   # aynı listede tekrar denetimi
     muafiyet_puani: int                # bu puanın üstü geçmiş denetiminden muaf
+    atlanan_bekleme: float = 12.0       # atlanan haber kaç saat beklesin
     gece: bool = False
     # Aynı çağrı içinde seçilenler — liste içi mükerrer denetimi için
     _secilenler: list = field(default_factory=list)
@@ -141,6 +142,7 @@ class Baglam:
                               s.get("konu_ortak_kelime_esigi", 2) + 1),
             liste_esigi=s.get("konu_ortak_kelime_esigi", 2),
             muafiyet_puani=s.get("gecmis_muafiyet_puani", 9),
+            atlanan_bekleme=g.get("atlanan_bekleme_saat", 12),
             gece=gece,
         )
 
@@ -213,6 +215,22 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     # adıyla başladığı için tekrarlar yakalanamıyor (sözleşme testi
     # bu kusuru yakaladı).
     kelimeler, isimler = secim.konu_imzasi(baslik)
+
+    # 3b) Yakın zamanda turdan ATLANDI mı?
+    #
+    # "Atla" düğmesi haberi elemiyor (proje kuralı: onaylanmayan haber
+    # kaybolmaz) ama kullanıcı o haberi ŞİMDİ istemediğini söylemiş
+    # oluyor. Skor cezası dar havuzda yetmiyor — ölçüldü, atlanan 10
+    # haberin 5'i bir sonraki turda geri geldi.
+    atlandi = haber["atlanma_zamani"] if "atlanma_zamani" in haber.keys() else None
+    if atlandi:
+        try:
+            gecen = (datetime.now(timezone.utc)
+                     - datetime.fromisoformat(atlandi)).total_seconds() / 3600
+            if gecen < baglam.atlanan_bekleme:
+                return False, "yakın zamanda atlandı"
+        except (TypeError, ValueError):
+            pass
 
     # 4) Aynı çağrıda daha önce seçilen bir haberin tekrarı mı?
     # ⚠️ DÜZ KESİŞİM DEĞİL — Türkçe ekleri tolere eden karşılaştırma.
