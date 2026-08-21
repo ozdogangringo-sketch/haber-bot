@@ -86,6 +86,8 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Son dakika onayı | **Onay ŞART ama 1 saatte onaylanmazsa kendiliğinden iptal.** Bayat bir "son dakika" postu atmak hiç atmamaktan kötü. Onaylanmayan haber ELENMEZ, akşam turunda normal haber olarak yeniden yarışır. Otomatik yayın bilerek REDDEDİLDİ: son dakika haberleri en çok düzeltilen haberler, kaynak 20 dk sonra sayıyı değiştiriyor. |
 | Akşam turu | 20:00 hazırla → 21:00, 22:00 hatırlat → 23:00 havuza dön |
 | Slayt görseli | **4 katman, sırayla:** haberin kendi `og:image`'ı → Commons (**yalnızca KİŞİ**) → Pexels (temsili) → gradyan. **Normal turda AI HİÇ çağrılmıyor, görsel maliyeti $0.** |
+| ⚠️ HABER FOTOĞRAFI EŞİĞİ 1000x560 (21 Ağu 2026) | Eşik `1080x800` iken haberin kendi fotoğrafı **hiç kullanılamıyordu**: ölçüldü, son 14 haberin **14'ü de** boyuttan elendi ve hepsi Pexels'e düştü. Sebep haber sitelerinin standart OG boyutlarının eşiğin altında olması — **1280x720** (16:9) ve **1200x630** (1.91:1). Kullanıcının *"görseller çok genel, hep aynı şeyler"* şikâyetinin asıl sebebi buydu. Yeni eşikle iki standart geçiyor (11/14), 864x486 gibi **1080'e BÜYÜTÜLMESİ** gerekenler eleniyor — büyütme bulanıklaştırır, küçültme kalite kaybettirmez. Etki: haber fotoğrafı **%0 → ~%79**. |
+| ⚠️ Aynı Pexels fotoğrafı tekrar seçilmiyor | `gorsel_kaynak_id` kolonu + `slaytlar._kullanilmis_stok_idler()` + `fetch_stock.fotograf_ara(kullanilmis=…)`. Ölçüldü: aynı fotoğrafçının fotoğrafı **6, 5 ve 4 kez** tekrar etmişti — aynı arama terimi hep aynı sonucu veriyor ve biz en yüksek puanlıyı alıyorduk. Kullanılanlar **ELENMİYOR, listenin sonuna atılıyor**: havuz darsa hiç fotoğraf bulamamaktansa tekrar iyidir. Doğrulandı: aynı arama 3 kez çağrıldı, 3 farklı fotoğraf geldi. |
 | ⚠️ Haber görseli (18 Ağu 2026) | Haberin kendi fotoğrafı artık EN ÜST katman (`fetch_article.og_gorseli_cek`). **TELİF RİSKİ TAŞIYOR** — ajans fotoğrafı olabiliyor, kaynak belirtmek izin yerine geçmiyor, Instagram şikayette postu kaldırır. Kullanıcı riski bilerek seçti; daha önce "kullanılmayacak" denmişti, karar 18 Ağu'da değişti. `og:image` seçilmesinin sebebi: sitenin sosyal medyada paylaşılsın diye koyduğu görsel bu. `gorsel.haber_gorseli_kullan: false` ile kapanır. 600px altındakiler eleniyor (site logosu olabiliyor). |
 | Haber çeşitliliği (18 Ağu 2026) | **İki kusur birlikte çözüldü.** (1) 8 kaynağın 6'sı Türkiye gündemiydi; bilim/teknoloji/spor/kültür/ekonomi kaynağı YOKTU, o konular seçime giremiyordu. 8 kaynak eklendi (AA ×4, NTV ×2, Habertürk ×2), 8/8 test edildi. (2) Seçim düz skor sıralamasıydı, aynı olayın haberleri üst üste diziliyordu — 16 Ağu turunda 10 haberin 6'sı İsrail/Gazze, 8'i tek kaynaktan. `secim.cesitlendir()`: aynı olaydan tek haber, kategori başına 3, kaynak başına 4. Ölçüldü: turkiye 8→4, tek kaynak 7→4, kategori çeşidi 3→7. **Kurallar turu eksik bırakmıyor**, havuz darsa gevşetiliyor. |
 | ⚠️ Kaynak eklemeden ÖNCE ölç | `python scripts/kaynak_dogrula.py <url> <kategori>`. **Besleme adının kategoriyi doğru verdiğine GÜVENME.** TRT'nin "teknoloji" beslemesi 0/10 doğru kategori veriyordu (gündem 5, dünya 3) ve "Mustafa Bozbey CHP'den istifa etti" haberi slaytta **TRT TEKNOLOJİ** etiketiyle yayınlandı. Araç ayrıca tazeliği (TRT spor beslemesi 11 GÜN eskiydi) ve örtüşmeyi (Milliyet'in iki beslemesi birebir aynı) ölçüyor. |
@@ -865,6 +867,35 @@ bir turun düğmesine basmak `return 1` veriyordu: job kırmızı, hata
 bildirimi düşüyor ve gerçek arızalar arasında kayboluyordu. Artık
 kullanıcıya ne olduğu ve **şu an hangi turun açık olduğu** söylenip
 `return 0` dönülüyor.
+
+**1ab. ⚠️ KOMUT KUYRUKTA SESSİZCE İPTAL EDİLİYORDU (21 Ağu 2026).**
+
+Kullanıcı onay mesajında **"▶️ Şimdi"** düğmesine bastı ve hiçbir şey
+olmadı. Actions'ta iz vardı ama `cancelled`:
+
+```
+12:34  hazirla:22835,22506   çalışıyor
+12:35  yayinla               -> kuyruğa girdi
+12:37  yayinla_sonra:60      -> kuyruğa girdi
+       ↳ 12:35'teki İPTAL EDİLDİ
+```
+
+⚠️ **GitHub bir concurrency grubunda YALNIZCA BİR bekleyen job
+tutuyor**; yeni gelen öncekini siliyor. `cancel-in-progress: false`
+bunu engellemiyor — o yalnızca ÇALIŞAN job'ı koruyor, kuyruktakini
+değil. Bütün workflow'lar `veritabani` grubunda olduğu için arka arkaya
+basılan iki düğmeden ilki kayboluyordu.
+
+Düzeltme iki katmanlı:
+1. `yayinla.yml` **kendi kuyruğunda**: `group: veritabani-yayin`.
+   Veritabanı çakışma riskini `db_senkron` zaten çözüyor; 1d'deki
+   felaketin sebebi grup ayrımı DEĞİL, YAML'daki ham `git rebase`'ti
+   ve o kod yolu `scripts/db_kaydet.py` ile kapatıldı.
+2. `if: cancelled()` adımı — iptal artık Telegram'a bildiriliyor.
+   Sessiz iptal, kullanıcının "düğme çalışmıyor" demesinin sebebiydi.
+
+⚠️ Teşhis izi: Telegram'da düğmeye basılıyor, Actions'ta job
+**"cancelled"** görünüyor ve hiçbir hata mesajı yok.
 
 **1v. ⚠️ PARAMETRELİ KOMUTLARDA ÖN EKE BAKILMALI.**
 
