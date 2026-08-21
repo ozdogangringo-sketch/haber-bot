@@ -973,7 +973,25 @@ Commons sadece kişi/kurum aramalarında iyi; "Ankara'da zam" gibi haberlerde
 gradyandan başka seçenek yoktu. Pexels temsili fotoğraf sağlıyor: ticari kullanıma
 açık, atıf zorunlu değil, anahtar bedava, kota 25.000 istek/saat (bize günde ~9).
 
-**PEXELS ARAMA KURALI — ölçüldü, prompt'a yazıldı:**
+**⚠️ KURAL 21 AĞU 2026'DA GEVŞETİLDİ — aşağısı tarihsel kayıt.**
+Kullanıcı *"görseller çok genel, hep aynı şeyler gibi"* dedi ve ölçüm
+haklı çıkardı: arama terimlerinin **11/12'sinde "close up"** vardı,
+hepsi yakın plan nesne olduğu için birbirine benziyordu.
+
+Geniş kompozisyon denendi ve ELENDİ: orman yangını haberine *"aerial
+view of forest canopy"* istendiğinde Pexels **yemyeşil huzurlu bir
+orman** verdi — yangın haberinin altında yanlış his uyandırıyor.
+*"storm clouds over empty field"* ise *"a road in Nagka, India"*
+getirdi, yani kaçınılmak istenen coğrafi içerik geri geldi.
+
+Yeni kural İKİ ŞARTI birden istiyor: **konuya doğrudan bağlı** olacak
+VE **yazı/tabela içerebilecek sahne olmayacak**. Kompozisyon serbest,
+"close up" artık zorunlu değil. Ölçüldü (3 gerçek haber): üçünde de
+"close up" yok, üçü de konuya tam bağlı — *"military refueling
+aircraft in flight"*, *"earthquake destroyed building rubble"*,
+*"road bicycle race pack"*.
+
+**PEXELS ARAMA KURALI (eski hâli) — ölçüldü, prompt'a yazıldı:**
 Geniş mekân fotoğrafları hep bir ülkeye ait ve tabelaları yabancı dilde çıkıyor.
 Türkiye haberinde İspanyolca hastane tabelası özensiz görünüyor.
 ```

@@ -287,17 +287,36 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   Haberin merkezinde tanınmış bir insan yoksa BOŞ BIRAKMAK DOĞRU CEVAPTIR.
 
 - gorsel_temsili: Konuyu temsil eden İNGİLİZCE stok fotoğraf arama terimi.
-  Ölçüldü (15 Ağu 2026), şu kurallara uy:
-    * YAKIN PLAN NESNE iste, geniş mekân isteme. Geniş mekân fotoğrafları
-      hep bir ülkeye ait oluyor ve tabelaları yabancı dilde çıkıyor —
-      Türkiye haberinde İspanyolca hastane tabelası özensiz görünüyor.
-        KÖTÜ: "hospital corridor"   ->  İYİ: "stethoscope close up"
-        KÖTÜ: "city bus stop"       ->  İYİ: "turkish lira coins close up"
-    * 3-6 kelime yeter. Sonuna "close up" eklemek işe yarıyor.
-    * İnsan yüzü içeren sahne isteme — tanımadığımız biri haberle
-      ilişkilendirilmiş görünür.
-    * Doğa ve doku sahneleri de nötr olduğu için iyi çalışıyor
-      (kuraklık haberinde "dry cracked earth" gibi).
+
+  İKİ ŞART BİRDEN — biri olmadan diğeri işe yaramıyor:
+
+  1) KONUYA DOĞRUDAN BAĞLI OLACAK. Fotoğrafa bakan kişi haberin neyle
+     ilgili olduğunu anlamalı.
+     ⚠️ Ölçüldü (21 Ağu 2026): soyut ve manzara terimleri konuyu
+     kaybettiriyor. Orman yangını haberine "aerial view of forest
+     canopy" istendiğinde Pexels YEMYEŞİL huzurlu bir orman verdi —
+     yangın haberinin altında yanlış his uyandırıyor.
+        KÖTÜ: "storm clouds over field"  (deprem haberi için soyut)
+        KÖTÜ: "long exposure dust particles"  (hiçbir şey anlatmıyor)
+
+  2) YAZI/TABELA İÇEREBİLECEK SAHNE İSTEME. Asıl sorun "geniş" olması
+     değil, ÜSTÜNDE YAZI olması: tabelalar yabancı dilde çıkıyor ve
+     Türkiye haberinde İspanyolca hastane tabelası özensiz görünüyor.
+     Aynı sebeple yer adı geçen terim isteme — "storm clouds over
+     empty field" araması "a road in Nagka, India" getirdi.
+        KÖTÜ: "hospital corridor", "city bus stop", "courthouse"
+
+  KOMPOZİSYON SERBEST — "close up" ZORUNLU DEĞİL. Yakın plan nesne de,
+  sahne de olabilir; yeter ki yukarıdaki iki şartı sağlasın. Hep aynı
+  kalıbı kullanmak hesabı tekdüze gösteriyor.
+        İYİ: "firefighter helmet close up"      (yakın plan nesne)
+        İYİ: "burning forest branches at night" (sahne, konuya bağlı)
+        İYİ: "stethoscope on medical chart"     (nesne, düzenlenmiş)
+        İYİ: "dry cracked earth"                (doku, kuraklık haberi)
+
+    * 3-6 kelime yeter.
+    * İnsan YÜZÜ içeren sahne isteme — tanımadığımız biri haberle
+      ilişkilendirilmiş görünür. (El, silüet, arkadan görünüm sorun değil.)
 
 - kategori: Haberin KENDİ konusu. Yalnızca şunlardan biri:
     turkiye   — Türkiye gündemi, iç siyaset, asayiş, yerel olaylar
