@@ -305,10 +305,10 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
 
     gorsel = make_image.yaziyi_bas(
         arkaplan,
-        haber["ig_baslik"] or haber["baslik_orj"],
+        _slayt_metni(haber, "ig_baslik", ayarlar),
         make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
         ayarlar,
-        ozet=_alan(haber, "slayt_ozet") or None,
+        ozet=_slayt_metni(haber, "slayt_ozet", ayarlar) or None,
         # Fotoğraf katmanlarında görsel o olayın belgesi değil; gradyanda
         # ise ortada fotoğraf yok, ibare anlamsız olurdu.
         arsiv_ibaresi=katman in ARSIV_KATMANLARI,
@@ -393,10 +393,10 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
 
     gorsel1 = make_image.yaziyi_bas(
         ham_arkaplan.copy(),
-        haber["ig_baslik"] or haber["baslik_orj"],
+        _slayt_metni(haber, "ig_baslik", ayarlar),
         make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
         ayarlar,
-        ozet=_alan(haber, "slayt_ozet") or None,
+        ozet=_slayt_metni(haber, "slayt_ozet", ayarlar) or None,
         arsiv_ibaresi=katman in ARSIV_KATMANLARI,
         ulke_kodu=_alan(haber, "ulke_kodu") or None,
         ulke_adi=_alan(haber, "ulke_adi") or None,
@@ -455,7 +455,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     detay_yollari = []
     for i, satirlar in enumerate(sayfalar, start=1):
         gorsel2 = make_image.detay_slayti(
-            haber["ig_baslik"] or haber["baslik_orj"],
+            _slayt_metni(haber, "ig_baslik", ayarlar),
             detay,
             make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
             ayarlar,
@@ -478,8 +478,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     yol3 = None
     try:
         story = make_image.story_haber(
-            haber["ig_baslik"] or haber["baslik_orj"],
-            _alan(haber, "slayt_ozet"),
+            _slayt_metni(haber, "ig_baslik", ayarlar),
+            _slayt_metni(haber, "slayt_ozet", ayarlar),
             make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
             ayarlar,
             # Gradyan katmanında ham arka planı geçmiyoruz: story kendi

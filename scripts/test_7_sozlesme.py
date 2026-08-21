@@ -766,6 +766,45 @@ def test_gorsel_cesitliligi() -> None:
             "kullanılmış stok id'leri veritabanından okunuyor")
 
 
+def test_icerik_filtresi() -> None:
+    """
+    Riskli kelimeler hem caption'da hem SLAYT GÖRSELİNDE yumuşatılmalı.
+
+    21 Ağu 2026: filtre yalnızca caption'da çalışıyordu; slayt
+    görselindeki başlık ham hâliyle basılıyordu. Kullanıcı benzer
+    hesapların görselin üstünde sansürlediğini gösterip aynısını istedi.
+
+    ⚠️ KISA KÖK YANLIŞ EŞLEŞME YAPAR — ölçüldü:
+        "vur" -> v*rgu, v*rgun · "öl" -> ö*çüm · "kan" -> k*nser
+    Bu yüzden listedeki her kök, masum bir cümlede hiçbir kelimeyi
+    yıldızlamamalı.
+    """
+    from src import filtre as _f
+    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    f = cfg.get("icerik_filtresi") or {}
+    kokler = f.get("yumusatilacak", [])
+
+    denetle(f.get("gorselde") is True,
+            "içerik filtresi slayt görseline de uygulanıyor",
+            "yalnızca caption'da çalışıyor")
+    sl = (KOK / "src/slaytlar.py").read_text(encoding="utf-8")
+    denetle(sl.count("_slayt_metni(haber") >= 4,
+            "slayt/story/detay başlıkları filtreden geçiyor",
+            "bazı görsel metinleri ham basılıyor")
+
+    # Masum cümlede yanlış eşleşme OLMAMALI
+    masum = ("Ölçüm sonucu kanser taraması kanunla kanıtlandı, vurgu "
+             "yapıldı, ölçek büyük, kanal açıldı, kararname yayımlandı")
+    denetle("*" not in _f.metni_yumusat(masum, kokler),
+            "filtre kökleri masum kelimeleri yıldızlamıyor",
+            f"yanlış eşleşme: {_f.metni_yumusat(masum, kokler)}")
+
+    # Riskli cümlede eşleşme OLMALI
+    riskli = "Eşini vurarak öldürdü, cinayet sonrası ceset bulundu"
+    denetle("*" in _f.metni_yumusat(riskli, kokler),
+            "filtre riskli kelimeleri yakalıyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -800,6 +839,7 @@ def main() -> int:
         test_kosullu_tanimlanan_bayraklar,
         test_worker_calisiyor,
         test_gorsel_cesitliligi,
+        test_icerik_filtresi,
     ):
         try:
             test()
