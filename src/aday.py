@@ -161,6 +161,30 @@ def _bugunku_kategoriler(con) -> dict:
     }
 
 
+def _saat_gecti(zaman_metni: str) -> float | None:
+    """
+    Verilen ISO zamandan bu yana geçen saat. Okunamıyorsa None.
+
+    ⚠️ SQLite'ın `datetime('now')` ÇIKTISI SAAT DİLİMSİZ ("2026-08-21
+    02:27:03"). `datetime.now(timezone.utc)` ise saat dilimli ve ikisini
+    çıkarmak `TypeError: can't subtract offset-naive and offset-aware`
+    veriyor.
+
+    İlk yazımda bu hata `except (TypeError, ValueError): pass` ile
+    yutuluyordu ve kural SESSİZCE hiç çalışmadı — atlanan 8 haber bir
+    sonraki turda geri geldi, log'da tek bir uyarı bile yoktu.
+    Saat dilimsiz değer UTC kabul ediliyor (SQLite zaten UTC yazıyor).
+    """
+    try:
+        an = datetime.fromisoformat(str(zaman_metni))
+    except (TypeError, ValueError):
+        log.warning("zaman okunamadı: %r", zaman_metni)
+        return None
+    if an.tzinfo is None:
+        an = an.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - an).total_seconds() / 3600
+
+
 def _yas_saat(haber) -> float:
     ham = haber["yayin_tarihi"] if "yayin_tarihi" in haber.keys() else None
     if not ham:
@@ -224,13 +248,9 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     # haberin 5'i bir sonraki turda geri geldi.
     atlandi = haber["atlanma_zamani"] if "atlanma_zamani" in haber.keys() else None
     if atlandi:
-        try:
-            gecen = (datetime.now(timezone.utc)
-                     - datetime.fromisoformat(atlandi)).total_seconds() / 3600
-            if gecen < baglam.atlanan_bekleme:
-                return False, "yakın zamanda atlandı"
-        except (TypeError, ValueError):
-            pass
+        gecen = _saat_gecti(atlandi)
+        if gecen is not None and gecen < baglam.atlanan_bekleme:
+            return False, "yakın zamanda atlandı"
 
     # 4) Aynı çağrıda daha önce seçilen bir haberin tekrarı mı?
     # ⚠️ DÜZ KESİŞİM DEĞİL — Türkçe ekleri tolere eden karşılaştırma.
