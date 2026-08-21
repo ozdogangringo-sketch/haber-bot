@@ -68,6 +68,10 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # Kullanılan stok fotoğrafın kaynaktaki id'si (Pexels).
+    # Aynı fotoğrafın tekrar tekrar seçilmesini engellemek için
+    # saklanıyor — bkz. fetch_stock.fotograf_ara(kullanilmis=...).
+    "gorsel_kaynak_id": "TEXT",
     # Bu haber en son ne zaman turdan atlandı? (ISO, UTC)
     #
     # ⚠️ SKOR CEZASI TEK BAŞINA YETMİYOR. 20 Ağu 2026'da ölçüldü:

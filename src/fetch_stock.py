@@ -92,13 +92,22 @@ def _aday_puani(foto: dict) -> int:
 
 
 def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
-                 atlanacak: int = 0) -> dict | None:
+                 atlanacak: int = 0,
+                 kullanilmis: set | None = None) -> dict | None:
     """
     Pexels'te arar, en uygun adayın kaydını döner. Bulamazsa None.
 
     Dönen sözlük `fetch_photo.fotograf_ara` ile aynı alanları taşıyor
     (`url`, `baslik`, `sanatci`, `lisans`) — böylece çağıran taraf iki
     kaynağı ayırt etmek zorunda kalmıyor.
+
+    `kullanilmis`: son postlarda kullanılmış Pexels fotoğraf id'leri.
+    ⚠️ NEDEN GEREKTİ (21 Ağu 2026): kullanıcı "görseller hep aynı
+    şeyler gibi" dedi. Ölçüldü — aynı fotoğrafçının fotoğrafı 6, 5 ve
+    4 kez tekrar etmişti. Sebep: aynı arama terimi hep aynı sonucu
+    veriyor ve biz her zaman en yüksek puanlıyı alıyoruz. Bu küme
+    daha önce kullanılanları listenin SONUNA atıyor — eleme değil,
+    çünkü havuz darsa hiç fotoğraf bulamamaktansa tekrar iyidir.
     """
     try:
         cevap = requests.get(
@@ -124,6 +133,7 @@ def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
             continue
         adaylar.append(
             {
+                "id": foto.get("id"),
                 # "original" kırpılmamış hâli; kırpmayı biz yapıyoruz
                 "url": foto["src"]["original"],
                 "baslik": foto.get("alt") or terim,
@@ -138,7 +148,14 @@ def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
         log.info("Pexels'te uygun fotoğraf bulunamadı: %s", terim)
         return None
 
-    adaylar.sort(key=lambda a: a["puan"], reverse=True)
+    # Daha önce kullanılanlar sona: aynı arama hep aynı fotoğrafı
+    # döndürüyordu ve hesap tekdüze görünüyordu.
+    onceki = kullanilmis or set()
+    adaylar.sort(key=lambda a: (str(a.get("id")) in onceki, -a["puan"]))
+    yeni = sum(1 for a in adaylar if str(a.get("id")) not in onceki)
+    if onceki and yeni < len(adaylar):
+        log.info("Pexels: %s/%s aday daha önce kullanılmış, sona alındı",
+                 len(adaylar) - yeni, len(adaylar))
     # ⚠️ `atlanacak` — "başka fotoğraf" düğmesi için. Önce hep
     # `adaylar[0]` dönüyordu, yani düğmeye kaç kez basılırsa basılsın
     # aynı fotoğraf geliyordu. Liste biterse başa dönüyoruz: kullanıcı
@@ -172,15 +189,17 @@ def atif_metni(kayit: dict) -> str:
     return f"Temsili foto: {sanatci} (Pexels)"
 
 
-def konu_icin_fotograf(terim: str,
-                       atlanacak: int = 0) -> tuple[Image.Image, dict] | None:
+def konu_icin_fotograf(terim: str, atlanacak: int = 0,
+                       kullanilmis: set | None = None
+                       ) -> tuple[Image.Image, dict] | None:
     """
     Tek adımda: ara + indir. Bulamazsa None.
 
     `fetch_photo.konu_icin_fotograf` ile aynı imza — katman seçici
     ikisini de aynı şekilde çağırabilsin diye bilinçli.
     """
-    kayit = fotograf_ara(terim, atlanacak=atlanacak)
+    kayit = fotograf_ara(terim, atlanacak=atlanacak,
+                         kullanilmis=kullanilmis)
     if not kayit:
         return None
     gorsel = fotografi_indir(kayit)

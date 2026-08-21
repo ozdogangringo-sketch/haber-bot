@@ -109,6 +109,50 @@ def _gorseli_indir(url: str, g: dict):
     return foto.convert("RGB")
 
 
+# Son kullanılan stok fotoğraf id'leri. Modül seviyesinde tutuluyor:
+# aynı çalıştırma içinde 10 slayt üretiliyor ve her biri için
+# veritabanına gitmek gereksiz.
+_KULLANILMIS_ONBELLEK: set | None = None
+# Bu çağrıda seçilen id — çağıran taraf veritabanına yazsın diye.
+_SON_STOK_ID: list = []
+
+
+def _kullanilmis_stok_idler() -> set:
+    """
+    Son günlerde kullanılmış Pexels fotoğraf id'leri.
+
+    ⚠️ NEDEN GEREKTİ (21 Ağu 2026): kullanıcı "görseller hep aynı
+    şeyler" dedi ve ölçüm doğruladı — aynı fotoğrafçının fotoğrafı 6,
+    5 ve 4 kez tekrar etmişti. Aynı arama terimi hep aynı sonucu
+    veriyor, biz de hep en yüksek puanlıyı alıyorduk.
+
+    Bu küme fotoğrafı ELEMİYOR, listenin sonuna atıyor: havuz darsa
+    hiç fotoğraf bulamamaktansa tekrar iyidir.
+    """
+    global _KULLANILMIS_ONBELLEK
+    if _KULLANILMIS_ONBELLEK is not None:
+        return _KULLANILMIS_ONBELLEK
+    _KULLANILMIS_ONBELLEK = set()
+    try:
+        from . import db
+        con = db.baglan()
+        try:
+            _KULLANILMIS_ONBELLEK = {
+                str(r[0]) for r in con.execute(
+                    "SELECT gorsel_kaynak_id FROM haberler "
+                    "WHERE gorsel_kaynak_id IS NOT NULL "
+                    "AND cekilme_zamani > datetime('now', '-7 day')")
+            }
+        finally:
+            con.close()
+        log.info("stok tekrar engeli: %s fotoğraf daha önce kullanılmış",
+                 len(_KULLANILMIS_ONBELLEK))
+    except Exception as e:                            # noqa: BLE001
+        # Tekrar engeli olmadan da slayt üretilebilir; tur DURMAMALI.
+        log.warning("kullanılmış stok id'leri okunamadı: %s", e)
+    return _KULLANILMIS_ONBELLEK
+
+
 def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                  atlanacak: int = 0) -> tuple[Image.Image, str, str]:
     """
@@ -189,12 +233,21 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             log.warning("Commons katmanı patladı (%s): %s", konu, e)
 
     # --- 2) Pexels: temsili fotoğraf ---
+    # ⚠️ Liste her çağrıda temizleniyor: `tur_uret` bu değeri slayt
+    # başına okuyor, eskisi kalırsa yanlış habere yazılır.
+    _SON_STOK_ID.clear()
     terim = _alan(haber, "gorsel_temsili")
     if terim:
         try:
-            sonuc = fetch_stock.konu_icin_fotograf(terim, atlanacak=atlanacak)
+            sonuc = fetch_stock.konu_icin_fotograf(
+                terim, atlanacak=atlanacak,
+                kullanilmis=_kullanilmis_stok_idler())
             if sonuc:
                 foto, kayit = sonuc
+                # Bu fotoğrafı bir daha seçmeyelim diye işaretliyoruz.
+                if kayit.get("id"):
+                    _kullanilmis_stok_idler().add(str(kayit["id"]))
+                    _SON_STOK_ID.append(str(kayit["id"]))
                 return (
                     make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
                     "pexels",
@@ -275,10 +328,16 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
             # Atıf da yazılıyor: caption yayın anında yeniden kuruluyor ve
             # hazırlık ile onay arasında saatler geçebiliyor. Bellekte
             # tutulsa Commons'ın CC BY atfı yayında kaybolurdu.
+            # Stok fotoğraf id'si: aynı fotoğrafın bir daha
+            # seçilmemesi için saklanıyor. Pexels dışı katmanlarda
+            # boş kalıyor, COALESCE eski değeri korumasın diye
+            # doğrudan yazılıyor.
+            stok_id = _SON_STOK_ID.pop() if _SON_STOK_ID else None
             con.execute(
-                "UPDATE haberler SET gorsel_yolu = ?, gorsel_kaynagi = ?, "
+                "UPDATE haberler SET gorsel_kaynak_id = ?, "
+                "gorsel_yolu = ?, gorsel_kaynagi = ?, "
                 "gorsel_atif = ? WHERE id = ?",
-                (str(yol), katman, atif, haber["id"]),
+                (stok_id, str(yol), katman, atif, haber["id"]),
             )
             con.commit()
 

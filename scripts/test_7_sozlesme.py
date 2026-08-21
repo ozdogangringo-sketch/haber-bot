@@ -729,6 +729,43 @@ def test_worker_calisiyor() -> None:
             "kod satırı yoruma gömülmüş olabilir")
 
 
+def test_gorsel_cesitliligi() -> None:
+    """
+    Görsellerin tekdüzeleşmesine karşı iki koruma.
+
+    21 Ağu 2026, kullanıcı: *"görseller çok genel gibi hissettirmeye
+    başladı, hep aynı şeyleri kullanıyoruz gibi"*. Ölçüm iki sebep
+    buldu:
+
+      1. Haberin KENDİ fotoğrafı boyut eşiğinden tamamen eleniyordu
+         (son 14 haberin 14'ü). Eşik 1080x800'dü; haber sitelerinin
+         standart OG boyutları 1280x720 ve 1200x630, ikisi de altında.
+         Sonuç: her şey Pexels'e düşüyordu.
+      2. Aynı Pexels fotoğrafı tekrar tekrar seçiliyordu (aynı
+         fotoğrafçı 6, 5 ve 4 kez) — aynı arama hep aynı sonucu
+         veriyor ve biz en yüksek puanlıyı alıyorduk.
+    """
+    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    g = cfg.get("gorsel") or {}
+    # 1280x720 ve 1200x630 GEÇEBİLMELİ
+    for gen, yuk, ad in ((1280, 720, "16:9 (1280x720)"),
+                         (1200, 630, "1.91:1 (1200x630)")):
+        denetle(gen >= g.get("haber_gorseli_asgari_genislik", 0)
+                and yuk >= g.get("haber_gorseli_asgari_yukseklik", 0),
+                f"haber fotoğrafı eşiği {ad} boyutunu geçiriyor",
+                f"eşik {g.get('haber_gorseli_asgari_genislik')}x"
+                f"{g.get('haber_gorseli_asgari_yukseklik')} — haber "
+                "sitelerinin standart boyutu eleniyor, her şey Pexels'e düşer")
+
+    fs = (KOK / "src/fetch_stock.py").read_text(encoding="utf-8")
+    denetle("kullanilmis" in fs,
+            "Pexels aramasında tekrar engeli var",
+            "aynı arama hep aynı fotoğrafı döndürür")
+    sl = (KOK / "src/slaytlar.py").read_text(encoding="utf-8")
+    denetle("_kullanilmis_stok_idler" in sl,
+            "kullanılmış stok id'leri veritabanından okunuyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -762,6 +799,7 @@ def main() -> int:
         test_git_degisiklik_yok_yanlis_alarm_vermiyor,
         test_kosullu_tanimlanan_bayraklar,
         test_worker_calisiyor,
+        test_gorsel_cesitliligi,
     ):
         try:
             test()
