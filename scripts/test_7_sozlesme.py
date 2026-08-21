@@ -916,6 +916,32 @@ def test_gunluk_sinir_gercek_yayini_sayiyor() -> None:
             "kullanıcının açık seçimi sessizce reddediliyor")
 
 
+def test_etki_dogrulamasi() -> None:
+    """
+    Kullanıcı komutları DÖNÜŞ DEĞERİNE değil GERÇEK ETKİYE bakmalı.
+
+    21 Ağu 2026'da bugünkü hataların hepsi aynı desendi: kod
+    "başarılı" dedi ama iş yapılmadı ve kullanıcıya hiçbir şey
+    söylenmedi.
+      * `son_dakika.main` günlük sayaç yanlış olduğu için 15 saniyede
+        `0` döndü, hiçbir post üretmedi;
+      * fuzzy arama 24 sonuç buldu, alt satır hepsini eledi;
+      * yayın komutu kuyrukta iptal edildi.
+
+    `oneriyi_hazirla` artık veritabanına bakıyor: haber gerçekten
+    `onay_bekliyor` oldu mu ve bir mesaja bağlandı mı?
+    """
+    kaynak = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    govde = kaynak.split("def oneriyi_hazirla(")[1].split("\ndef ")[0]
+    denetle("gercekten_oldu" in govde,
+            "oneriyi_hazirla gerçek etkiyi doğruluyor",
+            "yalnızca dönüş değerine bakıyor — sessiz başarısızlık "
+            "kullanıcıya 'hazırlanıyor' olarak görünür")
+    denetle("durum'] in (\"onay_bekliyor\", \"yayinlandi\")" in govde
+            or 'onay_bekliyor' in govde,
+            "etki kontrolü haberin durumuna bakıyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -954,6 +980,7 @@ def main() -> int:
         test_temizlik_yayinlanmisi_korur,
         test_arama_yazim_toleransi,
         test_gunluk_sinir_gercek_yayini_sayiyor,
+        test_etki_dogrulamasi,
     ):
         try:
             test()

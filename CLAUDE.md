@@ -1312,6 +1312,33 @@ başlar) ama haber başlıkları çok sık yer adıyla başlıyor
 isim kalmıyor, tekrar YAKALANAMIYOR. Sözleşme testi bu kusuru
 `aday.py`'nin ilk sürümünde yakaladı.
 
+### ⚠️ EN SIK GÖRÜLEN HATA SINIFI: SESSİZ BAŞARISIZLIK
+
+21 Ağustos 2026'da canlıda çıkan hataların **çoğu tek bir desendi**:
+kod `0` (başarı) döndü ama iş yapılmadı ve kullanıcıya hiçbir şey
+söylenmedi.
+
+| Olay | Ne oldu |
+|---|---|
+| Kullanıcı 2 haber seçti | `main` 15 sn'de `0` döndü, hiçbir post üretilmedi — günlük sayaç yanlış hesaplanıyordu |
+| `/haber netenhay` | Fuzzy 24 sonuç buldu, bir alt satır hepsini eledi, "bulunamadı" dendi |
+| "▶️ Şimdi" düğmesi | Komut kuyrukta iptal edildi, job "cancelled", bildirim yok |
+| Atlanan haber kuralı | `except: pass` bir `TypeError`'ı yutuyordu, kural hiç çalışmadı |
+
+⚠️ **TESTLER BUNLARI GÖREMİYOR** — kod "çalışıyor", yalnızca yanlış
+şeyi yapıyor.
+
+**Karşı önlem: dönüş değerine değil GERÇEK ETKİYE bak.**
+`oneriyi_hazirla` artık veritabanına soruyor — haber gerçekten
+`onay_bekliyor` oldu mu, bir mesaja bağlandı mı? "Başarılı" demek
+yetmiyor.
+
+`scripts/sessiz_basarisizlik_tara.py` kodda bu deseni arıyor: bir iş
+yapılmadan `return 0` ile çıkan ve kullanıcıya bildirim göndermeyen
+dallar. ⚠️ Yanlış pozitif verir (bildirim çağrılan fonksiyonun içinde
+olabilir, `--kuru` dalları bilerek sessizdir) — çıktısı bir liste
+değil, **incelenecek adaylar**.
+
 ### İKİ TEST KATMANI — kod değiştirdikten sonra ikisini de çalıştır
 
 ```bash

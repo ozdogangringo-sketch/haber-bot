@@ -1569,6 +1569,28 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
         except Exception as e:                        # noqa: BLE001
             log.exception("haber %s hazırlanamadı", hid)
             sonuc = 1
+
+        # ⚠️ DÖNÜŞ DEĞERİNE DEĞİL, GERÇEK ETKİYE BAK.
+        #
+        # 21 Ağu 2026: kullanıcı iki haber seçti, `main` 15 saniyede
+        # `0` (başarı) döndü ve hiçbir şey üretmedi — günlük sayaç
+        # yanlış hesaplandığı için sessizce çıkmıştı. Kullanıcı
+        # "hazırlanıyor" yazısında kaldı, kimse bir şey söylemedi.
+        #
+        # "Başarılı" demek yetmiyor: haber gerçekten onaya sunuldu mu?
+        # Bunun tek kanıtı veritabanındaki durum.
+        taze = con.execute(
+            "SELECT durum, telegram_message_id FROM haberler WHERE id = ?",
+            (hid,)).fetchone()
+        gercekten_oldu = bool(
+            taze and taze["durum"] in ("onay_bekliyor", "yayinlandi")
+            and taze["telegram_message_id"])
+
+        if sonuc == 0 and not gercekten_oldu:
+            log.error("haber %s: 'başarılı' dönüldü ama post üretilmedi "
+                      "(durum=%s)", hid, taze["durum"] if taze else "?")
+            sonuc = 1
+
         if sonuc == 0:
             basarili.append(basliklar[hid])
         else:
