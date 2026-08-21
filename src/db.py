@@ -68,6 +68,14 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # Bu haber daha önce (tekil post olarak) yayınlandı mı?
+    #
+    # Muafiyetle tura giren 9+ puanlı haberler için: haber turda KALIYOR
+    # ama EN SON sıraya iniyor. Kullanıcı kararı (20 Ağu 2026):
+    # "kalsın havuzda ama gündüz yayınlandıysa en son sırada olsun".
+    # Gerekçe: takipçi o haberi gün içinde zaten gördü; başa koymak
+    # turun ilk izlenimini tekrarla harcıyor.
+    "daha_once_yayinlandi": "INTEGER DEFAULT 0",
     # Zamanlanmış yayın: bu tur ne zaman yayınlanacak (ISO 8601, UTC).
     #
     # ⚠️ HASSASİYET ±30 DAKİKA. Zamanı gelen turu son dakika kontrolü

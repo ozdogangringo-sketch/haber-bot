@@ -57,10 +57,18 @@ MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
 
 
 def turu_getir(con, mesaj_id: int) -> list:
-    """Bu onay mesajına bağlı haberleri slayt sırasıyla getirir."""
+    """
+    Bu onay mesajına bağlı haberleri slayt sırasıyla getirir.
+
+    ⚠️ SIRALAMA `secim.tur_icin_sec` İLE AYNI OLMALI, yoksa slaytların
+    sırası ile caption'daki manşet sırası birbirini tutmaz.
+    `daha_once_yayinlandi` en başta: gün içinde tekil olarak yayınlanmış
+    haber turda kalıyor ama EN SONA iniyor.
+    """
     return list(con.execute(
         "SELECT * FROM haberler WHERE telegram_message_id = ? "
-        "ORDER BY onem_puani DESC, yayin_tarihi DESC",
+        "ORDER BY COALESCE(daha_once_yayinlandi, 0) ASC, "
+        "onem_puani DESC, yayin_tarihi DESC",
         (mesaj_id,),
     ))
 

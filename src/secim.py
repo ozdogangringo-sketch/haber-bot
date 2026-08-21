@@ -455,7 +455,37 @@ def tur_icin_sec(con, ayarlar: dict) -> list:
     baglam = aday.Baglam.kur(aday.TUR, ayarlar, con)
     secilen = aday.sec(adaylar, baglam, adet=g["slayt_sayisi"])
 
-    log.info("tur seçimi: %d adaydan %d haber", len(adaylar), len(secilen))
+    # ⚠️ DAHA ÖNCE YAYINLANMIŞ HABER TURDA EN SONA.
+    #
+    # 9+ puanlı haberler geçmiş denetiminden muaf (bkz. aday.uygun_mu):
+    # büyük bir olay günün özetinde de yer almalı. Ama takipçi o postu
+    # gün içinde zaten gördü; başa koymak turun ilk izlenimini tekrarla
+    # harcıyor. Kullanıcı kararı (20 Ağu 2026): "kalsın havuzda ama
+    # gündüz yayınlandıysa en son sırada olsun".
+    esik = (ayarlar.get("secim", {}) or {}).get("gecmis_ortak_kelime", 3)
+    for h in secilen:
+        kel, ozel = konu_imzasi(h["ig_baslik"] or h["baslik_orj"])
+        gorulmus = any(
+            len(ortak_kelime(kel, gk)) >= esik and ortak_kelime(ozel, go)
+            for gk, go in baglam.gecmis_konular)
+        con.execute("UPDATE haberler SET daha_once_yayinlandi = ? WHERE id = ?",
+                    (1 if gorulmus else 0, h["id"]))
+    con.commit()
+
+    # Listeyi yeniden oku: sıralama artık işareti de hesaba katıyor.
+    # (Satırlar salt-okunur olduğu için yerinde güncellenemiyor.)
+    idler = [h["id"] for h in secilen]
+    if idler:
+        isaret = ",".join("?" * len(idler))
+        taze = {r["id"]: r for r in con.execute(
+            f"SELECT * FROM haberler WHERE id IN ({isaret})", tuple(idler))}
+        secilen = [taze.get(h["id"], h) for h in secilen]
+        secilen.sort(key=lambda h: ((h["daha_once_yayinlandi"] or 0),
+                                    -skor(h, ayarlar)))
+
+    gorulen = sum(1 for h in secilen if h["daha_once_yayinlandi"])
+    log.info("tur seçimi: %d adaydan %d haber (%d tanesi daha önce "
+             "yayınlanmış, sona alındı)", len(adaylar), len(secilen), gorulen)
     return secilen
 
 

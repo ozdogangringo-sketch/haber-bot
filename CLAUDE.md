@@ -716,6 +716,43 @@ ayrı bir mesajla bildiriyor. Sözleşme testi `telegram_bot.sonucu_yaz(`
 çağrısını denetliyor — ⚠️ düz metin araması yanlış alarm veriyordu,
 çünkü fonksiyonun docstring'inde "sonucu_yaz KULLANMA" uyarısı yazılı.
 
+**1z2. ⚠️ TÜRKÇE EKLER MÜKERRER DENETİMİNİ DELİYOR + gündüz
+yayınlanan haber turda EN SONA.**
+
+20 Ağu 2026, gece kurulan turda iki ayrı sorun çıktı.
+
+**(a) Aynı PFDK kararının iki haberi tek tura girdi.**
+`"…kulübe para CEZASI verdi"` ve `"…kulüplere CEZA"` — düz küme
+kesişimi bunları farklı kelime saydı, ortak kelime yalnızca "pfdk"
+(1) çıktı ve eşik 2'ydi. Türkçe sondan eklemeli; `kelimeler1 &
+kelimeler2` bu dilde zayıf kalıyor.
+
+Çözüm `secim._ayni_kok` + `secim.ortak_kelime`: ortak önek, kısa
+kelimenin **%80'i ve en az 4 harf** ise aynı kabul ediliyor. Stemming
+kütüphanesi EKLENMEDİ — bu iş için gereğinden ağır.
+Ölçüldü: elenme oranı **%14.7 → %15.5** (+1 haber), "ankara/antalya"
+ve "istanbul/izmir" eşleşmiyor. `aday.uygun_mu` iki denetimde de
+(liste içi + geçmiş) buna geçti.
+
+**(b) Gündüz tekil atılan haber turun BAŞINDA çıkıyordu.**
+9+ puanlı haberler geçmiş denetiminden muaf (`gecmis_muafiyet_puani`)
+ve bu kullanıcının kendi isteğiydi: *"9 üzerindeyse akşam özetinde
+olabilir yine"*. Ama muafiyetle giren haber `onem_puani DESC`
+sıralamasında ilk slayt oluyordu.
+
+Kullanıcı kararı: **"kalsın havuzda ama gündüz yayınlandıysa en son
+sırada olsun"**. `daha_once_yayinlandi` kolonu eklendi;
+`tur_icin_sec` seçim sonrası işaretliyor ve sona sıralıyor,
+`onay_isle.turu_getir` aynı sıralamayı kullanıyor.
+⚠️ **İKİ SIRALAMA AYNI OLMALI** — biri değişirse slayt sırası ile
+caption'daki manşet sırası birbirini tutmaz.
+
+⚠️ **SLAYT NUMARASI KIRILGAN.** Sıra değişince "slayt 9" başka bir
+haberi işaret ediyor; gönderilmiş bir alternatif mesajı yanlış slaytı
+değiştirir. Sıralamayı değiştiren bir işlemden sonra açık alternatif
+mesajları geçersizdir. Kalıcı çözüm düğmelere slayt numarası yerine
+haber id'si gömmek — **henüz yapılmadı.**
+
 **1v. ⚠️ PARAMETRELİ KOMUTLARDA ÖN EKE BAKILMALI.**
 
 `/haber istanbulda hava` komutu `ara:istanbulda hava` olarak geliyor
