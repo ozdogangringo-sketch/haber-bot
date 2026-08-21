@@ -689,6 +689,46 @@ def test_kosullu_tanimlanan_bayraklar() -> None:
     denetle(False, "yayinla() fonksiyonu bulundu")
 
 
+def test_worker_calisiyor() -> None:
+    """
+    `worker/index.js` üst seviyesi HATASIZ yüklenmeli.
+
+    ⚠️ `node --check` YETMİYOR — o yalnızca sözdizimine bakıyor.
+    21 Ağu 2026: bir düzenlemede satır sonları gerçek newline yerine
+    literal "\n" olarak yazıldı, `const HABER_SEC = ...` satırı bir
+    `//` yorumunun İÇİNDE kaldı ve Worker canlıda
+    `ReferenceError: HABER_SEC is not defined` ile 500 döndü.
+    Telegram'daki HİÇBİR düğme çalışmadı; sözdizimi ise kusursuzdu.
+
+    Bu test Worker'ı gerçekten yükleyip `eylemMi`'yi çağırıyor.
+    """
+    import shutil
+    import subprocess
+    if not shutil.which("node"):
+        return                                  # node yoksa atla
+    betik = (
+        "const fs=require('fs');"
+        "let k=fs.readFileSync(process.argv[1],'utf8');"
+        "k=k.replace(/export default[\\s\\S]*$/,'');"
+        "new Function(k+';return eylemMi(\"hazirla:1\");')();"
+        "console.log('ok');"
+    )
+    sonuc = subprocess.run(
+        ["node", "-e", betik, str(KOK / "worker/index.js")],
+        capture_output=True, text=True, timeout=30)
+    denetle(sonuc.returncode == 0 and "ok" in sonuc.stdout,
+            "worker/index.js hatasız yükleniyor",
+            (sonuc.stderr or "")[:200])
+
+    # Kaçış hatasının doğrudan izi: yorum satırında literal \n
+    kod = (KOK / "worker/index.js").read_text(encoding="utf-8")
+    bozuk = [s for s in kod.splitlines()
+             if s.strip().startswith("//") and "\\n" in s]
+    denetle(not bozuk, "Worker'da kaçış hatası kalmamış",
+            f"{len(bozuk)} yorum satırında literal \\n var — sonraki "
+            "kod satırı yoruma gömülmüş olabilir")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -721,6 +761,7 @@ def main() -> int:
         test_gecici_hatalar_400te_de_yakalaniyor,
         test_git_degisiklik_yok_yanlis_alarm_vermiyor,
         test_kosullu_tanimlanan_bayraklar,
+        test_worker_calisiyor,
     ):
         try:
             test()
