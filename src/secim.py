@@ -171,6 +171,11 @@ def on_eleme(con, ayarlar: dict, kac: int | None = None) -> list:
     return secilen
 
 
+# Bir kez atlanan haberin skorundan düşülen puan. 15 = bir buçuk önem
+# puanı; haberi eler değil, geriye atar.
+ERTELEME_CEZASI = 15
+
+
 def skor(haber, ayarlar: dict) -> float:
     """
     Asıl seçim skoru. Metin üretildikten SONRA çalışır.
@@ -183,6 +188,19 @@ def skor(haber, ayarlar: dict) -> float:
     deger = onem * 10 + (haber["agirlik"] or 1) - _yas_saat(haber)
     if haber["kategori"] == "dunya" and onem < 8:
         deger -= 15
+
+    # ⚠️ ATLANAN HABER BİR SONRAKİ TURDA ÖNE ÇIKMASIN.
+    #
+    # 20 Ağu 2026: kullanıcı bir turu "bu haberleri istemiyorum" diye
+    # atladı, haberler havuza döndü ve skor değişmediği için AYNI
+    # haberler yeni turda yine ilk sıralardaydı. "Atla" düğmesi
+    # pratikte hiçbir şey değiştirmiyordu.
+    #
+    # Ceza kalıcı eleme DEĞİL: haber havuzda kalıyor, sadece bir tur
+    # geri düşüyor. Önem puanı yüksek bir haber iki atlamadan sonra
+    # bile yarışabiliyor (10 puanlık haber 100 - 30 = 70, ortalama
+    # 7 puanlık haberin 70'iyle başa baş).
+    deger -= (haber["ertelenme_sayisi"] or 0) * ERTELEME_CEZASI
     return deger
 
 
