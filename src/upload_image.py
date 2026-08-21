@@ -66,48 +66,64 @@ def _anahtar() -> str:
     return a
 
 
-def _catboxa_yukle(yol: Path, zaman_asimi: int = 60) -> dict:
+def _litterboxa_yukle(yol: Path, zaman_asimi: int) -> dict:
     """
-    imgbb çöktüğünde devreye giren yedek barındırıcı.
+    Yedek barındırıcı #1 — catbox'ın GEÇİCİ dosya servisi.
 
-    ⚠️ NEDEN GEREKTİ (21 Ağu 2026): imgbb bakıma girdi
-    (`"Imgbb is currently down for maintenance."`, code 100) ve bot
-    hiçbir post atamaz oldu — görsel yüklenemeyince ne tur ne tekil
-    post çıkıyor. Tek barındırıcıya bağlı olmak tek arıza noktasıydı.
+    ⚠️ ANA CATBOX ÇALIŞMIYOR, litterbox ÇALIŞIYOR. GitHub runner'dan
+    ölçüldü (21 Ağu 2026): `catbox.moe` veri merkezi IP'lerine
+    `HTTP 412 Invalid uploader` veriyor, `litterbox.catbox.moe` aynı
+    IP'den sorunsuz kabul ediyor.
 
-    Tekrar denemek BURADA İŞE YARAMAZ: servis kapalıyken 3 deneme de
-    aynı cevabı veriyor (ölçüldü). Çözüm başka bir kapıya gitmek.
-
-    catbox.moe anahtar istemiyor ve doğrudan public URL veriyor.
-    Instagram'ın indirebildiği GERÇEK BİR CONTAINER İLE doğrulandı
-    (21 Ağu 2026): status_code = FINISHED, "ready to be published".
-    Silme bağlantısı vermiyor, o alan boş dönüyor.
-
-    ⚠️ CATBOX BOT USER-AGENT'LARINI ENGELLİYOR. Ölçüldü:
-        User-Agent yok      -> bağlantı kesiliyor
-        python-requests/... -> bağlantı kesiliyor
-        Mozilla/5.0         -> 200
-        facebookexternalhit -> 200   (Instagram bunu kullanıyor)
-    Yani Instagram indirebiliyor ama BİZİM kendi doğrulama
-    isteklerimizde User-Agent vermek zorundayız; yoksa "URL ölü"
-    sanılır.
+    72 saat saklıyor — imgbb ömrümüz (48 saat) ile uyumlu. Instagram
+    görseli bir kez indirip kendi CDN'ine kopyaladığı için uzun
+    saklama zaten şart değil; süre Telegram önizlemesi ve onay
+    penceresi için gerekiyor.
     """
     with open(yol, "rb") as f:
         cevap = requests.post(
-            "https://catbox.moe/user/api.php",
-            data={"reqtype": "fileupload"},
+            "https://litterbox.catbox.moe/resources/internals/api.php",
+            data={"reqtype": "fileupload", "time": "72h"},
             files={"fileToUpload": (yol.name, f, "image/jpeg")},
             timeout=zaman_asimi,
         )
     if cevap.status_code != 200 or not cevap.text.startswith("http"):
-        raise RuntimeError(
-            f"catbox yüklemesi başarısız: HTTP {cevap.status_code}: "
-            f"{cevap.text[:150]}")
-    return {
-        "url": cevap.text.strip(),
-        "silme_url": None,
-        "boyut_kb": round(yol.stat().st_size / 1024, 1),
-    }
+        raise RuntimeError(f"litterbox: HTTP {cevap.status_code}: "
+                           f"{cevap.text[:120]}")
+    return {"url": cevap.text.strip(), "silme_url": None,
+            "boyut_kb": round(yol.stat().st_size / 1024, 1)}
+
+
+def _uguya_yukle(yol: Path, zaman_asimi: int) -> dict:
+    """
+    Yedek barındırıcı #2 — litterbox da düşerse.
+
+    Runner'dan doğrulandı: yükleme 0.5 sn, dönen URL Instagram'ın
+    User-Agent'ıyla indirilebiliyor. Saklama süresi kısa (saatler),
+    o yüzden ikinci sırada.
+    """
+    with open(yol, "rb") as f:
+        cevap = requests.post(
+            "https://uguu.se/upload",
+            files={"files[]": (yol.name, f, "image/jpeg")},
+            timeout=zaman_asimi,
+        )
+    veri = cevap.json()
+    url = (veri.get("files") or [{}])[0].get("url")
+    if not url:
+        raise RuntimeError(f"uguu: HTTP {cevap.status_code}: {str(veri)[:120]}")
+    return {"url": url, "silme_url": None,
+            "boyut_kb": round(yol.stat().st_size / 1024, 1)}
+
+
+# ⚠️ SIRA ÖNEMLİ ve YEREL TESTE GÜVENME. Bu liste GitHub runner'dan
+# ölçülerek kuruldu (`scripts/test_barindirici.py`): catbox ve
+# tmpfiles ev bağlantısından çalışıyor ama veri merkezi IP'sinden
+# reddediliyor. Yeni aday eklemeden önce o scripti Actions'ta çalıştır.
+YEDEK_BARINDIRICILAR = (
+    ("litterbox", _litterboxa_yukle),
+    ("uguu", _uguya_yukle),
+)
 
 
 def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
@@ -174,12 +190,14 @@ def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
     if (ayarlar.get("gorsel", {}) or {}).get("yedek_barindirici", True):
         log.warning("imgbb başarısız (%s), yedek barındırıcıya geçiliyor",
                     str(son_hata)[:120])
-        try:
-            sonuc = _catboxa_yukle(Path(yol), g["zaman_asimi"])
-            log.info("yedek barındırıcıya yüklendi: %s", sonuc["url"])
-            return sonuc
-        except Exception as e:                        # noqa: BLE001
-            log.error("yedek barındırıcı da olmadı: %s", str(e)[:150])
+        for ad, islev in YEDEK_BARINDIRICILAR:
+            try:
+                sonuc = islev(Path(yol), g["zaman_asimi"])
+                log.info("%s'e yüklendi: %s", ad, sonuc["url"])
+                return sonuc
+            except Exception as e:                    # noqa: BLE001
+                log.warning("%s olmadı: %s", ad, str(e)[:130])
+        log.error("bütün yedek barındırıcılar başarısız")
 
     raise RuntimeError(f"imgbb yüklemesi başarısız: {son_hata}")
 
