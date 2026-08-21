@@ -387,8 +387,20 @@ gorsel:
   # og:image katmanı zincirin BİRİNCİ sırasında; 1200x400 gibi geniş
   # bantlı bir foto bu eşiği geçip 4:5'e kırpılınca ciddi kalite kaybı
   # oluyordu. Slayt 1080x1350 basıldığı için kaynak en az o kadar olmalı.
-  haber_gorseli_asgari_genislik: 1080
-  haber_gorseli_asgari_yukseklik: 800
+  # ⚠️ ESKİ DEĞER (1080x800) HABERİN KENDİ FOTOĞRAFINI TAMAMEN
+  # ENGELLİYORDU. 21 Ağu 2026'da ölçüldü: son 14 haberin 14'ü de
+  # boyuttan elendi ve hepsi Pexels'e düştü — kullanıcı "görseller
+  # çok genel, hep aynı şeyler" dedi, sebebi buydu.
+  #
+  # Haber sitelerinin neredeyse tamamı standart OG boyutu kullanıyor:
+  #   1280x720 (16:9) · 1200x630 (1.91:1)
+  # İkisi de 800 yükseklik eşiğine takılıyordu.
+  #
+  # Yeni eşik 1000x560: bu iki standart geçiyor (11/14), 864x486 gibi
+  # 1080 genişliğe BÜYÜTÜLMESİ gereken küçükler eleniyor — büyütme
+  # bulanıklaştırıyor, küçültme kalite kaybettirmiyor.
+  haber_gorseli_asgari_genislik: 1000
+  haber_gorseli_asgari_yukseklik: 560
   # Düz zeminli sayfalar (detay slaytları) — fotoğraf yok, yüksek
   # kalite dosyayı gereksiz şişiriyor.
   jpeg_kalite: 90
