@@ -879,6 +879,17 @@ def test_arama_yazim_toleransi() -> None:
                 f"yazım toleransı '{a}' ≠ '{b}'",
                 "alakasız haberler sonuçlara karışıyor")
 
+    # ⚠️ SKOR FONKSİYONU BULMA YÖNTEMİYLE AYNI OLMALI.
+    # 21 Ağu 2026: fuzzy 24 haber buluyordu ama bir sonraki satır
+    # onları TAM EŞLEŞME skoruyla süzüyordu; hepsi 0 alıp eleniyordu
+    # ve arama yine "bulunamadı" diyordu. Fuzzy çalışıyordu, sonucunu
+    # bir alt satır siliyordu.
+    kaynak = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    govde = kaynak.split("def haber_ara(")[1].split("\ndef ")[0]
+    denetle("skorla = _yazim_toleransli_skor if yazim_duzeltildi" in govde,
+            "fuzzy sonuçları fuzzy skoruyla süzülüyor",
+            "tam eşleşme skoruyla süzülürse fuzzy sonuçları elenir")
+
 
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık

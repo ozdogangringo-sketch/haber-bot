@@ -1435,7 +1435,13 @@ def haber_ara(con, ayarlar, komut: str) -> int:
     # döndürüyordu — kelimeler özet metninde ayrı bağlamlarda geçiyordu.
     # Alakasız sonuç göstermek, "bulunamadı" demekten kötü: kullanıcı
     # yanlış haberi seçip yayınlayabilir.
-    guclu = [h for h in ham if _arama_skoru(h, kelimeler) >= 10]
+    # ⚠️ SKOR FONKSİYONU, HABERİN NASIL BULUNDUĞUYLA AYNI OLMALI.
+    # 21 Ağu 2026: yazım toleransı eklendi, fuzzy 24 haber buluyordu
+    # ama bu satır onları TAM EŞLEŞME skoruyla süzüyordu — hepsi 0
+    # alıp eleniyordu ve arama yine "bulunamadı" diyordu. Fuzzy
+    # çalışıyordu, sonucunu bir alt satır siliyordu.
+    skorla = _yazim_toleransli_skor if yazim_duzeltildi else _arama_skoru
+    guclu = [h for h in ham if skorla(h, kelimeler) >= 10]
 
     # Aynı olayın farklı kaynaklardan gelen kopyalarını ele.
     #
