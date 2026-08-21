@@ -514,6 +514,74 @@ def ertele(con, mesaj_id, basan) -> int:
     return 0
 
 
+def tur_onayla(con, ayarlar, haberler, mesaj_id) -> int:
+    """
+    Başlıkları onaylanan tur için slaytları üretir ve tam onaya sunar.
+
+    Bu, iki aşamalı tur akışının ikinci yarısı: `hazirla.py` önce
+    yalnızca başlıkları gönderiyor (görsel üretmeden), kullanıcı
+    onaylayınca slaytlar burada üretiliyor.
+
+    ⚠️ ~60 SANİYE SÜRÜYOR. Worker düğmeye basıldığı an "⏳" yazıyor;
+    o yüzden burada ayrıca bilgi mesajı gönderiliyor, kullanıcı
+    sessizlikte ikinci kez basmasın.
+    """
+    if not haberler:
+        telegram_bot.mesaj_gonder("⚠️ Onaylanacak tur bulunamadı.")
+        return 1
+    if haberler[0]["durum"] != "baslik_onayi":
+        telegram_bot.mesaj_gonder(
+            "⚠️ Bu tur başlık onayı aşamasında değil.")
+        return 0
+
+    telegram_bot.mesaj_gonder(
+        f"🎨 {len(haberler)} slayt hazırlanıyor… (yaklaşık 1 dakika)")
+    telegram_bot.sonucu_yaz(
+        mesaj_id, f"✅ Başlıklar onaylandı ({len(haberler)} haber).\n"
+                  "Slaytlar hazırlandı, aşağıdaki mesajdan yayınlayabilirsin.")
+
+    # Haberleri onay mesajından ÇÖZ: `turu_tamamla` kendi mesajını
+    # oluşturup yeni id'yi yazacak. Bağlı bırakırsak iki mesaj aynı
+    # turu işaret eder ve `turu_getir` ikisini karıştırır.
+    con.execute(
+        "UPDATE haberler SET telegram_message_id = NULL, durum = 'metin_hazir' "
+        "WHERE telegram_message_id = ?", (mesaj_id,))
+    con.commit()
+
+    sys.path.insert(0, str(KOK / "scripts"))
+    import hazirla                                    # noqa: E402
+    return hazirla.turu_tamamla(con, ayarlar, list(haberler))
+
+
+def tur_yeniden_sec(con, ayarlar, haberler, mesaj_id) -> int:
+    """
+    Başlık listesini beğenmeyip başka haberler ister.
+
+    Mevcut seçim havuza dönüyor ve `sadece_tur` işareti KONMUYOR —
+    haberler elenmedi, sadece bu listede istenmedi. Ama aynı haberlerin
+    hemen tekrar seçilmemesi için `ertelenme_sayisi` artırılıyor.
+    """
+    con.execute(
+        "UPDATE haberler SET telegram_message_id = NULL, "
+        "durum = 'metin_hazir', "
+        "ertelenme_sayisi = COALESCE(ertelenme_sayisi, 0) + 1 "
+        "WHERE telegram_message_id = ?", (mesaj_id,))
+    con.commit()
+    db_senkron.hemen_kaydet("Tur başlıkları reddedildi")
+    telegram_bot.sonucu_yaz(
+        mesaj_id, f"🔄 {len(haberler)} haber havuza döndü.\n"
+                  "Yeni tur hazırlanıyor…")
+
+    sys.path.insert(0, str(KOK / "scripts"))
+    import hazirla                                    # noqa: E402
+    secilen = secim.tur_icin_sec(con, ayarlar)
+    if len(secilen) < 2:
+        telegram_bot.mesaj_gonder(
+            "⚠️ Havuzda yeterli yeni haber kalmadı, tur kurulamadı.")
+        return 0
+    return hazirla.basliklari_sun_ve_bekle(con, ayarlar, secilen)
+
+
 def yayin_planla(con, ayarlar, haberler, dakika: int, mesaj_id, basan) -> int:
     """
     Turu ileri bir saate planlar. Yayın o ana kadar YAPILMIYOR.
@@ -787,26 +855,35 @@ def haber_degistir(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
     telegram_bot.mesaj_gonder(
         f"🔄 {sira}. slayt şu an:\n"
         f"«{mevcut['ig_baslik'] or mevcut['baslik_orj']}»\n\n"
-        "Yerine hangisi gelsin?",
+        "Yerine hangisi gelsin? (Seçmezsen tur olduğu gibi kalır.)",
         butonlar=telegram_bot.alternatif_menusu(
-            sira, adaylar, mesaj_id)["inline_keyboard"])
-    log.info("slayt %s için %s alternatif sunuldu", sira, len(adaylar))
+            mevcut["id"], adaylar, mesaj_id)["inline_keyboard"])
+    log.info("slayt %s (haber %s) için %s alternatif sunuldu",
+             sira, mevcut["id"], len(adaylar))
     return 0
 
 
-def haberi_degistir_uygula(con, ayarlar, haberler, sira: int, yeni_id: int,
+def haberi_degistir_uygula(con, ayarlar, haberler, eski_id: int, yeni_id: int,
                            mesaj_id: int) -> int:
     """
     Seçilen alternatifi tura koyar, eskisini havuza döndürür.
+
+    ⚠️ HEDEF HABER ID İLE BULUNUYOR, slayt numarasıyla değil. Numara
+    tur yeniden sıralanınca kayıyor ve açık duran bir alternatif
+    mesajı yanlış slaydı değiştiriyordu.
 
     ⚠️ ESKİ HABER ELENMİYOR — `metin_hazir` olarak havuza dönüyor ve
     sonraki turlarda yeniden yarışıyor. Projedeki genel kural bu:
     onaylanmayan haber kaybolmaz.
     """
-    if sira < 1 or sira > len(haberler):
-        telegram_bot.mesaj_gonder(f"⚠️ {sira}. slayt bulunamadı.")
-        return 1
-    eski = haberler[sira - 1]
+    eski = next((h for h in haberler if h["id"] == eski_id), None)
+    if not eski:
+        telegram_bot.mesaj_gonder(
+            "⚠️ Değiştirilecek haber bu turda değil — tur bu arada "
+            "değişmiş olabilir. Menüden yeniden dene.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
+    sira = haberler.index(eski) + 1
     yeni = con.execute("SELECT * FROM haberler WHERE id = ?",
                        (yeni_id,)).fetchone()
     if not yeni:
@@ -1284,12 +1361,12 @@ def main() -> int:
     # alternatif mesajını işaret ediyor, turu DEĞİL — bu yüzden
     # `turu_getir` kontrolünden önce ele alınmalılar.
     if komut.startswith("haber_sec:"):
-        _, sira, yeni_id, tur_mid = komut.split(":")
+        _, eski_id, yeni_id, tur_mid = komut.split(":")
         tur = turu_getir(con, int(tur_mid))
         if not tur:
             telegram_bot.mesaj_gonder("⚠️ Değiştirilecek tur bulunamadı.")
             return 1
-        return haberi_degistir_uygula(con, ayarlar, tur, int(sira),
+        return haberi_degistir_uygula(con, ayarlar, tur, int(eski_id),
                                       int(yeni_id), int(tur_mid))
     if komut.startswith("haber_vazgec:"):
         menuyu_geri_koy(con, int(komut.split(":")[1]))
@@ -1373,7 +1450,22 @@ def main() -> int:
                 "🗑 düğmesini kullan.")
             return 0
 
+        # Başlık önizlemesinin düğmeleri
+        if komut == "tur_onayla":
+            return tur_onayla(con, ayarlar, haberler, mesaj_id)
+        if komut == "tur_yeniden":
+            return tur_yeniden_sec(con, ayarlar, haberler, mesaj_id)
+
         if komut == "yayinla":
+            # ⚠️ Başlık onayı aşamasındaki turun SLAYTI YOK. Bu düğme
+            # o mesajda görünmüyor ama komut başka yoldan gelebilir
+            # (eski mesaj, zamanlanmış yayın); slaytsız yayın denemesi
+            # Instagram'da anlamsız bir hataya dönüşür.
+            if haberler and haberler[0]["durum"] == "baslik_onayi":
+                telegram_bot.mesaj_gonder(
+                    "⚠️ Bu turun slaytları henüz üretilmedi. "
+                    "Önce başlıkları onayla.")
+                return 0
             return yayinla(con, ayarlar, haberler, mesaj_id, basan)
         if komut == "tura_birak":
             return tura_birak(con, haberler, mesaj_id, basan)

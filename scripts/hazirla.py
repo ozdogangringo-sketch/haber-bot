@@ -52,6 +52,152 @@ def kur_gunluk():
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
+
+def turu_tamamla(con, ayarlar: dict, secilen: list, kuru: bool = False) -> int:
+    """
+    Seçilmiş haberlerden slaytları üretir, imgbb'ye yükler ve onaya sunar.
+
+    ⚠️ `main`'DEN AYRI DURMASININ SEBEBİ: başlık önizlemesi. Kullanıcı
+    isteği (20 Ağu 2026): *"akşam turlarının da önce başlıklarını ver,
+    okeylersem görselleri üretilsin"*. Görsel üretimi + imgbb yüklemesi
+    turun en uzun adımı; beğenilmeyecek bir haber listesi için
+    harcamanın anlamı yok.
+
+    Bu fonksiyon iki yerden çağrılıyor: doğrudan tur akışından
+    (`basliklari_once_sor` kapalıysa) ve `onay_isle.tur_onayla`'dan
+    (kullanıcı başlıkları onayladığında).
+    """
+    # --- 4) Slaytlar (Commons → Pexels → gradyan, hepsi bedava) ---
+    sonuclar = slaytlar.tur_uret(secilen, ayarlar, con)
+    if len(sonuclar) < 2:
+        raise RuntimeError(
+            f"yalnızca {len(sonuclar)} slayt üretilebildi, carousel için az"
+        )
+
+    # Slaytı üretilemeyen haber varsa listeden düşsün; caption'daki
+    # numaralar slaytlarla birebir eşleşmek zorunda.
+    uretilen_idler = {s["id"] for s in sonuclar}
+    secilen = [h for h in secilen if h["id"] in uretilen_idler]
+
+    # --- 5) imgbb'ye yükle ---
+    yollar = [s["yol"] for s in sonuclar]
+    yuklemeler = upload_image.hepsini_yukle(yollar, ayarlar)
+    for haber, yukleme in zip(secilen, yuklemeler):
+        con.execute(
+            "UPDATE haberler SET gorsel_url = ? WHERE id = ?",
+            (yukleme["url"], haber["id"]),
+        )
+    con.commit()
+
+    # --- 5b) Story görseli ---
+    # Şimdi üretiliyor ki yayın anında beklemeyelim; onay ile yayın
+    # arasında saatler geçebiliyor ve o an hız önemli.
+    story_url = None
+    try:
+        story_gorsel = make_image.story_kapak(
+            [h["ig_baslik"] or h["baslik_orj"] for h in secilen], ayarlar
+        )
+        story_yol = make_image.CIKTI_KLASORU / "story-kapak.jpg"
+        story_gorsel.save(story_yol, "JPEG",
+                          quality=ayarlar["gorsel"]["jpeg_kalite"])
+        story_url = upload_image.gorsel_yukle(story_yol, ayarlar)["url"]
+        log.info("story görseli hazır")
+    except Exception as e:
+        # Story ikincil; patlarsa post yine çıkmalı.
+        log.warning("story görseli üretilemedi: %s", e)
+
+    # --- 6) Caption ---
+    metin = caption.caption_kur(secilen, sonuclar, ayarlar=ayarlar)
+    log.info("caption: %s karakter", len(metin))
+
+    if kuru:
+        print("\n" + "=" * 70)
+        print("KURU ÇALIŞMA — Telegram'a gönderilmedi")
+        print("=" * 70)
+        print(metin)
+        print("=" * 70)
+        for s in sonuclar:
+            print(f"  [{s['katman']:<8}] {s['yol']}")
+        return 0
+
+    # --- 7) Doğruluk denetimi + onaya sun ---
+    # Uydurma metin akıcı ve inandırıcı göründüğü için insan onayı tek
+    # başına yetmiyor. Bu süzgeç "kaynakta karşılığı olmayan sayı/isim"
+    # arayıp onay mesajının başına uyarı koyuyor — kullanıcı neye
+    # bakacağını onaylamadan ÖNCE görsün.
+    uyari, isaretli = dogrula.turu_dogrula(secilen)
+    if isaretli:
+        log.warning("%s slayt doğrulama uyarısı aldı", isaretli)
+
+    # Slaytlar en güncel hâliyle okunuyor: tur_uret sırasında
+    # gorsel_kaynagi yazıldı, özet tablosu onu gösterecek.
+    taze = list(con.execute(
+        "SELECT * FROM haberler WHERE telegram_message_id IS NULL "
+        "AND id IN ({})".format(",".join(str(h["id"]) for h in secilen))
+    ))
+    sira_ile = {h["id"]: h for h in taze}
+    secilen = [sira_ile.get(h["id"], h) for h in secilen]
+
+    urller = [y["url"] for y in yuklemeler]
+    # ⚠️ Albüm id'leri saklanıyor — slayt görseli değiştirilip
+    # onaylandığında albüm silinip yeniden gönderiliyor (Telegram'da
+    # media group atomik, tek fotoğraf düzenlenemiyor).
+    albom_idler = telegram_bot.slaytlari_gonder(
+        urller, [h["ig_baslik"] or h["baslik_orj"] for h in secilen]
+    )
+    ozet = telegram_bot.tur_ozeti(secilen, isaretli)
+    mesaj_id = telegram_bot.onay_iste(
+        metin, len(urller), uyari=uyari, ozet=ozet
+    )
+
+    for haber in secilen:
+        con.execute(
+            "UPDATE haberler SET durum = 'onay_bekliyor', "
+            "telegram_message_id = ?, gonderim_zamani = datetime('now'), "
+            "story_url = ? WHERE id = ?",
+            (mesaj_id, story_url if haber is secilen[0] else None,
+             haber["id"]),
+        )
+    db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(albom_idler or []))
+    con.commit()
+    # Onay butonu GitHub'daki veritabanına bakıyor. Workflow'un
+    # sonundaki commit adımını beklersek kullanıcı o aralıkta
+    # onayladığında yayın job'ı turu göremiyor — 17 Ağu 2026'da
+    # tam olarak bu oldu. O yüzden hemen kaydediyoruz.
+    db_senkron.hemen_kaydet("Tur onaya sunuldu")
+
+    log.info("onay bekleniyor (message_id=%s)", mesaj_id)
+    return 0
+
+
+
+def basliklari_sun_ve_bekle(con, ayarlar: dict, secilen: list) -> int:
+    """
+    Seçilen haberlerin başlıklarını onaya sunar; slayt ÜRETMEZ.
+
+    Haberler `durum='baslik_onayi'` olarak işaretleniyor ve onay
+    mesajına bağlanıyor. Kullanıcı onaylarsa `onay_isle.tur_onayla`
+    `hazirla.turu_tamamla`yı çağırıp slaytları üretiyor.
+
+    ⚠️ `telegram_message_id` BU AŞAMADA DA yazılıyor — düğmeye
+    basıldığında turu bulmanın tek yolu bu. Görseller üretilince
+    haberler YENİ bir onay mesajına bağlanıyor ve bu mesaj kapanıyor.
+    """
+    mesaj_id = telegram_bot.basliklari_sun(secilen)
+    for haber in secilen:
+        con.execute(
+            "UPDATE haberler SET durum = 'baslik_onayi', "
+            "telegram_message_id = ?, gonderim_zamani = datetime('now') "
+            "WHERE id = ?",
+            (mesaj_id, haber["id"]),
+        )
+    con.commit()
+    db_senkron.hemen_kaydet("Tur başlıkları onaya sunuldu")
+    log.info("başlık önizlemesi gönderildi (message_id=%s, %s haber)",
+             mesaj_id, len(secilen))
+    return 0
+
+
 def main() -> int:
     kur_gunluk()
     kuru = "--kuru" in sys.argv
@@ -94,107 +240,21 @@ def main() -> int:
                 telegram_bot.mesaj_gonder(f"ℹ️ {mesaj} Bu tur atlandı.")
             return 0
 
-        # --- 4) Slaytlar (Commons → Pexels → gradyan, hepsi bedava) ---
-        sonuclar = slaytlar.tur_uret(secilen, ayarlar, con)
-        if len(sonuclar) < 2:
-            raise RuntimeError(
-                f"yalnızca {len(sonuclar)} slayt üretilebildi, carousel için az"
-            )
+        # --- 4) Başlık önizlemesi mi, doğrudan slayt mı? ---
+        #
+        # `basliklari_once_sor` açıkken görsel üretimi ERTELENİYOR:
+        # kullanıcı önce haber listesini görüyor. Slayt + imgbb adımı
+        # turun en uzun parçası (~60 sn) ve beğenilmeyecek bir liste
+        # için harcanması gereksiz.
+        #
+        # `--kuru` bu dallanmayı ATLIYOR: kuru çalışmanın sözleşmesi
+        # "üret, gönderme" — önizleme göndermek de göndermektir ve
+        # üretilen slaytları görmek kuru çalışmanın asıl amacı.
+        onizleme = ayarlar["genel"].get("basliklari_once_sor", False)
+        if onizleme and not kuru:
+            return basliklari_sun_ve_bekle(con, ayarlar, secilen)
 
-        # Slaytı üretilemeyen haber varsa listeden düşsün; caption'daki
-        # numaralar slaytlarla birebir eşleşmek zorunda.
-        uretilen_idler = {s["id"] for s in sonuclar}
-        secilen = [h for h in secilen if h["id"] in uretilen_idler]
-
-        # --- 5) imgbb'ye yükle ---
-        yollar = [s["yol"] for s in sonuclar]
-        yuklemeler = upload_image.hepsini_yukle(yollar, ayarlar)
-        for haber, yukleme in zip(secilen, yuklemeler):
-            con.execute(
-                "UPDATE haberler SET gorsel_url = ? WHERE id = ?",
-                (yukleme["url"], haber["id"]),
-            )
-        con.commit()
-
-        # --- 5b) Story görseli ---
-        # Şimdi üretiliyor ki yayın anında beklemeyelim; onay ile yayın
-        # arasında saatler geçebiliyor ve o an hız önemli.
-        story_url = None
-        try:
-            story_gorsel = make_image.story_kapak(
-                [h["ig_baslik"] or h["baslik_orj"] for h in secilen], ayarlar
-            )
-            story_yol = make_image.CIKTI_KLASORU / "story-kapak.jpg"
-            story_gorsel.save(story_yol, "JPEG",
-                              quality=ayarlar["gorsel"]["jpeg_kalite"])
-            story_url = upload_image.gorsel_yukle(story_yol, ayarlar)["url"]
-            log.info("story görseli hazır")
-        except Exception as e:
-            # Story ikincil; patlarsa post yine çıkmalı.
-            log.warning("story görseli üretilemedi: %s", e)
-
-        # --- 6) Caption ---
-        metin = caption.caption_kur(secilen, sonuclar, ayarlar=ayarlar)
-        log.info("caption: %s karakter", len(metin))
-
-        if kuru:
-            print("\n" + "=" * 70)
-            print("KURU ÇALIŞMA — Telegram'a gönderilmedi")
-            print("=" * 70)
-            print(metin)
-            print("=" * 70)
-            for s in sonuclar:
-                print(f"  [{s['katman']:<8}] {s['yol']}")
-            return 0
-
-        # --- 7) Doğruluk denetimi + onaya sun ---
-        # Uydurma metin akıcı ve inandırıcı göründüğü için insan onayı tek
-        # başına yetmiyor. Bu süzgeç "kaynakta karşılığı olmayan sayı/isim"
-        # arayıp onay mesajının başına uyarı koyuyor — kullanıcı neye
-        # bakacağını onaylamadan ÖNCE görsün.
-        uyari, isaretli = dogrula.turu_dogrula(secilen)
-        if isaretli:
-            log.warning("%s slayt doğrulama uyarısı aldı", isaretli)
-
-        # Slaytlar en güncel hâliyle okunuyor: tur_uret sırasında
-        # gorsel_kaynagi yazıldı, özet tablosu onu gösterecek.
-        taze = list(con.execute(
-            "SELECT * FROM haberler WHERE telegram_message_id IS NULL "
-            "AND id IN ({})".format(",".join(str(h["id"]) for h in secilen))
-        ))
-        sira_ile = {h["id"]: h for h in taze}
-        secilen = [sira_ile.get(h["id"], h) for h in secilen]
-
-        urller = [y["url"] for y in yuklemeler]
-        # ⚠️ Albüm id'leri saklanıyor — slayt görseli değiştirilip
-        # onaylandığında albüm silinip yeniden gönderiliyor (Telegram'da
-        # media group atomik, tek fotoğraf düzenlenemiyor).
-        albom_idler = telegram_bot.slaytlari_gonder(
-            urller, [h["ig_baslik"] or h["baslik_orj"] for h in secilen]
-        )
-        ozet = telegram_bot.tur_ozeti(secilen, isaretli)
-        mesaj_id = telegram_bot.onay_iste(
-            metin, len(urller), uyari=uyari, ozet=ozet
-        )
-
-        for haber in secilen:
-            con.execute(
-                "UPDATE haberler SET durum = 'onay_bekliyor', "
-                "telegram_message_id = ?, gonderim_zamani = datetime('now'), "
-                "story_url = ? WHERE id = ?",
-                (mesaj_id, story_url if haber is secilen[0] else None,
-                 haber["id"]),
-            )
-        db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(albom_idler or []))
-        con.commit()
-        # Onay butonu GitHub'daki veritabanına bakıyor. Workflow'un
-        # sonundaki commit adımını beklersek kullanıcı o aralıkta
-        # onayladığında yayın job'ı turu göremiyor — 17 Ağu 2026'da
-        # tam olarak bu oldu. O yüzden hemen kaydediyoruz.
-        db_senkron.hemen_kaydet("Tur onaya sunuldu")
-
-        log.info("onay bekleniyor (message_id=%s)", mesaj_id)
-        return 0
+        return turu_tamamla(con, ayarlar, secilen, kuru)
 
     except Exception as e:
         log.exception("tur hazırlanamadı")

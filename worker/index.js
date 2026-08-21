@@ -28,7 +28,9 @@
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak",
-                  "plan_iptal"];
+                  "plan_iptal",
+                  // Tur başlık önizlemesi (iki aşamalı tur akışı)
+                  "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
 const PARAMETRELI_EYLEM =
   /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil|gorsel_kabul|gorsel_yeni):([1-9]|10)$/;
@@ -47,7 +49,7 @@ const YAYINLA_SONRA = /^yayinla_sonra:(30|60|120|180|240)$/;
 const HABER_DEGISTIR = /^haber_degistir:([1-9]|10)$/;
 // ⚠️ Tur mesaj id'si komutun İÇİNDE ("haber_sec:5:16380:474"). Bu düğme
 // ayrı bir mesajda duruyor; cb.message.message_id turu göstermiyor.
-const HABER_SEC = /^haber_sec:([1-9]|10):\d{1,8}:\d{1,12}$/;
+// haber_sec:{eskiHaberId}:{yeniHaberId}:{turMesajId}\n// ⚠️ İlk alan SLAYT NUMARASI DEĞİL haber id'si — numara tur\n// yeniden sıralanınca kayıyor ve yanlış slaydı hedefliyor.\nconst HABER_SEC = /^haber_sec:\d{1,8}:\d{1,8}:\d{1,12}$/;
 const HABER_VAZGEC = /^haber_vazgec:\d{1,12}$/;
 
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.

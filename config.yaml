@@ -17,7 +17,27 @@ genel:
   # Onay vermediğin haber elenmiyor, havuzda kalıp yeni haberlerle
   # yarışmaya devam ediyor. Ama 48 saatlik bir haberi paylaşmak
   # hesabın itibarına zarar verir, o yüzden bir üst sınır lazım.
-  yayin_yasi_siniri_saat: 48
+  # ⚠️ 48'DEN 36'YA ÇEKİLDİ (20 Ağu 2026, kullanıcı isteği):
+  # "36 saatten eski haber atmayalım hiçbir zaman".
+  # Ölçüldü: havuzdaki metni hazır 126 haberin hepsi zaten 36 saatten
+  # yeniydi, yani değişiklik anlık kayıp yaratmadı — ama havuz
+  # daraldığında turu eski haberle doldurmayı engelliyor.
+  # Bu değeri `aday.Baglam` TUR bağlamında tazelik sınırı olarak
+  # kullanıyor; tekil postun kendi penceresi ayrı
+  # (`son_dakika_tazelik_saat`).
+  # Tur önce BAŞLIK LİSTESİ olarak sunulsun mu?
+  #
+  # true: haberler seçilir, başlıkları Telegram'a gönderilir, kullanıcı
+  #       onaylayınca slaytlar üretilir. Kullanıcı isteği (20 Ağu 2026):
+  #       "akşam turlarının da önce başlıklarını ver, okeylersem
+  #       görselleri üretilsin".
+  # false: eski davranış — slaytlar hemen üretilir.
+  #
+  # Kazanç: görsel üretimi + imgbb yüklemesi turun en uzun adımı
+  # (~60 sn). Beğenilmeyecek bir liste için harcanmıyor.
+  basliklari_once_sor: true
+
+  yayin_yasi_siniri_saat: 36
 
   # --- SON DAKİKA (gün içi tekil postlar) ---
   # Akşam turu günün 10 haberini toplu veriyor; son dakika tek haberi

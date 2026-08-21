@@ -202,7 +202,41 @@ def ana_menu(adet: int) -> dict:
     ]}
 
 
-def alternatif_menusu(sira: int, adaylar: list, tur_mesaj_id: int) -> dict:
+def baslik_onay_menusu() -> dict:
+    """
+    Tur başlıkları sunulduğunda gösterilen menü.
+
+    Bu aşamada slayt YOK — sadece hangi haberlerin seçildiği. Onay
+    gelince görseller üretilip normal onay mesajı gönderiliyor.
+    """
+    return {"inline_keyboard": [
+        [{"text": "✅ Bu haberlerle devam et", "callback_data": "tur_onayla"}],
+        [{"text": "🔄 Başka haberler seç", "callback_data": "tur_yeniden"}],
+        [{"text": "❌ Bu turu atla", "callback_data": "iptal"}],
+    ]}
+
+
+def basliklari_sun(haberler: list) -> int:
+    """
+    Seçilen haberlerin başlıklarını numaralı liste olarak gönderir.
+
+    Kategori ve kaynak da yazılıyor: kullanıcı listeye bakıp "bu tur
+    fazla spor olmuş" ya da "hepsi aynı kaynaktan" diyebilsin.
+    """
+    satirlar = [f"📋 <b>TUR ÖNİZLEME — {len(haberler)} haber</b>",
+                "<i>Görseller henüz üretilmedi.</i>", ""]
+    for i, h in enumerate(haberler, 1):
+        baslik = html.escape(h["ig_baslik"] or h["baslik_orj"] or "")
+        etiket = html.escape((h["kategori"] or "?").upper())
+        puan = h["onem_puani"] or "?"
+        satirlar.append(f"<b>{i}.</b> {baslik}")
+        satirlar.append(f"    <i>{etiket} · {puan} puan</i>")
+    satirlar += ["", "Onaylarsan slaytlar hazırlanıp tam onaya sunulacak."]
+    return mesaj_gonder("\n".join(satirlar), html=True,
+                        butonlar=baslik_onay_menusu()["inline_keyboard"])
+
+
+def alternatif_menusu(eski_id: int, adaylar: list, tur_mesaj_id: int) -> dict:
     """
     Bir slaytın yerine gelebilecek haberleri sunar.
 
@@ -216,6 +250,12 @@ def alternatif_menusu(sira: int, adaylar: list, tur_mesaj_id: int) -> dict:
     CLAUDE.md'de kayıtlı. Yeni bir ayrı-mesaj düğmesi eklerken bu
     deseni kullan.
 
+    ⚠️ SLAYT NUMARASI DEĞİL HABER ID'Sİ TAŞINIYOR. Numara kırılgan:
+    tur yeniden sıralanınca (ör. gündüz yayınlanmış haberler sona
+    alınınca) "5. slayt" başka bir haberi işaret ediyor ve açık duran
+    bir alternatif mesajı YANLIŞ slaydı değiştiriyor. 20 Ağu 2026'da
+    tam bu oldu. Haber id'si hiç değişmiyor.
+
     Başlık düğme METNİNDE, `callback_data`'da değil: 64 bayt sınırı.
     """
     tuslar = []
@@ -223,7 +263,7 @@ def alternatif_menusu(sira: int, adaylar: list, tur_mesaj_id: int) -> dict:
         baslik = (a["ig_baslik"] or a["baslik_orj"] or "")[:58]
         tuslar.append([{
             "text": f"✅ {baslik}",
-            "callback_data": f"haber_sec:{sira}:{a['id']}:{tur_mesaj_id}"}])
+            "callback_data": f"haber_sec:{eski_id}:{a['id']}:{tur_mesaj_id}"}])
     tuslar.append([{"text": "← Vazgeç",
                     "callback_data": f"haber_vazgec:{tur_mesaj_id}"}])
     return {"inline_keyboard": tuslar}

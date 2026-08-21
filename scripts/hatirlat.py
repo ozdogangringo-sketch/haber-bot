@@ -83,7 +83,11 @@ def bekleyen_tur(con):
         # ve o ana kadar her saat gereksiz hatırlatma atılırdı.
         # Zamanı gelince son dakika kontrolü yayınlıyor.
         "SELECT * FROM haberler WHERE planlanan_yayin IS NULL "
-        "AND durum IN ('onay_bekliyor', 'ertelendi') "
+        # ⚠️ `baslik_onayi` DA BURADA OLMALI. İki aşamalı tur akışında
+        # başlıkları sunulmuş ama onaylanmamış tur bu durumda bekliyor;
+        # listeye alınmazsa ne hatırlatılır ne kapanır, sonsuza kadar
+        # açık kalır ve ertesi turla çakışır.
+        "AND durum IN ('onay_bekliyor', 'ertelendi', 'baslik_onayi') "
         "AND telegram_message_id IS NOT NULL "
         "AND (son_dakika IS NULL OR son_dakika = 0) "
         "ORDER BY onem_puani DESC, yayin_tarihi DESC"
