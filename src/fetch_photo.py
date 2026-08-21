@@ -248,6 +248,13 @@ def _aday_puani(baslik: str, genislik: int, yukseklik: int,
     return puan
 
 
+# Aynı kişi için Commons'ta en fazla kaç fotoğraf denensin?
+# Sonrasında katman değişiyor (Pexels). Bir kişinin Commons'taki
+# fotoğrafları genelde tek bir etkinlikten olduğu için 2-3 kareden
+# sonrası kullanıcıya "aynı görsel" gibi geliyor.
+AZAMI_AYNI_KISI = 3
+
+
 def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict | None:
     """
     Konu için lisansı uygun VE isabetli bir fotoğraf bulur.
@@ -332,11 +339,32 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict |
         return None
 
     adaylar.sort(key=lambda a: a["puan"], reverse=True)
-    # ⚠️ `atlanacak` — bkz. fetch_stock.fotograf_ara. Liste biterse başa dön.
+
+    # ⚠️ ADAYLAR TÜKENDİYSE BAŞA DÖNME — sonraki katmana geç.
+    #
+    # 21 Ağu 2026: kullanıcı "resmi değiştir" dedi ve hep aynı şeyi
+    # gördü. Ölçüldü — "Melissa Vargas" aramasının Commons'taki BÜTÜN
+    # adayları aynı maçtan geliyordu (Fenerbahçe forması, dosya
+    # 1-2-3-4). Milli takım haberinde kulüp forması tutarsız duruyor
+    # ve "başka dene" yalnızca aynı serinin sonraki karesini veriyordu.
+    #
+    # None dönünce `slaytlar.arkaplan_sec` Pexels katmanına düşüyor;
+    # kullanıcı gerçekten FARKLI bir görsel görüyor. Commons'ta bir
+    # kişinin fotoğrafları genelde tek bir etkinlikten olduğu için
+    # modulo ile dönmek çeşitlilik sağlamıyor.
+    #
+    # ⚠️ SINIR ADAY SAYISI DEĞİL, `AZAMI_AYNI_KISI`. Ölçüldü: Melissa
+    # Vargas'ın 6+ adayı vardı ve altısı da aynı maçtan; aday sayısını
+    # beklemek "başka dene"yi altı kez basmak demekti.
+    if atlanacak >= min(len(adaylar), AZAMI_AYNI_KISI):
+        log.info("Commons adayları tükendi (%s aday), sonraki katmana "
+                 "geçiliyor: %s", len(adaylar), konu)
+        return None
+
     if atlanacak:
         log.info("Commons: %s. aday alınıyor (%s aday var)",
-                 atlanacak % len(adaylar) + 1, len(adaylar))
-    return adaylar[atlanacak % len(adaylar)]
+                 atlanacak + 1, len(adaylar))
+    return adaylar[atlanacak]
 
 
 def fotografi_indir(kayit: dict) -> Image.Image | None:

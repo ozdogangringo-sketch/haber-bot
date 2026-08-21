@@ -961,6 +961,29 @@ def test_hatirlatma_tum_turlari_isliyor() -> None:
             "açık turlar mesaj id'sine göre gruplanıyor")
 
 
+def test_commons_tukenince_katman_degisiyor() -> None:
+    """
+    "Başka fotoğraf" düğmesi GERÇEKTEN farklı bir görsel vermeli.
+
+    21 Ağu 2026: kullanıcı "resmi değiştir" dedi ve hep aynı şeyi
+    gördü. Ölçüldü — "Melissa Vargas" aramasının Commons'taki bütün
+    adayları aynı maçtan geliyordu (Fenerbahçe forması, dosya 1-2-3-4)
+    ve modulo ile dönüldüğü için düğme aynı serinin bir sonraki
+    karesini veriyordu. Üstelik haber MİLLİ TAKIM haberiydi; kulüp
+    forması tutarsız duruyordu.
+
+    Artık birkaç denemeden sonra Commons atlanıyor ve Pexels
+    katmanına düşülüyor.
+    """
+    kaynak = (KOK / "src/fetch_photo.py").read_text(encoding="utf-8")
+    denetle("AZAMI_AYNI_KISI" in kaynak,
+            "Commons'ta aynı kişi için deneme sınırı var",
+            "modulo ile dönülüyor — 'başka dene' aynı seriyi veriyor")
+    denetle("atlanacak % len(adaylar)" not in kaynak,
+            "Commons adayları modulo ile döngüye sokulmuyor",
+            "liste başa dönüyor, katman hiç değişmiyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1001,6 +1024,7 @@ def main() -> int:
         test_gunluk_sinir_gercek_yayini_sayiyor,
         test_etki_dogrulamasi,
         test_hatirlatma_tum_turlari_isliyor,
+        test_commons_tukenince_katman_degisiyor,
     ):
         try:
             test()
