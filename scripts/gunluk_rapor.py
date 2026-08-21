@@ -193,6 +193,21 @@ def main() -> int:
     ayar.uygula(con, ayarlar)
 
     metin = rapor_kur(con, ayarlar, repo)
+
+    # ⚠️ TEMİZLİK RAPORDAN SONRA: rapor dünün sayılarını okuyor, önce
+    # silersek eksik rapor çıkar.
+    # `--kuru` hiçbir şey SİLMEZ — kuru çalışmanın sözleşmesi bu.
+    if not kuru:
+        gun = ayarlar["genel"].get("kayit_saklama_gun", 7)
+        try:
+            silinen = db.eski_kayitlari_temizle(con, gun)
+            if silinen:
+                metin += (f"\n\n🧹 {silinen} eski kayıt silindi "
+                          f"({gun} günden eski, yayınlanmamış).")
+        except Exception as e:                        # noqa: BLE001
+            # Temizlik raporu DÜŞÜRMEMELİ; rapor asıl iş.
+            log.warning("temizlik yapılamadı: %s", e)
+
     if kuru:
         print(metin)
         return 0

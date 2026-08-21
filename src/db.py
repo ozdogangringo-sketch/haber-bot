@@ -6,6 +6,7 @@ SQL bildiğin için sorguları olduğu gibi görebilesin diye
 ORM kullanmadım, düz SQL yazdım.
 """
 
+import logging
 import sqlite3
 from pathlib import Path
 
@@ -202,6 +203,8 @@ EK_KOLONLAR = {
     "alinti_sahibi": "TEXT",
 }
 
+
+log = logging.getLogger(__name__)
 
 def baglan():
     """
@@ -402,3 +405,53 @@ def kaynak_dagilimi(con):
     return con.execute(
         "SELECT kaynak, COUNT(*) AS adet FROM haberler GROUP BY kaynak ORDER BY adet DESC"
     ).fetchall()
+
+
+# VACUUM eşiği: bu kadar kayıt silinmediyse dosyayı yeniden yazmıyoruz.
+#
+# ⚠️ VACUUM'U HER GÜN ÇALIŞTIRMA. Dosyanın tamamını yeniden düzenliyor;
+# `haber.db` her job'da git'e commit edildiği için bu, git'in delta
+# sıkıştırmasını işe yaramaz hale getiriyor ve geçmişi tam boyutta bir
+# kopya daha büyütüyor. Ancak kayda değer bir küçülme varsa değer.
+VACUUM_ESIGI = 100
+
+
+def eski_kayitlari_temizle(con, gun: int = 7) -> int:
+    """
+    Yayınlanmamış eski haberleri siler. Silinen kayıt sayısını döner.
+
+    ⚠️ YAYINLANMIŞ HABER ASLA SİLİNMEZ. Mükerrer engeli geçmişe
+    bakıyor (`secim.yayinlanmis_konular`) ve o kayıtlar aynı haberin
+    tekrar yayınlanmasını önlüyor; silmek 1j/1z'deki mükerrer
+    sorununu geri getirir.
+
+    ⚠️ NEDEN GEREKTİ (21 Ağu 2026): hiç temizlik yoktu. 8 günde 3134
+    kayıt birikti ve `.git` klasörü **237 MB**'a çıktı — veritabanı her
+    job'da commit ediliyor ve ikili dosya olduğu için git onu
+    sıkıştıramıyor. Ölçüldü: 30 MB/gün büyüme, 6 ay sonra ~5 GB
+    (GitHub'ın yumuşak limiti).
+
+    Silinen haberler zaten kullanılamaz durumda: tazelik sınırı 36
+    saat, yani 7 günlük bir kayıt hiçbir akışta aday olamıyor.
+    """
+    silinen = con.execute(
+        "DELETE FROM haberler "
+        "WHERE durum != 'yayinlandi' "
+        "  AND cekilme_zamani < datetime('now', ?)",
+        (f"-{gun} day",),
+    ).rowcount
+    con.commit()
+
+    if silinen >= VACUUM_ESIGI:
+        # ⚠️ VACUUM işlem dışında çalışmalı; açık işlem varsa hata verir.
+        con.isolation_level = None
+        try:
+            con.execute("VACUUM")
+        finally:
+            con.isolation_level = ""
+        log.info("veritabanı sıkıştırıldı (VACUUM)")
+
+    if silinen:
+        log.info("%s eski kayıt silindi (%s günden eski, yayınlanmamış)",
+                 silinen, gun)
+    return silinen

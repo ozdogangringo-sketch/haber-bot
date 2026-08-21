@@ -805,6 +805,43 @@ def test_icerik_filtresi() -> None:
             "filtre riskli kelimeleri yakalıyor")
 
 
+def test_temizlik_yayinlanmisi_korur() -> None:
+    """
+    Eski kayıt temizliği YAYINLANMIŞ haberlere dokunmamalı.
+
+    Mükerrer engeli geçmişe bakıyor (`secim.yayinlanmis_konular`);
+    yayınlanmış kayıtları silmek 1j/1z'deki "aynı haber ikinci kez
+    yayınlandı" sorununu geri getirir.
+
+    21 Ağu 2026'da eklendi: hiç temizlik yoktu, 8 günde 3134 kayıt
+    birikti ve `.git` 237 MB'a çıktı (veritabanı her job'da commit
+    ediliyor, ikili dosya sıkışmıyor).
+    """
+    import sqlite3
+    from src import db as _db
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.execute("""CREATE TABLE haberler (id INTEGER PRIMARY KEY,
+                   durum TEXT, cekilme_zamani TEXT)""")
+    con.executemany(
+        "INSERT INTO haberler (durum, cekilme_zamani) VALUES (?, ?)",
+        [("yayinlandi", "2020-01-01"),      # çok eski AMA yayınlanmış
+         ("metin_hazir", "2020-01-01"),     # çok eski, silinmeli
+         ("yeni", "2020-01-01"),            # çok eski, silinmeli
+         ("metin_hazir", "2099-01-01")])    # taze, kalmalı
+    con.commit()
+    _db.eski_kayitlari_temizle(con, 7)
+    kalan = {r["durum"] for r in con.execute("SELECT durum FROM haberler")}
+    denetle("yayinlandi" in kalan,
+            "temizlik yayınlanmış haberi KORUYOR",
+            "mükerrer engeli geçmişe bakıyor, silmek tekrarı geri getirir")
+    denetle(len(list(con.execute(
+        "SELECT 1 FROM haberler WHERE cekilme_zamani = '2020-01-01' "
+        "AND durum != 'yayinlandi'"))) == 0,
+        "temizlik eski yayınlanmamış kayıtları siliyor")
+    con.close()
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -840,6 +877,7 @@ def main() -> int:
         test_worker_calisiyor,
         test_gorsel_cesitliligi,
         test_icerik_filtresi,
+        test_temizlik_yayinlanmisi_korur,
     ):
         try:
             test()

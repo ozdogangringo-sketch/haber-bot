@@ -42,6 +42,13 @@ genel:
   # atlanan haberlerin yarısı bir sonraki turda geri geliyordu.
   atlanan_bekleme_saat: 12
 
+  # Yayınlanmamış haberler kaç gün saklansın? Günlük raporda
+  # temizleniyor. ⚠️ YAYINLANMIŞ haberler bundan MUAF — mükerrer
+  # engeli onlara bakıyor.
+  # 21 Ağu 2026'da eklendi: hiç temizlik yoktu, 8 günde .git 237 MB
+  # oldu (veritabanı her job'da commit ediliyor).
+  kayit_saklama_gun: 7
+
   yayin_yasi_siniri_saat: 36
 
   # --- SON DAKİKA (gün içi tekil postlar) ---
