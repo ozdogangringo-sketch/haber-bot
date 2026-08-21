@@ -76,6 +76,19 @@ def _gunluk_kota_hatasi(cevap) -> bool:
 
 # Gemini'den JSON istiyoruz. Şema vermek, "bazen düz metin döndürme"
 # sorununu tamamen ortadan kaldırıyor.
+# ⚠️ KATEGORİ LİSTESİ SABİT VE KAPALI.
+#
+# Model buraya yazılı olmayan bir kategori üretirse:
+#   * `config.yaml → gorsel.serit_renkleri` o kategoriyi tanımıyor ve
+#     slayt sessizce "turkiye" rengine düşüyor,
+#   * `secim.kategori_katsayilari` de tanımıyor, ön elemede varsayılan
+#     katsayı uygulanıyor.
+# Bu yüzden şemada `enum` ile kapatıldı — model yalnızca bunlardan
+# birini seçebiliyor. Yeni kategori eklemek isteyen ÜÇ yeri birden
+# güncellemeli: burası, serit_renkleri, kategori_katsayilari.
+KATEGORILER = ["turkiye", "dunya", "ekonomi", "spor",
+               "bilim", "teknoloji", "kultur", "yasam"]
+
 CEVAP_SEMASI = {
     "type": "object",
     "properties": {
@@ -95,6 +108,13 @@ CEVAP_SEMASI = {
         "gorsel_konu": {"type": "string"},
         # Pexels araması için İngilizce temsili terim.
         "gorsel_temsili": {"type": "string"},
+        # ⚠️ HABERİN KENDİ KATEGORİSİ — kaynağınki DEĞİL.
+        # `fetch_news` kategoriyi RSS beslemesinden atıyor ve o çoğu
+        # zaman yanlış: "ABD, Katar'a yakıt ikmal uçağı satışını
+        # onayladı" AA'nın ekonomi beslemesinden geldiği için
+        # "ekonomi" damgası yiyordu. Model haberin TAM METNİNİ zaten
+        # okuyor; doğru cevabı verebilecek tek yer burası.
+        "kategori": {"type": "string", "enum": KATEGORILER},
         # Slaytın sağ üstündeki bayrak için ISO 3166-1 alpha-2 kodu
         "ulke_kodu": {"type": "string"},
         # Bayrağın altına yazılan Türkçe ülke adı
@@ -104,7 +124,7 @@ CEVAP_SEMASI = {
         "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
         "slayt_ozet", "detay_metni", "vurgu_sayi", "vurgu_etiket",
         "alinti", "alinti_sahibi", "gorsel_konu", "gorsel_temsili",
-        "ulke_kodu", "ulke_adi",
+        "kategori", "ulke_kodu", "ulke_adi",
     ],
 }
 
@@ -278,6 +298,25 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
       ilişkilendirilmiş görünür.
     * Doğa ve doku sahneleri de nötr olduğu için iyi çalışıyor
       (kuraklık haberinde "dry cracked earth" gibi).
+
+- kategori: Haberin KENDİ konusu. Yalnızca şunlardan biri:
+    turkiye   — Türkiye gündemi, iç siyaset, asayiş, yerel olaylar
+    dunya     — yurt dışı olaylar, uluslararası ilişkiler, savaş/diplomasi
+    ekonomi   — piyasa, enflasyon, şirket, ticaret, istihdam, enerji fiyatı
+    spor      — müsabaka, transfer, kulüp, sporcu
+    bilim     — araştırma, uzay, sağlık/tıp bulgusu, çevre, arkeoloji
+    teknoloji — yazılım, yapay zeka, cihaz, internet, oyun
+    kultur    — sanat, edebiyat, sinema, müzik, tarih/miras
+    yasam     — eğitim, ulaşım, gündelik hayat, tüketici, hava durumu
+
+  ⚠️ HABERİ YAYINLAYAN KAYNAĞA GÖRE DEĞİL, HABERİN İÇERİĞİNE GÖRE seç.
+  Bir ekonomi servisinin yayınladığı silah satışı haberi "dunya"dır,
+  "ekonomi" değil. Spor servisinin verdiği doping soruşturması haberi
+  "spor"dur. Kaynağın adı seni yanıltmasın.
+
+  Olay Türkiye'de geçiyorsa ve konusu özel bir alan değilse "turkiye"
+  seç. Türkiye'de geçen bir maç "spor", Türkiye'de açıklanan enflasyon
+  "ekonomi"dir — yani özel alan Türkiye'yi yener.
 
 - ulke_kodu / ulke_adi: Haberin GEÇTİĞİ ülke — haberi yayınlayan kaynağın
   ülkesi değil. BBC'nin Belçika'daki bir olayı aktardığı haberde ülke

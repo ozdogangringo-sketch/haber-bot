@@ -392,7 +392,35 @@ burada gerekmiyor — tam da bu yüzden ayrı alan seçildi).
 hâlâ beslemeden geliyor ve şerit rengini, ön elemedeki kategori
 payını o belirliyor — aşağıdaki madde hâlâ geçerli.
 
-**1i. ⚠️ KATEGORİ HABERİN DEĞİL, KAYNAĞIN ÖZELLİĞİ (açık kusur).**
+**1i3. ✅ KATEGORİ ARTIK HABERİN İÇERİĞİNDEN GELİYOR (20 Ağu 2026).**
+
+Aşağıdaki 1i kusuru KAPATILDI. `CEVAP_SEMASI`'na `kategori` alanı
+eklendi ve Gemini haberin tam metnine bakarak seçiyor.
+
+Ölçüldü: *"ABD'den Katar'a 4,5 milyar dolarlık yakıt ikmal uçağı
+satışına onay"* — besleme `ekonomi` diyordu, Gemini **`dunya`**
+dedi. Zaten doğru olan haberlere dokunmuyor (AA Spor'dan gelen maç
+haberi `spor`, TMO haşhaş alımı `ekonomi` kaldı).
+
+**Ek Gemini maliyeti YOK** — zaten yapılan çağrıya bir alan eklendi.
+
+⚠️ **KATEGORİ LİSTESİ ÜÇ YERDE YAŞIYOR** ve üçü de aynı olmalı:
+`generate_text.KATEGORILER` · `gorsel.serit_renkleri` ·
+`secim.kategori_katsayilari`. Biri eksik kalırsa hata VERMEZ, sessizce
+yanlış çalışır: renksiz kategori "turkiye" rengine düşer, katsayısız
+kategori varsayılan ağırlıkla yarışır. `test_7_sozlesme` bunu
+denetliyor (kültür rengi kasten silinerek doğrulandı).
+
+⚠️ İki savunma katmanı var: şemada `enum` **ve** `db._gecerli_kategori`
+beyaz listesi. Şema tek başına yeterli değil — model şemayı ihlal
+edebiliyor ve eski kayıtlar başka yollardan geliyor.
+
+⚠️ Eski kayıtlar OLDUĞU GİBİ kaldı (1h dersi): kategori yalnızca metni
+YENİ üretilen haberlerde düzeliyor. Havuzdaki eski haberler beslemeden
+gelen etiketini taşımaya devam ediyor.
+
+**1i. ⚠️ KATEGORİ HABERİN DEĞİL, KAYNAĞIN ÖZELLİĞİ (açık kusur — 1i3
+ile KAPATILDI, aşağısı tarihsel kayıt).**
 
 `fetch_news.py:292` → `kategori=kaynak["kategori"]`. Haberin içeriğine
 hiç bakılmıyor. Sonuç: Venezuela depremi ve Batı Şeria baskını

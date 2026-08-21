@@ -273,6 +273,24 @@ def durum_guncelle(con, haber_id: int, durum: str, hata: str | None = None):
     )
 
 
+def _gecerli_kategori(deger) -> str | None:
+    """
+    Modelin verdiği kategoriyi doğrular.
+
+    ⚠️ BEYAZ LİSTE ZORUNLU. Listede olmayan bir kategori sessiz hasar
+    veriyor: `gorsel.serit_renkleri` onu tanımadığı için slayt
+    "turkiye" rengine düşüyor, `secim.kategori_katsayilari` de
+    tanımadığı için ön elemede varsayılan katsayı uygulanıyor —
+    ikisi de hata vermeden yanlış çalışıyor.
+
+    Şemada `enum` var ama tek savunma o olmamalı: model şemayı
+    ihlal edebiliyor ve eski kayıtlar başka yollardan da geliyor.
+    """
+    from .generate_text import KATEGORILER
+    ad = (deger or "").strip().lower()
+    return ad if ad in KATEGORILER else None
+
+
 def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = None):
     """
     Gemini'nin ürettiği Instagram metnini kaydeder ve haberi
@@ -305,6 +323,13 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
                alinti_sahibi  = ?,
                gorsel_konu    = ?,
                gorsel_temsili = ?,
+               -- ⚠️ KATEGORİ MODELDEN GELİYORSA ÜZERİNE YAZILIYOR.
+               -- `fetch_news` kategoriyi RSS beslemesinden atıyor ve o
+               -- çoğu zaman yanlış (CLAUDE.md 1i): AA'nın ekonomi
+               -- beslemesinden gelen silah satışı haberi "ekonomi"
+               -- görünüyordu. Model haberin tam metnini okuyor.
+               -- Model boş/geçersiz döndürürse eski değer korunuyor.
+               kategori       = COALESCE(?, kategori),
                ulke_kodu      = ?,
                ulke_adi       = ?,
                makale_metni   = COALESCE(?, makale_metni),
@@ -327,6 +352,7 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
             # Boş string yerine NULL saklamak SQL'de ayırt etmeyi kolaylaştırır.
             (uretilen.get("gorsel_konu") or "").strip() or None,
             (uretilen.get("gorsel_temsili") or "").strip() or None,
+            _gecerli_kategori(uretilen.get("kategori")),
             (uretilen.get("ulke_kodu") or "").strip().lower() or None,
             (uretilen.get("ulke_adi") or "").strip() or None,
             makale_metni,

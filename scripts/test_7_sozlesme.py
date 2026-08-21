@@ -567,6 +567,40 @@ def test_turkce_ek_toleransi() -> None:
             "düz `&` kesişimi kalmış — Türkçe ekler kaçar")
 
 
+def test_kategori_uc_yerde_tanimli() -> None:
+    """
+    Kategori listesi ÜÇ yerde yaşıyor ve üçü de aynı olmalı:
+      * `generate_text.KATEGORILER` — modelin seçebileceği değerler,
+      * `config → gorsel.serit_renkleri` — slaytın şerit/gradyan rengi,
+      * `config → secim.kategori_katsayilari` — ön elemedeki ağırlık.
+
+    ⚠️ Biri eksik kalırsa hata YOK, sessiz hasar var: renk bulunamayan
+    kategori "turkiye" rengine düşüyor, katsayısı olmayan kategori
+    varsayılan ağırlıkla yarışıyor.
+    """
+    from src.generate_text import KATEGORILER
+    g = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    renkler = set((g.get("gorsel") or {}).get("serit_renkleri", {}))
+    katsayilar = set((g.get("secim") or {}).get("kategori_katsayilari", {}))
+    kats = set(KATEGORILER)
+
+    denetle(kats <= renkler, "her kategorinin şerit rengi var",
+            f"renksiz: {sorted(kats - renkler)} — slayt sessizce "
+            "turkiye rengine düşer")
+    denetle(kats <= katsayilar, "her kategorinin ön eleme katsayısı var",
+            f"katsayısız: {sorted(kats - katsayilar)}")
+
+    # Model şemayı ihlal ederse diye ikinci savunma
+    dbk = (KOK / "src/db.py").read_text(encoding="utf-8")
+    denetle("_gecerli_kategori" in dbk,
+            "kaydetmeden önce kategori beyaz listeden geçiyor",
+            "model listede olmayan bir değer üretirse doğrudan yazılır")
+
+    gt = (KOK / "src/generate_text.py").read_text(encoding="utf-8")
+    denetle('"kategori": {"type": "string", "enum": KATEGORILER}' in gt,
+            "cevap şeması kategoriyi enum ile sınırlıyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -595,6 +629,7 @@ def main() -> int:
         test_ayri_mesajdaki_dugme_tur_id_tasiyor,
         test_havuza_donen_haber_metnini_koruyor,
         test_turkce_ek_toleransi,
+        test_kategori_uc_yerde_tanimli,
     ):
         try:
             test()
