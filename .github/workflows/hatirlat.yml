@@ -57,4 +57,4 @@ jobs:
           # reddedildi, rebase çakıştı, job kırmızı oldu ve tur kayboldu.
           # db_senkron çakışmayı kendisi çözüyor, çözemezse rebase'i
           # iptal edip repoyu temiz bırakıyor.
-          python scripts/db_kaydet.py "Hatırlatma"
+          python scripts/db_kaydet.py "Hatırlatma" --ek assets/flags

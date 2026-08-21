@@ -1416,13 +1416,34 @@ def main() -> int:
                 log.info("tur güncel veritabanında bulundu")
 
     if not haberler:
-        log.error("mesaj_id=%s için haber bulunamadı", mesaj_id)
+        # ⚠️ BU BİR SİSTEM HATASI DEĞİL — çoğu zaman kullanıcı ESKİ bir
+        # mesajın düğmesine basıyor. Tur o arada kapanmış, atlanmış veya
+        # yayınlanmış oluyor ve `telegram_message_id` temizlenmiş
+        # oluyor. Eskiden `return 1` veriliyordu: job kırmızı görünüyor,
+        # hata bildirimi düşüyor ve gerçek arızalar arasında kayboluyordu.
+        #
+        # Kullanıcıya yararlı olan şey ne olduğunu ve şu an neyin açık
+        # olduğunu söylemek.
+        acik = list(con.execute(
+            "SELECT telegram_message_id mid, COUNT(*) n, MIN(durum) d "
+            "FROM haberler WHERE telegram_message_id IS NOT NULL "
+            "AND durum IN ('onay_bekliyor', 'baslik_onayi', 'ertelendi') "
+            "GROUP BY telegram_message_id ORDER BY mid DESC LIMIT 1"))
+        if acik:
+            a = acik[0]
+            asama = ("başlık onayı" if a["d"] == "baslik_onayi"
+                     else "yayın onayı")
+            ek = (f"\n\n✅ Şu an açık tur var: {a['n']} haber, {asama} "
+                  "aşamasında. Sohbetin altındaki mesajı kullan.")
+        else:
+            ek = "\n\nŞu an açık tur yok. Yeni tur için /tur yazabilirsin."
+
+        log.warning("mesaj_id=%s artık geçerli değil (eski mesaj)", mesaj_id)
         telegram_bot.mesaj_gonder(
-            "⚠️ Bu onay mesajına bağlı haber bulunamadı.\n"
-            "Tur kapanmış ya da veritabanı bu turu görmüyor olabilir. "
-            "/durum yazarak güncel duruma bakabilirsin."
-        )
-        return 1
+            "ℹ️ Bu mesaj artık geçerli değil.\n"
+            "Tur kapanmış, atlanmış ya da yayınlanmış olabilir." + ek)
+        # Sistem hatası olmadığı için job BAŞARILI sayılıyor.
+        return 0
 
     try:
         # ⚠️ YAYINLANMIŞ TUR ÜZERİNDE DEĞİŞTİRİCİ İŞLEM YAPILAMAZ.

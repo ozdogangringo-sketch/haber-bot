@@ -807,6 +807,48 @@ değiştirir. Sıralamayı değiştiren bir işlemden sonra açık alternatif
 mesajları geçersizdir. Kalıcı çözüm düğmelere slayt numarası yerine
 haber id'si gömmek — **henüz yapılmadı.**
 
+**1aa. ⚠️ ÜÇ SERVİS DE GEÇİCİ HATASINI 400 İLE VERİYOR (21 Ağu 2026).**
+
+Kullanıcı bildirdi: *"tekli haberlerden 3 seçtim, 2'si oluşturulamadı"*
+ve *"threads zincirini tamamlayamadı"*. Üç ayrı kusur çıktı.
+
+**(a) imgbb `code 111 "Internal upload error"`.** HTTP 400 ile geliyor,
+`GECICI_HATALAR = {429, 500, 502, 503, 504}` listesinde olmadığı için
+**hiç tekrar denenmedi**. Kanıt log'da: 08:31'de patlayan yükleme
+08:32'de sorunsuz geçti. `upload_image.GECICI_MESAJLAR` eklendi.
+
+⚠️ Bu, projede **dördüncü** kez görülen desen — Instagram 2207052,
+Telegram WEBPAGE_CURL_FAILED, Threads 4279009 ve şimdi imgbb 111.
+Yeni bir dış servis eklerken ilk sorulacak soru: *"geçici hatasını
+hangi HTTP koduyla veriyor?"*
+
+**(b) Threads zinciri 2. halkada kesildi: `Media Not Found` (4279009).**
+Container `FINISHED` dendikten saniyeler sonra publish onu bulamadı.
+
+Publish normalde **bilerek tekrarlanmıyor**: HTTP 500 alan bir publish
+aslında yayınlanmış olabiliyor ve tekrar denemek mükerrer gönderi
+üretiyor (18 Ağu'da hesapta aynı turun üç kopyası oluştu). Ama bu alt
+kod belirsiz DEĞİL — medya yoksa gönderi de yoktur. Yalnızca bu kod
+için taze container'la yeniden deneniyor (`threads._medya_yok_mu`),
+artı publish öncesi 2 saniyelik bekleme.
+
+**(c) `nothing added to commit` YANLIŞ ALARMI.** Veritabanı
+değişmemişti ama takip edilmeyen bir bayrak dosyası vardı; git
+*"nothing ADDED to commit but untracked files present"* dedi, kod
+`"nothing to commit"` arıyordu, eşleşmedi ve job **kırmızı oldu**.
+Ortada hiçbir arıza yoktu. `db_senkron._degisiklik_yok()` artık dört
+varyantı da tanıyor.
+
+⚠️ Ayrıca `yayinla.yml` ve `hatirlat.yml` bayrak önbelleğini
+kaydetmiyordu (`--ek assets/flags` yoktu) — indirilen bayrak repoya
+girmeyince her yayında yeniden iniyordu.
+
+**Eski onay mesajının düğmesi artık HATA DEĞİL.** Kapanmış/atlanmış
+bir turun düğmesine basmak `return 1` veriyordu: job kırmızı, hata
+bildirimi düşüyor ve gerçek arızalar arasında kayboluyordu. Artık
+kullanıcıya ne olduğu ve **şu an hangi turun açık olduğu** söylenip
+`return 0` dönülüyor.
+
 **1v. ⚠️ PARAMETRELİ KOMUTLARDA ÖN EKE BAKILMALI.**
 
 `/haber istanbulda hava` komutu `ara:istanbulda hava` olarak geliyor

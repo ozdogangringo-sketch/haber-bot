@@ -115,6 +115,22 @@ def _wal_bosalt() -> None:
         log.warning("WAL boşaltılamadı: %s", e)
 
 
+# Git'in "commit edilecek bir şey yok" demesinin bütün biçimleri.
+# Hepsi normal durum — hata değil.
+_DEGISIKLIK_YOK_KALIPLARI = (
+    "nothing to commit",
+    "nothing added to commit",
+    "no changes added to commit",
+    "working tree clean",
+)
+
+
+def _degisiklik_yok(cikti: str) -> bool:
+    """Commit başarısızlığı 'zaten değişiklik yoktu' anlamına mı geliyor?"""
+    metin = (cikti or "").lower()
+    return any(k in metin for k in _DEGISIKLIK_YOK_KALIPLARI)
+
+
 def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
     """
     data/haber.db'yi commit edip push eder.
@@ -134,9 +150,16 @@ def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
         log.warning("db_senkron: git add başarısız")
         return False
 
-    # Değişiklik yoksa commit hata veriyor; bu bir sorun değil.
+    # Değişiklik yoksa commit hata veriyor; bu bir sorun DEĞİL.
+    #
+    # ⚠️ GIT BU DURUMU BİRDEN FAZLA CÜMLEYLE ANLATIYOR ve tek bir
+    # kalıba bakmak yanlış alarm veriyordu. 21 Ağu 2026, 07:56:
+    # veritabanı değişmemişti ama takip edilmeyen bir bayrak dosyası
+    # (assets/flags/pa.png) vardı; git "nothing ADDED to commit but
+    # untracked files present" dedi, kod "nothing to commit" arıyordu,
+    # eşleşmedi ve job KIRMIZI oldu. Ortada hiçbir arıza yoktu.
     tamam, cikti = _calistir("git", "commit", "-m", mesaj)
-    if not tamam and "nothing to commit" not in cikti:
+    if not tamam and not _degisiklik_yok(cikti):
         log.warning("db_senkron: commit başarısız: %s", cikti[:200])
         return False
 

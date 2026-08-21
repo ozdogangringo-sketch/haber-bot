@@ -32,6 +32,29 @@ load_dotenv()
 UC_NOKTA = "https://api.imgbb.com/1/upload"
 GECICI_HATALAR = {429, 500, 502, 503, 504}
 
+# ⚠️ HTTP KODUNA BAKMAK YETMİYOR — imgbb iç hatalarını 400 ile veriyor.
+#
+# 21 Ağu 2026, 08:31'de bir tekil post şu hatayla düştü:
+#   HTTP 400: {"error":{"message":"Internal upload error","code":111}}
+# 400 "kalıcı hata" sayıldığı için HİÇ tekrar denenmedi. Oysa aynı
+# görsel 35 saniye sonra (08:32) sorunsuz yüklendi — hata tamamen
+# imgbb tarafındaydı ve geçiciydi.
+#
+# Bu, projede ÜÇÜNCÜ kez görülen desen: Instagram 2207052, Telegram
+# WEBPAGE_CURL_FAILED ve şimdi imgbb code 111. Üçü de "400 döndürüyor
+# ama saniyeler sonra çalışıyor".
+# imgbb iç hatasında sabit bekleme. Artan bekleme denenmedi:
+# Instagram ve Threads'te ölçüldü, sorun karşı tarafın anlık
+# durumu ve 2 saniye sonra tekrar sormak aynı yüke biniyor.
+GECICI_BEKLEME = 8
+
+GECICI_MESAJLAR = (
+    "internal upload error",
+    "internal error",
+    "try again",
+    "temporarily",
+)
+
 
 def _anahtar() -> str:
     a = os.getenv("IMGBB_API_KEY", "").strip()
@@ -89,6 +112,15 @@ def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
         son_hata = f"HTTP {cevap.status_code}: {cevap.text[:200]}"
         if cevap.status_code in GECICI_HATALAR:
             time.sleep(2 * deneme)
+            continue
+
+        # 400 ama imgbb'nin kendi iç hatası: tekrar denemeye değer.
+        govde = (cevap.text or "").lower()
+        if any(k in govde for k in GECICI_MESAJLAR):
+            log.warning("imgbb iç hatası, %s sn sonra tekrar (%s/%s): %s",
+                        GECICI_BEKLEME, deneme, g["deneme_sayisi"],
+                        cevap.text[:100])
+            time.sleep(GECICI_BEKLEME)
             continue
         break
 

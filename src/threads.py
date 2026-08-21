@@ -56,6 +56,23 @@ GECICI_ALT_KODLAR = {2207003, 2207032, 2207052}
 # görselin karşı tarafça indirilmesinde.
 MEDYA_BEKLEME_SANIYE = 15
 
+# ⚠️ "Media Not Found" (4279009) DİĞER PUBLISH HATALARINDAN FARKLI.
+#
+# Publish hataları normalde tekrarlanmıyor: HTTP 500 alan bir publish
+# aslında YAYINLANMIŞ olabiliyor ve tekrar denemek mükerrer gönderi
+# üretiyor (18 Ağu 2026'da hesapta aynı turun üç kopyası oluştu).
+#
+# Ama bu alt kod belirsiz değil: medya bulunamadıysa ortada gönderi
+# YOKTUR. 21 Ağu 2026'da zincirin 2. halkası tam bu hatayla kesildi —
+# container FINISHED dendikten saniyeler sonra publish onu bulamadı.
+# Taze container'la baştan denemek burada mükerrer riski taşımıyor.
+MEDYA_YOK_ALT_KODU = 4279009
+
+# Container FINISHED göründükten sonra publish'ten önce kısa bekleme.
+# FINISHED durumu ile medyanın publish'e hazır olması arasında küçük
+# bir yarış var; 2. halka bu aralıkta düştü.
+PUBLISH_ONCESI_SANIYE = 2
+
 # ⚠️ GÖRSEL İSTEKLERİ ARASINDA BEKLEMEK ZORUNLU.
 #
 # Threads art arda gelen medya isteklerini reddediyor. ÖLÇÜLDÜ
@@ -235,6 +252,14 @@ def yayinla(gorsel_urlleri: list[str], metin: str) -> str:
     return d["id"]
 
 
+def _medya_yok_mu(hata) -> bool:
+    """Publish hatası "container bulunamadı" mı? (bkz. MEDYA_YOK_ALT_KODU)"""
+    metin = str(hata).lower()
+    return (str(MEDYA_YOK_ALT_KODU) in metin
+            or "cannot be found" in metin
+            or "media not found" in metin)
+
+
 def _halka_yayinla(kullanici: str, parametreler: dict) -> str:
     """
     Tek bir gönderiyi container'dan publish'e kadar götürür, id'sini döner.
@@ -274,9 +299,22 @@ def _halka_yayinla(kullanici: str, parametreler: dict) -> str:
         # Mükerrer gönderi, yarım zincirden çok daha kötü: yarım zincir
         # bildiriliyor ve tamamlanabiliyor, mükerrer post ise elle
         # silinmek zorunda ve takipçi ikisini de görüyor.
-        p = _istek("POST", f"/{kullanici}/threads_publish",
-                   tekrar=False, creation_id=d["id"])
-        return p["id"]
+        time.sleep(PUBLISH_ONCESI_SANIYE)
+        try:
+            p = _istek("POST", f"/{kullanici}/threads_publish",
+                       tekrar=False, creation_id=d["id"])
+            return p["id"]
+        except Exception as e:
+            # ⚠️ TEK İSTİSNA: "Media Not Found". Medya yoksa gönderi de
+            # yok, yani baştan denemek mükerrer üretmez. Diğer publish
+            # hataları YUKARI FIRLIYOR (bkz. yukarıdaki açıklama).
+            if _medya_yok_mu(e) and deneme < 3:
+                son_hata = e
+                log.warning("publish container'ı bulamadı (%s/3), taze "
+                            "container'la tekrar: %s", deneme, str(e)[:120])
+                time.sleep(MEDYA_BEKLEME_SANIYE)
+                continue
+            raise
 
     raise RuntimeError(f"halka yayınlanamadı: {son_hata}")
 

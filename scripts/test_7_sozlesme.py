@@ -601,6 +601,58 @@ def test_kategori_uc_yerde_tanimli() -> None:
             "cevap şeması kategoriyi enum ile sınırlıyor")
 
 
+def test_gecici_hatalar_400te_de_yakalaniyor() -> None:
+    """
+    Üç dış servis de geçici hatalarını HTTP 400 ile veriyor ve HTTP
+    koduna bakmak yetmiyor:
+      * Instagram  — 2207003 / 2207052 ("medya indirilemedi")
+      * Telegram   — WEBPAGE_CURL_FAILED
+      * imgbb      — code 111 "Internal upload error"
+      * Threads    — 4279009 "Media Not Found"
+
+    Hepsinde aynı kanıt var: saniyeler sonra aynı istek çalışıyor.
+    400'ü kalıcı sayan kod bu isteği HİÇ tekrar denemiyor ve tur/post
+    düşüyor. 21 Ağu 2026'da imgbb yüzünden iki tekil post üretilemedi.
+    """
+    for dosya, isaret in (
+            ("src/upload_image.py", "GECICI_MESAJLAR"),
+            ("src/telegram_bot.py", "GECICI_MESAJLAR"),
+            ("src/instagram.py", "GECICI_ALT_KODLAR"),
+            ("src/threads.py", "GECICI_ALT_KODLAR")):
+        kaynak = (KOK / dosya).read_text(encoding="utf-8")
+        denetle(isaret in kaynak,
+                f"{dosya}: 400 ile gelen geçici hatalar tanınıyor",
+                "yalnızca HTTP koduna bakılıyor — geçici hata kalıcı "
+                "sayılıp hiç tekrar denenmiyor")
+
+    # Threads publish'i yalnızca "Media Not Found"da tekrarlamalı;
+    # diğer hatalarda mükerrer gönderi riski var.
+    th = (KOK / "src/threads.py").read_text(encoding="utf-8")
+    denetle("_medya_yok_mu" in th,
+            "Threads publish 'Media Not Found'da taze container ile "
+            "tekrar deniyor")
+
+
+def test_git_degisiklik_yok_yanlis_alarm_vermiyor() -> None:
+    """
+    "Commit edilecek bir şey yok" durumu HATA DEĞİL.
+
+    Git bunu birden çok cümleyle anlatıyor; koda tek kalıp yazmak
+    yanlış alarm veriyordu. 21 Ağu 2026: veritabanı değişmemişti ama
+    takip edilmeyen bir bayrak dosyası vardı, git "nothing ADDED to
+    commit" dedi, kod "nothing to commit" arıyordu ve job kırmızı oldu.
+    """
+    from src.db_senkron import _degisiklik_yok
+    for cikti in ("nothing to commit, working tree clean",
+                  "nothing added to commit but untracked files present",
+                  "no changes added to commit"):
+        denetle(_degisiklik_yok(cikti), f"'değişiklik yok' tanınıyor: "
+                                        f"{cikti[:34]}")
+    denetle(not _degisiklik_yok("error: could not write index"),
+            "gerçek git hatası 'değişiklik yok' sanılmıyor",
+            "gerçek hata yutulursa veri kaybı sessizce geçer")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -630,6 +682,8 @@ def main() -> int:
         test_havuza_donen_haber_metnini_koruyor,
         test_turkce_ek_toleransi,
         test_kategori_uc_yerde_tanimli,
+        test_gecici_hatalar_400te_de_yakalaniyor,
+        test_git_degisiklik_yok_yanlis_alarm_vermiyor,
     ):
         try:
             test()
