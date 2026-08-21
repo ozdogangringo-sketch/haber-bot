@@ -152,7 +152,22 @@ def _bugun_anahtari() -> str:
 
 
 def bugunku_sayi(con) -> int:
-    return int(db.ayar_oku(con, _bugun_anahtari(), 0) or 0)
+    """
+    Bugün YAYINLANMIŞ tekil post sayısı.
+
+    ⚠️ ESKİDEN AYRI BİR SAYAÇ OKUNUYORDU ve o sayaç haber ONAYA
+    SUNULDUĞUNDA artıyordu, yayınlandığında değil. 21 Ağu 2026'da
+    ölçüldü: sayaç 10 (sınır dolu) ama gerçekte yalnızca 6 post
+    yayınlanmıştı — onaylamadığın 4 haber günlük kotayı yemişti ve
+    yeni seçimler sessizce reddediliyordu.
+
+    Artık veritabanına soruyoruz: tek doğru kaynak yayının kendisi.
+    """
+    return con.execute(
+        "SELECT COUNT(*) FROM haberler "
+        "WHERE son_dakika = 1 AND durum = 'yayinlandi' "
+        "AND date(gonderim_zamani, '+3 hours') = date('now', '+3 hours')"
+    ).fetchone()[0]
 
 
 def sayaci_artir(con) -> None:
@@ -844,9 +859,23 @@ def main(zorla_haber_id: int | None = None) -> int:
 
         # --- 3) Günlük sınır ---
         azami = ayarlar["genel"].get("son_dakika_gunluk_azami", 2)
-        if bugunku_sayi(con) >= azami:
-            log.info("günlük son dakika sınırı dolu (%s)", azami)
-            return 0
+        bugun = bugunku_sayi(con)
+        if bugun >= azami:
+            # ⚠️ İNSAN SEÇİMİ SINIRDAN MUAF. Kullanıcı Telegram'da bir
+            # haberi açıkça seçtiyse makinenin onu sessizce reddetmesi
+            # yanlış — 21 Ağu 2026'da tam bu oldu: iki haber seçildi,
+            # job "başarılı" döndü, hiçbir şey üretilmedi ve kullanıcı
+            # "hazırlanıyor" yazısında kaldı.
+            if zorla_haber_id:
+                log.info("günlük sınır dolu (%s/%s) ama haber elle "
+                         "seçilmiş, devam ediliyor", bugun, azami)
+                telegram_bot.mesaj_gonder(
+                    f"ℹ️ Bugünkü tekil post sınırı dolu ({bugun}/{azami}) "
+                    "ama sen seçtiğin için hazırlanıyor.")
+            else:
+                log.info("günlük son dakika sınırı dolu (%s/%s)",
+                         bugun, azami)
+                return 0
 
         # --- 4) Taze haber çek, sonra aday ara ---
         # Yalnızca yüksek ağırlıklı gündem kaynakları — Actions kotası

@@ -891,6 +891,31 @@ def test_arama_yazim_toleransi() -> None:
             "tam eşleşme skoruyla süzülürse fuzzy sonuçları elenir")
 
 
+def test_gunluk_sinir_gercek_yayini_sayiyor() -> None:
+    """
+    Günlük tekil post sınırı YAYINLANMIŞ postları saymalı.
+
+    21 Ağu 2026: sayaç haber ONAYA SUNULDUĞUNDA artıyordu. Sayaç 10
+    (sınır dolu) görünürken gerçekte 6 post yayınlanmıştı —
+    onaylanmayan 4 haber kotayı yemişti. Kullanıcı iki haber seçti,
+    job "başarılı" döndü, hiçbir şey üretilmedi ve kimse bir şey
+    söylemedi.
+
+    ⚠️ Ayrıca sınır dolduğunda ELLE SEÇİLEN haber muaf olmalı: insan
+    bakıp seçtiyse makinenin sessizce reddetmesi yanlış.
+    """
+    kaynak = (KOK / "scripts/son_dakika.py").read_text(encoding="utf-8")
+    govde = kaynak.split("def bugunku_sayi(")[1].split("\ndef ")[0]
+    denetle("durum = 'yayinlandi'" in govde,
+            "günlük sınır gerçek yayınları sayıyor",
+            "ayrı bir sayaç okunuyor — onaylanmayan haber kotayı yer")
+
+    ana = kaynak.split("def main(")[1]
+    denetle("if zorla_haber_id:" in ana.split("son_dakika_gunluk_azami")[1][:600],
+            "elle seçilen haber günlük sınırdan muaf",
+            "kullanıcının açık seçimi sessizce reddediliyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -928,6 +953,7 @@ def main() -> int:
         test_icerik_filtresi,
         test_temizlik_yayinlanmisi_korur,
         test_arama_yazim_toleransi,
+        test_gunluk_sinir_gercek_yayini_sayiyor,
     ):
         try:
             test()
