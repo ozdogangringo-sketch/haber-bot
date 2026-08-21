@@ -1272,14 +1272,46 @@ def durum_bildir(con, ayarlar) -> int:
 # Çözüm sıralama: "kayseride" zaten normal aramada bulunuyor, fuzzy'ye
 # hiç gerek kalmıyor; fuzzy sadece gerçek yazım hatalarında çalışıyor.
 YAZIM_BENZERLIGI = 0.85
+# Harf kümesi benzerliği — sıradan bağımsız ölçüt. "netenhay" burada
+# 0.86 alıyor, dizi benzerliğinde yalnızca 0.59 alıyordu.
+HARF_BENZERLIGI = 0.80
 
 
 def _yazim_yakin_mi(a: str, b: str) -> bool:
-    """İki kelime yazım hatası payıyla aynı mı? ("netenyahu"/"netanyahu")"""
+    """
+    İki kelime yazım hatası payıyla aynı mı?
+
+    İKİ ÖLÇÜT, biri yetiyor:
+
+    1. **Dizi benzerliği** (`SequenceMatcher`) — harf sırasına duyarlı.
+       "netenyahu"/"netanyahu" burada 0.89 alıyor.
+
+    2. **Harf kümesi benzerliği** — sıradan BAĞIMSIZ.
+       ⚠️ Bu ikincisi olmadan harf sırası karışan yazımlar kaçıyordu.
+       21 Ağu 2026 ölçümü: kullanıcı "netenhay" yazdı, dizi benzerliği
+       yalnızca **0.59** çıktı (hay ↔ yah yer değiştirmiş) ve arama
+       "sonuç yok" dedi — oysa havuzda 24 Netanyahu haberi vardı.
+       Harf kümesinde aynı çift **0.86** alıyor.
+
+    Uzunluk farkı 3'ten fazlaysa hiç denenmiyor: "gazze"/"gaziantep"
+    gibi çiftler harf kümesinde yanlışlıkla yakınlaşabiliyor.
+    """
     from difflib import SequenceMatcher
     if len(a) < 5 or len(b) < 5:
         return False                       # kısa kelimede çok riskli
-    return SequenceMatcher(None, a, b).ratio() >= YAZIM_BENZERLIGI
+    if abs(len(a) - len(b)) > 3:
+        return False
+    if SequenceMatcher(None, a, b).ratio() >= YAZIM_BENZERLIGI:
+        return True
+    # ⚠️ HARF KÜMESİ TEK BAŞINA FAZLA GEVŞEK. Ölçüldü: "netenhay"
+    # araması 42 sonuç getirdi ve ilki Netanyahu'yla ilgisizdi.
+    # Yazım hataları kelimenin BAŞINI genelde doğru yazıyor; ilk üç
+    # harfin tutması şartı alakasızları eliyor
+    # ("net…"/"net…" geçer, "net…"/"hay…" geçmez).
+    if a[:3] != b[:3]:
+        return False
+    A, B = set(a), set(b)
+    return len(A & B) / len(A | B) >= HARF_BENZERLIGI
 
 
 def _yazim_toleransli_skor(haber, kelimeler: list[str]) -> int:

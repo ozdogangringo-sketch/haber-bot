@@ -847,6 +847,39 @@ def test_temizlik_yayinlanmisi_korur() -> None:
     con.close()
 
 
+def test_arama_yazim_toleransi() -> None:
+    """
+    `/haber` araması yazım hatalarını tolere etmeli ama alakasız
+    haber getirmemeli.
+
+    21 Ağu 2026: kullanıcı "netenhay" aradı, havuzda 24 Netanyahu
+    haberi vardı ve arama "sonuç yok" dedi. Dizi benzerliği yalnızca
+    0.59 çıkıyordu çünkü harf SIRASI karışmıştı (hay ↔ yah).
+    Harf kümesi ölçütü eklendi (sıradan bağımsız, 0.86).
+
+    ⚠️ Harf kümesi TEK BAŞINA fazla gevşek: ilk denemede "netenhay"
+    42 sonuç getirdi ve ilki Netanyahu'yla ilgisizdi. İlk üç harfin
+    tutması şartı eklendi.
+    """
+    import importlib, sys as _s
+    _s.path.insert(0, str(KOK / "scripts"))
+    oi = importlib.import_module("onay_isle")
+
+    for yanlis, dogru in (("netenhay", "netanyahu"),
+                          ("netenyahu", "netanyahu"),
+                          ("netanhayu", "netanyahu"),
+                          ("erdogann", "erdogan")):
+        denetle(oi._yazim_yakin_mi(yanlis, dogru),
+                f"yazım toleransı: '{yanlis}' → '{dogru}'",
+                "kullanıcı yazım hatası yapınca sonuç bulunamıyor")
+
+    for a, b in (("netenhay", "hayatini"), ("ankara", "antalya"),
+                 ("gazze", "gaziantep"), ("israil", "irak")):
+        denetle(not oi._yazim_yakin_mi(a, b),
+                f"yazım toleransı '{a}' ≠ '{b}'",
+                "alakasız haberler sonuçlara karışıyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -883,6 +916,7 @@ def main() -> int:
         test_gorsel_cesitliligi,
         test_icerik_filtresi,
         test_temizlik_yayinlanmisi_korur,
+        test_arama_yazim_toleransi,
     ):
         try:
             test()
