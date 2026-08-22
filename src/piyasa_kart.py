@@ -269,7 +269,8 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
             radius=10,
             fill=RENK_SEKTOR_BG,
         )
-        draw.text((sx + 14, sy + 8), f"› {sektor_adi}", font=f_sektor, fill=RENK_BEYAZ)
+        # Sektör Başlığı (Krem / Kirli Beyaz Asil Ton: #F6F3EC)
+        draw.text((sx + 14, sy + 8), f"› {sektor_adi}", font=f_sektor, fill=(246, 243, 236))
 
         icerik_rect = (sx + 2, sy + ribbon_h + 3, sw - 4, sh - ribbon_h - 5)
         hucreler = _squarify(ogeler, icerik_rect)
