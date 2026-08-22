@@ -1183,12 +1183,10 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     # bir kez bile çağrılmamıştı.
     zorla_ai = (komut == "slayt_ai")
     deneme = (taze["gorsel_deneme"] or 0) + 1 if komut == "slayt_foto" else 0
-    # ⚠️ "Başka fotoğraf" düğmesinde haber görseli (og:image) ATLANIYOR.
+    # ⚠️ "Başka fotoğraf" düğmesinde haber görseli (og:image) her zaman ATLANIYOR.
     # og:image deterministik: her seferinde aynı URL → aynı sonuç.
-    # Kullanıcı "başka" deyince farklı bir görsel bekliyor; og:image'ı
-    # tekrar denemek yerine Commons/Pexels'e geçiyoruz.
-    mevcut_kaynak = taze["gorsel_kaynagi"] or ""
-    foto_atla = (komut == "slayt_foto" and mevcut_kaynak == "haber")
+    # Kullanıcı "başka" deyince Commons/Pexels'e geçiyoruz.
+    foto_atla = (komut == "slayt_foto" or deneme > 0)
     yol, katman, atif = slaytlar.slayt_uret(
         taze, ayarlar, zorla_ai=zorla_ai, atlanacak=deneme,
         haber_gorseli_atla=foto_atla)
@@ -1244,7 +1242,15 @@ def _albumu_yenile(con, mesaj_id: int) -> None:
     işi yapan iki kod yolundan birinin unutulmasıydı.
     """
     yeniler = turu_getir(con, mesaj_id)
-    urller = [h["gorsel_url"] for h in yeniler if h["gorsel_url"]]
+    if not yeniler:
+        return
+    urller = []
+    for h in yeniler:
+        if h["gorsel_url"]:
+            urller.append(h["gorsel_url"])
+        if h.get("detay_url"):
+            urller.extend(_detay_urlleri(h["detay_url"]))
+
     eski_albom = db.ayar_oku(con, f"albom_{mesaj_id}", "")
     if eski_albom:
         try:
@@ -1646,12 +1652,6 @@ def haberi_degistir_uygula(con, ayarlar, haberler, eski_id: int, yeni_id: int,
 def gorseli_kabul_et(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
     """
     Değiştirilen görseli kalıcı yapar ve albümü yeniler.
-
-    ⚠️ TELEGRAM ALBÜMÜNDE TEK FOTOĞRAF DEĞİŞTİRİLEMİYOR. Media group
-    atomik bir birim; `editMessageMedia` albüm öğelerinde çalışmıyor.
-    Üstteki albümü güncel göstermenin tek yolu eskisini silip yeniden
-    göndermek — kullanıcı "önceki gönderi mesajımızda o resim
-    güncellenmeli ki yayınla dediğimde güncel hali yayınlansın" dedi.
     """
     if sira < 1 or sira > len(haberler):
         telegram_bot.mesaj_gonder(f"⚠️ {sira}. slayt bulunamadı.")
@@ -1660,6 +1660,7 @@ def gorseli_kabul_et(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
     if not haber["gorsel_url_aday"]:
         telegram_bot.mesaj_gonder(
             "⚠️ Onay bekleyen bir görsel yok — muhtemelen zaten uygulandı.")
+        menuyu_geri_koy(con, mesaj_id)
         return 0
 
     con.execute(
@@ -1673,7 +1674,8 @@ def gorseli_kabul_et(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
     db_senkron.hemen_kaydet("Slayt görseli değiştirildi")
 
     _albumu_yenile(con, mesaj_id)
-    telegram_bot.mesaj_gonder(f"✅ {sira}. slaytın görseli güncellendi.")
+    menuyu_geri_koy(con, mesaj_id)
+    telegram_bot.mesaj_gonder(f"✅ {sira}. slaytın görseli güncellendi. Yayına hazır!")
     log.info("slayt %s görseli kabul edildi (haber=%s)", sira, haber["id"])
     return 0
 
@@ -1694,7 +1696,15 @@ def menuyu_geri_koy(con, mesaj_id: int) -> None:
         return
     try:
         uyari, isaretli = dogrula.turu_dogrula(haberler)
-        ozet = telegram_bot.tur_ozeti(haberler, isaretli)
+        if len(haberler) == 1 and haberler[0]["son_dakika"]:
+            h = haberler[0]
+            adet = 1 + len(_detay_urlleri(h.get("detay_url")))
+            ozet = (f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {h['onem_puani']}/10\n"
+                    f"⌛️ 24 saat boyunca onaya hazır bekler")
+        else:
+            adet = len(haberler)
+            ozet = telegram_bot.tur_ozeti(haberler, isaretli)
+
         metin = caption.caption_kur(
             haberler, _sonuclari_kur(haberler), ayarlar=_ayarlar_onbellek
         )
@@ -1702,7 +1712,7 @@ def menuyu_geri_koy(con, mesaj_id: int) -> None:
         parcalar.append("— Instagram açıklaması —\n" + metin)
         telegram_bot.mesaji_guncelle(
             mesaj_id, "\n\n".join(parcalar),
-            telegram_bot.ana_menu(len(haberler)),
+            telegram_bot.ana_menu(adet),
         )
     except Exception as e:
         log.warning("menü geri konamadı: %s", e)

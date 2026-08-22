@@ -231,7 +231,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     # döndürüyor. Kullanıcı "başka" deyince farklı bir sonuç bekliyor;
     # og:image'ı tekrar denemek aynı görseli getirir. Atlayınca
     # Commons/Pexels'e düşüyor ve gerçekten farklı bir görsel geliyor.
-    if (not haber_gorseli_atla
+    if (not haber_gorseli_atla and atlanacak == 0
             and g.get("haber_gorseli_kullan") and haber["link"]):
         try:
             url = fetch_article.og_gorseli_cek(haber["link"])
