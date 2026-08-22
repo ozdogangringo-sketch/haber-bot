@@ -62,7 +62,30 @@ def main() -> int:
 
     sorgu = """
     SELECT * FROM haberler
-    WHERE (kategori = 'ekonomi' OR kaynak LIKE '%Ekonomi%' OR kaynak LIKE '%Bloomberg%' OR kaynak LIKE '%Dünya%')
+    WHERE (
+        kaynak IN ('AA Ekonomi', 'TRT Ekonomi', 'BloombergHT', 'Dünya Gazetesi', 'Para Medya')
+        OR kategori = 'ekonomi'
+        OR (
+            (ig_baslik LIKE '%borsa%'
+             OR ig_baslik LIKE '%faiz%'
+             OR ig_baslik LIKE '%enflasyon%'
+             OR ig_baslik LIKE '%dolar%'
+             OR ig_baslik LIKE '%euro%'
+             OR ig_baslik LIKE '%altın%'
+             OR ig_baslik LIKE '%merkez bankası%'
+             OR ig_baslik LIKE '%bist%'
+             OR ig_baslik LIKE '%kripto%'
+             OR ig_baslik LIKE '%bitcoin%'
+             OR ig_baslik LIKE '%ihracat%'
+             OR ig_baslik LIKE '%ithalat%'
+             OR ig_baslik LIKE '%vergi%'
+             OR ig_baslik LIKE '%asgari ücret%'
+             OR ig_baslik LIKE '%tüik%'
+             OR ig_baslik LIKE '%hisse%'
+             OR ig_baslik LIKE '%mevduat%'
+             OR ig_baslik LIKE '%kredi%')
+        )
+    )
       AND durum = 'metin_hazir'
       AND ig_baslik IS NOT NULL
       AND COALESCE(daha_once_yayinlandi, 0) = 0
