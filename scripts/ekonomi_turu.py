@@ -60,11 +60,6 @@ def main() -> int:
         hours=ayarlar.get("genel", {}).get("yayin_yasi_siniri_saat", 48)
     )
 
-    # Durum 'yeni' olan taze ekonomi haberlerinin metinlerini üret
-    try:
-        generate_text.metinleri_uret(limit=5)
-    except Exception as e:
-        log.warning("Metin üretim adımı atlandı/hata: %s", e)
 
     sorgu = """
     SELECT * FROM haberler
@@ -105,6 +100,14 @@ def main() -> int:
 
     puanli_adaylar.sort(key=lambda x: (x[0], x[1]["id"]), reverse=True)
     secilen_adaylar = [item[1] for item in puanli_adaylar[:5]]
+
+    # Seçilenlerden metni eksik olanlar için metin üret
+    eksik_metinliler = [h for h in secilen_adaylar if not h["ig_baslik"]]
+    if eksik_metinliler:
+        try:
+            generate_text.metinleri_uret(ayarlar=ayarlar, haberler=eksik_metinliler)
+        except Exception as e:
+            log.warning("Metin üretim hatası: %s", e)
 
     # Seçilenlerin güncel verilerini al
     secilen_haberler = []

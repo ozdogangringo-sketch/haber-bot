@@ -27,7 +27,7 @@
 // GitHub'a iletilecek gerçek eylemler. İş yapan komutlar.
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
-                  "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak",
+                  "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak", "cope_at",
                   "plan_iptal", "havuz_guncelle", "havuzdan_ekle",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
@@ -36,7 +36,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
 const PARAMETRELI_EYLEM =
-  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil|slayt_yukari|slayt_asagi|slayt_basa):([1-9]|10)$/;
+  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil|slayt_yukari|slayt_asagi|slayt_basa|sansur_kaldir|sansur_uygula|metin_uzat|metin_kisalt|cope_at_tekil):([1-9]|10)$/;
 
 // Botu duraklatma (1s, 6s, 12s, 24s)
 const DURAKLAT = /^duraklat:(1|6|12|24)$/;
@@ -194,7 +194,8 @@ function anaMenu(adet, kanallar) {
       // ⚠️ Menü İKİ YERDE tanımlı (telegram_bot.py ve burada);
       // birini değiştirirken diğerini de değiştir.
       [{ text: "📋 Tekil atma, 10'lu tura bırak", callback_data: "tura_birak" }],
-      [{ text: "❌ Bu turu atla", callback_data: "iptal" }],
+      [{ text: "❌ Bu turu atla (Havuza döner)", callback_data: "iptal" },
+       { text: "🗑️ Çöpe At (Havuza dönmesin)", callback_data: "cope_at" }],
     ],
   };
 }
@@ -257,9 +258,14 @@ function slaytIslemMenusu(sira, adet) {
     [{ text: `🎨 ${sira}. slayt: AI ile üret (~$0.04)`, callback_data: `slayt_ai:${sira}` }],
     [{ text: `✏️ ${sira}. slaytın metnini yenile`, callback_data: `slayt_metin:${sira}` }],
     [{ text: `✍️ ${sira}. slaytın başlığını elle yaz`, callback_data: `slayt_elle:${sira}` }],
+    [{ text: `🧹 ${sira}. slayt: Sansürü Kaldır (* sil)`, callback_data: `sansur_kaldir:${sira}` },
+     { text: `🛡️ ${sira}. slayt: Sansürle`, callback_data: `sansur_uygula:${sira}` }],
+    [{ text: `➕ ${sira}. slayt: Metni Uzat`, callback_data: `metin_uzat:${sira}` },
+     { text: `➖ ${sira}. slayt: Metni Kısalt`, callback_data: `metin_kisalt:${sira}` }],
     [{ text: `📄 ${sira}. slaytın kaynak metnini göster`, callback_data: `slayt_kaynak:${sira}` }],
     [{ text: `🔄 ${sira}. slaytın HABERİNİ değiştir`, callback_data: `haber_degistir:${sira}` }],
-    [{ text: `🗑 ${sira}. slaytı çıkar`, callback_data: `slayt_sil:${sira}` }],
+    [{ text: `🗑 ${sira}. slaytı çıkar`, callback_data: `slayt_sil:${sira}` },
+     { text: `🗑️ Haberi Çöpe At`, callback_data: `cope_at_tekil:${sira}` }],
     [{ text: "← Geri", callback_data: `slayt_menu:${adet}` }],
   );
   return { inline_keyboard: tuslar };

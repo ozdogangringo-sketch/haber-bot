@@ -501,7 +501,7 @@ def serit_rengi(kategori: str, g: dict) -> tuple:
 LOGO_YOLU = KOK / "assets" / "logo_circular.png"
 
 
-def _logoyu_bas(gorsel: Image.Image, x: int, y: int, boy: int = 62) -> Image.Image:
+def _logoyu_bas(gorsel: Image.Image, x: int, y: int, boy: int = 108) -> Image.Image:
     """Sol üst veya belirtilen konuma DailyBrief dairesel logosunu basar."""
     if not LOGO_YOLU.exists():
         return gorsel
@@ -641,10 +641,10 @@ def yaziyi_bas(
     ciz = ImageDraw.Draw(gorsel)
 
     # Sol üstte DailyBrief logosu ve ince vurgu çizgisi — hesaba tutarlı bir imza katsın
-    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 8, boy=62)
+    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 16, boy=108)
     ciz = ImageDraw.Draw(gorsel)
     ciz.rectangle(
-        [kenar + 76, dikey_kenar + 22, kenar + 76 + 60, dikey_kenar + 28],
+        [kenar + 126, dikey_kenar + 34, kenar + 126 + 70, dikey_kenar + 42],
         fill=(226, 170, 88),
     )
 
@@ -1112,8 +1112,8 @@ def detay_slayti(
     # görünür hâle geliyordu — başlık alanını bayrak kadar daraltıyoruz.
     baslik_genislik = alan_genislik - (170 if ulke_kodu else 0)
 
-    # Sol üst logo
-    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 8, boy=62)
+    # Sol üst logo (2x büyütülmüş)
+    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 16, boy=108)
     ciz = ImageDraw.Draw(gorsel)
 
     # --- Üst: SON DAKİKA etiketi (yalnızca olağanüstü olaylarda) ---
@@ -1122,14 +1122,14 @@ def detay_slayti(
         etiket = "SON DAKİKA"
         metin_g = ciz.textlength(etiket, font=etiket_font)
         ciz.rectangle(
-            [kenar + 76, dikey_kenar, kenar + 76 + metin_g + 28, dikey_kenar + 42],
+            [kenar + 126, dikey_kenar + 16, kenar + 126 + metin_g + 28, dikey_kenar + 60],
             fill=(198, 60, 52),
         )
-        ciz.text((kenar + 76 + 14, dikey_kenar + 9), etiket, font=etiket_font,
+        ciz.text((kenar + 126 + 14, dikey_kenar + 25), etiket, font=etiket_font,
                  fill=(255, 255, 255))
-        y = dikey_kenar + 76
+        y = dikey_kenar + 115
     else:
-        y = dikey_kenar + 70
+        y = dikey_kenar + 115
 
     # --- Başlık: küçük punto, bu slaytın yıldızı değil ---
     b_font = _font(46, EKSEN_BASLIK)

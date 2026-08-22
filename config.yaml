@@ -400,11 +400,9 @@ gorsel:
   #   1280x720 (16:9) · 1200x630 (1.91:1)
   # İkisi de 800 yükseklik eşiğine takılıyordu.
   #
-  # Yeni eşik 1000x560: bu iki standart geçiyor (11/14), 864x486 gibi
-  # 1080 genişliğe BÜYÜTÜLMESİ gereken küçükler eleniyor — büyütme
-  # bulanıklaştırıyor, küçültme kalite kaybettirmiyor.
-  haber_gorseli_asgari_genislik: 1000
-  haber_gorseli_asgari_yukseklik: 560
+  # 864x486 ve 720x405 haber fotoğraflarını da kabul et:
+  haber_gorseli_asgari_genislik: 640
+  haber_gorseli_asgari_yukseklik: 360
   # Düz zeminli sayfalar (detay slaytları) — fotoğraf yok, yüksek
   # kalite dosyayı gereksiz şişiriyor.
   jpeg_kalite: 90
@@ -713,14 +711,11 @@ icerik_filtresi:
   # kanıtlandı, vurgu yapıldı" cümlesinde HİÇBİR yanlış eşleşme
   # yapmıyor; yeni kelime eklerken aynı testi yap.
   yumusatilacak:
-    # Ölüm/şiddet (21 Ağu 2026'da eklendi, kullanıcı isteği)
+    # Ölüm/şiddet (Aşırı sansürden kaçınıldı — vurdu/vuruldu gibi standart haber fiilleri çıkarıldı)
     - öldür
     - öldü
     - ölüm
     - ölü
-    - vurarak
-    - vuruldu
-    - vurdu
     - cinayet
     - katlet
     - bıçakla

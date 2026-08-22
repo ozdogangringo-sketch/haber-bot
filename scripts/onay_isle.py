@@ -645,6 +645,25 @@ def iptal(con, haberler, mesaj_id, basan) -> int:
     return 0
 
 
+def cope_at(con, haberler: list, mesaj_id: int, basan: str = "") -> int:
+    """
+    Turdaki/posttaki haberleri 'iptal' durumuna getirir.
+    Haberler kesinlikle havuza DÖNMEZ, gelecekte hiçbir tura veya tekil posta aday olamaz.
+    """
+    con.execute(
+        "UPDATE haberler SET durum = 'iptal', telegram_message_id = NULL, "
+        "atlanma_zamani = datetime('now') WHERE telegram_message_id = ?",
+        (mesaj_id,),
+    )
+    con.commit()
+    telegram_bot.sonucu_yaz(
+        mesaj_id,
+        f"🗑️ <b>Gönderi tamamen çöpe atıldı</b> ({basan or 'kullanıcı'}).\n"
+        f"Turdaki {len(haberler)} haber havuza dönmeyecek şekilde iptal edildi.",
+    )
+    return 0
+
+
 def ertele(con, mesaj_id, basan) -> int:
     """
     Turu 1 saat erteler. Tur KAPANMIYOR — sadece bekliyor.
@@ -1046,6 +1065,98 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
             f"Haber elenmedi, havuza döndü."
         )
         return 0
+
+    if komut == "cope_at_tekil":
+        con.execute(
+            "UPDATE haberler SET durum = 'iptal', telegram_message_id = NULL, "
+            "atlanma_zamani = datetime('now') WHERE id = ?",
+            (haber["id"],),
+        )
+        con.commit()
+        kalan = len(haberler) - 1
+        telegram_bot.mesaj_gonder(
+            f"🗑️ <b>{sira}. slayttaki haber tamamen çöpe atıldı</b> (iptal edildi, havuza dönmeyecek).\n"
+            f"Kalan slayt sayısı: {kalan}",
+            html=True,
+        )
+        _albumu_yenile(con, mesaj_id)
+        return 0
+
+    if komut == "sansur_kaldir":
+        yeni_baslik = (haber["ig_baslik"] or "").replace("*", "")
+        yeni_ozet = (haber["slayt_ozet"] or "").replace("*", "")
+        con.execute(
+            "UPDATE haberler SET ig_baslik = ?, slayt_ozet = ? WHERE id = ?",
+            (yeni_baslik, yeni_ozet, haber["id"]),
+        )
+        con.commit()
+        taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
+        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+        yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+        con.execute(
+            "UPDATE haberler SET gorsel_url = ?, gorsel_yolu = ? WHERE id = ?",
+            (yukleme["url"], str(yol), haber["id"]),
+        )
+        con.commit()
+        telegram_bot.mesaj_gonder(f"🧹 <b>{sira}. slayttaki sansürler (* işaretleri) kaldırıldı.</b>", html=True)
+        _albumu_yenile(con, mesaj_id)
+        return 0
+
+    if komut == "sansur_uygula":
+        f = (ayarlar or {}).get("icerik_filtresi", {})
+        kelimeler = f.get("yumusatilacak", [])
+        yeni_baslik = filtre.metni_yumusat(haber["ig_baslik"] or "", kelimeler)
+        yeni_ozet = filtre.metni_yumusat(haber["slayt_ozet"] or "", kelimeler)
+        con.execute(
+            "UPDATE haberler SET ig_baslik = ?, slayt_ozet = ? WHERE id = ?",
+            (yeni_baslik, yeni_ozet, haber["id"]),
+        )
+        con.commit()
+        taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
+        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+        yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+        con.execute(
+            "UPDATE haberler SET gorsel_url = ?, gorsel_yolu = ? WHERE id = ?",
+            (yukleme["url"], str(yol), haber["id"]),
+        )
+        con.commit()
+        telegram_bot.mesaj_gonder(f"🛡️ <b>{sira}. slayta hassas kelime filtresi uygulandı.</b>", html=True)
+        _albumu_yenile(con, mesaj_id)
+        return 0
+
+    if komut in ("metin_uzat", "metin_kisalt"):
+        try:
+            from src.generate_text import _model_ve_anahtar_dene
+            mevcut = haber["slayt_ozet"] or haber["ig_metin"] or haber["baslik_orj"]
+            if komut == "metin_uzat":
+                istek = f"Bu haber özetini daha detaylı ve açıklayıcı şekilde 2-3 cümleyle genişlet (en fazla 40 kelime):\n{mevcut}"
+            else:
+                istek = f"Bu haber özetini çok daha vurucu ve kısa tek bir cümleye indirge (en fazla 15 kelime):\n{mevcut}"
+            yeni_metin, _, _ = _model_ve_anahtar_dene(istek)
+            if yeni_metin:
+                yeni_metin = yeni_metin.strip().replace("\n", " ")
+                con.execute(
+                    "UPDATE haberler SET slayt_ozet = ?, ig_metin = ? WHERE id = ?",
+                    (yeni_metin, yeni_metin, haber["id"]),
+                )
+                con.commit()
+                taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
+                yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+                yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+                con.execute(
+                    "UPDATE haberler SET gorsel_url = ?, gorsel_yolu = ? WHERE id = ?",
+                    (yukleme["url"], str(yol), haber["id"]),
+                )
+                con.commit()
+                telegram_bot.mesaj_gonder(
+                    f"✍️ <b>{sira}. slaytın metni {'genişletildi' if komut == 'metin_uzat' else 'kısaltıldı'}:</b>\n"
+                    f"<i>{html.escape(yeni_metin)}</i>",
+                    html=True,
+                )
+                _albumu_yenile(con, mesaj_id)
+                return 0
+        except Exception as e:
+            log.warning("Metin uzat/kısalt hatası: %s", e)
 
     if komut == "slayt_metin":
         con.execute("UPDATE haberler SET durum = 'yeni' WHERE id = ?", (haber["id"],))
@@ -2253,6 +2364,8 @@ def main() -> int:
             return tura_birak(con, haberler, mesaj_id, basan)
         if komut == "iptal":
             return iptal(con, haberler, mesaj_id, basan)
+        if komut == "cope_at":
+            return cope_at(con, haberler, mesaj_id, basan)
         if komut == "kaldir":
             return yayindan_kaldir(con, ayarlar, haberler, mesaj_id, basan)
         if komut == "ertele":

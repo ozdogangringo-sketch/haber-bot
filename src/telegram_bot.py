@@ -219,7 +219,8 @@ def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
         # adaylıktan çıkarıyor ama turda bırakıyor.
         [{"text": "📋 Tekil atma, 10'lu tura bırak",
           "callback_data": "tura_birak"}],
-        [{"text": "❌ Bu turu atla", "callback_data": "iptal"}],
+        [{"text": "❌ Bu turu atla (Havuza döner)", "callback_data": "iptal"},
+         {"text": "🗑️ Çöpe At (Havuza dönmesin)", "callback_data": "cope_at"}],
     ]}
 
 
@@ -404,12 +405,22 @@ def slayt_islem_menusu(sira: int, adet: int) -> dict:
           "callback_data": f"slayt_metin:{sira}"}],
         [{"text": f"✍️ {sira}. slaytın başlığını elle yaz",
           "callback_data": f"slayt_elle:{sira}"}],
+        [{"text": f"🧹 {sira}. slayt: Sansürü Kaldır (* sil)",
+          "callback_data": f"sansur_kaldir:{sira}"},
+         {"text": f"🛡️ {sira}. slayt: Sansürle",
+          "callback_data": f"sansur_uygula:{sira}"}],
+        [{"text": f"➕ {sira}. slayt: Metni Uzat",
+          "callback_data": f"metin_uzat:{sira}"},
+         {"text": f"➖ {sira}. slayt: Metni Kısalt",
+          "callback_data": f"metin_kisalt:{sira}"}],
         [{"text": f"📄 {sira}. slaytın kaynak metnini göster",
           "callback_data": f"slayt_kaynak:{sira}"}],
         [{"text": f"🔄 {sira}. slaytın HABERİNİ değiştir",
           "callback_data": f"haber_degistir:{sira}"}],
         [{"text": f"🗑 {sira}. slaytı çıkar",
-          "callback_data": f"slayt_sil:{sira}"}],
+          "callback_data": f"slayt_sil:{sira}"},
+         {"text": f"🗑️ Haberi Çöpe At",
+          "callback_data": f"cope_at_tekil:{sira}"}],
         [{"text": "← Geri", "callback_data": f"slayt_menu:{adet}"}],
     ]
     return {"inline_keyboard": tuslar}
@@ -436,27 +447,50 @@ def slaytlari_gonder(
     """
     Slaytları albüm olarak gönderir. Mesaj id'lerini döner.
 
-    URL veriyoruz, dosya değil: görseller zaten imgbb'de duruyor ve
-    Telegram'ın kendisi indiriyor — 10 dosyayı ikinci kez yüklemenin
-    anlamı yok.
-
-    Her fotoğrafa kendi sıra numarası yazılıyor. Bunsuz "3. slaytı
-    değiştir" demek için albümdeki fotoğrafları tek tek saymak
-    gerekiyordu.
+    Önce URL ile dener; eğer Telegram WEBPAGE_CURL_FAILED verirse
+    görselleri indirip doğrudan multipart/form-data ile yükler.
     """
+    import io
     medya = []
     for sira, url in enumerate(gorsel_urlleri, start=1):
         oge = {"type": "photo", "media": url}
         if basliklar and sira <= len(basliklar):
-            # Telegram albümde her öğenin kendi başlığını taşıyabiliyor;
-            # fotoğrafa dokununca görünüyor. 1024 karakter sınırı var.
             oge["caption"] = f"{sira}. {basliklar[sira - 1]}"[:1024]
         else:
             oge["caption"] = f"{sira}."
         medya.append(oge)
 
-    sonuc = _istek("sendMediaGroup", chat_id=_sohbet_id(), media=medya)
-    return [m["message_id"] for m in sonuc]
+    try:
+        sonuc = _istek("sendMediaGroup", chat_id=_sohbet_id(), media=medya)
+        return [m["message_id"] for m in sonuc]
+    except Exception as e:
+        if "WEBPAGE_CURL_FAILED" in str(e) or "failed to send message" in str(e):
+            log.warning("Telegram URL'den indiremedi, doğrudan dosya yüklemesine geçiliyor: %s", e)
+            files = {}
+            multipart_medya = []
+            for sira, url in enumerate(gorsel_urlleri, start=1):
+                attach_name = f"foto_{sira}"
+                try:
+                    r = requests.get(url, timeout=15)
+                    files[attach_name] = (f"foto_{sira}.jpg", io.BytesIO(r.content), "image/jpeg")
+                    oge = {"type": "photo", "media": f"attach://{attach_name}"}
+                    if basliklar and sira <= len(basliklar):
+                        oge["caption"] = f"{sira}. {basliklar[sira - 1]}"[:1024]
+                    else:
+                        oge["caption"] = f"{sira}."
+                    multipart_medya.append(oge)
+                except Exception as dl_err:
+                    log.warning("görsel indirilemedi: %s", dl_err)
+
+            if files and len(multipart_medya) == len(gorsel_urlleri):
+                url_api = TABAN.format(jeton=_jeton(), metot="sendMediaGroup")
+                data = {"chat_id": _sohbet_id(), "media": json.dumps(multipart_medya)}
+                res = requests.post(url_api, data=data, files=files, timeout=60)
+                res_json = res.json() if res.content else {}
+                if res_json.get("ok"):
+                    log.info("Telegram albümü doğrudan multipart ile başarıyla gönderildi.")
+                    return [m["message_id"] for m in res_json["result"]]
+        raise
 
 
 def tur_ozeti(haberler: list, uyari_sayisi: int = 0) -> str:
