@@ -256,6 +256,13 @@ def threads_halkalari(
     if not haberler or not urller:
         return []
 
+    if haberler and haberler[0].get("tur") == "ekonomi":
+        halkalar = [{"metin": "📊 Günün Piyasa Açılışı ve Öne Çıkan Ekonomi Başlıkları", "gorsel_url": urller[0]}]
+        for sira, (haber, url) in enumerate(zip(haberler, urller[1:]), start=2):
+            manset = (haber["ig_baslik"] or haber["baslik_orj"]).strip()
+            halkalar.append({"metin": f"{sira}. {manset}", "gorsel_url": url})
+        return halkalar
+
     if son_dakika:
         # Tarihsiz hâlde başlık tek başına duruyor; kırmızı nokta ve
         # büyük harf onu akışta ayırt edilir kılıyor.

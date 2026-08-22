@@ -501,11 +501,22 @@ def serit_rengi(kategori: str, g: dict) -> tuple:
 LOGO_YOLU = KOK / "assets" / "logo_circular.png"
 
 
-def _logoyu_bas(gorsel: Image.Image, x: int, y: int, boy: int = 108) -> Image.Image:
-    """Sol üst veya belirtilen konuma DailyBrief dairesel logosunu basar."""
+def _logoyu_bas(gorsel: Image.Image, x: int, y: int, boy: int = 96) -> Image.Image:
+    """
+    Sol üst veya belirtilen konuma DailyBrief dairesel logosunu basar.
+    Logo arkasına yumuşak gölge ekleyerek her tür arka planda net ve premium görünmesini sağlar.
+    """
     if not LOGO_YOLU.exists():
         return gorsel
     try:
+        # 1. Logo arkasına yumuşak koyu gölge (drop shadow)
+        golge = Image.new("RGBA", gorsel.size, (0, 0, 0, 0))
+        gdraw = ImageDraw.Draw(golge)
+        gdraw.ellipse([x - 3, y - 1, x + boy + 5, y + boy + 7], fill=(0, 0, 0, 160))
+        golge = golge.filter(ImageFilter.GaussianBlur(8))
+        gorsel = Image.alpha_composite(gorsel.convert("RGBA"), golge).convert("RGB")
+
+        # 2. Logoyu bas
         logo = Image.open(LOGO_YOLU).convert("RGBA")
         logo = logo.resize((boy, boy), Image.Resampling.LANCZOS)
         gorsel.paste(logo, (x, y), mask=logo)
@@ -640,11 +651,11 @@ def yaziyi_bas(
     gorsel = kanal_ikonlari_bas(gorsel, ayarlar, alt_bilgi_y + 13)
     ciz = ImageDraw.Draw(gorsel)
 
-    # Sol üstte DailyBrief logosu ve ince vurgu çizgisi — hesaba tutarlı bir imza katsın
-    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 16, boy=108)
+    # Sol üstte DailyBrief logosu (bayrak flama yüksekliği 97px ile eşitlenmiş 96px)
+    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 10, boy=96)
     ciz = ImageDraw.Draw(gorsel)
     ciz.rectangle(
-        [kenar + 126, dikey_kenar + 34, kenar + 126 + 70, dikey_kenar + 42],
+        [kenar + 114, dikey_kenar + 34, kenar + 114 + 65, dikey_kenar + 40],
         fill=(226, 170, 88),
     )
 
@@ -1112,8 +1123,8 @@ def detay_slayti(
     # görünür hâle geliyordu — başlık alanını bayrak kadar daraltıyoruz.
     baslik_genislik = alan_genislik - (170 if ulke_kodu else 0)
 
-    # Sol üst logo (2x büyütülmüş)
-    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 16, boy=108)
+    # Sol üst logo (flama yüksekliği ile eşitlenmiş 96px)
+    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 10, boy=96)
     ciz = ImageDraw.Draw(gorsel)
 
     # --- Üst: SON DAKİKA etiketi (yalnızca olağanüstü olaylarda) ---
@@ -1122,14 +1133,14 @@ def detay_slayti(
         etiket = "SON DAKİKA"
         metin_g = ciz.textlength(etiket, font=etiket_font)
         ciz.rectangle(
-            [kenar + 126, dikey_kenar + 16, kenar + 126 + metin_g + 28, dikey_kenar + 60],
+            [kenar + 114, dikey_kenar + 16, kenar + 114 + metin_g + 28, dikey_kenar + 60],
             fill=(198, 60, 52),
         )
-        ciz.text((kenar + 126 + 14, dikey_kenar + 25), etiket, font=etiket_font,
+        ciz.text((kenar + 114 + 14, dikey_kenar + 25), etiket, font=etiket_font,
                  fill=(255, 255, 255))
-        y = dikey_kenar + 115
+        y = dikey_kenar + 105
     else:
-        y = dikey_kenar + 115
+        y = dikey_kenar + 105
 
     # --- Başlık: küçük punto, bu slaytın yıldızı değil ---
     b_font = _font(46, EKSEN_BASLIK)
