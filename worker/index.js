@@ -140,19 +140,46 @@ function ayarAltMenu(yol, kodlar) {
   return { inline_keyboard: [satir, [{ text: "← Ayarlara dön", callback_data: "ayar" }]] };
 }
 
+// Kanal seçimi toggle komutu ("kanal:ig", "kanal:story", "kanal:threads", "kanal:facebook")
+const KANAL_TOGGLE = /^kanal:(ig|story|threads|facebook)$/;
+
+function seciliKanallariCikar(klavye) {
+  if (!klavye || !klavye.length) return null;
+  const kanalButonlari = klavye.flat().filter((b) => String(b.callback_data || "").startsWith("kanal:"));
+  if (kanalButonlari.length === 0) return null;
+  return kanalButonlari
+    .filter((b) => String(b.text || "").startsWith("✅"))
+    .map((b) => b.callback_data.slice(6)); // "kanal:ig" -> "ig"
+}
+
+function kanalButonlariSatiri(kanallar) {
+  const varMi = (k) => {
+    if (Array.isArray(kanallar)) return kanallar.includes(k);
+    if (kanallar && typeof kanallar === "object") return Boolean(kanallar[k]);
+    return true;
+  };
+  return [
+    { text: `${varMi('ig') ? '✅' : '⬜'} IG`, callback_data: "kanal:ig" },
+    { text: `${varMi('story') ? '✅' : '⬜'} Story`, callback_data: "kanal:story" },
+    { text: `${varMi('threads') ? '✅' : '⬜'} Threads`, callback_data: "kanal:threads" },
+    { text: `${varMi('facebook') ? '✅' : '⬜'} FB`, callback_data: "kanal:facebook" },
+  ];
+}
+
 // ---------------------------------------------------------------------
 // Menüler
 //
-// Bu üç fonksiyon telegram_bot.py'deki karşılıklarının AYNISI olmalı.
+// Bu fonksiyonlar telegram_bot.py'deki karşılıklarının AYNISI olmalı.
 // Menü gezinmesi Worker'da yapıldığı için buton düzeni iki yerde
 // tanımlı — birini değiştirirsen diğerini de değiştir.
 // Slayt sayısı callback_data'ya gömülü ("slayt_menu:10"): Worker'ın
 // turda kaç slayt olduğunu başka türlü bilme yolu yok.
 // ---------------------------------------------------------------------
 
-function anaMenu(adet) {
+function anaMenu(adet, kanallar) {
   return {
     inline_keyboard: [
+      kanalButonlariSatiri(kanallar),
       [{ text: "✅ Yayınla", callback_data: `yayin_menu:${adet}` }],
       [{ text: "🔄 Tüm metinleri yeniden üret", callback_data: "metin_yenile" }],
       [{ text: `🎨 Slayt düzenle (${adet} slayt)`, callback_data: `slayt_menu:${adet}` }],
@@ -167,9 +194,10 @@ function anaMenu(adet) {
 
 // ⚠️ src/telegram_bot.py -> yayin_zamani_menusu() ile BİREBİR AYNI olmalı.
 // İki sütun: dar telefon ekranında düğme metinleri kırpılmasın.
-function yayinZamaniMenusu(adet) {
+function yayinZamaniMenusu(adet, kanallar) {
   return {
     inline_keyboard: [
+      kanalButonlariSatiri(kanallar),
       [{ text: "▶️ Şimdi", callback_data: "yayinla" },
        { text: "30 dk", callback_data: "yayinla_sonra:30" }],
       [{ text: "1 saat", callback_data: "yayinla_sonra:60" },
@@ -313,7 +341,7 @@ async function hamHataOku(env) {
   }
 }
 
-async function githubaIlet(env, komut, mesajId, basanKisi) {
+async function githubaIlet(env, komut, mesajId, basanKisi, kanallar) {
   const url = `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`;
   const cevap = await fetch(url, {
     method: "POST",
@@ -335,6 +363,7 @@ async function githubaIlet(env, komut, mesajId, basanKisi) {
         mesaj_id: mesajId,
         basan: basanKisi,
         metinsiz: komut === "hata:tur_metinsiz",
+        kanallar: kanallar || "",
       },
     }),
   });
@@ -531,18 +560,38 @@ export default {
       return new Response("ok");
     }
 
+    // --- Kanal seçimi toggle: Worker anında hallediyor ---
+    if (KANAL_TOGGLE.test(komut)) {
+      const klavye = cb.message?.reply_markup?.inline_keyboard || [];
+      const yeni = klavye.map((satir) =>
+        satir.map((btn) => {
+          const kopya = { ...btn };
+          if (kopya.callback_data === komut) {
+            kopya.text = kopya.text.startsWith("✅")
+              ? "⬜" + kopya.text.slice(1).trim()
+              : "✅" + kopya.text.slice(1).trim();
+          }
+          return kopya;
+        })
+      );
+      await menuyuDegistir(env, sohbetId, mesajId, { inline_keyboard: yeni });
+      await butonuDurdur(env, cb.id, "");
+      return new Response("ok");
+    }
+
     // --- Menü gezinme: Worker anında hallediyor, GitHub'a gitmiyor ---
     const gezinme = MENU_GEZINME.exec(komut);
     if (gezinme) {
       let menu;
+      const seciliKanallar = seciliKanallariCikar(cb.message?.reply_markup?.inline_keyboard);
       if (komut.startsWith("slayt_menu:")) {
         menu = slaytSecimMenusu(Number(gezinme[2]));
       } else if (komut.startsWith("geri:")) {
-        menu = anaMenu(Number(gezinme[3]));
+        menu = anaMenu(Number(gezinme[3]), seciliKanallar);
       } else if (komut.startsWith("yayin_menu:")) {
-        menu = yayinZamaniMenusu(Number(gezinme[6]));
+        menu = yayinZamaniMenusu(Number(gezinme[6]), seciliKanallar);
       } else if (komut.startsWith("yayin_geri:")) {
-        menu = anaMenu(Number(gezinme[7]));
+        menu = anaMenu(Number(gezinme[7]), seciliKanallar);
       } else {
         // "slayt:3:10" -> 3. slayt seçildi, turda 10 slayt var
         menu = slaytIslemMenusu(Number(gezinme[4]), Number(gezinme[5]));
@@ -568,6 +617,13 @@ export default {
       return new Response("ok");
     }
 
+    const seciliKanallar = seciliKanallariCikar(cb.message?.reply_markup?.inline_keyboard);
+    // Sıfır kanal seçimi koruması (Senaryo A)
+    if (seciliKanallar !== null && seciliKanallar.length === 0 && (komut === "yayinla" || komut.startsWith("yayinla_sonra:"))) {
+      await butonuDurdur(env, cb.id, "⚠️ En az bir yayın kanalı seçmelisin!");
+      return new Response("ok");
+    }
+
     const basan = cb.from
       ? `${cb.from.first_name || ""} ${cb.from.username ? "@" + cb.from.username : ""}`.trim()
       : "";
@@ -582,7 +638,8 @@ export default {
       hedefMesajId = Number(kaldirEslesme[1]);
     }
 
-    const iletildi = await githubaIlet(env, gonderilecek, hedefMesajId, basan);
+    const kanallarStr = seciliKanallar ? seciliKanallar.join(",") : "";
+    const iletildi = await githubaIlet(env, gonderilecek, hedefMesajId, basan, kanallarStr);
 
     if (iletildi) {
       // Önce görsel geri bildirim, sonra buton halkasını durdur.

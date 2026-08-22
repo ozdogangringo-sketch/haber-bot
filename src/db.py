@@ -179,6 +179,10 @@ EK_KOLONLAR = {
     # Bu haber "son dakika" olarak mı sunuldu? Akşam turundan ayırmak
     # için: son dakika turunun 1 saatlik ömrü var, akşam turunun yok.
     "son_dakika": "INTEGER DEFAULT 0",
+    # Bu tur/post hangi kanallarda yayınlanacak? ("ig,story,threads,facebook")
+    # Kullanıcı onay aşamasında butonlarla seçiyor; zamanlanmış yayınlar
+    # ve yeniden yayınlama bu tercihi hatırlasın diye saklanıyor.
+    "yayin_kanallari": "TEXT",
     # Turun story görselinin imgbb adresi. Turun İLK haberine yazılıyor;
     # story tur başına tek olduğu için her satıra kopyalamaya gerek yok.
     "story_url": "TEXT",

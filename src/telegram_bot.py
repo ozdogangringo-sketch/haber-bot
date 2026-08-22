@@ -183,9 +183,30 @@ def _istek(metot: str, **parametreler) -> dict:
 # Slayt sayısı callback_data'ya gömülü ("slayt_menu:10"): Worker'ın turda
 # kaç slayt olduğunu öğrenebileceği başka bir yol yok.
 
-def ana_menu(adet: int) -> dict:
+def kanal_butonlari(kanallar: dict | None = None) -> list[dict]:
+    """
+    Yayın kanallarını açıp kapamak için toggle buton satırı üretir.
+
+    Örnek: [✅ IG] [✅ Story] [✅ Threads] [✅ FB]
+    """
+    if kanallar is None:
+        kanallar = {"ig": True, "story": True, "threads": True, "facebook": True}
+
+    def _simge(k):
+        return "✅" if kanallar.get(k, True) else "⬜"
+
+    return [
+        {"text": f"{_simge('ig')} IG", "callback_data": "kanal:ig"},
+        {"text": f"{_simge('story')} Story", "callback_data": "kanal:story"},
+        {"text": f"{_simge('threads')} Threads", "callback_data": "kanal:threads"},
+        {"text": f"{_simge('facebook')} FB", "callback_data": "kanal:facebook"},
+    ]
+
+
+def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
     """Onay mesajının ilk buton seti."""
     return {"inline_keyboard": [
+        kanal_butonlari(kanallar),
         [{"text": "✅ Yayınla", "callback_data": f"yayin_menu:{adet}"}],
         [{"text": "🔄 Tüm metinleri yeniden üret", "callback_data": "metin_yenile"}],
         [{"text": f"🎨 Slayt düzenle ({adet} slayt)",
@@ -269,7 +290,7 @@ def alternatif_menusu(eski_id: int, adaylar: list, tur_mesaj_id: int) -> dict:
     return {"inline_keyboard": tuslar}
 
 
-def yayin_zamani_menusu(adet: int) -> dict:
+def yayin_zamani_menusu(adet: int, kanallar: dict | None = None) -> dict:
     """
     "Yayınla" düğmesinin alt menüsü: şimdi mi, sonra mı?
 
@@ -281,6 +302,7 @@ def yayin_zamani_menusu(adet: int) -> dict:
     İki sütun: dar ekranda okunur kalsın.
     """
     return {"inline_keyboard": [
+        kanal_butonlari(kanallar),
         [{"text": "▶️ Şimdi", "callback_data": "yayinla"},
          {"text": "30 dk", "callback_data": "yayinla_sonra:30"}],
         [{"text": "1 saat", "callback_data": "yayinla_sonra:60"},

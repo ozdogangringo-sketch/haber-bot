@@ -130,10 +130,25 @@ def _yayin_ozeti(haberler: list) -> str:
     return "\n".join(satirlar)
 
 
-def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
+def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None) -> int:
     if any(h["durum"] == "yayinlandi" for h in haberler):
         telegram_bot.mesaj_gonder("⚠️ Bu tur zaten yayınlanmış, tekrar gönderilmedi.")
         return 0
+
+    # Kanal filtreleme: parametre > veritabanı kaydı > config varsayılanı
+    secili = kanallar
+    if not secili and haberler and "yayin_kanallari" in haberler[0].keys():
+        secili = haberler[0]["yayin_kanallari"]
+
+    if secili:
+        k_set = {k.strip().lower() for k in secili.split(",") if k.strip()}
+        paylas_story = "story" in k_set
+        paylas_fb = "facebook" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
+        paylas_th = "threads" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
+    else:
+        paylas_story = True
+        paylas_fb = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
+        paylas_th = bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
 
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
@@ -158,15 +173,6 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
         )
 
     # ⚠️ SON DAKİKA AYRI CAPTION KULLANIYOR.
-    #
-    # `son_dakika.py` turu hazırlarken `son_dakika_caption()` kuruyor ve
-    # Telegram'da ONU gösteriyor; burada `caption_kur()` çağrılınca
-    # yayınlanan metin onaylanandan FARKLI oluyordu. 18 Ağu 2026'da
-    # yayınlanan son dakika postunun açıklaması "Günün gündemi" diye
-    # başlayıp tek haberi numaralı liste gibi veriyordu.
-    #
-    # Onaylanan metinle yayınlanan metnin ayrışması, içerik hatasından
-    # daha sinsi: gözden geçirdiğin şey yayına çıkan şey değil.
     if haberler[0]["son_dakika"]:
         metin = caption.son_dakika_caption(
             haberler[0], _sonuclari_kur(haberler), ayarlar)
@@ -176,12 +182,10 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
     post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
     baglanti = instagram.post_baglantisi(post_id, ayarlar)
 
-    # Story postla birlikte gidiyor. Ayrı bir onay istemiyoruz: içeriği
-    # zaten onayladığın haberlerin listesi, yeni bir karar noktası değil.
-    # Story patlarsa post yine yayında kalmalı — o yüzden hata yutuluyor.
+    # Story postla birlikte gidiyor (kullanıcı kapatmadıysa).
     story_notu = ""
     story_url = next((h["story_url"] for h in haberler if h["story_url"]), None)
-    if story_url:
+    if paylas_story and story_url:
         try:
             instagram.story_yayinla(story_url, ayarlar)
             story_notu = "\n📱 Story de paylaşıldı"
@@ -190,18 +194,14 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
             story_notu = f"\n⚠️ Story paylaşılamadı: {type(e).__name__}"
 
     # Facebook: aynı içerik, aynı jeton, ayrı kanal.
-    # Instagram postu yayında kaldığı sürece buradaki hata turu
-    # düşürmemeli — o yüzden yutuluyor, sonuca not düşülüyor.
     fb_notu = ""
     fb_id = None
-    if (ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"):
+    if paylas_fb:
         try:
             fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
             fb_notu = "\n📘 Facebook'a da paylaşıldı"
             log.info("Facebook: %s", fb_id)
-            # Aynı story görseli Facebook'a da gidiyor; ayrı üretim yok,
-            # ikisi de 9:16.
-            if story_url:
+            if paylas_story and story_url:
                 try:
                     facebook.story_yayinla(story_url, ayarlar)
                     fb_notu += " (story dahil)"
@@ -211,17 +211,11 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan) -> int:
             log.warning("Facebook paylaşılamadı: %s", e)
             fb_notu = f"\n⚠️ Facebook'a gitmedi: {type(e).__name__}"
 
-    # Threads: ayrı jeton istiyor. Anahtar yoksa sessizce atlanıyor —
-    # jeton alınmadan önce de kod güvenle çalışsın diye.
+    # Threads: ayrı jeton istiyor.
     th_notu = ""
     th_gonderi_id = None
-    # ⚠️ KOŞULUN DIŞINDA TANIMLI OLMALI. Aşağıdaki `if` bloğu Threads
-    # kapalıyken (`threadse_de_at: false`) veya jeton geçersizken hiç
-    # çalışmıyor; bayrak orada tanımlanırsa yayın sonucunu yazan satır
-    # NameError veriyor ve BAŞARILI bir yayın kırmızı job'a dönüyor.
     th_yarim = False
-    if ((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")
-            and threads.kullanilabilir_mi()):
+    if paylas_th:
         try:
             # ZİNCİR olarak gidiyor, carousel olarak değil: Threads metin
             # platformu, sınırı 500 karakter ve uzun anlatım zincirle
@@ -793,32 +787,16 @@ def tur_yeniden_sec(con, ayarlar, haberler, mesaj_id) -> int:
     return hazirla.basliklari_sun_ve_bekle(con, ayarlar, secilen)
 
 
-def yayin_planla(con, ayarlar, haberler, dakika: int, mesaj_id, basan) -> int:
+def yayin_planla(con, ayarlar, haberler, dakika: int, mesaj_id, basan,
+                 kanallar: str | None = None) -> int:
     """
     Turu ileri bir saate planlar. Yayın o ana kadar YAPILMIYOR.
-
-    ⚠️ HASSASİYET ±90 DAKİKA — düğmedeki süre EN ERKEN yayın anıdır.
-    Zamanı gelen turu son dakika kontrolü yayınlıyor ve o cron 20 Ağu
-    2026'da Actions kotası için 30 dakikadan 90 dakikaya çekildi.
-    Üstüne GitHub zamanlanmış çalıştırmaların bir kısmını atlıyor
-    (ölçüldü: 30 dakikalık cron gerçekte ortalama 56 dakika aralıkla
-    çalışıyordu, 9-98 arası).
-
-    Bu yüzden mesajda kullanıcıya TEK BİR SAAT değil, 90 dakikalık bir
-    PENCERE söyleniyor — cron'un vaat ettiğini değil, ölçüleni.
-
-    ⚠️ PLANLANMIŞ TUR İKİ ZAMAN AŞIMINDAN KORUNMALI, yoksa yayın anı
-    gelmeden tur havuza döner:
-      * `son_dakika.suresi_gecmisi_iptal_et` — 60 dakikada iptal eder,
-        yani "1 saat sonra" planı bile kendi kendini öldürürdü.
-      * `hatirlat.py` — 6 saat onaysız turu kapatır ve bu arada
-        gereksiz hatırlatma mesajları atardı.
-    İkisi de `planlanan_yayin IS NULL` şartıyla bu turu atlıyor.
     """
     an = datetime.now(timezone.utc) + timedelta(minutes=dakika)
     con.execute(
-        "UPDATE haberler SET planlanan_yayin = ? WHERE telegram_message_id = ?",
-        (an.isoformat(), mesaj_id),
+        "UPDATE haberler SET planlanan_yayin = ?, yayin_kanallari = ? "
+        "WHERE telegram_message_id = ?",
+        (an.isoformat(), kanallar or "", mesaj_id),
     )
     con.commit()
     db_senkron.hemen_kaydet(f"yayın planlandı ({dakika} dk)")
@@ -1665,6 +1643,7 @@ def main() -> int:
     komut = os.getenv("KOMUT", "").strip()
     mesaj_id = int(os.getenv("MESAJ_ID", "0") or 0)
     basan = os.getenv("BASAN", "").strip()
+    kanallar = os.getenv("KANALLAR", "").strip()
 
     if not komut:
         log.error("KOMUT eksik")
@@ -1852,7 +1831,7 @@ def main() -> int:
                     "⚠️ Bu turun slaytları henüz üretilmedi. "
                     "Önce başlıkları onayla.")
                 return 0
-            return yayinla(con, ayarlar, haberler, mesaj_id, basan)
+            return yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar=kanallar)
         if komut == "tura_birak":
             return tura_birak(con, haberler, mesaj_id, basan)
         if komut == "iptal":
@@ -1865,7 +1844,8 @@ def main() -> int:
             return plani_iptal_et(con, mesaj_id, basan)
         if komut.startswith("yayinla_sonra:"):
             return yayin_planla(con, ayarlar, haberler,
-                                int(komut.split(":")[1]), mesaj_id, basan)
+                                int(komut.split(":")[1]), mesaj_id, basan,
+                                kanallar=kanallar)
         if komut == "metin_yenile":
             return metin_yenile(con, ayarlar, haberler, mesaj_id)
         # Görsel onay düğmeleri
