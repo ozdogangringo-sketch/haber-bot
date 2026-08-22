@@ -28,15 +28,15 @@
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak",
-                  "plan_iptal", "havuz_guncelle",
+                  "plan_iptal", "havuz_guncelle", "havuzdan_ekle",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
                   "kota_raporu", "tur_temizle",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
                   "tur_onayla", "tur_yeniden"];
-// Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3" ...
+// Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
 const PARAMETRELI_EYLEM =
-  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil):([1-9]|10)$/;
+  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil|slayt_yukari|slayt_asagi|slayt_basa):([1-9]|10)$/;
 
 // Botu duraklatma (1s, 6s, 12s, 24s)
 const DURAKLAT = /^duraklat:(1|6|12|24)$/;
@@ -227,23 +227,42 @@ function slaytSecimMenusu(adet) {
   }
   const tuslar = [satir1];
   if (satir2.length) tuslar.push(satir2);
+  if (adet < 10) {
+    tuslar.push([{ text: `➕ Havuzdan Haber Ekle (${adet}/10)`, callback_data: "havuzdan_ekle" }]);
+  }
   tuslar.push([{ text: "← Geri", callback_data: `geri:${adet}` }]);
   return { inline_keyboard: tuslar };
 }
 
 function slaytIslemMenusu(sira, adet) {
-  return {
-    inline_keyboard: [
-      [{ text: `🔀 ${sira}. slayt: başka fotoğraf (bedava)`, callback_data: `slayt_foto:${sira}` }],
-      [{ text: `🎨 ${sira}. slayt: AI ile üret (~$0.04)`, callback_data: `slayt_ai:${sira}` }],
-      [{ text: `✏️ ${sira}. slaytın metnini yenile`, callback_data: `slayt_metin:${sira}` }],
-      [{ text: `✍️ ${sira}. slaytın başlığını elle yaz`, callback_data: `slayt_elle:${sira}` }],
-      [{ text: `📄 ${sira}. slaytın kaynak metnini göster`, callback_data: `slayt_kaynak:${sira}` }],
-      [{ text: `🔄 ${sira}. slaytın HABERİNİ değiştir`, callback_data: `haber_degistir:${sira}` }],
-      [{ text: `🗑 ${sira}. slaytı çıkar`, callback_data: `slayt_sil:${sira}` }],
-      [{ text: "← Geri", callback_data: `slayt_menu:${adet}` }],
-    ],
-  };
+  const tuslar = [];
+  if (adet > 1) {
+    if (sira > 1) {
+      tuslar.push([{ text: `🔝 ${sira}. slaytı EN BAŞA al (Manşet)`, callback_data: `slayt_basa:${sira}` }]);
+    }
+    const siraSatiri = [];
+    if (sira > 1) {
+      siraSatiri.push({ text: "⬆️ 1 Yukarı Taşı", callback_data: `slayt_yukari:${sira}` });
+    }
+    if (sira < adet) {
+      siraSatiri.push({ text: "⬇️ 1 Aşağı Taşı", callback_data: `slayt_asagi:${sira}` });
+    }
+    if (siraSatiri.length) {
+      tuslar.push(siraSatiri);
+    }
+  }
+
+  tuslar.push(
+    [{ text: `🔀 ${sira}. slayt: başka fotoğraf (bedava)`, callback_data: `slayt_foto:${sira}` }],
+    [{ text: `🎨 ${sira}. slayt: AI ile üret (~$0.04)`, callback_data: `slayt_ai:${sira}` }],
+    [{ text: `✏️ ${sira}. slaytın metnini yenile`, callback_data: `slayt_metin:${sira}` }],
+    [{ text: `✍️ ${sira}. slaytın başlığını elle yaz`, callback_data: `slayt_elle:${sira}` }],
+    [{ text: `📄 ${sira}. slaytın kaynak metnini göster`, callback_data: `slayt_kaynak:${sira}` }],
+    [{ text: `🔄 ${sira}. slaytın HABERİNİ değiştir`, callback_data: `haber_degistir:${sira}` }],
+    [{ text: `🗑 ${sira}. slaytı çıkar`, callback_data: `slayt_sil:${sira}` }],
+    [{ text: "← Geri", callback_data: `slayt_menu:${adet}` }],
+  );
+  return { inline_keyboard: tuslar };
 }
 
 function duraklatmaSecenekleriMenusu() {
@@ -282,6 +301,10 @@ const KOMUT_ADI = {
   slayt_foto: "Başka fotoğraf aranıyor",
   slayt_metin: "Metin yeniden üretiliyor",
   slayt_elle: "Başlık düzenleniyor",
+  slayt_yukari: "Slayt yukarı taşınıyor",
+  slayt_asagi: "Slayt aşağı taşınıyor",
+  slayt_basa: "Slayt başa alınıyor",
+  havuzdan_ekle: "Havuzdan haber ekleniyor",
   slayt_kaynak: "Kaynak metni getiriliyor",
   slayt_sil: "Slayt çıkarılıyor",
   metin_duzenle: "Yeni metin uygulanıyor",

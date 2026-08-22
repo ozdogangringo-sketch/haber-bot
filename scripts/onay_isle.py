@@ -69,14 +69,13 @@ def turu_getir(con, mesaj_id: int) -> list:
     """
     Bu onay mesajına bağlı haberleri slayt sırasıyla getirir.
 
-    ⚠️ SIRALAMA `secim.tur_icin_sec` İLE AYNI OLMALI, yoksa slaytların
-    sırası ile caption'daki manşet sırası birbirini tutmaz.
-    `daha_once_yayinlandi` en başta: gün içinde tekil olarak yayınlanmış
-    haber turda kalıyor ama EN SONA iniyor.
+    ⚠️ SIRALAMA: `slayt_sirasi` belirlenmişse (kullanıcı taşıdıysa) o sıra
+    kullanılır; yoksa varsayılan puan ve tarih sırası geçerlidir.
     """
     return list(con.execute(
         "SELECT * FROM haberler WHERE telegram_message_id = ? "
-        "ORDER BY COALESCE(daha_once_yayinlandi, 0) ASC, "
+        "ORDER BY CASE WHEN COALESCE(slayt_sirasi, 0) > 0 THEN slayt_sirasi ELSE 999 END ASC, "
+        "COALESCE(daha_once_yayinlandi, 0) ASC, "
         "onem_puani DESC, yayin_tarihi DESC",
         (mesaj_id,),
     ))
@@ -1261,6 +1260,158 @@ def metin_duzenle(con, ayarlar: dict, haberler: list, mesaj_id: int, gelen_metin
     return 0
 
 
+def slayt_tasi(con, ayarlar: dict, haberler: list, eylem: str, sira: int, mesaj_id: int) -> int:
+    """
+    Slaytların sırasını yukarı, aşağı taşır veya en başa (manşet) alır.
+    """
+    if sira < 1 or sira > len(haberler):
+        telegram_bot.mesaj_gonder(f"⚠️ {sira}. slayt bulunamadı.")
+        return 0
+
+    if len(haberler) < 2:
+        telegram_bot.mesaj_gonder("⚠️ Tek slaytlı turda sıralama yapılamaz.")
+        return 0
+
+    sirali = list(haberler)
+    if eylem == "slayt_basa":
+        if sira == 1:
+            telegram_bot.mesaj_gonder("⚠️ Bu slayt zaten 1. sırada (Manşet).")
+            return 0
+        hedef = sirali.pop(sira - 1)
+        sirali.insert(0, hedef)
+        mesaj = f"🔝 <b>{sira}. slayt en başa (Manşet) alındı:</b>\n<i>{html.escape(hedef['ig_baslik'] or hedef['baslik_orj'] or '')}</i>"
+
+    elif eylem == "slayt_yukari":
+        if sira == 1:
+            telegram_bot.mesaj_gonder("⚠️ Bu slayt zaten 1. sırada.")
+            return 0
+        sirali[sira - 2], sirali[sira - 1] = sirali[sira - 1], sirali[sira - 2]
+        mesaj = f"⬆️ <b>{sira}. slayt {sira - 1}. sıraya taşındı.</b>"
+
+    elif eylem == "slayt_asagi":
+        if sira == len(haberler):
+            telegram_bot.mesaj_gonder("⚠️ Bu slayt zaten son sırada.")
+            return 0
+        sirali[sira - 1], sirali[sira] = sirali[sira], sirali[sira - 1]
+        mesaj = f"⬇️ <b>{sira}. slayt {sira + 1}. sıraya taşındı.</b>"
+    else:
+        telegram_bot.mesaj_gonder("⚠️ Bilinmeyen taşıma eylemi.")
+        return 0
+
+    # DB'de tüm tur için slayt_sirasi değerlerini normalize et
+    for idx, h in enumerate(sirali, 1):
+        con.execute("UPDATE haberler SET slayt_sirasi = ? WHERE id = ?", (idx, h["id"]))
+    con.commit()
+
+    guncel = turu_getir(con, mesaj_id)
+
+    # Durum 1: Başlık onayı aşaması
+    if haberler[0]["durum"] == "baslik_onayi":
+        telegram_bot.basliklari_tazele(mesaj_id, guncel)
+        telegram_bot.mesaj_gonder(mesaj, html=True)
+        db_senkron.hemen_kaydet(f"Slayt sırası değiştirildi: {eylem}:{sira}")
+        return 0
+
+    # Durum 2: Görsel onayı aşaması
+    yeni_cap = caption.caption_kur(guncel, _sonuclari_kur(guncel), ayarlar=ayarlar)
+    for h in guncel:
+        con.execute("UPDATE haberler SET caption = ? WHERE id = ?", (yeni_cap, h["id"]))
+    con.commit()
+
+    try:
+        _albumu_yenile(con, mesaj_id)
+    except Exception as e:
+        log.warning("albüm yenilenirken hata: %s", e)
+
+    telegram_bot.mesaj_gonder(mesaj, html=True)
+    db_senkron.hemen_kaydet(f"Slayt sırası değiştirildi: {eylem}:{sira}")
+    return 0
+
+
+def havuzdan_haber_ekle(con, ayarlar: dict, haberler: list, mesaj_id: int) -> int:
+    """
+    Havuzdan en iyi taze haberi seçip mevcut tura yeni slayt olarak ekler.
+    """
+    if len(haberler) >= 10:
+        telegram_bot.mesaj_gonder("⚠️ Instagram carousel en fazla 10 slayt destekler. Önce bir slaytı çıkarmalısın.")
+        return 0
+
+    sinir = datetime.now(timezone.utc) - timedelta(
+        hours=ayarlar.get("genel", {}).get("yayin_yasi_siniri_saat", 36)
+    )
+    mevcut_idler = [h["id"] for h in haberler]
+    soru_isaretleri = ",".join("?" for _ in mevcut_idler)
+    sorgu = (
+        "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
+        "AND COALESCE(daha_once_yayinlandi, 0) = 0 "
+        "AND (telegram_message_id IS NULL OR telegram_message_id = 0) "
+        f"AND id NOT IN ({soru_isaretleri}) "
+        "AND yayin_tarihi >= ? "
+        "ORDER BY onem_puani DESC, yayin_tarihi DESC LIMIT 1"
+    )
+    parametreler = list(mevcut_idler) + [sinir.isoformat()]
+    aday_haber = con.execute(sorgu, parametreler).fetchone()
+
+    if not aday_haber:
+        telegram_bot.mesaj_gonder(
+            "⚠️ Havuzda taze ve uygun haber bulunamadı. "
+            "/guncelle komutuyla kaynakları tarayabilirsin."
+        )
+        return 0
+
+    yeni_sira = len(haberler) + 1
+
+    # Durum 1: Başlık onayı aşaması
+    if haberler[0]["durum"] == "baslik_onayi":
+        con.execute(
+            "UPDATE haberler SET durum = 'baslik_onayi', telegram_message_id = ?, "
+            "slayt_sirasi = ?, gonderim_zamani = datetime('now') WHERE id = ?",
+            (mesaj_id, yeni_sira, aday_haber["id"]),
+        )
+        con.commit()
+        guncel = turu_getir(con, mesaj_id)
+        telegram_bot.basliklari_tazele(mesaj_id, guncel)
+        telegram_bot.mesaj_gonder(
+            f"✅ <b>Havuzdan yeni haber eklendi ({yeni_sira}. slayt):</b>\n"
+            f"<i>{html.escape(aday_haber['ig_baslik'] or aday_haber['baslik_orj'] or '')}</i>",
+            html=True,
+        )
+        db_senkron.hemen_kaydet(f"Havuzdan haber eklendi (başlık onayı): id={aday_haber['id']}")
+        return 0
+
+    # Durum 2: Görsel onayı aşaması (Slayt üretilmeli)
+    yol, katman, atif = slaytlar.slayt_uret(aday_haber, ayarlar)
+    yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+
+    con.execute(
+        "UPDATE haberler SET durum = 'onay_bekliyor', telegram_message_id = ?, "
+        "slayt_sirasi = ?, gorsel_url = ?, gorsel_yolu = ?, gorsel_kaynagi = ?, "
+        "gorsel_atif = ?, gonderim_zamani = datetime('now') WHERE id = ?",
+        (mesaj_id, yeni_sira, yukleme["url"], str(yol), katman, atif, aday_haber["id"]),
+    )
+    con.commit()
+
+    guncel = turu_getir(con, mesaj_id)
+    yeni_cap = caption.caption_kur(guncel, _sonuclari_kur(guncel), ayarlar=ayarlar)
+    for h in guncel:
+        con.execute("UPDATE haberler SET caption = ? WHERE id = ?", (yeni_cap, h["id"]))
+    con.commit()
+
+    try:
+        _albumu_yenile(con, mesaj_id)
+    except Exception as e:
+        log.warning("albüm yenilenirken hata: %s", e)
+
+    telegram_bot.mesaj_gonder(
+        f"✅ <b>Havuzdan yeni haber eklendi ve {yeni_sira}. slayt üretildi:</b>\n"
+        f"<i>{html.escape(aday_haber['ig_baslik'] or aday_haber['baslik_orj'] or '')}</i>\n"
+        f"<i>({len(guncel)} slayt oldu)</i>",
+        html=True,
+    )
+    db_senkron.hemen_kaydet(f"Havuzdan haber eklendi: id={aday_haber['id']}")
+    return 0
+
+
 def haber_degistir(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
     """
     Turdaki bir haberin yerine geçebilecek 2 alternatifi sunar.
@@ -2097,6 +2248,15 @@ def main() -> int:
             return metin_yenile(con, ayarlar, haberler, mesaj_id)
         if komut == "metin_duzenle":
             sonuc = metin_duzenle(con, ayarlar, haberler, mesaj_id, metin, basan)
+            menuyu_geri_koy(con, mesaj_id)
+            return sonuc
+        if komut == "havuzdan_ekle":
+            sonuc = havuzdan_haber_ekle(con, ayarlar, haberler, mesaj_id)
+            menuyu_geri_koy(con, mesaj_id)
+            return sonuc
+        if komut.startswith(("slayt_yukari:", "slayt_asagi:", "slayt_basa:")):
+            eylem, sira = komut.split(":", 1)
+            sonuc = slayt_tasi(con, ayarlar, haberler, eylem, int(sira), mesaj_id)
             menuyu_geri_koy(con, mesaj_id)
             return sonuc
         # Görsel onay düğmeleri

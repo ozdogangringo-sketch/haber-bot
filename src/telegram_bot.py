@@ -368,25 +368,34 @@ def slayt_secim_menusu(adet: int) -> dict:
     tuslar = [satir1]
     if satir2:
         tuslar.append(satir2)
+    if adet < 10:
+        tuslar.append([{"text": f"➕ Havuzdan Haber Ekle ({adet}/10)",
+                        "callback_data": "havuzdan_ekle"}])
     tuslar.append([{"text": "← Geri", "callback_data": f"geri:{adet}"}])
     return {"inline_keyboard": tuslar}
 
 
 def slayt_islem_menusu(sira: int, adet: int) -> dict:
     """
-    Seçilen slayt için yapılabilecekler.
-
-    `slayt_kaynak` neden var: Gemini az bilgiyle çalıştığında kaynakta
-    OLMAYAN iddia uydurabiliyor (Adım 2'de ölçüldü — bir milletvekili ve
-    taciz suçlaması hakkında). Üretilen metin akıcı ve inandırıcı
-    göründüğü için onay adımı tek başına bu riski çözmüyor. Bu buton
-    haberin ham metnini gösteriyor ki "modelin yazdığı bu cümle haberde
-    gerçekten var mı?" diye bakabilesin.
-
-    `slayt_sil` carousel'i 2'nin altına düşürmemeli — Instagram tek
-    görselli carousel kabul etmiyor. Kontrol job tarafında.
+    Seçilen slayt için yapılabilecekler (düzenleme + sıralama).
     """
-    return {"inline_keyboard": [
+    tuslar = []
+    # Sıralama butonları (Carousel turlarında)
+    if adet > 1:
+        if sira > 1:
+            tuslar.append([{"text": f"🔝 {sira}. slaytı EN BAŞA al (Manşet)",
+                            "callback_data": f"slayt_basa:{sira}"}])
+        sira_satiri = []
+        if sira > 1:
+            sira_satiri.append({"text": "⬆️ 1 Yukarı Taşı",
+                                "callback_data": f"slayt_yukari:{sira}"})
+        if sira < adet:
+            sira_satiri.append({"text": "⬇️ 1 Aşağı Taşı",
+                                "callback_data": f"slayt_asagi:{sira}"})
+        if sira_satiri:
+            tuslar.append(sira_satiri)
+
+    tuslar += [
         [{"text": f"🔀 {sira}. slayt: başka fotoğraf (bedava)",
           "callback_data": f"slayt_foto:{sira}"}],
         [{"text": f"🎨 {sira}. slayt: AI ile üret (~$0.04)",
@@ -402,7 +411,8 @@ def slayt_islem_menusu(sira: int, adet: int) -> dict:
         [{"text": f"🗑 {sira}. slaytı çıkar",
           "callback_data": f"slayt_sil:{sira}"}],
         [{"text": "← Geri", "callback_data": f"slayt_menu:{adet}"}],
-    ]}
+    ]
+    return {"inline_keyboard": tuslar}
 
 
 # ----------------------------------------------------------------------

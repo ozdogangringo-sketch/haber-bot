@@ -183,6 +183,9 @@ EK_KOLONLAR = {
     # Kullanıcı onay aşamasında butonlarla seçiyor; zamanlanmış yayınlar
     # ve yeniden yayınlama bu tercihi hatırlasın diye saklanıyor.
     "yayin_kanallari": "TEXT",
+    # Tur içindeki slayt sırası (1, 2, 3... 10). Kullanıcı slaytları
+    # yukarı/aşağı taşıdığında veya manşet yaptığında bu sıra güncellenir.
+    "slayt_sirasi": "INTEGER DEFAULT 0",
     # Turun story görselinin imgbb adresi. Turun İLK haberine yazılıyor;
     # story tur başına tek olduğu için her satıra kopyalamaya gerek yok.
     "story_url": "TEXT",
