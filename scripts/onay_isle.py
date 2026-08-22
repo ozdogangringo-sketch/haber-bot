@@ -155,7 +155,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
     # Ekonomi turu: 1. slayt piyasa infografik kartıdır
-    if haberler and haberler[0].get("tur") == "ekonomi":
+    ilk_h_dict = dict(haberler[0]) if haberler else {}
+    if ilk_h_dict.get("tur") == "ekonomi":
         satir = con.execute(
             "SELECT deger FROM ayarlar WHERE anahtar = ?",
             (f"piyasa_karti_{mesaj_id}",)
@@ -184,8 +185,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         )
 
     # Caption belirleme
-    if haberler[0].get("tur") == "ekonomi" and haberler[0].get("ig_caption"):
-        metin = haberler[0]["ig_caption"]
+    if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
+        metin = ilk_h_dict["ig_caption"]
     elif haberler[0]["son_dakika"]:
         metin = caption.son_dakika_caption(
             haberler[0], _sonuclari_kur(haberler), ayarlar)
@@ -2413,13 +2414,14 @@ def main() -> int:
             menuyu_geri_koy(con, mesaj_id)
             return sonuc
 
-        log.error("bilinmeyen komut: %s", komut)
-        return 1
-
     except Exception as e:
         log.exception("komut işlenemedi")
-        telegram_bot.hata_bildir(f"Komut işlenemedi: {komut}",
-                                 f"{type(e).__name__}: {e}")
+        telegram_bot.hata_bildir(
+            f"Komut işlenemedi: {komut}",
+            f"{type(e).__name__}: {e}",
+            nerede=f"Onay İşlemi ({komut})",
+            mesaj_id=mesaj_id,
+        )
         # Worker butonları kaldırmıştı; hata sonrası geri koymazsak tur
         # kilitlenir ve elle müdahale gerekir.
         menuyu_geri_koy(con, mesaj_id)

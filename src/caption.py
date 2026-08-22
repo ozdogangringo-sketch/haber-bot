@@ -253,10 +253,8 @@ def threads_halkalari(
     var ve uzun anlatım zincirle yapılıyor. 10 slaytlık carousel oranın
     dili değil, üstelik metin de kırpılıyordu.
     """
-    if not haberler or not urller:
-        return []
-
-    if haberler and haberler[0].get("tur") == "ekonomi":
+    ilk_haber = dict(haberler[0]) if haberler else {}
+    if ilk_haber.get("tur") == "ekonomi":
         halkalar = [{"metin": "📊 Günün Piyasa Açılışı ve Öne Çıkan Ekonomi Başlıkları", "gorsel_url": urller[0]}]
         for sira, (haber, url) in enumerate(zip(haberler, urller[1:]), start=2):
             manset = (haber["ig_baslik"] or haber["baslik_orj"]).strip()

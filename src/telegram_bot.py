@@ -741,20 +741,20 @@ def butonlari_ayarla(message_id: int, butonlar: list) -> None:
         log.warning("düğmeler ayarlanamadı: %s", e)
 
 
-def hata_bildir(baslik: str, ayrinti: str = "") -> None:
+def hata_bildir(baslik: str, ayrinti: str = "", nerede: str = "", mesaj_id: int | str = "") -> None:
     """
-    Bir job patladığında haber verir (Adım 7).
-
-    Bildirim gönderirken hata çıkarsa yutuyoruz: hata bildiriminin
-    kendisi turu düşürmemeli.
+    Bir hata veya problem oluştuğunda akıllı hata teşhis motoruna iletir,
+    hatayı kalıcı kaydeder ve Telegram'a çözüm butonlarıyla bildirir.
     """
     try:
-        metin = f"⚠️ {baslik}"
-        if ayrinti:
-            metin += f"\n\n{ayrinti[:1500]}"
-        mesaj_gonder(metin)
+        from . import hata_bildir as hb
+        hb.bildir(baslik, ayrinti, nerede=nerede or "Sistem", mesaj_id=mesaj_id)
     except Exception as e:
         log.error("hata bildirimi gönderilemedi: %s", e)
+        try:
+            mesaj_gonder(f"⚠️ {baslik}\n\n{ayrinti[:1000]}")
+        except Exception:
+            pass
 
 
 def _kacir(metin: str) -> str:
