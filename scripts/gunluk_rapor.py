@@ -103,6 +103,26 @@ def rapor_kur(con, ayarlar: dict, repo: str) -> str:
     simdi = _tr_simdi()
     satirlar = [f"📊 GÜNLÜK RAPOR — {simdi.strftime('%d.%m.%Y %H:%M')}", ""]
 
+    # --- Ücretli Gemini anahtar kullanımı ---
+    try:
+        yedek_yolu = os.path.join("data", "yedek_anahtar_kullanimi.txt")
+        if os.path.exists(yedek_yolu):
+            with open(yedek_yolu, encoding="utf-8") as f:
+                yedek_satirlar = f.read().strip().splitlines()
+            if yedek_satirlar:
+                from collections import Counter
+                from datetime import date
+                sayac = Counter(yedek_satirlar)
+                bugun = date.today().isoformat()
+                bugunki = sayac.get(bugun, 0)
+                toplam = len(yedek_satirlar)
+                satirlar.append(
+                    f"💰 ÜCRETLİ ANAHTAR: bugün {bugunki}, toplam {toplam} kez"
+                )
+                satirlar.append("")
+    except Exception:
+        pass
+
     # --- Dünkü yayınlar ---
     yayinlar = dunku_yayinlar(con)
     if yayinlar:

@@ -976,8 +976,15 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     # bir kez bile çağrılmamıştı.
     zorla_ai = (komut == "slayt_ai")
     deneme = (taze["gorsel_deneme"] or 0) + 1 if komut == "slayt_foto" else 0
+    # ⚠️ "Başka fotoğraf" düğmesinde haber görseli (og:image) ATLANIYOR.
+    # og:image deterministik: her seferinde aynı URL → aynı sonuç.
+    # Kullanıcı "başka" deyince farklı bir görsel bekliyor; og:image'ı
+    # tekrar denemek yerine Commons/Pexels'e geçiyoruz.
+    mevcut_kaynak = taze["gorsel_kaynagi"] or ""
+    foto_atla = (komut == "slayt_foto" and mevcut_kaynak == "haber")
     yol, katman, atif = slaytlar.slayt_uret(
-        taze, ayarlar, zorla_ai=zorla_ai, atlanacak=deneme)
+        taze, ayarlar, zorla_ai=zorla_ai, atlanacak=deneme,
+        haber_gorseli_atla=foto_atla)
 
     yukleme = upload_image.gorsel_yukle(yol, ayarlar)
 

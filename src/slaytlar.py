@@ -174,7 +174,8 @@ def _slayt_metni(haber, alan: str, ayarlar: dict) -> str:
 
 
 def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
-                 atlanacak: int = 0) -> tuple[Image.Image, str, str]:
+                 atlanacak: int = 0,
+                 haber_gorseli_atla: bool = False) -> tuple[Image.Image, str, str]:
     """
     Habere arka plan bulur. (görüntü, katman_adı, atıf_metni) döner.
 
@@ -193,6 +194,9 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
 
     `zorla_ai=True`  → zinciri atla, doğrudan Gemini'den görsel üret
     `atlanacak=N`    → Commons/Pexels'te N'inci adayı al (0 = en iyisi)
+    `haber_gorseli_atla=True` → og:image katmanını atla, "başka fotoğraf"
+                                 düğmesinde haber görseli yerine farklı
+                                 kaynak denemek için
     """
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
@@ -221,7 +225,14 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     # NEDEN İLK SIRADA: haberin KENDİ olayını gösteren tek görsel bu.
     # Commons kişi portresi, Pexels temsili fotoğraf veriyor; ikisi de
     # "o an" değil. Görsel gücü en yüksek katman burası.
-    if g.get("haber_gorseli_kullan") and haber["link"]:
+    #
+    # ⚠️ `haber_gorseli_atla`: "başka fotoğraf" düğmesinde bu katman
+    # ATLANIYOR. og:image deterministik — her seferinde aynı URL'yi
+    # döndürüyor. Kullanıcı "başka" deyince farklı bir sonuç bekliyor;
+    # og:image'ı tekrar denemek aynı görseli getirir. Atlayınca
+    # Commons/Pexels'e düşüyor ve gerçekten farklı bir görsel geliyor.
+    if (not haber_gorseli_atla
+            and g.get("haber_gorseli_kullan") and haber["link"]):
         try:
             url = fetch_article.og_gorseli_cek(haber["link"])
             if url:
@@ -286,7 +297,8 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
 
 
 def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
-               atlanacak: int = 0) -> tuple[Path, str, str]:
+               atlanacak: int = 0,
+               haber_gorseli_atla: bool = False) -> tuple[Path, str, str]:
     """
     Tek bir haberin slaytını üretip diske yazar.
 
@@ -294,14 +306,15 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
     sonuna eklenecek — Commons'taki CC BY görselleri için bu hukuken şart,
     Pexels'te zorunlu değil ama veriyoruz.
 
-    `zorla_ai` / `atlanacak`: Telegram'daki görsel değiştirme düğmeleri
-    için — bkz. `arkaplan_sec`.
+    `zorla_ai` / `atlanacak` / `haber_gorseli_atla`: Telegram'daki
+    görsel değiştirme düğmeleri için — bkz. `arkaplan_sec`.
     """
     g = ayarlar["gorsel"]
     make_image.CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
     arkaplan, katman, atif = arkaplan_sec(
-        haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak)
+        haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
+        haber_gorseli_atla=haber_gorseli_atla)
 
     gorsel = make_image.yaziyi_bas(
         arkaplan,

@@ -218,6 +218,15 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     kategori = haber["kategori"] or ""
     baslik = _baslik(haber)
 
+    # 0) Gündüz tekil olarak yayınlanan haber akşam turuna girmiyor.
+    #
+    # ⚠️ Eskiden bu haberler turun SONUNA atılıyordu ama takipçi aynı
+    # haberi iki kez görüyordu. Artık tamamen dışlanıyor. SQL sorgusunda
+    # da filtreleniyor ama burası güvenlik ağı — kuralın TEK yerde
+    # yaşaması prensibi (CLAUDE.md 1j, 1p).
+    if baglam.ad == TUR and haber.get("daha_once_yayinlandi"):
+        return False, "gündüz zaten yayınlandı"
+
     # 1) Tazelik — bayat haber hiçbir bağlamda aday olmaz
     yas = _yas_saat(haber)
     if yas > baglam.tazelik_saat:

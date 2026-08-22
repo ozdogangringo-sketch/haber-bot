@@ -555,6 +555,15 @@ def _anahtarla_dene(prompt, ayarlar, modeller, anahtar, anahtar_adi):
             if cevap.status_code == 200:
                 if anahtar_adi != "birincil":
                     log.warning("Gemini %s anahtarı kullanıldı", anahtar_adi)
+                    # Ücretli anahtar kullanımını kaydet — günlük rapor burayı okuyor.
+                    try:
+                        from datetime import date
+                        yol = os.path.join("data", "yedek_anahtar_kullanimi.txt")
+                        os.makedirs("data", exist_ok=True)
+                        with open(yol, "a", encoding="utf-8") as f:
+                            f.write(f"{date.today().isoformat()}\n")
+                    except Exception:
+                        pass
                 return _cevabi_coz(cevap.json()), None, False
 
             son_hata = f"HTTP {cevap.status_code}: {cevap.text[:200]}"

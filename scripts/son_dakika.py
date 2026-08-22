@@ -725,10 +725,10 @@ def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
         # workflow'un son adımını beklemek gereksiz risk.
         db_senkron.hemen_kaydet("Gece otomatik yayın")
         log.info("gece otomatik yayınlandı: %s", post_id)
-        return 0
+        return True, katman_raporu
 
     log.info("otomatik yayın reddedildi, sabaha bırakılıyor")
-    return False
+    return False, katman_raporu
 
 
 def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,

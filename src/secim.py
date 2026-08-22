@@ -140,7 +140,10 @@ def on_eleme(con, ayarlar: dict, kac: int | None = None) -> list:
     azalma = s.get("kategori_sira_azalmasi", 0.88)
     varsayilan_katsayi = s.get("kategori_varsayilan_katsayi", 0.6)
 
-    havuz = list(con.execute("SELECT * FROM haberler WHERE durum = 'yeni'"))
+    havuz = list(con.execute(
+        "SELECT * FROM haberler WHERE durum = 'yeni'"
+        " AND COALESCE(daha_once_yayinlandi, 0) = 0"
+    ))
 
     # --- KATMAN 1: kategori içi ham skor ---
     kategoriler: dict[str, list] = {}
@@ -452,6 +455,7 @@ def tur_icin_sec(con, ayarlar: dict) -> list:
     adaylar = list(con.execute(
         "SELECT * FROM haberler WHERE durum = 'metin_hazir' "
         "AND ig_baslik IS NOT NULL"
+        " AND COALESCE(daha_once_yayinlandi, 0) = 0"
     ))
 
     # Skor sıralaması ÖNCE: aday kapısı verilen sırayı koruyor, yani

@@ -107,8 +107,9 @@ KATALOG = [
         "neden": ("Hata mesajı yanıltıcı: 'Only photo or video' diyor ama "
                   "gerçek sebep medya indirmenin başarısız olması. "
                   "Instagram görseli imgbb'den kendisi çekiyor."),
-        "ne_yapilir": "Yayınla düğmesine tekrar basmak genelde yeterli.",
-        "eylem": "yok",
+        "ne_yapilir": ("Turu yeniden hazırlamak genelde yeterli. Hata geçici "
+                       "— Instagram görseli indirirken zaman aşımına uğramış."),
+        "eylem": "tur_tekrar",
     },
     {
         "desen": r"could not apply|rebase|CONFLICT|detached HEAD",
@@ -148,6 +149,30 @@ KATALOG = [
                   "yenileniyor; yenileme kaçtıysa süresi dolmuş olabilir."),
         "ne_yapilir": ("Instagram postu etkilenmez. Jeton için "
                        "`jeton-yenile` workflow'u elle çalıştırılabilir."),
+        "eylem": "yok",
+    },
+    {
+        "desen": r"cannot unpack non-iterable|unpack.*bool",
+        "ne_oldu": "Bir fonksiyon beklenenden farklı türde değer döndürdü.",
+        "neden": ("Kod düzenlemesinde bir fonksiyonun dönüş değeri "
+                  "bozulmuş. Bu hatanın tekrarlanmaması için düzeltme yapıldı."),
+        "ne_yapilir": "Son dakika kontrolünü yeniden çalıştırmayı dene.",
+        "eylem": "yok",
+    },
+    {
+        "desen": r"en az 2 görsel gerekli|görsel.*None|gorsel_url.*None",
+        "ne_oldu": "Turun görsel URL'leri eksik, slaytlar yüklenememiş.",
+        "neden": ("Görseller imgbb'ye yüklenirken hata olmuş ya da "
+                  "URL'ler veritabanına yazılamamış olabilir."),
+        "ne_yapilir": "Turu yeniden hazırlamak görselleri sıfırdan üretir.",
+        "eylem": "tur_tekrar",
+    },
+    {
+        "desen": r"Application request limit|throttl|instagram.*429",
+        "ne_oldu": "Instagram API geçici istek sınırı koydu.",
+        "neden": ("Kısa sürede çok fazla istek yapıldı. Instagram "
+                  "sınırı saatlik, genelde 15-30 dakika beklemek yeterli."),
+        "ne_yapilir": "15-30 dakika bekleyip yayınla düğmesine tekrar bas.",
         "eylem": "yok",
     },
 ]
@@ -226,9 +251,12 @@ def _butonlar(eylem: str, nerede: str = "") -> list | None:
                       "callback_data": "hata:tur_tekrar"})
     # Ayrıntı düğmesi her hatada var: ham metni görmek isteyebilir.
     ikinci = [{"text": "🔍 Ham hata metni", "callback_data": "hata:ayrinti"}]
+    # Her yayın hatasında durumu kontrol etme seçeneği.
+    kontrol = [{"text": "🔍 Yayın durumunu kontrol et",
+                "callback_data": "durum"}]
     # mesaj_gonder inline_keyboard'ın İÇERİĞİNİ bekliyor (satır listesi),
     # sarmalanmış sözlüğü değil.
-    return [s for s in (satir, ikinci) if s] or None
+    return [s for s in (satir, ikinci, kontrol) if s] or None
 
 
 def mesaji_kur(baslik: str, teshis: dict, nerede: str = "") -> str:
