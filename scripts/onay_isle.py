@@ -2173,9 +2173,17 @@ def main() -> int:
             ek = "\n\nŞu an açık tur yok. Yeni tur için /tur yazabilirsin."
 
         log.warning("mesaj_id=%s artık geçerli değil (eski mesaj)", mesaj_id)
-        telegram_bot.mesaj_gonder(
-            "ℹ️ Bu mesaj artık geçerli değil.\n"
-            "Tur kapanmış, atlanmış ya da yayınlanmış olabilir." + ek)
+        try:
+            telegram_bot.sonucu_yaz(
+                mesaj_id,
+                "ℹ️ <b>Bu mesaj artık geçerli değil.</b>\n"
+                "Gönderi kapanmış, atlanmış ya da yayınlanmış olabilir." + ek,
+            )
+        except Exception:
+            telegram_bot.mesaj_gonder(
+                "ℹ️ Bu mesaj artık geçerli değil.\n"
+                "Gönderi kapanmış, atlanmış ya da yayınlanmış olabilir." + ek
+            )
         # Sistem hatası olmadığı için job BAŞARILI sayılıyor.
         return 0
 

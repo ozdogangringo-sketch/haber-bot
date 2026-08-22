@@ -46,8 +46,8 @@ from src.generate_text import metinleri_uret       # noqa: E402
 
 log = logging.getLogger("sondakika")
 
-# Onaylanmayan son dakika turu kaç dakika sonra kendiliğinden düşsün.
-OMUR_DAKIKA = 60
+# Onaylanmayan son dakika turu kaç dakika sonra kendiliğinden düşsün (24 saat).
+OMUR_DAKIKA = 24 * 60
 
 # Haber kaç saatten eskiyse artık "son dakika" sayılmaz.
 # ⚠️ Config'den okunuyor — sabit 3 saat ölçüldüğünde çok dar çıktı:
@@ -123,8 +123,8 @@ def omru_bitti_mi(gonderim: str, ayarlar: dict) -> bool:
     """
     Bu tur düşürülmeli mi?
 
-    Gündüz: 1 saat. Gece: sabah `gece_onay_biter_saat`e kadar bekler —
-    gündüzki 1 saatlik ömür gece anlamsız, kimse uyanık değil.
+    Görselleri üretilmiş bir haber 24 saat boyunca Telegram'da onaya hazır bekler.
+    Kullanıcı onay verdiği sürece 24 saat boyunca yayınlanabilir.
     """
     try:
         t = datetime.fromisoformat(gonderim).replace(tzinfo=timezone.utc)
@@ -132,19 +132,7 @@ def omru_bitti_mi(gonderim: str, ayarlar: dict) -> bool:
         return False
 
     simdi = datetime.now(timezone.utc)
-    gonderim_tr = t + timedelta(hours=3)
-    gece_hazirlanmis = (gonderim_tr.hour >= GECE_BASI_TR
-                        or gonderim_tr.hour < GECE_SONU_TR)
-
-    if not gece_hazirlanmis:
-        return simdi - t > timedelta(minutes=OMUR_DAKIKA)
-
-    # Gece hazırlanmış: sabah saatine kadar yaşasın
-    bitis_saat = ayarlar["genel"].get("gece_onay_biter_saat", 8)
-    simdi_tr = simdi + timedelta(hours=3)
-    if simdi_tr.date() > gonderim_tr.date() or gonderim_tr.hour < GECE_SONU_TR:
-        return simdi_tr.hour >= bitis_saat
-    return False
+    return simdi - t > timedelta(hours=24)
 
 
 def _bugun_anahtari() -> str:
@@ -754,11 +742,8 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
         metin, len(urller),
         uyari=(uyari or ""),
         ozet=(f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {taze['onem_puani']}/10\n"
-              + ("🌙 Gece: sabah 08:00'e kadar bekler\n"
-                 if gece_mi() else
-                 f"⌛️ {OMUR_DAKIKA} dakika içinde onaylanmazsa iptal olur\n")
-              + ("\n".join(katman_raporu) if gece_mi() and katman_raporu
-                 else "")),
+              "⌛️ 24 saat boyunca onaya hazır bekler\n"
+              + ("\n".join(katman_raporu) if katman_raporu else "")),
     )
 
     con.execute(

@@ -32,30 +32,10 @@ from src import db, telegram_bot, yonetim             # noqa: E402
 
 log = logging.getLogger("hatirlat")
 
-# Bu saatten sonra hatırlatmak yerine havuza döndürüyoruz.
-# UTC 20:00 = TR 23:00 — gece yarısı post atmanın anlamı yok.
-HAVUZA_DON_SAATI_UTC = 20
-
-# ⚠️ TAZE TUR KAPATILMAZ. Tur bu süreden yeniyse, saat geç olsa bile
-# havuza döndürmüyoruz — yalnızca hatırlatıyoruz.
-#
-# 17 Ağu 2026: akşam turu bir arıza yüzünden elle TR 22:56'da kuruldu ve
-# 11 dakika sonraki hatırlatma job'ı onu "onay gelmedi" diye kapatacaktı.
-# Kullanıcıya onaylaması için 11 dakika tanımak yanlış; normal 20:07
-# turunda 3 saatlik pay var, elle kurulan turda yok.
-TAZE_TUR_DAKIKA = 90
-
-# ⚠️ TUR SONSUZA KADAR AÇIK KALMASIN.
-#
-# Havuza dönüş eskiden YALNIZCA saate bakıyordu (TR 23:00) çünkü günde
-# tek tur vardı. 19 Ağu 2026'da sabah turu (TR 08:07) eklendi ve o kural
-# yetersiz kaldı: sabah onaylanmayan tur akşam 23:00'e kadar açık
-# kalıyor, akşam turu kurulduğunda iki tur çakışıyordu.
-#
-# Artık tur şu kadar saat onaysız beklerse saat kaç olursa olsun havuza
-# dönüyor. 6 saat seçildi: sabah turuna öğlene kadar, akşam turuna gece
-# yarısına kadar süre tanıyor — ikisi de rahat, ama üst üste binmiyorlar.
-AZAMI_BEKLEME_SAAT = 6
+# Onay bekleyen tur kaç saat sonra havuza dönsün (24 saat).
+# Kullanıcı kararı: Görselleri hazırlanmış bir tur en az 1 gün boyunca
+# Telegram'da onaylanmaya hazır beklemelidir.
+AZAMI_BEKLEME_SAAT = 24
 
 
 def _tur_yasi_dakika(haber) -> float | None:
@@ -73,20 +53,13 @@ def _tur_yasi_dakika(haber) -> float | None:
 
 def bekleyen_tur(con):
     """Onay bekleyen en son turu döner."""
-    # SON DAKİKA TURLARI HARİÇ: onların kendi ömrü var (gündüz 1 saat,
-    # gece sabaha kadar) ve son_dakika.py onları kendisi düşürüyor.
-    # Buraya karışırsa aynı tur iki yerden yönetilmiş oluyor ve
-    # hatırlatma, birazdan iptal olacak bir turu işaret ediyor.
+    # SON DAKİKA TURLARI HARİÇ: onların kendi ömrü var ve son_dakika.py yönetiyor.
     return list(con.execute(
         # ⚠️ Planlanmış yayın (yayınla > "2 saat sonra") burada
-        # GÖRÜNMEMELİ: 6 saatlik bekleme kuralı turu havuza döndürür
+        # GÖRÜNMEMELİ: 24 saatlik bekleme kuralı turu havuza döndürür
         # ve o ana kadar her saat gereksiz hatırlatma atılırdı.
         # Zamanı gelince son dakika kontrolü yayınlıyor.
         "SELECT * FROM haberler WHERE planlanan_yayin IS NULL "
-        # ⚠️ `baslik_onayi` DA BURADA OLMALI. İki aşamalı tur akışında
-        # başlıkları sunulmuş ama onaylanmamış tur bu durumda bekliyor;
-        # listeye alınmazsa ne hatırlatılır ne kapanır, sonsuza kadar
-        # açık kalır ve ertesi turla çakışır.
         "AND durum IN ('onay_bekliyor', 'ertelendi', 'baslik_onayi') "
         "AND telegram_message_id IS NOT NULL "
         "AND (son_dakika IS NULL OR son_dakika = 0) "
@@ -96,32 +69,12 @@ def bekleyen_tur(con):
 
 def _turu_isle(con, mesaj_id: int, haberler: list, simdi) -> None:
     """
-    Tek bir turu değerlendirir: hatırlat, kapat ya da dokunma.
-
-    `main` her açık tur için ayrı ayrı çağırıyor — önce yalnızca
-    en yüksek puanlı haberin turu işleniyordu ve diğerleri
-    sonsuza kadar açık kalıyordu.
+    Tek bir turu değerlendirir: 24 saat dolduysa kapat, dolmadıysa hatırlat.
     """
-
-    # --- Gece: havuza döndür (ama taze turu değil) ---
     yas = _tur_yasi_dakika(haberler[0])
-    taze = yas is not None and yas < TAZE_TUR_DAKIKA
-    if taze:
-        log.info("tur %.0f dakikalık, kapatılmıyor", yas)
-
     cok_bekledi = yas is not None and yas >= AZAMI_BEKLEME_SAAT * 60
-    if cok_bekledi:
-        log.info("tur %.1f saattir onaysız, havuza dönüyor", yas / 60)
 
-    if (simdi.hour >= HAVUZA_DON_SAATI_UTC or cok_bekledi) and not taze:
-        # ⚠️ METNİ OLAN HABER 'metin_hazir'E DÖNER, 'yeni'YE DEĞİL.
-        # 'yeni' yapılırsa sonraki tur o haberi Gemini'ye TEKRAR
-        # gönderiyor ve zaten üretilmiş metin için ikinci kez kota
-        # harcanıyor. 20 Ağu 2026'da 10 haberlik tur kapanırken tam
-        # bu oldu — hepsi 'yeni' yazıldı.
-        # `son_dakika.suresi_gecmisi_iptal_et` bunu baştan doğru
-        # yapıyordu; kural iki yerde yaşıyor ve biri unutulmuştu
-        # (CLAUDE.md 1f/1j'deki desenin aynısı).
+    if cok_bekledi:
         con.execute(
             "UPDATE haberler SET telegram_message_id = NULL, "
             "durum = CASE WHEN ig_baslik IS NOT NULL THEN 'metin_hazir' "
@@ -131,24 +84,19 @@ def _turu_isle(con, mesaj_id: int, haberler: list, simdi) -> None:
         )
         con.commit()
         try:
-            # ⚠️ bildir=True ŞART. `editMessageText` Telegram'da
-            # BİLDİRİM ÜRETMİYOR; onay mesajı sohbette yukarıda kaldığı
-            # için kullanıcı turun kapandığını hiç görmüyor ve ertesi
-            # gün "tur neden yayınlanmadı" diye soruyor (20 Ağu 2026).
             telegram_bot.sonucu_yaz(
                 mesaj_id,
-                f"🌙 Onay gelmedi, tur kapandı.\n"
+                f"⌛️ 24 saat boyunca onay gelmediği için tur kapandı.\n"
                 f"{len(haberler)} haber havuza döndü — elenmediler, "
-                f"yarınki turda yeniden yarışacaklar.",
+                f"sonraki turlarda yeniden yarışacaklar.",
                 bildir=True,
             )
         except Exception as e:
-            # Mesaj düzenlenemese bile veritabanı doğru; tur kapanmış olmalı
             log.warning("sonuç mesajı yazılamadı: %s", e)
-        log.info("%s haber havuza döndürüldü", len(haberler))
+        log.info("%s haber 24 saat sonra havuza döndürüldü", len(haberler))
         return
 
-    # --- Erken saat: hatırlat ---
+    # --- 24 saat dolmadı: hatırlat ---
     sayi = (haberler[0]["hatirlatma_sayisi"] or 0) + 1
     con.execute(
         "UPDATE haberler SET hatirlatma_sayisi = ? WHERE telegram_message_id = ?",

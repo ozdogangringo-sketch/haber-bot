@@ -148,9 +148,6 @@ genel:
   # ancak gerçekten büyük bir olay hak ediyor.
   gece_puan_esigi: 9
 
-  # Gece hazırlanan post saat kaça kadar onay bekleyebilir (TR).
-  gece_onay_biter_saat: 8
-
   # GECE OTOMATİK YAYIN (17 Ağu 2026)
   # Gece kimse uyanık değil; büyük bir olayda hesabın sabaha kadar
   # sessiz kalması kötü. İnsan onayının yerine DÖRT KATMAN kondu
