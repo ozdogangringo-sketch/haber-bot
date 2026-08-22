@@ -90,8 +90,8 @@ def _gorseli_indir(url: str, g: dict):
     biçimde bulanıklaşıyordu. Bu katman zincirin BİRİNCİ sırasında,
     yani en sık kullanılan yol.
     """
-    asgari = g.get("haber_gorseli_asgari_genislik", 1080)
-    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 800)
+    asgari = g.get("haber_gorseli_asgari_genislik", 640)
+    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 360)
     try:
         cevap = requests.get(url, timeout=20,
                              headers={"User-Agent": "Mozilla/5.0"})

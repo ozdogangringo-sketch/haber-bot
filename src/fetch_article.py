@@ -184,40 +184,90 @@ def _baslikla_ilgili_mi(metin: str, baslik: str) -> bool:
 
 def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
     """
-    Haber sayfasının `og:image` görselini döner. Bulamazsa None.
-
-    ⚠️ TELİF — BİLİNÇLİ BİR TERCİH.
-    Bu görseller çoğu zaman ajans fotoğrafı (AA, Reuters, AFP) ve telifi
-    ajansa ait. "Kaynak belirtmek" izin yerine GEÇMEZ. Instagram telif
-    şikayeti gelirse postu kaldırır, tekrarlanırsa hesap risk altına
-    girer. Kullanıcı bu riski bilerek kullanmayı seçti (18 Ağu 2026).
-
-    NEDEN `og:image`, rastgele bir sayfa fotoğrafı değil:
-    Bu etiket sitenin kendi haberini sosyal medyada paylaştırmak için
-    koyduğu görsel — paylaşıma açık sunulan tek görsel budur. Riski
-    ortadan kaldırmıyor ama sayfadan gelişigüzel fotoğraf çekmekten
-    savunulabilir bir fark var.
-
-    `config.yaml → gorsel.haber_gorseli_kullan: false` ile kapatılır;
-    o zaman eski davranışa (Commons → Pexels → gradyan) dönülür.
+    Haber sayfasının en kaliteli kapak/ürün fotoğrafını döner.
+    
+    Arama Hiyerarşisi:
+      1. OpenGraph & Twitter kart meta etiketleri (og:image, twitter:image)
+      2. Schema.org JSON-LD NewsArticle 'image' alanı (Sitenin sunduğu orijinal tam boy basın görseli)
+      3. Makale gövdesindeki ana manşet/ürün görseli (figure, featured-image, article img)
     """
     try:
         cevap = requests.get(link, headers=BASLIKLAR, timeout=zaman_asimi)
         cevap.raise_for_status()
         corba = BeautifulSoup(cevap.content, "html.parser")
     except Exception as e:
-        log.warning("og:image için sayfa alınamadı %s: %s", link, e)
+        log.warning("Haber görseli için sayfa alınamadı %s: %s", link, e)
         return None
 
-    for ozellik in ("og:image", "twitter:image", "og:image:secure_url"):
+    # İstenmeyen görsel kalıpları (avatar, logo, sayaç, banner reklam)
+    YASAK_DESENLER = [
+        "avatar", "author", "yazar", "logo", "banner_ad", "pixel",
+        "tracker", "spacer", "placeholder", "icon", ".svg", ".gif",
+        "share-button", "default_image", "no-image"
+    ]
+
+    def _gecerli_url_mi(u: str) -> bool:
+        if not u or not isinstance(u, str):
+            return False
+        u_low = u.lower()
+        if any(p in u_low for p in YASAK_DESENLER):
+            return False
+        return u.startswith("http://") or u.startswith("https://") or u.startswith("//")
+
+    def _temiz_url(u: str) -> str:
+        u = u.strip()
+        if u.startswith("//"):
+            return "https:" + u
+        return u
+
+    # 1. Meta Etiketleri (OpenGraph, Twitter, Thumbnail)
+    for ozellik in ("og:image", "og:image:secure_url", "twitter:image", "twitter:image:src", "thumbnail"):
         etiket = (corba.find("meta", property=ozellik)
-                  or corba.find("meta", attrs={"name": ozellik}))
+                  or corba.find("meta", attrs={"name": ozellik})
+                  or corba.find("meta", attrs={"itemprop": "image"}))
         if etiket and etiket.get("content"):
-            url = etiket["content"].strip()
-            if url.startswith("//"):
-                url = "https:" + url
-            if url.startswith("http"):
-                return url
+            u = etiket["content"].strip()
+            if _gecerli_url_mi(u):
+                return _temiz_url(u)
+
+    # 2. JSON-LD Yapılandırılmış Veri (En yüksek çözünürlüklü basın fotoğrafı)
+    for script in corba.find_all("script", attrs={"type": "application/ld+json"}):
+        if not script.string:
+            continue
+        try:
+            veri = json.loads(script.string)
+        except Exception:
+            continue
+        
+        adaylar = []
+        if isinstance(veri, dict):
+            adaylar = veri.get("@graph") if "@graph" in veri else [veri]
+        elif isinstance(veri, list):
+            adaylar = veri
+
+        for aday in adaylar or []:
+            if not isinstance(aday, dict):
+                continue
+            img = aday.get("image")
+            if isinstance(img, str) and _gecerli_url_mi(img):
+                return _temiz_url(img)
+            elif isinstance(img, dict) and _gecerli_url_mi(img.get("url", "")):
+                return _temiz_url(img["url"])
+            elif isinstance(img, list) and img and isinstance(img[0], str) and _gecerli_url_mi(img[0]):
+                return _temiz_url(img[0])
+
+    # 3. Makale İçi Öne Çıkan Görsel (Featured / Hero Image)
+    for secici in (
+        ".featured-image img", ".post-thumbnail img", "figure.wp-block-image img",
+        "article figure img", ".entry-content figure img", ".article-body figure img",
+        "main figure img", ".news-detail-image img"
+    ):
+        img_el = corba.select_one(secici)
+        if img_el:
+            src = img_el.get("src") or img_el.get("data-src") or img_el.get("data-original")
+            if src and _gecerli_url_mi(src):
+                return _temiz_url(src)
+
     return None
 
 

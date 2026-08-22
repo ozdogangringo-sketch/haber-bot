@@ -68,26 +68,19 @@ def _anahtar() -> str:
 
 def _aday_puani(foto: dict) -> int:
     """
-    Adayları sıralar. Yüksek puan = daha uygun.
-
-    Öncelik sırası çözünürlük değil ORAN: 4:5'e yakın bir fotoğraf
-    kırpılmadan oturuyor, panoramik bir fotoğrafın ise yarısını atmak
-    zorunda kalıyoruz.
+    Adayları puanlar.
+    
+    Yüksek çözünürlüklü ve 4:5 dikey orana iyi kırpılabilecek fotoğraflar önceliklidir.
     """
-    genislik, yukseklik = foto["width"], foto["height"]
-    if genislik < ASGARI_GENISLIK or yukseklik < ASGARI_YUKSEKLIK:
+    genislik, yukseklik = foto.get("width", 0), foto.get("height", 0)
+    if (genislik < 1000 and yukseklik < 1000) or min(genislik, yukseklik) < 550:
         return -1
 
     puan = 0
-
-    # 4:5 = 0.8. Sapma ne kadar azsa o kadar iyi.
     oran = genislik / yukseklik
-    sapma = abs(oran - 0.8)
-    puan += max(0, int(40 - sapma * 100))
-
-    # Çözünürlük ikincil kriter — yeter seviyenin üstünde fark yaratmıyor
-    puan += min(20, (genislik * yukseklik) // 1_000_000)
-
+    sapma = abs(oran - 0.8)  # 4:5 oranı idealdir
+    puan += max(0, int(40 - sapma * 50))
+    puan += min(30, (genislik * yukseklik) // 1_000_000)
     return puan
 
 
@@ -95,47 +88,57 @@ def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
                  atlanacak: int = 0,
                  kullanilmis: set | None = None) -> dict | None:
     """
-    Pexels'te arar, en uygun adayın kaydını döner. Bulamazsa None.
-
-    Dönen sözlük `fetch_photo.fotograf_ara` ile aynı alanları taşıyor
-    (`url`, `baslik`, `sanatci`, `lisans`) — böylece çağıran taraf iki
-    kaynağı ayırt etmek zorunda kalmıyor.
-
-    `kullanilmis`: son postlarda kullanılmış Pexels fotoğraf id'leri.
-    ⚠️ NEDEN GEREKTİ (21 Ağu 2026): kullanıcı "görseller hep aynı
-    şeyler gibi" dedi. Ölçüldü — aynı fotoğrafçının fotoğrafı 6, 5 ve
-    4 kez tekrar etmişti. Sebep: aynı arama terimi hep aynı sonucu
-    veriyor ve biz her zaman en yüksek puanlıyı alıyoruz. Bu küme
-    daha önce kullanılanları listenin SONUNA atıyor — eleme değil,
-    çünkü havuz darsa hiç fotoğraf bulamamaktansa tekrar iyidir.
+    Pexels'te arar, en uygun adayın kaydını döner.
+    Önce dikey arar, sonuç yetersizse tüm yüksek çözünürlüklü yönleri tarar.
     """
+    headers = {"Authorization": _anahtar()}
+    
+    ham_fotolar = []
+    # 1. Aşama: Dikey formatta ara
     try:
         cevap = requests.get(
             API,
-            headers={"Authorization": _anahtar()},
-            params={
-                "query": terim,
-                "per_page": aday_sayisi,
-                "orientation": ORIENTASYON,
-            },
+            headers=headers,
+            params={"query": terim, "per_page": aday_sayisi, "orientation": "portrait"},
             timeout=ZAMAN_ASIMI,
         )
-        cevap.raise_for_status()
-        sonuc = cevap.json()
+        if cevap.status_code == 200:
+            ham_fotolar.extend(cevap.json().get("photos", []))
     except Exception as e:
-        log.warning("Pexels araması başarısız (%s): %s", terim, e)
-        return None
+        log.warning("Pexels dikey arama hatası (%s): %s", terim, e)
+
+    # 2. Aşama: Dikeyde yeterli kaliteli fotoğraf yoksa genel yüksek çözünürlüklü havuzu ara
+    if len(ham_fotolar) < 3:
+        try:
+            cevap = requests.get(
+                API,
+                headers=headers,
+                params={"query": terim, "per_page": aday_sayisi},
+                timeout=ZAMAN_ASIMI,
+            )
+            if cevap.status_code == 200:
+                for f in cevap.json().get("photos", []):
+                    if f.get("id") not in [x.get("id") for x in ham_fotolar]:
+                        ham_fotolar.append(f)
+        except Exception as e:
+            log.warning("Pexels genel arama hatası (%s): %s", terim, e)
 
     adaylar = []
-    for foto in sonuc.get("photos", []):
+    for foto in ham_fotolar:
         puan = _aday_puani(foto)
         if puan < 0:
             continue
+        
+        # En net ve hızlı yüklenen yüksek çözünürlüklü kaynak URL'si (large2x veya original)
+        src = foto.get("src", {})
+        foto_url = src.get("large2x") or src.get("original") or src.get("large")
+        if not foto_url:
+            continue
+
         adaylar.append(
             {
                 "id": foto.get("id"),
-                # "original" kırpılmamış hâli; kırpmayı biz yapıyoruz
-                "url": foto["src"]["original"],
+                "url": foto_url,
                 "baslik": foto.get("alt") or terim,
                 "sanatci": foto.get("photographer", ""),
                 "lisans": "Pexels Lisansı",
@@ -145,21 +148,16 @@ def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
         )
 
     if not adaylar:
-        log.info("Pexels'te uygun fotoğraf bulunamadı: %s", terim)
+        log.info("Pexels'te uygun kaliteli fotoğraf bulunamadı: %s", terim)
         return None
 
-    # Daha önce kullanılanlar sona: aynı arama hep aynı fotoğrafı
-    # döndürüyordu ve hesap tekdüze görünüyordu.
     onceki = kullanilmis or set()
     adaylar.sort(key=lambda a: (str(a.get("id")) in onceki, -a["puan"]))
     yeni = sum(1 for a in adaylar if str(a.get("id")) not in onceki)
     if onceki and yeni < len(adaylar):
         log.info("Pexels: %s/%s aday daha önce kullanılmış, sona alındı",
                  len(adaylar) - yeni, len(adaylar))
-    # ⚠️ `atlanacak` — "başka fotoğraf" düğmesi için. Önce hep
-    # `adaylar[0]` dönüyordu, yani düğmeye kaç kez basılırsa basılsın
-    # aynı fotoğraf geliyordu. Liste biterse başa dönüyoruz: kullanıcı
-    # sırayla gezinsin, hiç sonuç alamamaktansa tekrar görsün.
+
     if atlanacak:
         log.info("Pexels: %s. aday alınıyor (%s aday var)",
                  atlanacak % len(adaylar) + 1, len(adaylar))

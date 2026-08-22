@@ -309,12 +309,21 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   KOMPOZİSYON SERBEST — "close up" ZORUNLU DEĞİL. Yakın plan nesne de,
   sahne de olabilir; yeter ki yukarıdaki iki şartı sağlasın. Hep aynı
   kalıbı kullanmak hesabı tekdüze gösteriyor.
-        İYİ: "firefighter helmet close up"      (yakın plan nesne)
-        İYİ: "burning forest branches at night" (sahne, konuya bağlı)
-        İYİ: "stethoscope on medical chart"     (nesne, düzenlenmiş)
-        İYİ: "dry cracked earth"                (doku, kuraklık haberi)
+        İYİ: "firefighter helmet close up"          (yakın plan nesne)
+        İYİ: "burning forest branches at night"     (sahne, konuya bağlı)
+        İYİ: "stethoscope on medical chart"         (nesne, düzenlenmiş)
+        İYİ: "dry cracked earth"                    (doku, kuraklık haberi)
+
+  ÜRÜN, DONANIM, FİNANS VE TEKNOLOJİ HABERLERİNDE NOKTA ATIŞI SOMUT TERİMLER:
+        İYİ: "silicon wafer AI microchip closeup"   (çip/yapay zeka haberi)
+        İYİ: "commercial passenger jet airplane"    (uçak/havacılık haberi)
+        İYİ: "gold bullion bars dark vault luxury"  (altın/emtia haberi)
+        İYİ: "stock market trading chart screen"    (borsa/hisse haberi)
+        İYİ: "modern electric car charging station" (otomotiv/araç haberi)
+        İYİ: "modern clean energy turbine facility" (enerji/nükleer haberi)
 
     * 3-6 kelime yeter.
+    * Asla genel/soyut ofis tokalaşması veya bulanık genel manzara isteme.
     * İnsan YÜZÜ içeren sahne isteme — tanımadığımız biri haberle
       ilişkilendirilmiş görünür. (El, silüet, arkadan görünüm sorun değil.)
 

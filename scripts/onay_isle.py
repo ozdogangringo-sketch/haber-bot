@@ -36,6 +36,7 @@ import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
     aday, ayar, caption, db, db_senkron, dogrula, facebook, fetch_news,
+    filtre,
     instagram,
     secim,
     slaytlar, telegram_bot, threads, upload_image, yonetim,
