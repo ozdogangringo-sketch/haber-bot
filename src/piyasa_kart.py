@@ -1,5 +1,5 @@
 """
-piyasa_kart.py — 1080x1350 Instagram Carousel 1. Slaytı için Lüks & Büyük Kartlı Yeşil Piyasa İnfografiği.
+piyasa_kart.py — 1080x1350 Instagram Carousel 1. Slaytı için Modern, Çok Renkli & Ferah Piyasa İnfografiği.
 """
 
 from __future__ import annotations
@@ -22,24 +22,24 @@ CIKTI_KLASORU = KOK / "data" / "output"
 GENISLIK = 1080
 YUKSEKLIK = 1350
 
-# Lüks Ekonomi & Finans Yeşili Renk Paleti
-RENK_ARKA_UST = (2, 20, 14)           # #02140E
-RENK_ARKA_ALT = (6, 38, 28)           # #06261C
-RENK_KART_BG = (11, 46, 36)           # #0B2E24 (Derin Zümrüt Cam Zemin)
-RENK_KART_BORDER = (27, 99, 78)       # #1B634E (Parlak Zümrüt Kenar)
+# Modern & Ferah Koyu Palet (Boğucu yeşilden arındırılmış lüks finans teması)
+RENK_ARKA_UST = (8, 14, 24)            # #080E18 (Derin Gece Mavisi / Grafit)
+RENK_ARKA_ALT = (15, 23, 42)           # #0F172A (Lüks Slate / Gece Laciverti)
+RENK_KART_BG = (22, 32, 54)            # #162036 (Ferah Koyu Cam Zemin)
+RENK_KART_BORDER = (45, 62, 98)        # #2D3E62 (Zarif Kontrast Çerçeve)
 RENK_BEYAZ = (255, 255, 255)
-RENK_METIN_GRI = (209, 236, 226)      # #D1ECE2
-RENK_SOLUK = (130, 175, 158)          # #82AF9E
-RENK_MINT = (52, 211, 153)            # #34D399 (Parlak Nane Yeşili)
+RENK_METIN_GRI = (226, 232, 240)       # #E2E8F0 (Temiz Açık Gri)
+RENK_SOLUK = (148, 163, 184)           # #94A3B8 (Slate Soluk)
+RENK_MINT = (52, 211, 153)             # #34D399 (Parlak Nane Yeşili)
 
 # Pozitif / Negatif Rozetler
-RENK_YESIL_BG = (4, 120, 87)          # #047857
-RENK_YESIL_BORDER = (16, 185, 129)    # #10B981
-RENK_YESIL_TXT = (236, 253, 245)      # #ECFDF5
+RENK_YESIL_BG = (5, 150, 105)          # #059669
+RENK_YESIL_BORDER = (16, 185, 129)     # #10B981
+RENK_YESIL_TXT = (236, 253, 245)       # #ECFDF5
 
-RENK_KIRMIZI_BG = (185, 28, 28)       # #B91C1C
-RENK_KIRMIZI_BORDER = (239, 68, 68)   # #EF4444
-RENK_KIRMIZI_TXT = (254, 242, 242)    # #FEF2F2
+RENK_KIRMIZI_BG = (220, 38, 38)        # #DC2626
+RENK_KIRMIZI_BORDER = (248, 113, 113)  # #F87171
+RENK_KIRMIZI_TXT = (254, 242, 242)     # #FEF2F2
 
 
 def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
@@ -52,7 +52,7 @@ def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
 
 
 def _arka_plan_ciz() -> Image.Image:
-    """Zengin zümrüt yeşili gradyan ve nane yeşili ışık efekti ile arka plan üretir."""
+    """Derin lacivert-grafit gradyanı ve köşelerde zarif ışıltı ile ferah arka plan üretir."""
     img = Image.new("RGB", (GENISLIK, YUKSEKLIK))
     draw = ImageDraw.Draw(img)
 
@@ -63,12 +63,12 @@ def _arka_plan_ciz() -> Image.Image:
         b = int(RENK_ARKA_UST[2] * (1 - oran) + RENK_ARKA_ALT[2] * oran)
         draw.line([(0, y), (GENISLIK, y)], fill=(r, g, b))
 
-    # Üst sol ve sağ alta zümrüt ve altın ışıltısı
+    # Üstte ve altta ferahlatıcı hafif mavi/zümrüt ambiyans ışıltıları
     glow = Image.new("RGBA", (GENISLIK, YUKSEKLIK), (0, 0, 0, 0))
     gdraw = ImageDraw.Draw(glow)
-    gdraw.ellipse([(-120, -120), (700, 600)], fill=(5, 150, 105, 50))
-    gdraw.ellipse([(550, 750), (1250, 1450)], fill=(16, 185, 129, 30))
-    glow = glow.filter(ImageFilter.GaussianBlur(120))
+    gdraw.ellipse([(-150, -150), (650, 550)], fill=(14, 116, 144, 45))   # Okyanus mavisi ışıltısı
+    gdraw.ellipse([(600, 750), (1250, 1450)], fill=(16, 185, 129, 30))   # Zümrüt nane ışıltısı
+    glow = glow.filter(ImageFilter.GaussianBlur(130))
 
     img.paste(Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB"), (0, 0))
     return img
@@ -76,7 +76,7 @@ def _arka_plan_ciz() -> Image.Image:
 
 def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     """
-    1080x1350 Instagram 1. slayt yeşil temalı, büyük kartlı ve sağda tarihli piyasa infografik kartını üretir.
+    1080x1350 Instagram 1. slayt için çok renkli, büyük kartlı ve ferah piyasa infografiğini üretir.
     """
     if not veriler:
         veriler = piyasa.piyasa_verileri_getir()
@@ -126,11 +126,11 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     draw.rounded_rectangle(
         [(header_x, 48), (header_x + rw + 24, 84)],
         radius=8,
-        fill=(6, 78, 59),
-        outline=(16, 185, 129),
+        fill=(15, 76, 117),
+        outline=(56, 189, 248),
         width=1,
     )
-    draw.text((header_x + 12, 55), rozet_txt, font=f_etiket, fill=RENK_MINT)
+    draw.text((header_x + 12, 55), rozet_txt, font=f_etiket, fill=(56, 189, 248))
     draw.text((header_x, 98), "Güne Nasıl Başladı?", font=f_baslik, fill=RENK_BEYAZ)
 
     # Tarih Alanı (En Sağda, Sağa Hizalı)
@@ -149,19 +149,44 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     draw.text((sag_kenar - w_t2, 88), tarih_satir2, font=f_tarih_kucuk, fill=RENK_SOLUK)
 
     # İnce ayırıcı çizgi
-    draw.line([(55, 202), (1025, 202)], fill=(22, 84, 66), width=2)
+    draw.line([(55, 202), (1025, 202)], fill=(38, 52, 84), width=2)
 
-    # --- 2. 6'LI BÜYÜTÜLMÜŞ GÖSTERGE GRID (2 Kolon x 3 Satır) ---
+    # --- 2. 6'LI ÇOK RENKLİ GÖSTERGE GRID (2 Kolon x 3 Satır) ---
+    # Her varlık için özgün ve canlı rozet/kenar renkleri
     kart_ogeleri = [
-        ("bist100", "BIST 100", "BIST", (6, 78, 59), (110, 231, 183), veriler.get("bist100", {})),
-        ("dolar", "Dolar / TL", "USD", (20, 83, 45), (134, 239, 172), veriler.get("dolar", {})),
-        ("euro", "Euro / TL", "EUR", (19, 78, 74), (94, 234, 212), veriler.get("euro", {})),
-        ("gram_altin", "Gram Altın", "ALTIN", (120, 53, 15), (252, 211, 77), veriler.get("gram_altin", {})),
-        ("btc", "Bitcoin", "BTC", (154, 52, 18), (253, 186, 116), veriler.get("btc", {})),
-        ("brent", "Brent Petrol", "PETROL", (15, 118, 110), (153, 246, 228), veriler.get("brent", {})),
+        # (anahtar, ad, rozet_kodu, rozet_bg, rozet_txt, kart_border, veri)
+        (
+            "bist100", "BIST 100", "BIST",
+            (3, 105, 161), (224, 242, 254), (14, 165, 233),   # Gökyüzü / Safir Mavisi
+            veriler.get("bist100", {}),
+        ),
+        (
+            "dolar", "Dolar / TL", "USD",
+            (4, 120, 87), (209, 250, 229), (16, 185, 129),    # Zümrüt Yeşili
+            veriler.get("dolar", {}),
+        ),
+        (
+            "euro", "Euro / TL", "EUR",
+            (79, 70, 229), (238, 242, 255), (129, 140, 248),  # Asil İndigo / Mor
+            veriler.get("euro", {}),
+        ),
+        (
+            "gram_altin", "Gram Altın", "ALTIN",
+            (180, 83, 9), (254, 243, 199), (245, 158, 11),    # Sıcak Altın / Amber
+            veriler.get("gram_altin", {}),
+        ),
+        (
+            "btc", "Bitcoin", "BTC",
+            (194, 65, 12), (255, 237, 213), (249, 115, 22),   # Güneş Turuncusu
+            veriler.get("btc", {}),
+        ),
+        (
+            "brent", "Brent Petrol", "PETROL",
+            (13, 148, 136), (204, 251, 241), (20, 184, 166),  # Okyanus Turkuazı
+            veriler.get("brent", {}),
+        ),
     ]
 
-    # Büyütülmüş kart ölçüleri (Yükseklik 310px, Genişlik 470px)
     kart_w = 470
     kart_h = 310
     kolon_x = [55, 555]
@@ -176,7 +201,7 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         kx = kolon_x[kolon]
         ky = satir_y[satir]
         gdraw.rounded_rectangle(
-            [(kx + 2, ky + 8), (kx + kart_w - 2, ky + kart_h + 10)],
+            [(kx + 2, ky + 8), (kx + kart_w - 2, ky + kart_h + 12)],
             radius=26,
             fill=(0, 0, 0, 160),
         )
@@ -185,13 +210,13 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
 
     draw = ImageDraw.Draw(img)
 
-    for idx, (anahtar, ad, etiket, bg_pill, txt_pill, veri) in enumerate(kart_ogeleri):
+    for idx, (anahtar, ad, etiket, bg_pill, txt_pill, border_accent, veri) in enumerate(kart_ogeleri):
         kolon = idx % 2
         satir = idx // 2
         kx = kolon_x[kolon]
         ky = satir_y[satir]
 
-        # Kart Zemin & Parlak Vurgu Kenarı
+        # Kart Zemin & Zarif Çerçeve
         draw.rounded_rectangle(
             [(kx, ky), (kx + kart_w, ky + kart_h)],
             radius=24,
@@ -200,17 +225,26 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
             width=2,
         )
 
+        # Kartın üst kenarına ince renkli vurgu çizgisi (kart kimliği)
+        draw.rounded_rectangle(
+            [(kx + 24, ky), (kx + kart_w - 24, ky + 3)],
+            radius=2,
+            fill=border_accent,
+        )
+
         # Kart İçi Üst Satır: Varlık Rozeti + Adı
         bw = draw.textlength(etiket, font=f_badge)
         draw.rounded_rectangle(
             [(kx + 26, ky + 26), (kx + 26 + bw + 22, ky + 64)],
             radius=10,
             fill=bg_pill,
+            outline=border_accent,
+            width=1,
         )
         draw.text((kx + 37, ky + 33), etiket, font=f_badge, fill=txt_pill)
         draw.text((kx + 26 + bw + 32, ky + 32), ad, font=f_kart_ad, fill=RENK_METIN_GRI)
 
-        # Fiyat Metni (Büyük 56pt)
+        # Fiyat Metni (Büyük 56pt, saf beyaz)
         fiyat_val = veri.get("fiyat", 0.0)
         if anahtar == "btc":
             fiyat_str = f"${piyasa.turkce_sayi(fiyat_val, 0)}"
@@ -246,7 +280,7 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         draw.text((rx + 16, ry + 12), rozet_txt, font=f_rozet, fill=txt_color)
 
     # --- 3. FOOTER ---
-    draw.line([(55, 1235), (1025, 1235)], fill=(22, 84, 66), width=1)
+    draw.line([(55, 1235), (1025, 1235)], fill=(38, 52, 84), width=1)
     draw.text(
         (55, 1260),
         "DailyBrief.co News  ·  Piyasa açılış göstergeleri anlık verilerdir.",
@@ -257,10 +291,10 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         (55, 1298),
         "Yatırım tavsiyesi değildir.",
         font=f_alt,
-        fill=(16, 185, 129),
+        fill=(56, 189, 248),
     )
 
     cikti_yolu = CIKTI_KLASORU / f"piyasa_karti_{simdi.strftime('%Y%m%d')}.jpg"
     img.save(cikti_yolu, "JPEG", quality=95)
-    log.info("Lüks büyük kartlı piyasa kartı üretildi: %s", cikti_yolu)
+    log.info("Çok renkli ferah piyasa kartı üretildi: %s", cikti_yolu)
     return cikti_yolu
