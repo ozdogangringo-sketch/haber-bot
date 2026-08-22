@@ -29,11 +29,17 @@
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak",
                   "plan_iptal", "havuz_guncelle",
+                  // Yönetim & Acil durum kontrolleri
+                  "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
+                  "kota_raporu", "tur_temizle",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
                   "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
 const PARAMETRELI_EYLEM =
   /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil):([1-9]|10)$/;
+
+// Botu duraklatma (1s, 6s, 12s, 24s)
+const DURAKLAT = /^duraklat:(1|6|12|24)$/;
 
 // Görsel önizleme düğmeleri: "gorsel_kabul:{slayt}:{turMesajId}".
 // ⚠️ Tur id'si komutta — önizleme AYRI bir mesajda duruyor ve
@@ -125,7 +131,8 @@ function eylemMi(veri) {
     || YAYIN_KONTROL.test(veri) || YENIDEN_YAYINLA.test(veri)
     || GORSEL_ONAY.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
-    || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA;
+    || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
+    || DURAKLAT.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -234,6 +241,18 @@ function slaytIslemMenusu(sira, adet) {
       [{ text: `🔄 ${sira}. slaytın HABERİNİ değiştir`, callback_data: `haber_degistir:${sira}` }],
       [{ text: `🗑 ${sira}. slaytı çıkar`, callback_data: `slayt_sil:${sira}` }],
       [{ text: "← Geri", callback_data: `slayt_menu:${adet}` }],
+    ],
+  };
+}
+
+function duraklatmaSecenekleriMenusu() {
+  return {
+    inline_keyboard: [
+      [{ text: "⏸️ 1 Saat Duraklat", callback_data: "duraklat:1" },
+       { text: "⏸️ 6 Saat Duraklat", callback_data: "duraklat:6" }],
+      [{ text: "⏸️ 12 Saat Duraklat", callback_data: "duraklat:12" },
+       { text: "⏸️ 24 Saat Duraklat", callback_data: "duraklat:24" }],
+      [{ text: "← Yönetim Paneline Dön", callback_data: "yonetim_panel" }],
     ],
   };
 }
@@ -419,6 +438,7 @@ export default {
             // saniye sürüyor, sabit bir metin için buna değmez.
             await mesajGonder(env, sohbet,
                 "🤖 Daily Brief botu\n\n" +
+                "/yonetim — duraklatma, kota, API testleri, acil durum\n" +
                 "/durum — onay bekleyen tur var mı, havuzda kaç haber var\n" +
                 "/tur — yeni tur hazırla (birkaç dakika sürer)\n" +
                 "/ayar — gece otomatik yayın, eşikler, kanallar\n" +
@@ -459,8 +479,9 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/tur", "/ayar", "/tamamla", "/arsiv"].includes(komutMetni)) {
-            const komut = komutMetni.slice(1);
+        if (["/durum", "/tur", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel"].includes(komutMetni)) {
+            let komut = komutMetni.slice(1);
+            if (komut === "panel") komut = "yonetim";
             const iletildi = await githubaIlet(env, komut, null,
                 msj.from ? msj.from.first_name || "" : "");
             await mesajGonder(env, sohbet,
@@ -469,11 +490,13 @@ export default {
                         ? "⏳ Yeni tur hazırlanıyor, birkaç dakika sürebilir…"
                         : komut === "ayar"
                           ? "⏳ Ayarlar getiriliyor…"
-                          : komut === "tamamla"
-                            ? "⏳ Threads zinciri kontrol ediliyor…"
-                            : komut === "arsiv"
-                              ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
-                              : "⏳ Durum sorgulanıyor…")
+                          : komut === "yonetim"
+                            ? "⏳ Yönetim paneli getiriliyor…"
+                            : komut === "tamamla"
+                              ? "⏳ Threads zinciri kontrol ediliyor…"
+                              : komut === "arsiv"
+                                ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
+                                : "⏳ Durum sorgulanıyor…")
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }
@@ -489,6 +512,13 @@ export default {
     const komut = cb.data;
     const sohbetId = cb.message ? cb.message.chat.id : null;
     const mesajId = cb.message ? cb.message.message_id : null;
+
+    // --- Duraklatma alt menüsü: Worker anında açıyor ---
+    if (komut === "duraklat_menu") {
+      await menuyuDegistir(env, sohbetId, mesajId, duraklatmaSecenekleriMenusu());
+      await butonuDurdur(env, cb.id, "");
+      return new Response("ok");
+    }
 
     // --- Ayar alt menüsü: Worker anında açıyor ---
     const ayarMenu = AYAR_MENU.exec(komut);

@@ -39,7 +39,7 @@ import yaml                                       # noqa: E402
 from src import (                                  # noqa: E402
     aday, ayar, caption, db, db_senkron, hata_bildir, dogrula, facebook, fetch_news, instagram,
     make_image, otomatik_onay, threads,
-    secim, slaytlar, telegram_bot, upload_image,
+    secim, slaytlar, telegram_bot, upload_image, yonetim,
 )
 from src import generate_text                      # noqa: E402
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -795,6 +795,16 @@ def main(zorla_haber_id: int | None = None) -> int:
     db.kur()
     con = db.baglan()
     ayar.uygula(con, ayarlar)
+
+    # ⚠️ BOT DURAKLATILDI MI KONTROLÜ (Acil durum / Mute)
+    # Kullanıcı elle bir haber seçtiyse (zorla_haber_id) engellenmez;
+    # yalnızca otomatik periyodik tarama duraklatılır.
+    if not zorla_haber_id:
+        duraklatildi, kalan = yonetim.duraklatildi_mi(con)
+        if duraklatildi:
+            log.info("Bot duraklatılmış durumda (kalan: %s), son dakika kontrolü atlandı.", kalan)
+            con.close()
+            return 0
 
     try:
         # --- 0) Kota/ağ hatası almış haberleri havuza geri al ---

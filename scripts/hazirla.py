@@ -35,7 +35,7 @@ import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
     ayar, caption, db, db_senkron, dogrula, fetch_news, hata_bildir,
-    make_image, secim, slaytlar, telegram_bot, upload_image,
+    make_image, secim, slaytlar, telegram_bot, upload_image, yonetim,
 )
 from src.generate_text import metinleri_uret       # noqa: E402
 
@@ -208,6 +208,13 @@ def main() -> int:
     con = db.baglan()
     # Telegram'dan yapılan ayar değişiklikleri config'in üstüne biner.
     ayar.uygula(con, ayarlar)
+
+    # ⚠️ BOT DURAKLATILDI MI KONTROLÜ (Acil durum / Mute)
+    duraklatildi, kalan = yonetim.duraklatildi_mi(con)
+    if duraklatildi:
+        log.info("Bot duraklatılmış durumda (kalan: %s), tur hazırlama atlandı.", kalan)
+        con.close()
+        return 0
 
     try:
         # --- 1) Yeni haberleri çek ---

@@ -37,7 +37,7 @@ from src import (                                  # noqa: E402
     aday, ayar, caption, db, db_senkron, dogrula, facebook, fetch_news,
     instagram,
     secim,
-    slaytlar, telegram_bot, threads, upload_image,
+    slaytlar, telegram_bot, threads, upload_image, yonetim,
 )
 from src import generate_text                      # noqa: E402
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -56,6 +56,8 @@ _ayarlar_onbellek: dict = {}
 # gönderdiği mesaj_id alternatif mesajına ait ve işe yaramıyor.
 MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
                      "havuz_guncelle",
+                     "yonetim", "yonetim_panel", "duraklat", "devam_et",
+                     "saglik_testi", "kota_raporu", "tur_temizle",
                      "haber_sec", "haber_vazgec",
                      # Tur id'sini KOMUTTA taşıyorlar (ayrı mesajın düğmesi)
                      "yayin_kontrol", "yeniden_yayinla",
@@ -403,6 +405,109 @@ def ayar_degistir(con, ayarlar, komut: str, mesaj_id: int, basan) -> int:
     # Ayar değişikliği veritabanında; runner'lar arasında taşınması için
     # hemen push ediliyor, yoksa sonraki job eski değeri okur.
     db_senkron.hemen_kaydet(f"Ayar: {yol} = {yeni}")
+    return 0
+
+
+def yonetim_paneli_goster(con, ayarlar: dict, mesaj_id: int | None = None) -> int:
+    """`/yonetim` — Yönetim ve acil durum kontrol panelini gönderir veya günceller."""
+    duraklatildi, kalan = yonetim.duraklatildi_mi(con)
+    durum_str = f"⏸️ DURAKLATILDI (Kalan: {kalan})" if duraklatildi else "🟢 AKTİF (Cronlar çalışıyor)"
+
+    metin = (
+        "🎛️ <b>BOT YÖNETİM & ACİL DURUM PANELİ</b>\n\n"
+        f"<b>Durum:</b> {durum_str}\n\n"
+        "Aşağıdaki butonlarla botu geçici süreyle susturabilir, "
+        "API bağlantılarını test edebilir, kotayı sorgulayabilir veya "
+        "askıda kalan turları temizleyebilirsin."
+    )
+    klavye = telegram_bot.yonetim_menusu(duraklatildi, kalan)
+    if mesaj_id:
+        telegram_bot.mesaji_guncelle(mesaj_id, metin, klavye)
+    else:
+        telegram_bot.mesaj_gonder(metin, html=True, butonlar=klavye["inline_keyboard"])
+    return 0
+
+
+def yonetim_duraklat_uygula(con, ayarlar: dict, saat: int, mesaj_id: int | None, basan: str) -> int:
+    """Botu belirtilen süre kadar duraklatır."""
+    bitis = yonetim.duraklat(con, saat, basan)
+    db_senkron.hemen_kaydet(f"Bot {saat}s duraklatıldı")
+    tr_bitis = bitis.astimezone(timezone(timedelta(hours=3)))
+
+    metin = (
+        f"⏸️ <b>BOT {saat} SAAT DURAKLATILDI</b>\n\n"
+        f"• <b>Bitiş:</b> TR {tr_bitis:%H:%M} ({basan or 'Bilinmiyor'})\n"
+        f"• <b>Kapsam:</b> Akşam turu hazırlama, son dakika arama ve hatırlatma cron'ları bu süre boyunca çalışmayacaktır.\n"
+        f"• İstediğin zaman aşağıdaki butonla duraklatmayı kaldırabilirsin."
+    )
+    klavye = telegram_bot.yonetim_menusu(True, f"{saat} saat")
+    if mesaj_id:
+        telegram_bot.mesaji_guncelle(mesaj_id, metin, klavye)
+    else:
+        telegram_bot.mesaj_gonder(metin, html=True, butonlar=klavye["inline_keyboard"])
+    return 0
+
+
+def yonetim_devam_et_uygula(con, ayarlar: dict, mesaj_id: int | None, basan: str) -> int:
+    """Bot duraklatmasını kaldırır."""
+    yonetim.devam_et(con, basan)
+    db_senkron.hemen_kaydet("Bot duraklatması kaldırıldı")
+
+    metin = (
+        f"🟢 <b>BOT DURAKLATMASI KALDIRILDI</b>\n\n"
+        f"• Tüm periyodik cron akışları normale döndü ({basan or 'Bilinmiyor'})."
+    )
+    klavye = telegram_bot.yonetim_menusu(False, "")
+    if mesaj_id:
+        telegram_bot.mesaji_guncelle(mesaj_id, metin, klavye)
+    else:
+        telegram_bot.mesaj_gonder(metin, html=True, butonlar=klavye["inline_keyboard"])
+    return 0
+
+
+def yonetim_saglik_testi_uygula(ayarlar: dict, mesaj_id: int | None) -> int:
+    """API bağlantı sağlık testini çalıştırıp raporlar."""
+    sonuclar = yonetim.api_saglik_testi(ayarlar)
+    satirlar = ["🧪 <b>API BAĞLANTI SAĞLIK TESTİ</b>\n"]
+    for s in sonuclar:
+        simge = "✅" if s["durum"] else "❌"
+        satirlar.append(f"{simge} <b>{s['ad']}:</b> {s['mesaj']}")
+
+    metin = "\n".join(satirlar)
+    klavye = {"inline_keyboard": [[{"text": "← Yönetim Paneline Dön", "callback_data": "yonetim_panel"}]]}
+    if mesaj_id:
+        telegram_bot.mesaji_guncelle(mesaj_id, metin, klavye)
+    else:
+        telegram_bot.mesaj_gonder(metin, html=True, butonlar=klavye["inline_keyboard"])
+    return 0
+
+
+def yonetim_kota_raporu_uygula(con, ayarlar: dict, mesaj_id: int | None) -> int:
+    """Canlı kota ve durum raporunu Telegram'a gönderir."""
+    metin = yonetim.kota_ve_durum_raporu(con, ayarlar)
+    klavye = {"inline_keyboard": [[{"text": "← Yönetim Paneline Dön", "callback_data": "yonetim_panel"}]]}
+    if mesaj_id:
+        telegram_bot.mesaji_guncelle(mesaj_id, metin, klavye)
+    else:
+        telegram_bot.mesaj_gonder(metin, html=True, butonlar=klavye["inline_keyboard"])
+    return 0
+
+
+def yonetim_tur_temizle_uygula(con, ayarlar: dict, mesaj_id: int | None) -> int:
+    """Askıda kalan onay bekleyen turları sıfırlar."""
+    adet = yonetim.askidaki_turlari_temizle(con)
+    db_senkron.hemen_kaydet(f"{adet} askıda haber temizlendi")
+
+    metin = (
+        f"🧹 <b>ASKIDAKİ TURLAR TEMİZLENDİ</b>\n\n"
+        f"• Yanıtsız kalan <b>{adet}</b> haber onay kuyruğundan çıkarılıp havuza iade edildi.\n"
+        f"• Yayınlanmış olan haberlere dokunulmadı."
+    )
+    klavye = {"inline_keyboard": [[{"text": "← Yönetim Paneline Dön", "callback_data": "yonetim_panel"}]]}
+    if mesaj_id:
+        telegram_bot.mesaji_guncelle(mesaj_id, metin, klavye)
+    else:
+        telegram_bot.mesaj_gonder(metin, html=True, butonlar=klavye["inline_keyboard"])
     return 0
 
 
@@ -1714,6 +1819,20 @@ def main() -> int:
         menuyu_geri_koy(con, int(komut.split(":")[1]))
         telegram_bot.mesaj_gonder("Haber değiştirilmedi.")
         return 0
+
+    if komut in ("yonetim", "yonetim_panel"):
+        return yonetim_paneli_goster(con, ayarlar, mesaj_id)
+    if komut.startswith("duraklat:"):
+        saat = int(komut.split(":")[1])
+        return yonetim_duraklat_uygula(con, ayarlar, saat, mesaj_id, basan)
+    if komut == "devam_et":
+        return yonetim_devam_et_uygula(con, ayarlar, mesaj_id, basan)
+    if komut == "saglik_testi":
+        return yonetim_saglik_testi_uygula(ayarlar, mesaj_id)
+    if komut == "kota_raporu":
+        return yonetim_kota_raporu_uygula(con, ayarlar, mesaj_id)
+    if komut == "tur_temizle":
+        return yonetim_tur_temizle_uygula(con, ayarlar, mesaj_id)
 
     if komut == "ayar":
         return ayar_paneli(con, ayarlar)

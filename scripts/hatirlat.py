@@ -28,7 +28,7 @@ sys.path.insert(0, str(KOK))
 
 import yaml                                  # noqa: E402
 
-from src import db, telegram_bot             # noqa: E402
+from src import db, telegram_bot, yonetim             # noqa: E402
 
 log = logging.getLogger("hatirlat")
 
@@ -175,6 +175,13 @@ def main() -> int:
     yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
     db.kur()
     con = db.baglan()
+
+    # ⚠️ BOT DURAKLATILDI MI KONTROLÜ (Acil durum / Mute)
+    duraklatildi, kalan = yonetim.duraklatildi_mi(con)
+    if duraklatildi:
+        log.info("Bot duraklatılmış durumda (kalan: %s), hatırlatma atlandı.", kalan)
+        con.close()
+        return 0
 
     haberler = bekleyen_tur(con)
     if not haberler:

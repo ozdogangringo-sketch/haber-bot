@@ -223,6 +223,33 @@ def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
     ]}
 
 
+def yonetim_menusu(duraklatildi: bool = False, kalan_sure: str = "") -> dict:
+    """Yönetim ve acil durum kontrol paneli menüsü."""
+    duraklat_butonu = (
+        {"text": f"▶️ Devam Ettir ({kalan_sure})", "callback_data": "devam_et"}
+        if duraklatildi
+        else {"text": "⏸️ Botu Duraklat (Mute)", "callback_data": "duraklat_menu"}
+    )
+    return {"inline_keyboard": [
+        [duraklat_butonu, {"text": "📊 Kota & Durum", "callback_data": "kota_raporu"}],
+        [{"text": "🧪 API Sağlık Testi", "callback_data": "saglik_testi"},
+         {"text": "🧹 Askıdaki Turları Temizle", "callback_data": "tur_temizle"}],
+        [{"text": "⚙️ Bot Ayarları", "callback_data": "ayar"},
+         {"text": "🔄 Havuzu Güncelle", "callback_data": "havuz_guncelle"}],
+    ]}
+
+
+def duraklatma_secenekleri_menusu() -> dict:
+    """Duraklatma süresi seçim menüsü."""
+    return {"inline_keyboard": [
+        [{"text": "⏸️ 1 Saat Duraklat", "callback_data": "duraklat:1"},
+         {"text": "⏸️ 6 Saat Duraklat", "callback_data": "duraklat:6"}],
+        [{"text": "⏸️ 12 Saat Duraklat", "callback_data": "duraklat:12"},
+         {"text": "⏸️ 24 Saat Duraklat", "callback_data": "duraklat:24"}],
+        [{"text": "← Yönetim Paneline Dön", "callback_data": "yonetim_panel"}],
+    ]}
+
+
 def baslik_onay_menusu() -> dict:
     """
     Tur başlıkları sunulduğunda gösterilen menü.
