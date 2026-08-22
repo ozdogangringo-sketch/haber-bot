@@ -2265,6 +2265,37 @@ def main() -> int:
         log.info("öneri geçildi")
         return 0
 
+    if komut == "durum":
+        return durum_bildir(con, ayarlar)
+
+    if komut == "hata:sondakika_tekrar":
+        from scripts import son_dakika
+        telegram_bot.mesaj_gonder("🔄 Son dakika kontrolü yeniden başlatılıyor...")
+        return son_dakika.main()
+
+    if komut in ("hata:tur_tekrar", "tur_tekrar"):
+        from scripts import ekonomi_turu
+        telegram_bot.mesaj_gonder("🔄 Ekonomi & Piyasa turu sıfırdan hazırlanıyor...")
+        return ekonomi_turu.main()
+
+    if komut == "hata:tur_metinsiz":
+        from scripts import hazirla
+        telegram_bot.mesaj_gonder("🧯 Havuzdaki hazır metinlerle tur kuruluyor...")
+        return hazirla.main()
+
+    if komut in ("hata:ayrinti", "ayrinti"):
+        son_hata_dosya = Path("data") / "son_hata.txt"
+        icerik = ""
+        if son_hata_dosya.exists():
+            icerik = son_hata_dosya.read_text(encoding="utf-8").strip()
+        if not icerik:
+            icerik = "Kayıtlı detaylı hata izi bulunamadı veya temizlendi."
+        telegram_bot.mesaj_gonder(
+            f"📄 <b>DETAYLI HATA RAPORU / TRACEBACK</b>\n\n<code>{html.escape(icerik[:3500])}</code>",
+            html=True,
+        )
+        return 0
+
     if komut.startswith("ayarsec:"):
         return ayar_degistir(con, ayarlar, komut.split(":", 1)[1],
                              mesaj_id, basan)

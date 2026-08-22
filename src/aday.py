@@ -214,18 +214,19 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     havuzun %98'inin tazelik filtresine takıldığı ancak elle ölçerek
     anlaşılmıştı; artık log doğrudan söylüyor.
     """
-    puan = haber["onem_puani"] or 0
-    kategori = haber["kategori"] or ""
+    h = dict(haber) if hasattr(haber, "keys") else (haber or {})
+    puan = h.get("onem_puani") or 0
+    kategori = h.get("kategori") or ""
     baslik = _baslik(haber)
 
     # 0) Gündüz tekil olarak yayınlanan haber akşam turuna girmiyor.
-    if baglam.ad == TUR and haber.get("daha_once_yayinlandi"):
+    if baglam.ad == TUR and h.get("daha_once_yayinlandi"):
         return False, "gündüz zaten yayınlandı"
 
     # 0b) Instagram Topluluk Standartları & Güvenlik Filtresi (İntihar / İstismar Engeli)
     # ⚠️ Instagram NLP/OCR denetimleri intihar ve kendine zarar verme haberlerine
     # yıldız sansürü (* işareti) olsa bile 18+ kısıtlaması ve keşfet cezası uyguluyor.
-    ham_metin = f"{haber.get('baslik_orj', '')} {haber.get('ig_baslik', '')} {haber.get('ozet_orj', '')}".lower()
+    ham_metin = f"{h.get('baslik_orj', '')} {h.get('ig_baslik', '')} {h.get('ozet_orj', '')}".lower()
     for yasakli in (
         "intihar", "canına kıy", "kendini as", "kendini vur", "köprüden atla",
         "balkondan atla", "hayatına son ver", "çocuk istismar", "tecavüz",
