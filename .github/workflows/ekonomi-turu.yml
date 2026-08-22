@@ -1,0 +1,50 @@
+# =========================================================
+#  EKONOMİ VE PİYASA TURU (Hafta içi TR 10:05 / UTC 07:05)
+#
+#  Piyasa Açılış İnfografiği + Günün Seçme Ekonomi Haberleri
+# =========================================================
+
+name: Ekonomi Turu
+
+on:
+  schedule:
+    - cron: "5 7 * * 1-5"      # Hafta içi TR 10:05 (BIST açılışı sonrası)
+  workflow_dispatch:          # Actions ekranından elle çalıştırma
+  repository_dispatch:
+    types: [ekonomi_turu]
+
+concurrency:
+  group: veritabani
+  cancel-in-progress: false
+
+jobs:
+  ekonomi_turu:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Ekonomi turunu hazırla
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_API_KEY: ${{ secrets.GEMINI_IMAGE_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/ekonomi_turu.py
+
+      - name: Veritabanını kaydet
+        if: always()
+        run: python scripts/db_kaydet.py "Ekonomi turu hazırlandı"

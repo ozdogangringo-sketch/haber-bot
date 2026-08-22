@@ -362,3 +362,76 @@ def caption_kur(
         metin = birlestir(maddeler, "", "")
 
     return metin
+
+
+EKONOMI_HASHTAGLER = [
+    "ekonomi", "borsa", "bist100", "altın", "dolar",
+    "finans", "piyasalar", "gündem", "haber", "türkiye"
+]
+
+
+def ekonomi_caption(
+    piyasa_verileri: dict,
+    haberler: list,
+    sonuclar: list[dict] | None = None,
+    ayarlar: dict | None = None,
+    gun: date | None = None,
+) -> str:
+    """
+    Ekonomi ve Piyasa Açılış Turunun Instagram caption metnini üretir.
+    """
+    gun = gun or date.today()
+    bas = f"📊 GÜNE BAŞLARKEN PİYASALAR · {tarih_metni(gun)}"
+
+    piyasa_satirlari = []
+    if "bist100" in piyasa_verileri:
+        b = piyasa_verileri["bist100"]
+        f_str = f"{b['fiyat']:,.0f}".replace(",", ".")
+        piyasa_satirlari.append(f"• BIST 100: {f_str} (%{b['degisim']:+.2f})")
+    if "dolar" in piyasa_verileri:
+        d = piyasa_verileri["dolar"]
+        piyasa_satirlari.append(f"• Dolar/TL: {d['fiyat']:.2f} ₺ (%{d['degisim']:+.2f})")
+    if "euro" in piyasa_verileri:
+        e = piyasa_verileri["euro"]
+        piyasa_satirlari.append(f"• Euro/TL: {e['fiyat']:.2f} ₺ (%{e['degisim']:+.2f})")
+    if "gram_altin" in piyasa_verileri:
+        g = piyasa_verileri["gram_altin"]
+        f_str = f"{g['fiyat']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        piyasa_satirlari.append(f"• Gram Altın: {f_str} ₺ (%{g['degisim']:+.2f})")
+    if "btc" in piyasa_verileri:
+        btc = piyasa_verileri["btc"]
+        f_str = f"{btc['fiyat']:,.0f}".replace(",", ".")
+        piyasa_satirlari.append(f"• Bitcoin: ${f_str} (%{btc['degisim']:+.2f})")
+    if "brent" in piyasa_verileri:
+        br = piyasa_verileri["brent"]
+        piyasa_satirlari.append(f"• Brent Petrol: ${br['fiyat']:.2f} (%{br['degisim']:+.2f})")
+
+    piyasa_bloku = "\n".join(piyasa_satirlari)
+
+    haber_maddeleri = []
+    if haberler:
+        haber_maddeleri.append("📌 Öne Çıkan Ekonomi Başlıkları:")
+        for sira, haber in enumerate(haberler, start=1):
+            baslik = (haber["ig_baslik"] or haber["baslik_orj"]).strip()
+            haber_maddeleri.append(f"{sira + 1}. {baslik}")
+
+    etiket_listesi = list(EKONOMI_HASHTAGLER)
+    for h in haberler:
+        ham = h["ig_hashtag"] or "" if "ig_hashtag" in h.keys() else ""
+        for et in re.split(r"[,\s]+", ham):
+            et = et.strip().lstrip("#")
+            if et and et.casefold() not in [x.casefold() for x in etiket_listesi]:
+                etiket_listesi.append(et)
+
+    etiketler = " ".join(f"#{e}" for e in etiket_listesi[:AZAMI_HASHTAG])
+    atif = atif_bloku(sonuclar or [])
+
+    parcalar = [bas, piyasa_bloku]
+    if haber_maddeleri:
+        parcalar.append("\n".join(haber_maddeleri))
+    if atif:
+        parcalar.append(atif)
+    if etiketler:
+        parcalar.append(etiketler)
+
+    return "\n\n".join(p for p in parcalar if p).strip()

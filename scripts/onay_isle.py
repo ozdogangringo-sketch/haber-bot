@@ -154,6 +154,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
+    # Ekonomi turu: 1. slayt piyasa infografik kartıdır
+    if haberler and haberler[0].get("tur") == "ekonomi":
+        satir = con.execute(
+            "SELECT deger FROM ayarlar WHERE anahtar = ?",
+            (f"piyasa_karti_{mesaj_id}",)
+        ).fetchone()
+        if satir and satir["deger"]:
+            urller.insert(0, satir["deger"])
+
     # Son dakika turu TEK haberden birden çok slayt üretiyor: 1 haber +
     # 1-4 ayrıntı sayfası (metin uzunsa sayfa ekleniyor). Bunlar ayrı
     # kolonda JSON listesi olarak duruyor; buraya eklenmezse elde tek
@@ -174,8 +183,10 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             f"Tur bozuk görünüyor — /tur ile yenisini kurabilirsin."
         )
 
-    # ⚠️ SON DAKİKA AYRI CAPTION KULLANIYOR.
-    if haberler[0]["son_dakika"]:
+    # Caption belirleme
+    if haberler[0].get("tur") == "ekonomi" and haberler[0].get("ig_caption"):
+        metin = haberler[0]["ig_caption"]
+    elif haberler[0]["son_dakika"]:
         metin = caption.son_dakika_caption(
             haberler[0], _sonuclari_kur(haberler), ayarlar)
     else:
