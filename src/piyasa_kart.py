@@ -264,13 +264,14 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
             outline=RENK_KART_BORDER,
             width=2,
         )
+        # Sektör Şerit Zemini: Krem / Kirli Beyaz (#F2EFE8)
         draw.rounded_rectangle(
             [(sx, sy), (sx + sw, sy + ribbon_h)],
             radius=10,
-            fill=RENK_SEKTOR_BG,
+            fill=(242, 239, 232),
         )
-        # Sektör Başlığı (Krem / Kirli Beyaz Asil Ton: #F6F3EC)
-        draw.text((sx + 14, sy + 8), f"› {sektor_adi}", font=f_sektor, fill=(246, 243, 236))
+        # Sektör Başlık Yazısı: Derin Koyu Petrol (#061F24)
+        draw.text((sx + 14, sy + 8), f"› {sektor_adi}", font=_font(18, 900.0), fill=(6, 31, 36))
 
         icerik_rect = (sx + 2, sy + ribbon_h + 3, sw - 4, sh - ribbon_h - 5)
         hucreler = _squarify(ogeler, icerik_rect)
