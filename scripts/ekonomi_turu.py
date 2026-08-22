@@ -1,9 +1,9 @@
 """
-ekonomi_turu.py — Hafta içi sabah borsa açılışıyla (TR 10:05) Ekonomi Turu hazırlar.
+ekonomi_turu.py — Hafta içi ve hafta sonu sabah piyasa açılışıyla (TR 10:05) Ekonomi Turu hazırlar.
 
 Yapı:
-  * 1. Slayt: Canlı BIST 100, Dolar, Euro, Gram Altın, Bitcoin, Brent Petrol İnfografiği
-  * 2..N. Slaytlar: Günün taze ekonomi haberleri (1 ila 5 haber)
+  * 1. Slayt: Canlı BIST 100, Dolar, Euro, Gram Altın, Bitcoin, Brent Petrol İnfografiği (Yeşil Temalı)
+  * 2..N. Slaytlar: Günün seçme borsa, hisse, altın, döviz, faiz, merkez bankası haberleri (1 ila 5 haber)
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import yaml
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 
-from src import caption, db, db_senkron, piyasa, piyasa_kart, slaytlar, telegram_bot, upload_image, yonetim  # noqa: E402
+from src import caption, db, db_senkron, generate_text, piyasa, piyasa_kart, slaytlar, telegram_bot, upload_image, yonetim  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,51 +50,68 @@ def main() -> int:
     # 2. Canlı piyasa göstergelerini çek
     piyasa_verileri = piyasa.piyasa_verileri_getir()
 
-    # 3. 1. Slayt (İnfografik Kartı) üret ve ImgBB'ye yükle
+    # 3. 1. Slayt (Yeşil Temalı İnfografik Kartı) üret ve ImgBB'ye yükle
     kart_yolu = piyasa_kart.piyasa_karti_uret(piyasa_verileri)
     kart_yukleme = upload_image.gorsel_yukle(kart_yolu, ayarlar)
     kart_url = kart_yukleme["url"]
 
-    # 4. Taze ekonomi haberlerini seç (1 ila 5 haber)
+    # 4. Taze ekonomi haberlerini seç (Piyasa ve finans odaklı puanlama)
     sinir = datetime.now(timezone.utc) - timedelta(
-        hours=ayarlar.get("genel", {}).get("yayin_yasi_siniri_saat", 36)
+        hours=ayarlar.get("genel", {}).get("yayin_yasi_siniri_saat", 48)
     )
+
+    # Durum 'yeni' olan taze ekonomi haberlerinin metinlerini üret
+    try:
+        generate_text.metinleri_uret(limit=5)
+    except Exception as e:
+        log.warning("Metin üretim adımı atlandı/hata: %s", e)
 
     sorgu = """
     SELECT * FROM haberler
     WHERE (
         kaynak IN ('AA Ekonomi', 'TRT Ekonomi', 'BloombergHT', 'Dünya Gazetesi', 'Para Medya')
         OR kategori = 'ekonomi'
-        OR (
-            (ig_baslik LIKE '%borsa%'
-             OR ig_baslik LIKE '%faiz%'
-             OR ig_baslik LIKE '%enflasyon%'
-             OR ig_baslik LIKE '%dolar%'
-             OR ig_baslik LIKE '%euro%'
-             OR ig_baslik LIKE '%altın%'
-             OR ig_baslik LIKE '%merkez bankası%'
-             OR ig_baslik LIKE '%bist%'
-             OR ig_baslik LIKE '%kripto%'
-             OR ig_baslik LIKE '%bitcoin%'
-             OR ig_baslik LIKE '%ihracat%'
-             OR ig_baslik LIKE '%ithalat%'
-             OR ig_baslik LIKE '%vergi%'
-             OR ig_baslik LIKE '%asgari ücret%'
-             OR ig_baslik LIKE '%tüik%'
-             OR ig_baslik LIKE '%hisse%'
-             OR ig_baslik LIKE '%mevduat%'
-             OR ig_baslik LIKE '%kredi%')
-        )
     )
-      AND durum = 'metin_hazir'
-      AND ig_baslik IS NOT NULL
       AND COALESCE(daha_once_yayinlandi, 0) = 0
       AND (telegram_message_id IS NULL OR telegram_message_id = 0)
       AND yayin_tarihi >= ?
-    ORDER BY onem_puani DESC, yayin_tarihi DESC
-    LIMIT 5
     """
-    secilen_haberler = list(con.execute(sorgu, (sinir.isoformat(),)))
+    tum_adaylar = list(con.execute(sorgu, (sinir.isoformat(),)))
+
+    ONEMLI_KELIMELER = [
+        "borsa", "bist", "hisse", "halka arz", "altın", "dolar", "euro", "döviz",
+        "merkez bankası", "tcmb", "faiz", "enflasyon", "kripto", "bitcoin",
+        "petrol", "yatırım", "temettü", "fed", "bilanço", "ihracat", "şirket"
+    ]
+    CEZA_KELIMELER = [
+        "araç muayene", "römork", "depozito", "çocuk gizliliği", "evlilik desteği",
+        "hava durumu", "tarımsal destekleme"
+    ]
+
+    puanli_adaylar = []
+    for h in tum_adaylar:
+        baslik = ((h["ig_baslik"] or h["baslik_orj"]) or "").lower()
+        puan = h["onem_puani"] or 5
+        for k in ONEMLI_KELIMELER:
+            if k in baslik:
+                puan += 4
+        for k in CEZA_KELIMELER:
+            if k in baslik:
+                puan -= 10
+        # Metni hazır olanlara öncelik ver
+        if h["durum"] == "metin_hazir" and h["ig_baslik"]:
+            puan += 3
+        puanli_adaylar.append((puan, h))
+
+    puanli_adaylar.sort(key=lambda x: (x[0], x[1]["id"]), reverse=True)
+    secilen_adaylar = [item[1] for item in puanli_adaylar[:5]]
+
+    # Seçilenlerin güncel verilerini al
+    secilen_haberler = []
+    for h in secilen_adaylar:
+        taze_h = con.execute("SELECT * FROM haberler WHERE id = ?", (h["id"],)).fetchone()
+        if taze_h and (taze_h["ig_baslik"] or taze_h["baslik_orj"]):
+            secilen_haberler.append(taze_h)
 
     log.info("Piyasa kartı + %s ekonomi haberi seçildi", len(secilen_haberler))
 

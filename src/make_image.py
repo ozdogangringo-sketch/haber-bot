@@ -498,6 +498,22 @@ def serit_rengi(kategori: str, g: dict) -> tuple:
     return tuple(renkler.get(kategori, varsayilan))
 
 
+LOGO_YOLU = KOK / "assets" / "logo_circular.png"
+
+
+def _logoyu_bas(gorsel: Image.Image, x: int, y: int, boy: int = 62) -> Image.Image:
+    """Sol üst veya belirtilen konuma DailyBrief dairesel logosunu basar."""
+    if not LOGO_YOLU.exists():
+        return gorsel
+    try:
+        logo = Image.open(LOGO_YOLU).convert("RGBA")
+        logo = logo.resize((boy, boy), Image.Resampling.LANCZOS)
+        gorsel.paste(logo, (x, y), mask=logo)
+    except Exception as e:
+        log.warning("logo basılamadı: %s", e)
+    return gorsel
+
+
 def yaziyi_bas(
     arkaplan: Image.Image, baslik: str, kaynak: str, ayarlar: dict,
     ozet: str | None = None,
@@ -624,9 +640,11 @@ def yaziyi_bas(
     gorsel = kanal_ikonlari_bas(gorsel, ayarlar, alt_bilgi_y + 13)
     ciz = ImageDraw.Draw(gorsel)
 
-    # Sol üstte ince vurgu çizgisi — hesaba tutarlı bir imza katsın
+    # Sol üstte DailyBrief logosu ve ince vurgu çizgisi — hesaba tutarlı bir imza katsın
+    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 8, boy=62)
+    ciz = ImageDraw.Draw(gorsel)
     ciz.rectangle(
-        [kenar, dikey_kenar, kenar + 92, dikey_kenar + 7],
+        [kenar + 76, dikey_kenar + 22, kenar + 76 + 60, dikey_kenar + 28],
         fill=(226, 170, 88),
     )
 
@@ -1094,22 +1112,24 @@ def detay_slayti(
     # görünür hâle geliyordu — başlık alanını bayrak kadar daraltıyoruz.
     baslik_genislik = alan_genislik - (170 if ulke_kodu else 0)
 
+    # Sol üst logo
+    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 8, boy=62)
+    ciz = ImageDraw.Draw(gorsel)
+
     # --- Üst: SON DAKİKA etiketi (yalnızca olağanüstü olaylarda) ---
-    # Etiket eşiği çağıran tarafta karar veriliyor: tetikleme eşiği 8 ama
-    # etiket 9+, yoksa her gün "son dakika" görüp ibare değersizleşiyor.
     if son_dakika:
         etiket_font = _font(24, EKSEN_KUCUK)
         etiket = "SON DAKİKA"
         metin_g = ciz.textlength(etiket, font=etiket_font)
         ciz.rectangle(
-            [kenar, dikey_kenar, kenar + metin_g + 28, dikey_kenar + 42],
+            [kenar + 76, dikey_kenar, kenar + 76 + metin_g + 28, dikey_kenar + 42],
             fill=(198, 60, 52),
         )
-        ciz.text((kenar + 14, dikey_kenar + 9), etiket, font=etiket_font,
+        ciz.text((kenar + 76 + 14, dikey_kenar + 9), etiket, font=etiket_font,
                  fill=(255, 255, 255))
         y = dikey_kenar + 76
     else:
-        y = dikey_kenar + 10
+        y = dikey_kenar + 70
 
     # --- Başlık: küçük punto, bu slaytın yıldızı değil ---
     b_font = _font(46, EKSEN_BASLIK)
