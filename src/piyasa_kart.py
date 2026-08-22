@@ -1,5 +1,5 @@
 """
-piyasa_kart.py — 1080x1350 Instagram Carousel 1. Slaytı için Kirli Beyaz & Lacivert Gradyanlı, Canlı Kontrastlı Borsa & Piyasa Özeti.
+piyasa_kart.py — 1080x1350 Instagram Carousel 1. Slaytı için Derin Petrol & Siber Turkuaz (Varyasyon 14) Temalı, Ferah Fiyatlı Borsa & Piyasa Özeti.
 """
 
 from __future__ import annotations
@@ -22,17 +22,19 @@ CIKTI_KLASORU = KOK / "data" / "output"
 GENISLIK = 1080
 YUKSEKLIK = 1350
 
-# Kirli Beyaz -> Yumuşak Buzul Lacivert Gradyan Paleti
-RENK_ARKA_UST = (236, 240, 246)          # #ECF0F6 (Platin / Kirli Beyaz)
-RENK_ARKA_ORTA = (222, 230, 240)         # #DEE6F0 (Gümüşi Yumuşak Slate)
-RENK_ARKA_ALT = (202, 215, 230)          # #CAD7E6 (Buzul Lacivert-Gri)
+# Varyasyon 14: Derin Petrol & Siber Turkuaz Paleti
+RENK_ARKA_UST = (4, 24, 28)              # #04181C (Derin Okyanus Petrolü)
+RENK_ARKA_ORTA = (8, 38, 44)             # #08262C (Petrol Slate)
+RENK_ARKA_ALT = (3, 16, 20)              # #031014 (Derin Gece Zemin)
+RENK_GLOW = (6, 182, 212, 40)            # #06B6D4 (Siber Turkuaz Parlama)
 
-RENK_KART_CONTAINER = (250, 252, 255)    # #FAFCFF (İnci Beyazı Konteyner)
-RENK_KART_BORDER = (195, 207, 224)       # #C3CFE0 (Zarif Lacivert-Gri Çerçeve)
-RENK_SEKTOR_BG = (15, 23, 42)            # #0F172A (Derin Lacivert Şerit)
-RENK_BASLIK_KOYU = (15, 23, 42)          # #0F172A (Net Koyu Başlık)
-RENK_GRI_METIN = (85, 102, 128)          # #556680 (Dengeli Slate Gri)
+RENK_KART_CONTAINER = (12, 45, 52)       # #0C2D34 (Petrol Konteyner)
+RENK_KART_BORDER = (25, 85, 96)          # #195560 (Turkuaz Çerçeve)
+RENK_SEKTOR_BG = (18, 62, 72)            # #123E48 (Sektör Şeridi)
+RENK_BASLIK_KOYU = (255, 255, 255)       # #FFFFFF (Saf Beyaz Başlık)
+RENK_GRI_METIN = (140, 185, 195)         # #8CB9C3 (Petrol Gri Metin)
 RENK_BEYAZ = (255, 255, 255)
+RENK_FIYAT_ACIK = (226, 232, 240)        # #E2E8F0 (Net Açık Fiyat Rengi)
 
 
 def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
@@ -46,29 +48,22 @@ def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
 
 def _renk_hesapla_canli(degisim: float) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
     """
-    Kirli beyaz zemin üstünde parlayan canlı, kontrastlı ve zıt renkler döner.
+    Karanlık petrol zemin üstünde parlayan canlı, kontrastlı kutu renkleri.
     Döner: (Kutu_Zemin_Rengi, Kutu_Cerceve_Rengi)
     """
     if degisim >= 2.5:
-        # Parlak Canlı Zümrüt Yeşili
         return (16, 185, 129), (5, 150, 105)
     elif degisim >= 0.5:
-        # Canlı Yeşil
         return (22, 163, 74), (21, 128, 61)
     elif degisim > 0.05:
-        # Zengin Koyu Yeşil
         return (21, 128, 61), (20, 83, 45)
     elif degisim >= -0.05:
-        # Nötr Slate Grafit
         return (71, 85, 105), (51, 65, 85)
     elif degisim > -0.5:
-        # Zengin Koyu Kırmızı
         return (185, 28, 28), (153, 27, 27)
     elif degisim > -2.5:
-        # Canlı Kırmızı
         return (220, 38, 38), (185, 28, 28)
     else:
-        # Parlak Canlı Yakut Kırmızı
         return (239, 68, 68), (220, 38, 38)
 
 
@@ -91,14 +86,10 @@ def _fiyat_bicimlendir(sym: str, fiyat: float) -> str:
     elif sym in ("BTC-USD", "ETH-USD"):
         return f"${piyasa.turkce_sayi(fiyat, 0)}"
     else:
-        # Yabancı hisseler
         return f"${piyasa.turkce_sayi(fiyat, 2)}"
 
 
 def _squarify(children: list[dict], rect: tuple[int, int, int, int]) -> list[tuple[dict, tuple[int, int, int, int]]]:
-    """
-    Verilen alanı çocuk elemanların ağırlıklarına (val) göre orantılı dikdörtgenlere böler.
-    """
     x, y, w, h = rect
     if not children or w <= 0 or h <= 0:
         return []
@@ -111,7 +102,6 @@ def _squarify(children: list[dict], rect: tuple[int, int, int, int]) -> list[tup
 
     results = []
     if w >= h:
-        # Dikey bölme (Sol / Sağ)
         half_val = 0
         split_idx = 0
         for i, c in enumerate(children):
@@ -128,7 +118,6 @@ def _squarify(children: list[dict], rect: tuple[int, int, int, int]) -> list[tup
         results.extend(_squarify(left_children, (x, y, left_w, h)))
         results.extend(_squarify(right_children, (x + left_w, y, right_w, h)))
     else:
-        # Yatay bölme (Üst / Alt)
         half_val = 0
         split_idx = 0
         for i, c in enumerate(children):
@@ -148,11 +137,10 @@ def _squarify(children: list[dict], rect: tuple[int, int, int, int]) -> list[tup
 
 
 def _arka_plan_ciz() -> Image.Image:
-    """Kirli beyazdan buzul laciverte akıcı lüks gradyan ve ambiyans üretir."""
+    """Derin petrol ve turkuaz gradyan ile lüks ambiyans üretir."""
     img = Image.new("RGB", (GENISLIK, YUKSEKLIK))
     draw = ImageDraw.Draw(img)
 
-    # 3 Noktalı Pürüzsüz Gradyan (Üst: Platin Kirli Beyaz -> Orta: Gümüş Slate -> Alt: Buzul Lacivert)
     for y in range(YUKSEKLIK):
         if y < 650:
             oran = y / 650.0
@@ -166,11 +154,10 @@ def _arka_plan_ciz() -> Image.Image:
             b = int(RENK_ARKA_ORTA[2] * (1 - oran) + RENK_ARKA_ALT[2] * oran)
         draw.line([(0, y), (GENISLIK, y)], fill=(r, g, b))
 
-    # Yumuşak lacivert ve altın ışık ambiyansı
     glow = Image.new("RGBA", (GENISLIK, YUKSEKLIK), (0, 0, 0, 0))
     gdraw = ImageDraw.Draw(glow)
-    gdraw.ellipse([(-120, -120), (600, 480)], fill=(30, 58, 138, 30))
-    gdraw.ellipse([(620, 680), (1250, 1450)], fill=(15, 23, 42, 35))
+    gdraw.ellipse([(-120, -120), (600, 480)], fill=RENK_GLOW)
+    gdraw.ellipse([(620, 680), (1250, 1450)], fill=(6, 182, 212, 25))
     glow = glow.filter(ImageFilter.GaussianBlur(140))
 
     img.paste(Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB"), (0, 0))
@@ -179,7 +166,7 @@ def _arka_plan_ciz() -> Image.Image:
 
 def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     """
-    1080x1350 Instagram 1. slayt için Kirli Beyaz/Lacivert gradyanlı, Canlı renkli ve Fiyatlı borsa infografiğini üretir.
+    1080x1350 Instagram 1. slayt için Derin Petrol & Siber Turkuaz temalı, ferah fiyatlı piyasa kartını üretir.
     """
     CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
@@ -195,7 +182,7 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     f_sektor = _font(18, 800.0)
     f_alt_kucuk = _font(17, 600.0)
 
-    # --- 1. HEADER (Logo + Güne Nasıl Başladı? + Aşağı İndirilmiş Tarih) ---
+    # --- 1. HEADER ---
     logo_boyut = 126
     logo_x = 45
     logo_y = 38
@@ -205,7 +192,7 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
             golge = Image.new("RGBA", (GENISLIK, YUKSEKLIK), (0, 0, 0, 0))
             ImageDraw.Draw(golge).ellipse(
                 [logo_x - 4, logo_y - 2, logo_x + logo_boyut + 6, logo_y + logo_boyut + 8],
-                fill=(15, 23, 42, 70),
+                fill=(0, 0, 0, 120),
             )
             golge = golge.filter(ImageFilter.GaussianBlur(14))
             img.paste(Image.alpha_composite(img.convert("RGBA"), golge).convert("RGB"), (0, 0))
@@ -218,20 +205,18 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
 
     draw = ImageDraw.Draw(img)
 
-    # Rozet (Logonun Sağ Üstünde) - Logodaki Derin Lacivert & Altın Amber Teması
     header_x = 192
     rozet_txt = "DAILYBRIEF · PİYASALAR"
     rw = draw.textlength(rozet_txt, font=f_etiket)
     draw.rounded_rectangle(
         [(header_x, 42), (header_x + rw + 22, 78)],
         radius=8,
-        fill=(15, 23, 42),
-        outline=(245, 158, 11),
+        fill=(18, 62, 72),
+        outline=(6, 182, 212),
         width=2,
     )
-    draw.text((header_x + 11, 48), rozet_txt, font=f_etiket, fill=(245, 158, 11))
+    draw.text((header_x + 11, 48), rozet_txt, font=f_etiket, fill=(6, 182, 212))
 
-    # Ana Başlık
     draw.text((header_x, 92), "Güne Nasıl Başladı?", font=f_baslik, fill=RENK_BASLIK_KOYU)
 
     # Tarih Alanı (Sağda ve Başlık Çizgisine İndirilmiş)
@@ -249,24 +234,20 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     draw.text((sag_kenar - w_t1, 86), tarih_satir1, font=f_tarih_buyuk, fill=RENK_BASLIK_KOYU)
     draw.text((sag_kenar - w_t2, 118), tarih_satir2, font=f_tarih_kucuk, fill=RENK_GRI_METIN)
 
-    # --- 2. KİRLİ BEYAZ VE LACİVERT ZEMİN ÜSTÜNDE CANLI KUTULAR ---
+    # --- 2. SEKTÖRLER VE FERAH DÜZENLİ KUTULAR ---
     sektor_yerlesimi = [
-        # (Sektor_Adi, (X, Y, W, H))
-        # ÜST: BİST 100 & Türkiye Hisseleri (Geniş & Ana Odak)
         ("BİST & TÜRKİYE HİSSELERİ", (45, 180, 990, 490)),
-        # ALT SOL: Döviz & Kıymetli Madenler
         ("DÖVİZ & EMTİA (MAKRO)", (45, 688, 490, 545)),
-        # ALT SAĞ: Küresel Devler & Kripto
         ("KÜRESEL DEVLER & KRİPTO", (545, 688, 490, 545)),
     ]
 
     ribbon_h = 36
 
-    # Konteyner gölgelerini önceden bas
+    # Konteyner gölgeleri
     shadow_img = Image.new("RGBA", (GENISLIK, YUKSEKLIK), (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow_img)
     for _, (sx, sy, sw, sh) in sektor_yerlesimi:
-        sdraw.rounded_rectangle([(sx, sy + 3), (sx + sw, sy + sh + 5)], radius=14, fill=(15, 23, 42, 35))
+        sdraw.rounded_rectangle([(sx, sy + 3), (sx + sw, sy + sh + 5)], radius=14, fill=(0, 0, 0, 80))
     shadow_img = shadow_img.filter(ImageFilter.GaussianBlur(12))
     img.paste(Image.alpha_composite(img.convert("RGBA"), shadow_img).convert("RGB"), (0, 0))
     draw = ImageDraw.Draw(img)
@@ -276,7 +257,6 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         if not ogeler:
             continue
 
-        # Sektör Çerçevesi & Başlık Şeridi
         draw.rounded_rectangle(
             [(sx, sy), (sx + sw, sy + sh)],
             radius=12,
@@ -284,7 +264,6 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
             outline=RENK_KART_BORDER,
             width=2,
         )
-
         draw.rounded_rectangle(
             [(sx, sy), (sx + sw, sy + ribbon_h)],
             radius=10,
@@ -292,7 +271,6 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         )
         draw.text((sx + 14, sy + 8), f"› {sektor_adi}", font=f_sektor, fill=RENK_BEYAZ)
 
-        # Sektör İçi Treemap Hesaplama
         icerik_rect = (sx + 2, sy + ribbon_h + 3, sw - 4, sh - ribbon_h - 5)
         hucreler = _squarify(ogeler, icerik_rect)
 
@@ -304,7 +282,6 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
 
             c_bg, c_border = _renk_hesapla_canli(degisim)
 
-            # Yumuşak Köşeli Canlı Kutu
             draw.rounded_rectangle(
                 [(cx + 2, cy + 2), (cx + cw - 2, cy + ch - 2)],
                 radius=10,
@@ -313,31 +290,30 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
                 width=1,
             )
 
-            # Hücre Metinleri (Sembol + Anlık Fiyat + % Değişim)
             sembol = oge["etiket"]
             chg_str = f"{'▲ +' if degisim >= 0 else '▼ -'}{abs(degisim):.2f}%"
 
-            max_w = cw - 20
-            max_p = 42 if (cw >= 200 and ch >= 120) else (32 if (cw >= 130 and ch >= 80) else (22 if (cw >= 80 and ch >= 55) else 17))
+            max_w = cw - 18
+            max_p = 44 if (cw >= 200 and ch >= 125) else (34 if (cw >= 130 and ch >= 80) else (24 if (cw >= 80 and ch >= 55) else 18))
 
-            # 1. Sembol Fontu
+            # 1. Sembol Fontu (Büyük & Vurgulu)
             p_sym = max_p
             f_sym = _font(p_sym, 900.0)
-            while draw.textlength(sembol, font=f_sym) > max_w and p_sym > 13:
+            while draw.textlength(sembol, font=f_sym) > max_w and p_sym > 14:
                 p_sym -= 2
                 f_sym = _font(p_sym, 900.0)
 
-            # 2. Fiyat Fontu
-            p_fiyat = max(11, int(p_sym * 0.65))
+            # 2. Fiyat Fontu (Açık & Ferah)
+            p_fiyat = max(13, int(p_sym * 0.70))
             f_fiyat = _font(p_fiyat, 700.0)
-            while draw.textlength(fiyat_str, font=f_fiyat) > max_w and p_fiyat > 10:
+            while draw.textlength(fiyat_str, font=f_fiyat) > max_w and p_fiyat > 11:
                 p_fiyat -= 2
                 f_fiyat = _font(p_fiyat, 700.0)
 
             # 3. Yüzde Değişim Fontu
-            p_chg = max(12, int(p_sym * 0.70))
+            p_chg = max(13, int(p_sym * 0.72))
             f_chg = _font(p_chg, 800.0)
-            while draw.textlength(chg_str, font=f_chg) > max_w and p_chg > 10:
+            while draw.textlength(chg_str, font=f_chg) > max_w and p_chg > 11:
                 p_chg -= 2
                 f_chg = _font(p_chg, 800.0)
 
@@ -345,26 +321,52 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
             sw_f = draw.textlength(fiyat_str, font=f_fiyat)
             sw_c = draw.textlength(chg_str, font=f_chg)
             mid_x = cx + cw / 2
-            mid_y = cy + ch / 2
 
-            # Kutu yüksekliğine göre dikey yerleşim
-            if ch >= 90 and fiyat_str:
-                # 3 Satırlı Dikey Yerleşim: Sembol -> Fiyat -> % Değişim
-                draw.text((mid_x - sw_s / 2, mid_y - int(p_sym * 0.95)), sembol, font=f_sym, fill=RENK_BEYAZ)
-                draw.text((mid_x - sw_f / 2, mid_y - int(p_fiyat * 0.05)), fiyat_str, font=f_fiyat, fill=(241, 245, 249))
-                draw.text((mid_x - sw_c / 2, mid_y + int(p_chg * 0.70)), chg_str, font=f_chg, fill=RENK_BEYAZ)
+            # --- FERAH & DENGELİ DİKEY YERLEŞİM (Sıkışıklık Giderildi) ---
+            if ch >= 130 and fiyat_str:
+                # Büyük/Uzun Kutular (BIST 100, BITCOIN, NVDA, TSLA, ALTIN) -> Geniş 3 Satır
+                y1 = cy + int(ch * 0.24) - int(p_sym * 0.5)
+                y2 = cy + int(ch * 0.54) - int(p_fiyat * 0.5)
+                y3 = cy + int(ch * 0.80) - int(p_chg * 0.5)
+
+                draw.text((mid_x - sw_s / 2, y1), sembol, font=f_sym, fill=RENK_BEYAZ)
+                draw.text((mid_x - sw_f / 2, y2), fiyat_str, font=f_fiyat, fill=RENK_FIYAT_ACIK)
+                draw.text((mid_x - sw_c / 2, y3), chg_str, font=f_chg, fill=RENK_BEYAZ)
+
+            elif ch >= 85 and fiyat_str:
+                # Orta Boy Kutular (TUPRS, KCHOL, GARAN, AKBNK, USD/TL, AAPL, ETH)
+                y1 = cy + int(ch * 0.28) - int(p_sym * 0.5)
+                y2 = cy + int(ch * 0.58) - int(p_fiyat * 0.5)
+                y3 = cy + int(ch * 0.82) - int(p_chg * 0.5)
+
+                draw.text((mid_x - sw_s / 2, y1), sembol, font=f_sym, fill=RENK_BEYAZ)
+                draw.text((mid_x - sw_f / 2, y2), fiyat_str, font=f_fiyat, fill=RENK_FIYAT_ACIK)
+                draw.text((mid_x - sw_c / 2, y3), chg_str, font=f_chg, fill=RENK_BEYAZ)
+
             elif ch >= 55 and fiyat_str:
-                # 2 Satırlı Yerleşim: Sembol -> % Değişim (Fiyatla yan yana)
-                alt_metin = f"{fiyat_str} {chg_str}" if cw >= 130 else chg_str
+                # Dar Yatay Kutular (THYAO, ASELS, EREGL)
+                alt_metin = f"{fiyat_str}  ·  {chg_str}" if cw >= 150 else f"{fiyat_str} {chg_str}"
                 sw_alt = draw.textlength(alt_metin, font=f_chg)
-                draw.text((mid_x - sw_s / 2, mid_y - int(p_sym * 0.8)), sembol, font=f_sym, fill=RENK_BEYAZ)
-                draw.text((mid_x - sw_alt / 2, mid_y + int(p_chg * 0.2)), alt_metin, font=f_chg, fill=RENK_BEYAZ)
+
+                y1 = cy + int(ch * 0.32) - int(p_sym * 0.5)
+                y2 = cy + int(ch * 0.72) - int(p_chg * 0.5)
+
+                draw.text((mid_x - sw_s / 2, y1), sembol, font=f_sym, fill=RENK_BEYAZ)
+                draw.text((mid_x - sw_alt / 2, y2), alt_metin, font=f_chg, fill=RENK_BEYAZ)
+
             else:
-                draw.text((mid_x - sw_s / 2, mid_y - int(p_sym * 0.7)), sembol, font=f_sym, fill=RENK_BEYAZ)
-                draw.text((mid_x - sw_c / 2, mid_y + int(p_chg * 0.2)), chg_str, font=f_chg, fill=RENK_BEYAZ)
+                # Küçük Kompakt Kutular (BIMAS, GÜMÜŞ)
+                y1 = cy + int(ch * 0.30) - int(p_sym * 0.5)
+                y2 = cy + int(ch * 0.58) - int(p_fiyat * 0.5)
+                y3 = cy + int(ch * 0.82) - int(p_chg * 0.5)
+
+                draw.text((mid_x - sw_s / 2, y1), sembol, font=f_sym, fill=RENK_BEYAZ)
+                if fiyat_str:
+                    draw.text((mid_x - sw_f / 2, y2), fiyat_str, font=f_fiyat, fill=RENK_FIYAT_ACIK)
+                draw.text((mid_x - sw_c / 2, y3), chg_str, font=f_chg, fill=RENK_BEYAZ)
 
     # --- 3. FOOTER & RENK SKALASI ---
-    draw.line([(45, 1245), (1035, 1245)], fill=(180, 195, 215), width=1)
+    draw.line([(45, 1245), (1035, 1245)], fill=(24, 75, 85), width=1)
 
     skala_x = 45
     skala_y = 1262
@@ -386,7 +388,6 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         draw.text((skala_x + 4, skala_y + 24), txt, font=_font(12, 700.0), fill=RENK_GRI_METIN)
         skala_x += 46
 
-    # Sağ altta kaynak notu
     not_txt = "DailyBrief · BİST & Küresel Canlı Piyasa Göstergeleri"
     nw = draw.textlength(not_txt, font=f_alt_kucuk)
     draw.text((1035 - nw, 1264), not_txt, font=f_alt_kucuk, fill=RENK_BASLIK_KOYU)
@@ -394,5 +395,5 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
 
     cikti_yolu = CIKTI_KLASORU / f"piyasa_karti_{simdi.strftime('%Y%m%d')}.jpg"
     img.save(cikti_yolu, "JPEG", quality=95)
-    log.info("Kirli beyaz & lacivert gradyanli piyasa karti üretildi: %s", cikti_yolu)
+    log.info("Varyasyon 14 ferah fiyatlı piyasa kartı üretildi: %s", cikti_yolu)
     return cikti_yolu
