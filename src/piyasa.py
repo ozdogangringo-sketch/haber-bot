@@ -211,6 +211,15 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
             canli = fiyat_verileri.get(sym)
             degisim = canli["chg"] if canli else oge["varsayilan"]
             fiyat = canli["price"] if canli else 0.0
+            
+            # Altın ve Gümüş Ons fiyatını Gram TL'ye çevir
+            if sym == "GC=F" and fiyat:
+                dolar_kuru = (fiyat_verileri.get("TRY=X") or {}).get("price", 48.03)
+                fiyat = (fiyat / 31.1034768) * dolar_kuru
+            elif sym == "SI=F" and fiyat:
+                dolar_kuru = (fiyat_verileri.get("TRY=X") or {}).get("price", 48.03)
+                fiyat = (fiyat / 31.1034768) * dolar_kuru
+
             sektor_ogeleri.append({
                 "sym": sym,
                 "etiket": oge["etiket"],
