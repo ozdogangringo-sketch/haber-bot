@@ -139,61 +139,30 @@ def piyasa_verileri_getir() -> dict[str, dict]:
 
 
 ISI_HARITASI_SEKTORLERI = {
-    "TEKNOLOJİ": [
+    "TEKNOLOJİ & YAPAY ZEKA": [
         {"sym": "NVDA", "etiket": "NVDA", "val": 35, "varsayilan": -0.22},
-        {"sym": "MSFT", "etiket": "MSFT", "val": 33, "varsayilan": -2.11},
         {"sym": "AAPL", "etiket": "AAPL", "val": 32, "varsayilan": -3.78},
-        {"sym": "AVGO", "etiket": "AVGO", "val": 16, "varsayilan": 0.74},
-        {"sym": "ORCL", "etiket": "ORCL", "val": 10, "varsayilan": -2.18},
-        {"sym": "AMD", "etiket": "AMD", "val": 9, "varsayilan": -4.13},
-        {"sym": "CRM", "etiket": "CRM", "val": 8, "varsayilan": -0.62},
-        {"sym": "PLTR", "etiket": "PLTR", "val": 6, "varsayilan": -1.65},
-        {"sym": "CSCO", "etiket": "CSCO", "val": 6, "varsayilan": -2.38},
-        {"sym": "INTC", "etiket": "INTC", "val": 5, "varsayilan": 1.20},
-    ],
-    "TÜKETİM & OTO": [
-        {"sym": "AMZN", "etiket": "AMZN", "val": 32, "varsayilan": 0.77},
+        {"sym": "MSFT", "etiket": "MSFT", "val": 30, "varsayilan": 0.43},
         {"sym": "TSLA", "etiket": "TSLA", "val": 24, "varsayilan": 5.14},
-        {"sym": "WMT", "etiket": "WMT", "val": 16, "varsayilan": -1.74},
-        {"sym": "COST", "etiket": "COST", "val": 12, "varsayilan": -2.86},
-        {"sym": "HD", "etiket": "HD", "val": 10, "varsayilan": -1.50},
-        {"sym": "MCD", "etiket": "MCD", "val": 8, "varsayilan": -0.80},
-        {"sym": "KO", "etiket": "KO", "val": 8, "varsayilan": -1.10},
-        {"sym": "PEP", "etiket": "PEP", "val": 7, "varsayilan": -1.40},
-        {"sym": "NKE", "etiket": "NKE", "val": 5, "varsayilan": -5.63},
+        {"sym": "AMZN", "etiket": "AMZN", "val": 22, "varsayilan": -0.57},
     ],
-    "FİNANS & BANKA": [
-        {"sym": "JPM", "etiket": "JPM", "val": 28, "varsayilan": -1.15},
-        {"sym": "V", "etiket": "V", "val": 20, "varsayilan": -2.54},
-        {"sym": "MA", "etiket": "MA", "val": 18, "varsayilan": -2.97},
-        {"sym": "BAC", "etiket": "BAC", "val": 14, "varsayilan": 0.44},
-        {"sym": "WFC", "etiket": "WFC", "val": 10, "varsayilan": -0.90},
-        {"sym": "MS", "etiket": "MS", "val": 8, "varsayilan": -1.30},
-        {"sym": "GS", "etiket": "GS", "val": 8, "varsayilan": -1.80},
-        {"sym": "BLK", "etiket": "BLK", "val": 8, "varsayilan": -1.40},
+    "DÖVİZ & EMTİA (MAKRO)": [
+        {"sym": "GC=F", "etiket": "ALTIN", "val": 34, "varsayilan": 2.47},
+        {"sym": "TRY=X", "etiket": "USD / TL", "val": 28, "varsayilan": 0.08},
+        {"sym": "EURTRY=X", "etiket": "EUR / TL", "val": 24, "varsayilan": 0.06},
+        {"sym": "BZ=F", "etiket": "BRENT", "val": 20, "varsayilan": 0.65},
     ],
-    "SAĞLIK & İLAÇ": [
-        {"sym": "LLY", "etiket": "LLY", "val": 28, "varsayilan": -4.43},
-        {"sym": "UNH", "etiket": "UNH", "val": 22, "varsayilan": -4.02},
-        {"sym": "JNJ", "etiket": "JNJ", "val": 18, "varsayilan": -1.60},
-        {"sym": "ABBV", "etiket": "ABBV", "val": 16, "varsayilan": -2.10},
-        {"sym": "MRK", "etiket": "MRK", "val": 14, "varsayilan": -1.09},
-        {"sym": "PFE", "etiket": "PFE", "val": 10, "varsayilan": -2.83},
+    "İLETİŞİM & GLOBAL FİNANS": [
+        {"sym": "META", "etiket": "META", "val": 32, "varsayilan": 0.75},
+        {"sym": "GOOGL", "etiket": "GOOG", "val": 30, "varsayilan": 1.22},
+        {"sym": "JPM", "etiket": "JPM", "val": 24, "varsayilan": 0.01},
+        {"sym": "V", "etiket": "VISA", "val": 20, "varsayilan": -2.54},
     ],
-    "İLETİŞİM & MEDYA": [
-        {"sym": "GOOGL", "etiket": "GOOG", "val": 30, "varsayilan": -0.55},
-        {"sym": "META", "etiket": "META", "val": 28, "varsayilan": -0.76},
-        {"sym": "NFLX", "etiket": "NFLX", "val": 14, "varsayilan": -0.08},
-        {"sym": "DIS", "etiket": "DIS", "val": 10, "varsayilan": -1.24},
-        {"sym": "TMUS", "etiket": "TMUS", "val": 8, "varsayilan": -0.40},
-    ],
-    "DÖVİZ, EMTİA & KRİPTO": [
-        {"sym": "GC=F", "etiket": "ALTIN", "val": 26, "varsayilan": 2.47},
-        {"sym": "BTC-USD", "etiket": "BTC", "val": 24, "varsayilan": -1.68},
-        {"sym": "TRY=X", "etiket": "USD/TL", "val": 18, "varsayilan": 0.08},
-        {"sym": "EURTRY=X", "etiket": "EUR/TL", "val": 16, "varsayilan": 0.06},
-        {"sym": "BZ=F", "etiket": "BRENT", "val": 14, "varsayilan": 0.65},
-        {"sym": "ETH-USD", "etiket": "ETH", "val": 12, "varsayilan": -1.10},
+    "KRİPTO & BORSA": [
+        {"sym": "BTC-USD", "etiket": "BITCOIN", "val": 35, "varsayilan": -1.68},
+        {"sym": "ETH-USD", "etiket": "ETHEREUM", "val": 26, "varsayilan": -3.72},
+        {"sym": "XU100.IS", "etiket": "BIST 100", "val": 24, "varsayilan": 0.82},
+        {"sym": "SOL-USD", "etiket": "SOLANA", "val": 18, "varsayilan": 2.10},
     ],
 }
 

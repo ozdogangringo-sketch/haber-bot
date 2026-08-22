@@ -1,5 +1,5 @@
 """
-piyasa_kart.py — 1080x1350 Instagram Carousel 1. Slaytı için Finviz & TradingView Stili Borsa & Piyasa Isı Haritası (Heatmap).
+piyasa_kart.py — 1080x1350 Instagram Carousel 1. Slaytı için Sadeleştirilmiş, Büyük Yazılı & 4 Sektörlü Borsa Isı Haritası (Heatmap).
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ YUKSEKLIK = 1350
 
 # Finviz / TradingView Koyu Tema Renkleri
 RENK_ARKA = (9, 13, 22)                # #090D16 (Derin Grafit Arka Plan)
-RENK_AYIRICI = (9, 13, 22)             # Bloklar arası siyah ayırıcı
-RENK_SEKTOR_BG = (18, 24, 38)          # Sektör başlık şeridi
+RENK_AYIRICI = (9, 13, 22)             # Bloklar arası ayırıcı
+RENK_SEKTOR_BG = (20, 28, 44)          # Sektör başlık şeridi (#141C2C)
 RENK_BEYAZ = (255, 255, 255)
 RENK_GRI_METIN = (148, 163, 184)       # #94A3B8
 RENK_MINT = (52, 211, 153)             # #34D399
@@ -42,8 +42,7 @@ def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
 
 def _renk_hesapla(degisim: float) -> tuple[int, int, int]:
     """
-    Finviz stili yüzde değişimine göre renk döner.
-    Kırmızı (Düşüş) <-> Nötr Slate <-> Yeşil (Yükseliş)
+    Finviz stili yüzde değişimine göre canlı kutu rengi döner.
     """
     if degisim <= -3.0:
         return (195, 28, 28)       # Parlak Kırmızı (#C31C1C)
@@ -54,7 +53,7 @@ def _renk_hesapla(degisim: float) -> tuple[int, int, int]:
     elif degisim <= 0.2:
         return (42, 48, 62)        # Nötr Slate / Grafit (#2A303E)
     elif degisim < 1.5:
-        return (22, 75, 45)        # Koyu Zümrüt / Orman (#164B2D)
+        return (22, 78, 48)        # Koyu Zümrüt / Orman (#164E30)
     elif degisim < 3.0:
         return (16, 140, 75)       # Orta Canlı Yeşil (#108C4B)
     else:
@@ -115,7 +114,7 @@ def _squarify(children: list[dict], rect: tuple[int, int, int, int]) -> list[tup
 
 def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     """
-    1080x1350 Instagram 1. slayt için Finviz stili Canlı Piyasa & Borsa Isı Haritasını (Heatmap) üretir.
+    1080x1350 Instagram 1. slayt için sadeleştirilmiş, büyük yazılı ve ferah 4 sektörlü borsa ısı haritasını üretir.
     """
     CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
@@ -128,14 +127,13 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     f_baslik = _font(44, 800.0)
     f_tarih_buyuk = _font(24, 700.0)
     f_tarih_kucuk = _font(19, 500.0)
-    f_sektor = _font(16, 800.0)
-    f_alt = _font(20, 500.0)
+    f_sektor = _font(18, 800.0)
     f_alt_kucuk = _font(17, 600.0)
 
     # --- 1. HEADER (Logo + Başlık + Tarih) ---
-    logo_boyut = 120
+    logo_boyut = 124
     logo_x = 45
-    logo_y = 38
+    logo_y = 36
 
     if LOGO_YOLU.exists():
         try:
@@ -156,18 +154,18 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     draw = ImageDraw.Draw(img)
 
     # Başlık Alanı
-    header_x = 185
+    header_x = 190
     rozet_txt = "DAILYBRIEF · ISI HARİTASI"
     rw = draw.textlength(rozet_txt, font=f_etiket)
     draw.rounded_rectangle(
-        [(header_x, 44), (header_x + rw + 22, 78)],
+        [(header_x, 42), (header_x + rw + 22, 76)],
         radius=8,
         fill=(15, 76, 117),
         outline=(56, 189, 248),
         width=1,
     )
-    draw.text((header_x + 11, 50), rozet_txt, font=f_etiket, fill=(56, 189, 248))
-    draw.text((header_x, 90), "Borsa & Piyasa Isı Haritası", font=f_baslik, fill=RENK_BEYAZ)
+    draw.text((header_x + 11, 48), rozet_txt, font=f_etiket, fill=(56, 189, 248))
+    draw.text((header_x, 88), "Borsa & Piyasa Isı Haritası", font=f_baslik, fill=RENK_BEYAZ)
 
     # Tarih Alanı (Sağda)
     aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -181,56 +179,78 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     w_t2 = draw.textlength(tarih_satir2, font=f_tarih_kucuk)
 
     sag_kenar = 1035
-    draw.text((sag_kenar - w_t1, 48), tarih_satir1, font=f_tarih_buyuk, fill=RENK_BEYAZ)
-    draw.text((sag_kenar - w_t2, 84), tarih_satir2, font=f_tarih_kucuk, fill=RENK_GRI_METIN)
+    draw.text((sag_kenar - w_t1, 46), tarih_satir1, font=f_tarih_buyuk, fill=RENK_BEYAZ)
+    draw.text((sag_kenar - w_t2, 82), tarih_satir2, font=f_tarih_kucuk, fill=RENK_GRI_METIN)
 
-    # --- 2. ISI HARİTASI GRID YERLEŞİMİ (Finviz Treemap) ---
-    # Toplam Alan: X: 40..1040 (W=1000), Y: 180..1230 (H=1050)
+    # --- 2. SADELEŞTİRİLMİŞ 4 SEKTÖRLÜ ISI HARİTASI (2 Kolon x 2 Satır) ---
+    # Toplam Alan: X: 45..1035 (W=990), Y: 180..1230 (H=1050)
     sektor_yerlesimi = [
         # (Sektor_Adi, (X, Y, W, H))
-        # Sol Kolon
-        ("TEKNOLOJİ", (40, 180, 495, 465)),
-        ("FİNANS & BANKA", (40, 652, 495, 285)),
-        ("İLETİŞİM & MEDYA", (40, 944, 495, 286)),
-        # Sağ Kolon
-        ("TÜKETİM & OTO", (545, 180, 495, 430)),
-        ("SAĞLIK & İLAÇ", (545, 618, 495, 275)),
-        ("DÖVİZ, EMTİA & KRİPTO", (545, 900, 495, 330)),
+        ("TEKNOLOJİ & YAPAY ZEKA", (45, 180, 490, 520)),
+        ("DÖVİZ & EMTİA (MAKRO)", (545, 180, 490, 520)),
+        ("İLETİŞİM & GLOBAL FİNANS", (45, 710, 490, 520)),
+        ("KRİPTO & BORSA", (545, 710, 490, 520)),
     ]
 
-    ribbon_h = 26
+    ribbon_h = 34
 
     for sektor_adi, (sx, sy, sw, sh) in sektor_yerlesimi:
         ogeler = sektor_verileri.get(sektor_adi, [])
         if not ogeler:
             continue
 
-        # Sektör Başlık Şeridi
-        draw.rectangle([(sx, sy), (sx + sw, sy + ribbon_h)], fill=RENK_SEKTOR_BG)
-        draw.text((sx + 8, sy + 4), f"› {sektor_adi}", font=f_sektor, fill=(226, 232, 240))
+        # Sektör Başlık Şeridi (Zarif çerçeveli ve ferah)
+        draw.rounded_rectangle(
+            [(sx, sy), (sx + sw, sy + ribbon_h)],
+            radius=6,
+            fill=RENK_SEKTOR_BG,
+            outline=(38, 50, 72),
+            width=1,
+        )
+        draw.text((sx + 12, sy + 6), f"› {sektor_adi}", font=f_sektor, fill=(226, 232, 240))
 
         # Sektör İçi Isı Haritası Treemap Hesaplama
-        icerik_rect = (sx, sy + ribbon_h, sw, sh - ribbon_h)
+        icerik_rect = (sx, sy + ribbon_h + 2, sw, sh - ribbon_h - 2)
         hucreler = _squarify(ogeler, icerik_rect)
 
         for oge, (cx, cy, cw, ch) in hucreler:
             degisim = oge["degisim"]
             renk = _renk_hesapla(degisim)
 
-            # Hücre kutusu (1px iç pay ile Finviz çizgileri)
+            # Hücre kutusu (2px ayırıcı kenar çizgisiyle net kutular)
             draw.rectangle(
-                [(cx + 1, cy + 1), (cx + cw - 1, cy + ch - 1)],
+                [(cx + 2, cy + 2), (cx + cw - 2, cy + ch - 2)],
                 fill=renk,
                 outline=RENK_ARKA,
-                width=1,
+                width=2,
             )
 
-            # Hücre Metinleri (Sembol + Yüzde)
+            # Hücre Metinleri (BÜYÜK ve OKUNAKLI PUNTOLAR)
             sembol = oge["etiket"]
             chg_str = f"{'+' if degisim > 0 else ''}{degisim:.2f}%" if abs(degisim) >= 0.01 else "0.00%"
 
-            # Boyuta göre dinamik punto seçimi
-            if cw >= 85 and ch >= 55:
+            # Kutunun genişlik ve yüksekliğine göre maksimum punto
+            if cw >= 180 and ch >= 120:
+                f_sym = _font(44, 900.0)
+                f_chg = _font(30, 800.0)
+                sw_s = draw.textlength(sembol, font=f_sym)
+                sw_c = draw.textlength(chg_str, font=f_chg)
+                mid_x = cx + cw / 2
+                mid_y = cy + ch / 2
+                draw.text((mid_x - sw_s / 2, mid_y - 36), sembol, font=f_sym, fill=RENK_BEYAZ)
+                draw.text((mid_x - sw_c / 2, mid_y + 10), chg_str, font=f_chg, fill=RENK_BEYAZ)
+
+            elif cw >= 120 and ch >= 80:
+                f_sym = _font(36, 900.0)
+                f_chg = _font(25, 800.0)
+                sw_s = draw.textlength(sembol, font=f_sym)
+                sw_c = draw.textlength(chg_str, font=f_chg)
+                mid_x = cx + cw / 2
+                mid_y = cy + ch / 2
+                draw.text((mid_x - sw_s / 2, mid_y - 28), sembol, font=f_sym, fill=RENK_BEYAZ)
+                draw.text((mid_x - sw_c / 2, mid_y + 8), chg_str, font=f_chg, fill=RENK_BEYAZ)
+
+            elif cw >= 80 and ch >= 60:
                 f_sym = _font(28, 800.0)
                 f_chg = _font(20, 700.0)
                 sw_s = draw.textlength(sembol, font=f_sym)
@@ -240,35 +260,27 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
                 draw.text((mid_x - sw_s / 2, mid_y - 22), sembol, font=f_sym, fill=RENK_BEYAZ)
                 draw.text((mid_x - sw_c / 2, mid_y + 6), chg_str, font=f_chg, fill=RENK_BEYAZ)
 
-            elif cw >= 55 and ch >= 40:
-                f_sym = _font(20, 800.0)
-                f_chg = _font(15, 700.0)
+            else:
+                f_sym = _font(22, 800.0)
+                f_chg = _font(16, 700.0)
                 sw_s = draw.textlength(sembol, font=f_sym)
                 sw_c = draw.textlength(chg_str, font=f_chg)
                 mid_x = cx + cw / 2
                 mid_y = cy + ch / 2
-                draw.text((mid_x - sw_s / 2, mid_y - 17), sembol, font=f_sym, fill=RENK_BEYAZ)
+                draw.text((mid_x - sw_s / 2, mid_y - 18), sembol, font=f_sym, fill=RENK_BEYAZ)
                 draw.text((mid_x - sw_c / 2, mid_y + 4), chg_str, font=f_chg, fill=RENK_BEYAZ)
 
-            elif cw >= 35 and ch >= 24:
-                f_sym = _font(14, 700.0)
-                sw_s = draw.textlength(sembol, font=f_sym)
-                mid_x = cx + cw / 2
-                mid_y = cy + ch / 2
-                draw.text((mid_x - sw_s / 2, mid_y - 8), sembol, font=f_sym, fill=RENK_BEYAZ)
+    # --- 3. FOOTER & RENK SKALASI ---
+    draw.line([(45, 1245), (1035, 1245)], fill=(30, 41, 59), width=1)
 
-    # --- 3. FOOTER & RENK SKALASI (Color Scale Legend) ---
-    draw.line([(40, 1245), (1040, 1245)], fill=(30, 41, 59), width=1)
-
-    # Renk Skalası Lejantı
-    skala_x = 40
+    skala_x = 45
     skala_y = 1262
     skala_ogeleri = [
         ("<-3%", (195, 28, 28)),
         ("-2%", (155, 25, 25)),
         ("-1%", (85, 25, 25)),
         ("0%", (42, 48, 62)),
-        ("+1%", (22, 75, 45)),
+        ("+1%", (22, 78, 48)),
         ("+2%", (16, 140, 75)),
         (">+3%", (16, 185, 129)),
     ]
@@ -284,10 +296,10 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     # Sağ altta kaynak notu
     not_txt = "DailyBrief · Finviz / TradingView Stili Canlı Borsa Haritası"
     nw = draw.textlength(not_txt, font=f_alt_kucuk)
-    draw.text((1040 - nw, 1264), not_txt, font=f_alt_kucuk, fill=(56, 189, 248))
-    draw.text((1040 - 200, 1292), "Yatırım tavsiyesi değildir.", font=_font(14, 400.0), fill=RENK_GRI_METIN)
+    draw.text((1035 - nw, 1264), not_txt, font=f_alt_kucuk, fill=(56, 189, 248))
+    draw.text((1035 - 200, 1292), "Yatırım tavsiyesi değildir.", font=_font(14, 400.0), fill=RENK_GRI_METIN)
 
     cikti_yolu = CIKTI_KLASORU / f"piyasa_karti_{simdi.strftime('%Y%m%d')}.jpg"
     img.save(cikti_yolu, "JPEG", quality=95)
-    log.info("Finviz stili borsa ısı haritası üretildi: %s", cikti_yolu)
+    log.info("Sadeleştirilmiş büyük yazılı borsa ısı haritası üretildi: %s", cikti_yolu)
     return cikti_yolu
