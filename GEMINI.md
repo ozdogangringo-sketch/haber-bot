@@ -96,13 +96,20 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 
 ---
 
-## 5. Görsel Seçim Mantığı ve Ürün Görselleri Analizi
+## 5. Görsel Seçim Mantığı ve Ürün Görselleri Standartları
 
-### Mevcut 4 Katmanlı Görsel Hiyerarşisi (`src/slaytlar.py`):
-1. **1. Katman — Haberin Orijinal Görseli (`og:image`):** Haberin kendi sitesindeki sosyal medya görseli çekilir (Asgari 1000x560 px boyutu aranır).
-2. **2. Katman — Wikimedia Commons (Yalnızca Kişi Portreleri):** Haberde tanınmış bir kişi geçiyorsa (`gorsel_konu`) yüksek kaliteli resmi portresi çekilir.
-3. **3. Katman — Pexels API (Temsili Stok Fotoğraf):** Kişi yoksa haber konusuna uygun stok fotoğraf aranır (Mükerrer fotoğraf engeli aktiftir).
-4. **4. Katman — Kategori Gradyanı:** Fotoğraf bulunamazsa kategoriye özel koyu gradyan zemin kullanılır.
+### 4 Katmanlı Akıllı Görsel Hiyerarşisi:
+1. **1. Katman — Akıllı Makale Basın & Ürün Görseli Çekici (`src/fetch_article.py`):**
+   - Yalnızca `og:image` ile yetinmez; `twitter:image`, JSON-LD `NewsArticle` yüksek çözünürlüklü `"image"` verisi ve makale gövdesindeki (`featured-image`, `article figure img`) orijinal lansman/ürün fotoğraflarını çeker.
+   - İkon, avatar, yazar resmi, reklam ve banner'lar otomatik filtrelenir.
+2. **2. Katman — Wikimedia Commons (Yalnızca Kişi Portreleri, `src/fetch_photo.py`):**
+   - Haberde tanınmış bir kişi/yönetici geçiyorsa (`gorsel_konu`) yüksek kaliteli resmi portresi çekilir.
+3. **3. Katman — Yüksek Çözünürlüklü Nokta Atışı Stok Motoru (`src/fetch_stock.py`):**
+   - Pexels üzerinde yapay zekanın ürettiği somut İngilizce arama kalıpları (`"silicon wafer AI microchip"`, `"commercial passenger jet"`, `"gold bullion bars vault"`) kullanılır.
+   - Dikey ve 4K/2K yatay yüksek çözünürlüklü havuz taranır; genel ofis veya soyut bulanık manzaralar elenir.
+4. **4. Katman — Derin Kategori Gradyanı (`src/make_image.py`):**
+   - Fotoğraf bulunamazsa kategoriye özel koyu gradyan zemin kullanılır.
+   - Kullanıcı dilerse Telegram'dan **`🎨 AI ile üret`** butonuna basarak anında stüdyo render'ı çizdirebilir.
 
 ---
 
