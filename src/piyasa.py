@@ -139,30 +139,30 @@ def piyasa_verileri_getir() -> dict[str, dict]:
 
 
 ISI_HARITASI_SEKTORLERI = {
-    "TEKNOLOJİ & YAPAY ZEKA": [
-        {"sym": "NVDA", "etiket": "NVDA", "val": 35, "varsayilan": -0.22},
-        {"sym": "AAPL", "etiket": "AAPL", "val": 32, "varsayilan": -3.78},
-        {"sym": "MSFT", "etiket": "MSFT", "val": 30, "varsayilan": 0.43},
-        {"sym": "TSLA", "etiket": "TSLA", "val": 24, "varsayilan": 5.14},
-        {"sym": "AMZN", "etiket": "AMZN", "val": 22, "varsayilan": -0.57},
+    "BİST & TÜRKİYE HİSSELERİ": [
+        {"sym": "XU100.IS", "etiket": "BIST 100", "val": 55, "varsayilan": 0.82},
+        {"sym": "THYAO.IS", "etiket": "THYAO", "val": 36, "varsayilan": -0.08},
+        {"sym": "TUPRS.IS", "etiket": "TUPRS", "val": 26, "varsayilan": 2.91},
+        {"sym": "KCHOL.IS", "etiket": "KCHOL", "val": 24, "varsayilan": 2.02},
+        {"sym": "GARAN.IS", "etiket": "GARAN", "val": 22, "varsayilan": 0.46},
+        {"sym": "AKBNK.IS", "etiket": "AKBNK", "val": 20, "varsayilan": 0.72},
+        {"sym": "BIMAS.IS", "etiket": "BIMAS", "val": 18, "varsayilan": 1.34},
+        {"sym": "ASELS.IS", "etiket": "ASELS", "val": 18, "varsayilan": 0.25},
+        {"sym": "EREGL.IS", "etiket": "EREGL", "val": 16, "varsayilan": 0.10},
     ],
     "DÖVİZ & EMTİA (MAKRO)": [
-        {"sym": "GC=F", "etiket": "ALTIN", "val": 34, "varsayilan": 2.47},
-        {"sym": "TRY=X", "etiket": "USD / TL", "val": 28, "varsayilan": 0.08},
-        {"sym": "EURTRY=X", "etiket": "EUR / TL", "val": 24, "varsayilan": 0.06},
-        {"sym": "BZ=F", "etiket": "BRENT", "val": 20, "varsayilan": 0.65},
+        {"sym": "GC=F", "etiket": "GRAM ALTIN", "val": 42, "varsayilan": 2.47},
+        {"sym": "TRY=X", "etiket": "USD / TL", "val": 30, "varsayilan": 0.08},
+        {"sym": "EURTRY=X", "etiket": "EUR / TL", "val": 26, "varsayilan": 0.06},
+        {"sym": "BZ=F", "etiket": "BRENT", "val": 22, "varsayilan": 0.65},
+        {"sym": "SI=F", "etiket": "GÜMÜŞ", "val": 16, "varsayilan": 2.09},
     ],
-    "İLETİŞİM & GLOBAL FİNANS": [
-        {"sym": "META", "etiket": "META", "val": 32, "varsayilan": 0.75},
-        {"sym": "GOOGL", "etiket": "GOOG", "val": 30, "varsayilan": 1.22},
-        {"sym": "JPM", "etiket": "JPM", "val": 24, "varsayilan": 0.01},
-        {"sym": "V", "etiket": "VISA", "val": 20, "varsayilan": -2.54},
-    ],
-    "KRİPTO & BORSA": [
-        {"sym": "BTC-USD", "etiket": "BITCOIN", "val": 35, "varsayilan": -1.68},
-        {"sym": "ETH-USD", "etiket": "ETHEREUM", "val": 26, "varsayilan": -3.72},
-        {"sym": "XU100.IS", "etiket": "BIST 100", "val": 24, "varsayilan": 0.82},
-        {"sym": "SOL-USD", "etiket": "SOLANA", "val": 18, "varsayilan": 2.10},
+    "KÜRESEL DEVLER & KRİPTO": [
+        {"sym": "BTC-USD", "etiket": "BITCOIN", "val": 38, "varsayilan": -1.99},
+        {"sym": "NVDA", "etiket": "NVDA", "val": 30, "varsayilan": -0.98},
+        {"sym": "TSLA", "etiket": "TSLA", "val": 26, "varsayilan": 5.14},
+        {"sym": "AAPL", "etiket": "AAPL", "val": 24, "varsayilan": -0.63},
+        {"sym": "ETH-USD", "etiket": "ETHEREUM", "val": 20, "varsayilan": -4.48},
     ],
 }
 
