@@ -24,6 +24,7 @@ import html
 import json
 import logging
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1134,6 +1135,132 @@ def _albumu_yenile(con, mesaj_id: int) -> None:
         log.warning("albüm yenilenemedi: %s", e)
 
 
+def metin_duzenle(con, ayarlar: dict, haberler: list, mesaj_id: int, gelen_metin: str, basan: str) -> int:
+    """
+    Kullanıcının Telegram'dan Reply yaparak veya komutla girdiği yeni başlık/metni işler.
+
+    Formatlar:
+      - "3: Yeni Başlık"
+      - "3: Yeni Başlık | Yeni Açıklama"
+      - "Yeni Başlık" (Tekil haberler için doğrudan, 10'lu turda belirsizse yönlendirme yapılır)
+    """
+    if not gelen_metin or not gelen_metin.strip():
+        telegram_bot.mesaj_gonder("⚠️ Boş metin girilemez.")
+        return 0
+
+    metin = gelen_metin.strip()
+    sira = None
+    yeni_baslik = ""
+    yeni_metin = None
+
+    # Format 1: "3: ..." veya "3. ..." veya "3 - ..."
+    eslesme = re.match(r"^([1-9]|10)\s*[:\.\-]\s*(.+)$", metin, re.DOTALL)
+    if eslesme:
+        sira = int(eslesme.group(1))
+        kalan = eslesme.group(2).strip()
+    else:
+        # Numara yoksa:
+        if len(haberler) == 1:
+            sira = 1
+            kalan = metin
+        else:
+            telegram_bot.mesaj_gonder(
+                "⚠️ Bu turda birden fazla slayt var. Lütfen hangi slaytı "
+                "düzenlemek istediğini belirt.\n\n"
+                "<b>Örnek format:</b>\n"
+                "• <code>3: Yeni Başlık Metni</code>\n"
+                "• <code>3: Yeni Başlık | Yeni Açıklama</code>",
+                html=True,
+            )
+            return 0
+
+    if sira > len(haberler) or sira < 1:
+        telegram_bot.mesaj_gonder(f"⚠️ Bu turda {len(haberler)} slayt var; {sira}. slayt bulunamadı.")
+        return 0
+
+    # Başlık ve Açıklama ayrıştırma: "Başlık | Açıklama" veya satır sonu
+    if "|" in kalan:
+        parcalar = kalan.split("|", 1)
+        yeni_baslik = parcalar[0].strip()
+        yeni_metin = parcalar[1].strip()
+    elif "\n" in kalan:
+        parcalar = kalan.split("\n", 1)
+        yeni_baslik = parcalar[0].strip()
+        yeni_metin = parcalar[1].strip()
+    else:
+        yeni_baslik = kalan
+
+    if not yeni_baslik:
+        telegram_bot.mesaj_gonder("⚠️ Başlık boş olamaz.")
+        return 0
+
+    haber = haberler[sira - 1]
+
+    # DB Güncelleme
+    if yeni_metin:
+        con.execute(
+            "UPDATE haberler SET ig_baslik = ?, ig_metin = ? WHERE id = ?",
+            (yeni_baslik, yeni_metin, haber["id"]),
+        )
+    else:
+        con.execute(
+            "UPDATE haberler SET ig_baslik = ? WHERE id = ?",
+            (yeni_baslik, haber["id"]),
+        )
+    con.commit()
+
+    # Durum 1: Başlık Onayı Aşaması (Slaytlar henüz üretilmedi)
+    if haber["durum"] == "baslik_onayi":
+        guncel_haberler = turu_getir(con, mesaj_id)
+        telegram_bot.basliklari_tazele(mesaj_id, guncel_haberler)
+        telegram_bot.mesaj_gonder(
+            f"✅ <b>{sira}. slaytın başlığı güncellendi:</b>\n<i>{html.escape(yeni_baslik)}</i>",
+            html=True,
+        )
+        db_senkron.hemen_kaydet(f"Başlık düzenlendi (başlık onayı): slayt {sira}")
+        return 0
+
+    # Durum 2: Görsel Onayı Aşaması (Slayt üretilmiş durumda)
+    # Slaytı yeni başlıkla yeniden çiziyoruz
+    taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
+    yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+    yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+
+    con.execute(
+        "UPDATE haberler SET gorsel_url = ?, gorsel_yolu = ?, "
+        "gorsel_kaynagi = ?, gorsel_atif = ? WHERE id = ?",
+        (yukleme["url"], str(yol), katman, atif, haber["id"]),
+    )
+    con.commit()
+
+    # Caption'ı güncelle
+    guncel_haberler = turu_getir(con, mesaj_id)
+    if len(guncel_haberler) == 1:
+        yeni_cap = caption.son_dakika_caption(taze, _sonuclari_kur(guncel_haberler), ayarlar)
+    else:
+        yeni_cap = caption.caption_kur(guncel_haberler, _sonuclari_kur(guncel_haberler), ayarlar=ayarlar)
+
+    con.execute(
+        "UPDATE haberler SET caption = ? WHERE id = ?",
+        (yeni_cap, haber["id"]),
+    )
+    con.commit()
+
+    # Albümü / önizlemeyi yenile
+    try:
+        _albumu_yenile(con, mesaj_id)
+    except Exception as e:
+        log.warning("albüm yenilenirken hata: %s", e)
+
+    telegram_bot.mesaj_gonder(
+        f"✅ <b>{sira}. slaytın başlığı güncellendi ve yeni slayt üretildi:</b>\n<i>{html.escape(yeni_baslik)}</i>\n"
+        f"<i>(Yazan: {basan or 'Bilinmiyor'})</i>",
+        html=True,
+    )
+    db_senkron.hemen_kaydet(f"Başlık elle düzenlendi: slayt {sira}")
+    return 0
+
+
 def haber_degistir(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
     """
     Turdaki bir haberin yerine geçebilecek 2 alternatifi sunar.
@@ -1749,6 +1876,7 @@ def main() -> int:
     mesaj_id = int(os.getenv("MESAJ_ID", "0") or 0)
     basan = os.getenv("BASAN", "").strip()
     kanallar = os.getenv("KANALLAR", "").strip()
+    metin = os.getenv("METIN", "").strip()
 
     if not komut:
         log.error("KOMUT eksik")
@@ -1967,6 +2095,10 @@ def main() -> int:
                                 kanallar=kanallar)
         if komut == "metin_yenile":
             return metin_yenile(con, ayarlar, haberler, mesaj_id)
+        if komut == "metin_duzenle":
+            sonuc = metin_duzenle(con, ayarlar, haberler, mesaj_id, metin, basan)
+            menuyu_geri_koy(con, mesaj_id)
+            return sonuc
         # Görsel onay düğmeleri
         # Haber değiştirme: önce alternatif sun, sonra uygula
         if komut.startswith("haber_degistir:"):

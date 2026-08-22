@@ -34,9 +34,9 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "kota_raporu", "tur_temizle",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
                   "tur_onayla", "tur_yeniden"];
-// Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7" ...
+// Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3" ...
 const PARAMETRELI_EYLEM =
-  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_sil):([1-9]|10)$/;
+  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil):([1-9]|10)$/;
 
 // Botu duraklatma (1s, 6s, 12s, 24s)
 const DURAKLAT = /^duraklat:(1|6|12|24)$/;
@@ -237,6 +237,7 @@ function slaytIslemMenusu(sira, adet) {
       [{ text: `🔀 ${sira}. slayt: başka fotoğraf (bedava)`, callback_data: `slayt_foto:${sira}` }],
       [{ text: `🎨 ${sira}. slayt: AI ile üret (~$0.04)`, callback_data: `slayt_ai:${sira}` }],
       [{ text: `✏️ ${sira}. slaytın metnini yenile`, callback_data: `slayt_metin:${sira}` }],
+      [{ text: `✍️ ${sira}. slaytın başlığını elle yaz`, callback_data: `slayt_elle:${sira}` }],
       [{ text: `📄 ${sira}. slaytın kaynak metnini göster`, callback_data: `slayt_kaynak:${sira}` }],
       [{ text: `🔄 ${sira}. slaytın HABERİNİ değiştir`, callback_data: `haber_degistir:${sira}` }],
       [{ text: `🗑 ${sira}. slaytı çıkar`, callback_data: `slayt_sil:${sira}` }],
@@ -280,8 +281,10 @@ const KOMUT_ADI = {
   slayt_ai: "AI görsel üretiliyor",
   slayt_foto: "Başka fotoğraf aranıyor",
   slayt_metin: "Metin yeniden üretiliyor",
+  slayt_elle: "Başlık düzenleniyor",
   slayt_kaynak: "Kaynak metni getiriliyor",
   slayt_sil: "Slayt çıkarılıyor",
+  metin_duzenle: "Yeni metin uygulanıyor",
   hata: "Tur yeniden kuruluyor",
 };
 
@@ -312,17 +315,20 @@ async function islemeAlindiGoster(env, sohbetId, mesajId, mesajMetni, komut) {
 }
 
 /** Düz mesaj gönderir (yazılı komutlara anında cevap için). */
-async function mesajGonder(env, sohbetId, metin) {
+/** Düz mesaj gönderir (yazılı komutlara anında cevap için). */
+async function mesajGonder(env, sohbetId, metin, parseMode = null) {
   if (!sohbetId) return;
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const body = {
+    chat_id: sohbetId,
+    text: metin.slice(0, 4096),
+    disable_web_page_preview: true,
+  };
+  if (parseMode) body.parse_mode = parseMode;
   await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      chat_id: sohbetId,
-      text: metin.slice(0, 4096),
-      disable_web_page_preview: true,
-    }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -360,7 +366,7 @@ async function hamHataOku(env) {
   }
 }
 
-async function githubaIlet(env, komut, mesajId, basanKisi, kanallar) {
+async function githubaIlet(env, komut, mesajId, basanKisi, kanallar, metin) {
   const url = `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`;
   const cevap = await fetch(url, {
     method: "POST",
@@ -383,6 +389,7 @@ async function githubaIlet(env, komut, mesajId, basanKisi, kanallar) {
         basan: basanKisi,
         metinsiz: komut === "hata:tur_metinsiz",
         kanallar: kanallar || "",
+        metin: metin || "",
       },
     }),
   });
@@ -416,8 +423,25 @@ export default {
     // kalmıyordu; bu komutlar o boşluğu dolduruyor.
     const msj = guncelleme.message;
     if (msj && typeof msj.text === "string") {
-        const komutMetni = msj.text.trim().split(/[\s@]/)[0].toLowerCase();
         const sohbet = msj.chat ? msj.chat.id : null;
+
+        // --- Yanıtlanan Mesajlar (Reply): Doğrudan başlık/metin düzenleme ---
+        if (msj.reply_to_message) {
+            const replyId = msj.reply_to_message.message_id;
+            const replyMetin = msj.text.trim();
+            const basan = msj.from ? msj.from.first_name || "" : "";
+
+            if (!replyMetin.startsWith("/")) {
+                const iletildi = await githubaIlet(env, "metin_duzenle", replyId, basan, "", replyMetin);
+                await mesajGonder(env, sohbet,
+                    iletildi
+                        ? "✍️ Yeni metin işleniyor, başlık ve slayt güncelleniyor…"
+                        : "⚠️ İstek GitHub'a iletilemedi.");
+                return new Response("ok");
+            }
+        }
+
+        const komutMetni = msj.text.trim().split(/[\s@]/)[0].toLowerCase();
 
         // /guncelle — RSS'i hemen tarar. Kullanıcı duyduğu bir haberi
         // arayıp bulamadığında kontrolün çalışmasını beklemek zorunda
@@ -512,6 +536,21 @@ export default {
     const komut = cb.data;
     const sohbetId = cb.message ? cb.message.chat.id : null;
     const mesajId = cb.message ? cb.message.message_id : null;
+
+    // --- Slayt başlığını elle yazma kılavuzu ---
+    if (komut.startsWith("slayt_elle:")) {
+      const sira = komut.split(":")[1];
+      await mesajGonder(env, sohbetId,
+          `✍️ <b>${sira}. slayt</b> için yeni başlığı bu mesaja <b>YANITLAYARAK (Reply)</b> yazabilirsin.\n\n` +
+          `<b>Örnek formatlar:</b>\n` +
+          `• <code>${sira}: Yeni Başlık Metni</code>\n` +
+          `• <code>${sira}: Yeni Başlık | Yeni Alt Açıklama</code>\n\n` +
+          `<i>(Başlık onayı aşamasındaysa liste, görsel onayı aşamasındaysa slayt görseli yenilenir.)</i>`,
+          "HTML"
+      );
+      await butonuDurdur(env, cb.id, "Yanıtını bekliyorum...");
+      return new Response("ok");
+    }
 
     // --- Duraklatma alt menüsü: Worker anında açıyor ---
     if (komut === "duraklat_menu") {

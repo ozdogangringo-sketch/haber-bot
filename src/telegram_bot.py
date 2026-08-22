@@ -284,6 +284,20 @@ def basliklari_sun(haberler: list) -> int:
                         butonlar=baslik_onay_menusu()["inline_keyboard"])
 
 
+def basliklari_tazele(mesaj_id: int, haberler: list) -> None:
+    """Mevcut başlık önizleme mesajını güncel liste ile yeniler."""
+    satirlar = [f"📋 <b>TUR ÖNİZLEME — {len(haberler)} haber</b>",
+                "<i>Görseller henüz üretilmedi.</i>", ""]
+    for i, h in enumerate(haberler, 1):
+        baslik = html.escape(h["ig_baslik"] or h["baslik_orj"] or "")
+        etiket = html.escape((h["kategori"] or "?").upper())
+        puan = h["onem_puani"] or "?"
+        satirlar.append(f"<b>{i}.</b> {baslik}")
+        satirlar.append(f"    <i>{etiket} · {puan} puan</i>")
+    satirlar += ["", "Onaylarsan slaytlar hazırlanıp tam onaya sunulacak."]
+    mesaji_guncelle(mesaj_id, "\n".join(satirlar), baslik_onay_menusu())
+
+
 def alternatif_menusu(eski_id: int, adaylar: list, tur_mesaj_id: int) -> dict:
     """
     Bir slaytın yerine gelebilecek haberleri sunar.
@@ -379,6 +393,8 @@ def slayt_islem_menusu(sira: int, adet: int) -> dict:
           "callback_data": f"slayt_ai:{sira}"}],
         [{"text": f"✏️ {sira}. slaytın metnini yenile",
           "callback_data": f"slayt_metin:{sira}"}],
+        [{"text": f"✍️ {sira}. slaytın başlığını elle yaz",
+          "callback_data": f"slayt_elle:{sira}"}],
         [{"text": f"📄 {sira}. slaytın kaynak metnini göster",
           "callback_data": f"slayt_kaynak:{sira}"}],
         [{"text": f"🔄 {sira}. slaytın HABERİNİ değiştir",

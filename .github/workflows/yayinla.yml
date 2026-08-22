@@ -58,6 +58,7 @@ jobs:
           MESAJ_ID: ${{ github.event.client_payload.mesaj_id }}
           BASAN: ${{ github.event.client_payload.basan }}
           KANALLAR: ${{ github.event.client_payload.kanallar }}
+          METIN: ${{ github.event.client_payload.metin }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_IMAGE_API_KEY: ${{ secrets.GEMINI_IMAGE_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
