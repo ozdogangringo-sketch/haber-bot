@@ -1,5 +1,5 @@
 """
-scripts/varyasyon_uret.py — 10 Farklı Renk ve Zemin Temasında Piyasa Kartı Üretir ve Telegram'a Gönderir.
+scripts/varyasyon_uret.py — 10 Yeni Farklı Renk ve Zemin Temasında (11-20) Piyasa Kartı Üretir ve Telegram'a Gönderir.
 """
 
 from __future__ import annotations
@@ -25,206 +25,206 @@ LOGO_YOLU = KOK / "assets" / "logo_circular.png"
 CIKTI_DIR = KOK / "data" / "output"
 CIKTI_DIR.mkdir(parents=True, exist_ok=True)
 
-# 10 FARKLI TEMA TANIMI
-TEMALAR = [
+# 10 YENİ FARKLI TEMA TANIMI (11 - 20)
+TEMALAR_2 = [
     {
-        "id": 1,
-        "ad": "Varyasyon 1 — Buzul Slate & Lacivert",
-        "tur": "light",
-        "bg_ust": (236, 241, 248),
-        "bg_orta": (220, 229, 240),
-        "bg_alt": (202, 216, 232),
-        "glow": (30, 58, 138, 30),
-        "container_bg": (252, 254, 255),
-        "container_border": (195, 208, 226),
-        "ribbon_bg": (15, 23, 42),
+        "id": 11,
+        "ad": "Varyasyon 11 — Espresso & Sıcak Moka",
+        "tur": "dark",
+        "bg_ust": (24, 16, 12),
+        "bg_orta": (36, 24, 18),
+        "bg_alt": (18, 12, 8),
+        "glow": (217, 119, 6, 35),
+        "container_bg": (38, 26, 19),
+        "container_border": (85, 58, 42),
+        "ribbon_bg": (52, 35, 25),
         "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (15, 23, 42),
-        "metin_gri": (90, 105, 128),
-        "rozet_bg": (15, 23, 42),
+        "baslik_fg": (255, 255, 255),
+        "metin_gri": (185, 165, 150),
+        "rozet_bg": (52, 35, 25),
         "rozet_border": (245, 158, 11),
         "rozet_fg": (245, 158, 11),
-        "footer_line": (185, 198, 216),
+        "footer_line": (65, 45, 32),
+        "koyu_tema": True,
+    },
+    {
+        "id": 12,
+        "ad": "Varyasyon 12 — Buzul Nane & Kutup Ferahlığı",
+        "tur": "light",
+        "bg_ust": (234, 245, 242),
+        "bg_orta": (218, 236, 232),
+        "bg_alt": (198, 224, 218),
+        "glow": (13, 148, 136, 30),
+        "container_bg": (250, 254, 253),
+        "container_border": (160, 204, 195),
+        "ribbon_bg": (19, 78, 74),
+        "ribbon_fg": (255, 255, 255),
+        "baslik_fg": (19, 78, 74),
+        "metin_gri": (75, 115, 110),
+        "rozet_bg": (19, 78, 74),
+        "rozet_border": (45, 212, 191),
+        "rozet_fg": (45, 212, 191),
+        "footer_line": (170, 210, 200),
         "koyu_tema": False,
     },
     {
-        "id": 2,
-        "ad": "Varyasyon 2 — Lüks Fildişi & Sıcak Krem",
+        "id": 13,
+        "ad": "Varyasyon 13 — Gün Batımı Mercan & Sıcak Şeftali",
         "tur": "light",
-        "bg_ust": (247, 245, 239),
-        "bg_orta": (236, 231, 220),
-        "bg_alt": (222, 214, 198),
-        "glow": (180, 83, 9, 25),
-        "container_bg": (255, 254, 250),
-        "container_border": (216, 203, 182),
-        "ribbon_bg": (45, 34, 24),
+        "bg_ust": (252, 243, 238),
+        "bg_orta": (245, 226, 216),
+        "bg_alt": (235, 208, 194),
+        "glow": (249, 115, 22, 30),
+        "container_bg": (255, 253, 250),
+        "container_border": (225, 190, 172),
+        "ribbon_bg": (67, 30, 20),
         "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (38, 28, 18),
-        "metin_gri": (115, 100, 85),
-        "rozet_bg": (45, 34, 24),
+        "baslik_fg": (58, 24, 14),
+        "metin_gri": (130, 95, 80),
+        "rozet_bg": (67, 30, 20),
+        "rozet_border": (249, 115, 22),
+        "rozet_fg": (251, 146, 60),
+        "footer_line": (215, 180, 160),
+        "koyu_tema": False,
+    },
+    {
+        "id": 14,
+        "ad": "Varyasyon 14 — Derin Petrol & Siber Turkuaz",
+        "tur": "dark",
+        "bg_ust": (4, 24, 28),
+        "bg_orta": (8, 38, 44),
+        "bg_alt": (3, 16, 20),
+        "glow": (6, 182, 212, 40),
+        "container_bg": (12, 45, 52),
+        "container_border": (25, 85, 96),
+        "ribbon_bg": (18, 62, 72),
+        "ribbon_fg": (255, 255, 255),
+        "baslik_fg": (255, 255, 255),
+        "metin_gri": (140, 185, 195),
+        "rozet_bg": (18, 62, 72),
+        "rozet_border": (6, 182, 212),
+        "rozet_fg": (6, 182, 212),
+        "footer_line": (24, 75, 85),
+        "koyu_tema": True,
+    },
+    {
+        "id": 15,
+        "ad": "Varyasyon 15 — İngiliz Yarış Yeşili & Antik Altın",
+        "tur": "dark",
+        "bg_ust": (11, 26, 18),
+        "bg_orta": (16, 38, 26),
+        "bg_alt": (8, 18, 12),
+        "glow": (202, 138, 4, 35),
+        "container_bg": (22, 48, 34),
+        "container_border": (180, 140, 45),
+        "ribbon_bg": (30, 65, 46),
+        "ribbon_fg": (255, 255, 255),
+        "baslik_fg": (255, 255, 255),
+        "metin_gri": (160, 190, 170),
+        "rozet_bg": (30, 65, 46),
+        "rozet_border": (234, 179, 8),
+        "rozet_fg": (250, 204, 21),
+        "footer_line": (40, 75, 55),
+        "koyu_tema": True,
+    },
+    {
+        "id": 16,
+        "ad": "Varyasyon 16 — Gül Kurusu & Kuvars Zarafeti",
+        "tur": "light",
+        "bg_ust": (253, 244, 246),
+        "bg_orta": (246, 228, 232),
+        "bg_alt": (236, 210, 218),
+        "glow": (225, 29, 72, 25),
+        "container_bg": (255, 254, 254),
+        "container_border": (228, 185, 196),
+        "ribbon_bg": (136, 19, 55),
+        "ribbon_fg": (255, 255, 255),
+        "baslik_fg": (136, 19, 55),
+        "metin_gri": (140, 90, 105),
+        "rozet_bg": (136, 19, 55),
+        "rozet_border": (251, 113, 133),
+        "rozet_fg": (255, 255, 255),
+        "footer_line": (220, 175, 188),
+        "koyu_tema": False,
+    },
+    {
+        "id": 17,
+        "ad": "Varyasyon 17 — Kadife Böğürtlen & Gece Mürdümü",
+        "tur": "dark",
+        "bg_ust": (26, 10, 24),
+        "bg_orta": (38, 14, 35),
+        "bg_alt": (18, 6, 16),
+        "glow": (217, 70, 239, 35),
+        "container_bg": (46, 18, 42),
+        "container_border": (98, 42, 92),
+        "ribbon_bg": (62, 24, 58),
+        "ribbon_fg": (255, 255, 255),
+        "baslik_fg": (255, 255, 255),
+        "metin_gri": (195, 165, 190),
+        "rozet_bg": (62, 24, 58),
+        "rozet_border": (232, 121, 249),
+        "rozet_fg": (232, 121, 249),
+        "footer_line": (75, 32, 70),
+        "koyu_tema": True,
+    },
+    {
+        "id": 18,
+        "ad": "Varyasyon 18 — Endüstriyel Beton & Sarı İkaz",
+        "tur": "light",
+        "bg_ust": (235, 237, 240),
+        "bg_orta": (220, 224, 230),
+        "bg_alt": (200, 206, 215),
+        "glow": (234, 179, 8, 30),
+        "container_bg": (252, 252, 253),
+        "container_border": (180, 186, 196),
+        "ribbon_bg": (28, 32, 40),
+        "ribbon_fg": (250, 204, 21),
+        "baslik_fg": (28, 32, 40),
+        "metin_gri": (85, 95, 110),
+        "rozet_bg": (28, 32, 40),
+        "rozet_border": (234, 179, 8),
+        "rozet_fg": (250, 204, 21),
+        "footer_line": (175, 182, 192),
+        "koyu_tema": False,
+    },
+    {
+        "id": 19,
+        "ad": "Varyasyon 19 — Derin Uzay & Parlak Neon Camgöbeği",
+        "tur": "dark",
+        "bg_ust": (6, 12, 24),
+        "bg_orta": (10, 22, 44),
+        "bg_alt": (4, 8, 16),
+        "glow": (0, 229, 255, 45),
+        "container_bg": (14, 28, 56),
+        "container_border": (0, 180, 216),
+        "ribbon_bg": (18, 38, 76),
+        "ribbon_fg": (255, 255, 255),
+        "baslik_fg": (255, 255, 255),
+        "metin_gri": (150, 185, 220),
+        "rozet_bg": (18, 38, 76),
+        "rozet_border": (0, 229, 255),
+        "rozet_fg": (0, 229, 255),
+        "footer_line": (30, 55, 100),
+        "koyu_tema": True,
+    },
+    {
+        "id": 20,
+        "ad": "Varyasyon 20 — Çöl Kumulu & Sıcak Terracotta",
+        "tur": "light",
+        "bg_ust": (252, 247, 234),
+        "bg_orta": (244, 234, 212),
+        "bg_alt": (230, 215, 185),
+        "glow": (180, 83, 9, 30),
+        "container_bg": (255, 254, 250),
+        "container_border": (215, 195, 160),
+        "ribbon_bg": (69, 26, 3),
+        "ribbon_fg": (255, 255, 255),
+        "baslik_fg": (69, 26, 3),
+        "metin_gri": (130, 95, 60),
+        "rozet_bg": (69, 26, 3),
         "rozet_border": (217, 119, 6),
         "rozet_fg": (245, 158, 11),
-        "footer_line": (205, 190, 170),
-        "koyu_tema": False,
-    },
-    {
-        "id": 3,
-        "ad": "Varyasyon 3 — Gece Yarısı Derin Lacivert",
-        "tur": "dark",
-        "bg_ust": (10, 16, 36),
-        "bg_orta": (14, 23, 52),
-        "bg_alt": (8, 12, 28),
-        "glow": (37, 99, 235, 45),
-        "container_bg": (17, 27, 58),
-        "container_border": (45, 68, 115),
-        "ribbon_bg": (24, 38, 80),
-        "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (255, 255, 255),
-        "metin_gri": (148, 163, 184),
-        "rozet_bg": (24, 38, 80),
-        "rozet_border": (56, 189, 248),
-        "rozet_fg": (56, 189, 248),
-        "footer_line": (38, 55, 95),
-        "koyu_tema": True,
-    },
-    {
-        "id": 4,
-        "ad": "Varyasyon 4 — Titanyum & Obsidyen Siyahı",
-        "tur": "dark",
-        "bg_ust": (13, 17, 24),
-        "bg_orta": (19, 25, 36),
-        "bg_alt": (10, 14, 20),
-        "glow": (56, 189, 248, 25),
-        "container_bg": (24, 32, 46),
-        "container_border": (50, 65, 90),
-        "ribbon_bg": (34, 46, 68),
-        "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (255, 255, 255),
-        "metin_gri": (156, 163, 175),
-        "rozet_bg": (34, 46, 68),
-        "rozet_border": (96, 165, 250),
-        "rozet_fg": (96, 165, 250),
-        "footer_line": (40, 52, 72),
-        "koyu_tema": True,
-    },
-    {
-        "id": 5,
-        "ad": "Varyasyon 5 — Mat Grafit & Karbon",
-        "tur": "dark",
-        "bg_ust": (24, 25, 29),
-        "bg_orta": (32, 33, 39),
-        "bg_alt": (18, 19, 22),
-        "glow": (239, 68, 68, 25),
-        "container_bg": (38, 40, 48),
-        "container_border": (68, 72, 85),
-        "ribbon_bg": (48, 50, 60),
-        "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (255, 255, 255),
-        "metin_gri": (160, 165, 175),
-        "rozet_bg": (48, 50, 60),
-        "rozet_border": (239, 68, 68),
-        "rozet_fg": (248, 113, 113),
-        "footer_line": (55, 58, 68),
-        "koyu_tema": True,
-    },
-    {
-        "id": 6,
-        "ad": "Varyasyon 6 — İskandinav Zümrüt & Derin Orman",
-        "tur": "dark",
-        "bg_ust": (8, 24, 20),
-        "bg_orta": (13, 38, 30),
-        "bg_alt": (6, 18, 14),
-        "glow": (52, 211, 153, 35),
-        "container_bg": (18, 48, 38),
-        "container_border": (38, 85, 70),
-        "ribbon_bg": (24, 65, 52),
-        "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (255, 255, 255),
-        "metin_gri": (150, 185, 170),
-        "rozet_bg": (24, 65, 52),
-        "rozet_border": (52, 211, 153),
-        "rozet_fg": (52, 211, 153),
-        "footer_line": (30, 70, 58),
-        "koyu_tema": True,
-    },
-    {
-        "id": 7,
-        "ad": "Varyasyon 7 — Sis Grisi & Stüdyo Minimal",
-        "tur": "light",
-        "bg_ust": (242, 244, 247),
-        "bg_orta": (230, 234, 240),
-        "bg_alt": (212, 218, 228),
-        "glow": (100, 116, 139, 30),
-        "container_bg": (255, 255, 255),
-        "container_border": (195, 204, 216),
-        "ribbon_bg": (30, 41, 59),
-        "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (30, 41, 59),
-        "metin_gri": (100, 116, 139),
-        "rozet_bg": (30, 41, 59),
-        "rozet_border": (148, 163, 184),
-        "rozet_fg": (241, 245, 249),
-        "footer_line": (188, 198, 212),
-        "koyu_tema": False,
-    },
-    {
-        "id": 8,
-        "ad": "Varyasyon 8 — Siber Gece Moru & Neon",
-        "tur": "dark",
-        "bg_ust": (18, 10, 34),
-        "bg_orta": (28, 14, 52),
-        "bg_alt": (12, 6, 24),
-        "glow": (168, 85, 247, 45),
-        "container_bg": (34, 18, 62),
-        "container_border": (75, 45, 125),
-        "ribbon_bg": (48, 26, 88),
-        "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (255, 255, 255),
-        "metin_gri": (192, 175, 220),
-        "rozet_bg": (48, 26, 88),
-        "rozet_border": (217, 70, 239),
-        "rozet_fg": (217, 70, 239),
-        "footer_line": (65, 38, 105),
-        "koyu_tema": True,
-    },
-    {
-        "id": 9,
-        "ad": "Varyasyon 9 — Bloomberg Finans Terminali (Lacivert & Altın)",
-        "tur": "dark",
-        "bg_ust": (14, 20, 36),
-        "bg_orta": (19, 29, 50),
-        "bg_alt": (11, 15, 28),
-        "glow": (245, 158, 11, 35),
-        "container_bg": (22, 34, 58),
-        "container_border": (180, 120, 20),
-        "ribbon_bg": (30, 46, 78),
-        "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (255, 255, 255),
-        "metin_gri": (165, 180, 205),
-        "rozet_bg": (30, 46, 78),
-        "rozet_border": (245, 158, 11),
-        "rozet_fg": (245, 158, 11),
-        "footer_line": (50, 70, 105),
-        "koyu_tema": True,
-    },
-    {
-        "id": 10,
-        "ad": "Varyasyon 10 — Platin Beyaz & Kraliyet Kobaltı",
-        "tur": "light",
-        "bg_ust": (245, 247, 251),
-        "bg_orta": (234, 238, 246),
-        "bg_alt": (218, 225, 238),
-        "glow": (37, 99, 235, 35),
-        "container_bg": (255, 255, 255),
-        "container_border": (175, 195, 230),
-        "ribbon_bg": (30, 64, 175),
-        "ribbon_fg": (255, 255, 255),
-        "baslik_fg": (30, 58, 138),
-        "metin_gri": (90, 110, 140),
-        "rozet_bg": (30, 64, 175),
-        "rozet_border": (96, 165, 250),
-        "rozet_fg": (255, 255, 255),
-        "footer_line": (185, 205, 235),
+        "footer_line": (210, 185, 150),
         "koyu_tema": False,
     },
 ]
@@ -340,7 +340,6 @@ def kart_uret_tema(tema: dict, sektor_verileri: dict) -> Path:
 
     ribbon_h = 36
 
-    # Konteyner gölgeleri
     shadow_img = Image.new("RGBA", (GENISLIK, YUKSEKLIK), (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow_img)
     for _, (sx, sy, sw, sh) in sektor_yerlesimi:
@@ -468,21 +467,20 @@ def main():
     sektor_verileri = piyasa.isi_haritasi_verileri_getir()
 
     uretilen_yollar = []
-    for tema in TEMALAR:
+    for tema in TEMALAR_2:
         p = kart_uret_tema(tema, sektor_verileri)
         uretilen_yollar.append((tema, p))
-        print(f"[{tema['id']}/10] {tema['ad']} üretildi -> {p.name}")
+        print(f"[{tema['id']}/20] {tema['ad']} üretildi -> {p.name}")
 
-    # Telegram'a 2'li Albüm halinde (5 + 5) gönder
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
     if not token or not chat_id:
         print("Telegram ayarları eksik!")
         return
 
-    print("Telegram'a 10 varyasyon gönderiliyor...")
+    print("Telegram'a yeni 10 varyasyon (11-20) gönderiliyor...")
 
-    # 1. Grup (1-5)
+    # 1. Grup (11-15)
     media1 = []
     files1 = {}
     for i, (tema, p) in enumerate(uretilen_yollar[:5]):
@@ -499,9 +497,9 @@ def main():
     )
     for f in files1.values():
         f.close()
-    print("Grup 1 (1-5) Gönderim:", r1.status_code)
+    print("Grup 1 (11-15) Gönderim:", r1.status_code)
 
-    # 2. Grup (6-10)
+    # 2. Grup (16-20)
     media2 = []
     files2 = {}
     for i, (tema, p) in enumerate(uretilen_yollar[5:]):
@@ -518,22 +516,22 @@ def main():
     )
     for f in files2.values():
         f.close()
-    print("Grup 2 (6-10) Gönderim:", r2.status_code)
+    print("Grup 2 (16-20) Gönderim:", r2.status_code)
 
     # Özet Açıklama Mesajı
     ozet = (
-        "🎨 <b>10 FARKLI PİYASA KARTI VARYASYONU HAZIRLANDI</b>\n\n"
-        "1️⃣ <b>Varyasyon 1:</b> Buzul Slate & Lacivert (Modern Açık Slate)\n"
-        "2️⃣ <b>Varyasyon 2:</b> Lüks Fildişi & Sıcak Krem (Lüks Sıcak Tonlar)\n"
-        "3️⃣ <b>Varyasyon 3:</b> Gece Yarısı Derin Lacivert (Karanlık Lüks Lacivert)\n"
-        "4️⃣ <b>Varyasyon 4:</b> Titanyum & Obsidyen Siyahı (Ultra Modern Dark)\n"
-        "5️⃣ <b>Varyasyon 5:</b> Mat Grafit & Karbon (Mat Minimalist Koyu)\n"
-        "6️⃣ <b>Varyasyon 6:</b> İskandinav Zümrüt & Derin Orman (Yeşil/Zümrüt Derinlik)\n"
-        "7️⃣ <b>Varyasyon 7:</b> Sis Grisi & Stüdyo Minimal (Minimalist Açık Gri)\n"
-        "8️⃣ <b>Varyasyon 8:</b> Siber Gece Moru & Neon (Siberpunk Gece Teması)\n"
-        "9️⃣ <b>Varyasyon 9:</b> Bloomberg Terminal (Koyu Lacivert & Altın Amber)\n"
-        "🔟 <b>Varyasyon 10:</b> Platin Beyaz & Kraliyet Kobaltı (Kraliyet Mavisi Açık Zıtlık)\n\n"
-        "👉 <i>Hangi numara hoşuna gittiyse numarasını söylemen yeterli kanka!</i>"
+        "🎨 <b>10 YENİ FARKLI RENK VARYASYONU DAHA HAZIRLANDI (11-20)</b>\n\n"
+        "1️⃣1️⃣ <b>Varyasyon 11:</b> Espresso & Sıcak Moka (Kahve/Moka Koyu Tema)\n"
+        "1️⃣2️⃣ <b>Varyasyon 12:</b> Buzul Nane & Kutup Ferahlığı (Pastel Nane Açık Tema)\n"
+        "1️⃣3️⃣ <b>Varyasyon 13:</b> Gün Batımı Mercan & Sıcak Şeftali (Sıcak Mercan Açık Tema)\n"
+        "1️⃣4️⃣ <b>Varyasyon 14:</b> Derin Petrol & Siber Turkuaz (Petrol Yeşili Koyu Tema)\n"
+        "1️⃣5️⃣ <b>Varyasyon 15:</b> İngiliz Yarış Yeşili & Antik Altın (Klasik Asil Yeşil Koyu Tema)\n"
+        "1️⃣6️⃣ <b>Varyasyon 16:</b> Gül Kurusu & Kuvars Zarafeti (Pastel Gül/Kuvars Açık Tema)\n"
+        "1️⃣7️⃣ <b>Varyasyon 17:</b> Kadife Böğürtlen & Gece Mürdümü (Lüks Mürdüm Koyu Tema)\n"
+        "1️⃣8️⃣ <b>Varyasyon 18:</b> Endüstriyel Beton & Sarı İkaz (Minimal Beton Gri Açık Tema)\n"
+        "1️⃣9️⃣ <b>Varyasyon 19:</b> Derin Uzay & Parlak Camgöbeği (Kozmik Mavi/Camgöbeği Koyu Tema)\n"
+        "2️⃣0️⃣ <b>Varyasyon 20:</b> Çöl Kumulu & Sıcak Terracotta (Doğal Kum/Toprak Açık Tema)\n\n"
+        "👉 <i>Toplam 20 varyasyon oldu! Hangisi en çok içine sindiyse numarasını söylemen yeterli kanka!</i>"
     )
     requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage",
