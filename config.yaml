@@ -495,9 +495,36 @@ kaynaklar:
     aktif: true
 
   - ad: "AA Ekonomi"
-
     gosterim_adi: "AA"
     url: "https://www.aa.com.tr/tr/rss/default?cat=ekonomi"
+    kategori: "ekonomi"
+    agirlik: 9
+    aktif: true
+
+  - ad: "BloombergHT"
+    gosterim_adi: "BLOOMBERG HT"
+    url: "https://www.bloomberght.com/rss"
+    kategori: "ekonomi"
+    agirlik: 10
+    aktif: true
+
+  - ad: "Borsa Gündem"
+    gosterim_adi: "BORSA GÜNDEM"
+    url: "https://www.borsagundem.com/rss"
+    kategori: "ekonomi"
+    agirlik: 9
+    aktif: true
+
+  - ad: "Investing TR Hisse"
+    gosterim_adi: "INVESTING"
+    url: "https://tr.investing.com/rss/news_25.rss"
+    kategori: "ekonomi"
+    agirlik: 9
+    aktif: true
+
+  - ad: "Investing TR Piyasa"
+    gosterim_adi: "INVESTING"
+    url: "https://tr.investing.com/rss/news_1.rss"
     kategori: "ekonomi"
     agirlik: 9
     aktif: true

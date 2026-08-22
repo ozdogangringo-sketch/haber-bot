@@ -64,7 +64,7 @@ def main() -> int:
     sorgu = """
     SELECT * FROM haberler
     WHERE (
-        kaynak IN ('AA Ekonomi', 'TRT Ekonomi', 'BloombergHT', 'Dünya Gazetesi', 'Para Medya')
+        kaynak IN ('Borsa Gündem', 'Investing TR Hisse', 'BloombergHT', 'Investing TR Piyasa', 'AA Ekonomi', 'Dünya Gazetesi', 'Webrazzi')
         OR kategori = 'ekonomi'
     )
       AND COALESCE(daha_once_yayinlandi, 0) = 0
@@ -74,28 +74,40 @@ def main() -> int:
     tum_adaylar = list(con.execute(sorgu, (sinir.isoformat(),)))
 
     ONEMLI_KELIMELER = [
-        "borsa", "bist", "hisse", "halka arz", "altın", "dolar", "euro", "döviz",
+        "borsa", "bist", "hisse", "halka arz", "gong", "altın", "dolar", "euro", "döviz",
         "merkez bankası", "tcmb", "faiz", "enflasyon", "kripto", "bitcoin",
-        "petrol", "yatırım", "temettü", "fed", "bilanço", "ihracat", "şirket"
+        "petrol", "yatırım", "temettü", "fed", "bilanço", "ihracat", "şirket",
+        "fon", "milyon dolar", "milyar dolar", "fitch", "moody", "jpmorgan", "banka",
+        "kazandırdı", "kazandıranlar", "piyasa", "endeks"
     ]
-    CEZA_KELIMELER = [
-        "araç muayene", "römork", "depozito", "çocuk gizliliği", "evlilik desteği",
-        "hava durumu", "tarımsal destekleme"
+    YASAK_KELIMELER = [
+        "saldırı", "füze", "gazze", "lübnan", "israil", "suriy", "kaza", "otobüs",
+        "yangın", "anız", "cinayet", "tutukla", "yaralı", "ölü", "muayene", "depozito",
+        "çocuk gizliliği", "evlilik", "hava durumu", "kölelik", "esir", "terör", "savaş",
+        "japonya", "lgs", "tarımsal destekleme"
     ]
 
     puanli_adaylar = []
     for h in tum_adaylar:
         baslik = ((h["ig_baslik"] or h["baslik_orj"]) or "").lower()
+        
+        # Yasaklı genel/savaş/kaza haberlerini doğrudan ele
+        if any(y in baslik for y in YASAK_KELIMELER):
+            continue
+
         puan = h["onem_puani"] or 5
         for k in ONEMLI_KELIMELER:
             if k in baslik:
                 puan += 4
-        for k in CEZA_KELIMELER:
-            if k in baslik:
-                puan -= 10
-        # Metni hazır olanlara öncelik ver
+                
+        # Saf borsa/finans kaynaklarına öncelik ver
+        if h["kaynak"] in ("Borsa Gündem", "Investing TR Hisse", "BloombergHT", "Investing TR Piyasa"):
+            puan += 6
+
+        # Metni hazır olanlara ufak öncelik
         if h["durum"] == "metin_hazir" and h["ig_baslik"]:
-            puan += 3
+            puan += 2
+            
         puanli_adaylar.append((puan, h))
 
     puanli_adaylar.sort(key=lambda x: (x[0], x[1]["id"]), reverse=True)
