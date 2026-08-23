@@ -41,11 +41,30 @@ USER_ME_URL = "https://api.twitter.com/2/users/me"
 
 
 def _anahtarlari_al() -> dict[str, str] | None:
-    """Twitter API anahtarlarını ortamdan okur. Eksik varsa None döner."""
-    api_key = (os.getenv("TWITTER_API_KEY") or os.getenv("TWITTER_CONSUMER_KEY") or "").strip()
-    api_secret = (os.getenv("TWITTER_API_SECRET") or os.getenv("TWITTER_CONSUMER_SECRET") or "").strip()
-    access_token = (os.getenv("TWITTER_ACCESS_TOKEN") or "").strip()
-    access_token_secret = (os.getenv("TWITTER_ACCESS_TOKEN_SECRET") or "").strip()
+    """Twitter / X API anahtarlarını ortamdan okur. Eksik varsa None döner."""
+    api_key = (
+        os.getenv("TWITTER_API_KEY")
+        or os.getenv("X_API_KEY")
+        or os.getenv("TWITTER_CONSUMER_KEY")
+        or ""
+    ).strip()
+    api_secret = (
+        os.getenv("TWITTER_API_SECRET")
+        or os.getenv("X_API_SECRET")
+        or os.getenv("TWITTER_CONSUMER_SECRET")
+        or ""
+    ).strip()
+    access_token = (
+        os.getenv("TWITTER_ACCESS_TOKEN")
+        or os.getenv("X_ACCESS_TOKEN")
+        or ""
+    ).strip()
+    access_token_secret = (
+        os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
+        or os.getenv("X_ACCESS_TOKEN_SECRET")
+        or os.getenv("X_ACCESS_SECRET")
+        or ""
+    ).strip()
 
     if not (api_key and api_secret and access_token and access_token_secret):
         return None
@@ -277,7 +296,7 @@ def zincir_yayinla(
     return ilk_id, yayinlanan
 
 
-def post_baglantisi(tweet_id: str, kullanici_adi: str = "dailybrieftr") -> str:
+def post_baglantisi(tweet_id: str, kullanici_adi: str = "dailybrief_co") -> str:
     """Tweetin doğrudan X web bağlantısını döner."""
     return f"https://x.com/{kullanici_adi}/status/{tweet_id}"
 
