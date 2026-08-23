@@ -328,19 +328,19 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
       ilişkilendirilmiş görünür. (El, silüet, arkadan görünüm sorun değil.)
 
 - kategori: Haberin KENDİ konusu. Yalnızca şunlardan biri:
-    turkiye   — Türkiye gündemi, iç siyaset, asayiş, yerel olaylar
+    turkiye   — Türkiye gündemi, iç siyaset, asayiş, adliye, yerel olaylar
     dunya     — yurt dışı olaylar, uluslararası ilişkiler, savaş/diplomasi
-    ekonomi   — piyasa, enflasyon, şirket, ticaret, istihdam, enerji fiyatı
+    ekonomi   — borsa, hisse, piyasa, altın, döviz, faiz, merkez bankası, enflasyon, şirket bilançosu, makroekonomi, fon ve kripto
     spor      — müsabaka, transfer, kulüp, sporcu
     bilim     — araştırma, uzay, sağlık/tıp bulgusu, çevre, arkeoloji
-    teknoloji — yazılım, yapay zeka, cihaz, internet, oyun
+    teknoloji — yazılım, yapay zeka, donanım, siber güvenlik, internet, oyun
     kultur    — sanat, edebiyat, sinema, müzik, tarih/miras
-    yasam     — eğitim, ulaşım, gündelik hayat, tüketici, hava durumu
+    yasam     — turizm istatistikleri, havalimanı/uçuş sayıları, belediye/esnaf/KOSGEB duyuruları, tüketici denetimleri, tarım destekleri, eğitim, ulaşım, gündelik hayat
 
-  ⚠️ HABERİ YAYINLAYAN KAYNAĞA GÖRE DEĞİL, HABERİN İÇERİĞİNE GÖRE seç.
-  Bir ekonomi servisinin yayınladığı silah satışı haberi "dunya"dır,
-  "ekonomi" değil. Spor servisinin verdiği doping soruşturması haberi
-  "spor"dur. Kaynağın adı seni yanıltmasın.
+  ⚠️ KATEGORİ AYRIMI KURALLARI:
+  * Turist sayısı, havalimanı yolcu rekoru, tarımsal destek/gübre ödemesi, zabıta denetimi veya KOSGEB hibesi gibi haberler "ekonomi" DEĞİLDİR; bunlar "yasam" veya "turkiye"dir.
+  * "ekonomi" kategorisini YALNIZCA gerçek finans, borsa, piyasa, şirket bilançoları, altın/döviz ve para politikası haberleri için kullan.
+  * Haberi yayınlayan kaynağın adına göre DEĞİL, haberin içeriğine göre seç. (Bir ekonomi servisinin yayınladığı silah satışı haberi "dunya"dır).
 
   Olay Türkiye'de geçiyorsa ve konusu özel bir alan değilse "turkiye"
   seç. Türkiye'de geçen bir maç "spor", Türkiye'de açıklanan enflasyon

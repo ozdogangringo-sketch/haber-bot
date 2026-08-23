@@ -75,30 +75,38 @@ def main() -> int:
 
     ONEMLI_KELIMELER = [
         "borsa", "bist", "hisse", "halka arz", "gong", "altın", "dolar", "euro", "döviz",
-        "merkez bankası", "tcmb", "faiz", "enflasyon", "kripto", "bitcoin",
-        "petrol", "yatırım", "temettü", "fed", "bilanço", "ihracat", "şirket",
+        "merkez bankası", "tcmb", "faiz", "enflasyon", "kripto", "bitcoin", "ethereum",
+        "petrol", "brent", "yatırım", "temettü", "fed", "bilanço", "ihracat", "ithalat", "şirket",
         "fon", "milyon dolar", "milyar dolar", "fitch", "moody", "jpmorgan", "banka",
-        "kazandırdı", "kazandıranlar", "piyasa", "endeks"
+        "kazandırdı", "kazandıranlar", "piyasa", "endeks", "tahvil", "bono", "mevduat",
+        "nasdaq", "sp500", "dow jones", "gelir tablosu", "kar payı", "satın alma", "birleşme"
     ]
     YASAK_KELIMELER = [
         "saldırı", "füze", "gazze", "lübnan", "israil", "suriy", "kaza", "otobüs",
         "yangın", "anız", "cinayet", "tutukla", "yaralı", "ölü", "muayene", "depozito",
         "çocuk gizliliği", "evlilik", "hava durumu", "kölelik", "esir", "terör", "savaş",
-        "japonya", "lgs", "tarımsal destekleme"
+        "japonya", "lgs", "tarımsal destekleme", "turist", "turizm", "havalimanı",
+        "uçuş", "yolcu", "hangar", "kosgeb", "destekleme", "hibe", "fındık", "buğday",
+        "hasat", "çiftçi", "gübre", "emlakçı", "zabıta", "kaçakçılık", "sahte",
+        "operasyon", "gözaltı", "trafik cezası", "pasaport", "vize", "öğrenci", "okul"
     ]
 
     puanli_adaylar = []
     for h in tum_adaylar:
         baslik = ((h["ig_baslik"] or h["baslik_orj"]) or "").lower()
         
-        # Yasaklı genel/savaş/kaza haberlerini doğrudan ele
+        # 1. Yasaklı genel/asayiş/turizm/tarım haberlerini doğrudan ele
         if any(y in baslik for y in YASAK_KELIMELER):
+            continue
+
+        # 2. KATİ FİNANS ŞARTI: Başlıkta en az 1 borsa/finans terimi geçmek ZORUNDADIR
+        if not any(k in baslik for k in ONEMLI_KELIMELER):
             continue
 
         puan = h["onem_puani"] or 5
         for k in ONEMLI_KELIMELER:
             if k in baslik:
-                puan += 4
+                puan += 3
                 
         # Saf borsa/finans kaynaklarına öncelik ver
         if h["kaynak"] in ("Borsa Gündem", "Investing TR Hisse", "BloombergHT", "Investing TR Piyasa"):

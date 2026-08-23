@@ -938,12 +938,13 @@ def story_haber(
     if son_dakika:
         ciz = ImageDraw.Draw(gorsel)
         kenar = ayarlar["gorsel"]["kenar_bosluk"]
-        f = _font(26, EKSEN_KUCUK)
+        f = _font(24, EKSEN_KUCUK)
         etiket = "SON DAKİKA"
-        g = ciz.textlength(etiket, font=f)
-        y = STORY_GUVENLI_PAY
-        ciz.rectangle([kenar, y, kenar + g + 30, y + 46], fill=(198, 60, 52))
-        ciz.text((kenar + 15, y + 10), etiket, font=f, fill=(255, 255, 255))
+        metin_g = ciz.textlength(etiket, font=f)
+        x_bas = kenar + 162
+        y_bas = STORY_GUVENLI_PAY + 32
+        ciz.rounded_rectangle([x_bas, y_bas, x_bas + metin_g + 28, y_bas + 46], radius=6, fill=(198, 60, 52))
+        ciz.text((x_bas + 14, y_bas + 10), etiket, font=f, fill=(255, 255, 255))
 
     return gorsel
 
@@ -1132,8 +1133,9 @@ def detay_slayti(
         etiket_font = _font(24, EKSEN_KUCUK)
         etiket = "SON DAKİKA"
         metin_g = ciz.textlength(etiket, font=etiket_font)
-        ciz.rectangle(
+        ciz.rounded_rectangle(
             [kenar + 162, dikey_kenar + 30, kenar + 162 + metin_g + 28, dikey_kenar + 76],
+            radius=6,
             fill=(198, 60, 52),
         )
         ciz.text((kenar + 162 + 14, dikey_kenar + 39), etiket, font=etiket_font,
