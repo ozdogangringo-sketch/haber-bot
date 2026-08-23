@@ -578,9 +578,11 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/tur", "/sondakika", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel"].includes(komutMetni)) {
+        if (["/durum", "/tur", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
             if (komut === "panel") komut = "yonetim";
+            if (komut === "pazar") komut = "haftalik";
+            if (komut === "reels") komut = "video";
             const iletildi = await githubaIlet(env, komut, null,
                 msj.from ? msj.from.first_name || "" : "");
             await mesajGonder(env, sohbet,
@@ -589,15 +591,19 @@ export default {
                         ? "⏳ Yeni tur hazırlanıyor, birkaç dakika sürebilir…"
                         : komut === "sondakika"
                           ? "⚡️ Son dakika sıcak haber taraması başlatılıyor…"
-                          : komut === "ayar"
-                            ? "⏳ Ayarlar getiriliyor…"
-                            : komut === "yonetim"
-                              ? "⏳ Yönetim paneli getiriliyor…"
-                              : komut === "tamamla"
-                                ? "⏳ Threads zinciri kontrol ediliyor…"
-                                : komut === "arsiv"
-                                  ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
-                                  : "⏳ Durum sorgulanıyor…")
+                          : komut === "haftalik"
+                            ? "🗓️ Haftalık Pazar özeti hazırlanıyor, son 7 günün manşetleri taranıyor…"
+                            : komut === "video"
+                              ? "🎬 Son turun 9:16 MP4 Reels videosu render ediliyor…"
+                              : komut === "ayar"
+                                ? "⏳ Ayarlar getiriliyor…"
+                                : komut === "yonetim"
+                                  ? "⏳ Yönetim paneli getiriliyor…"
+                                  : komut === "tamamla"
+                                    ? "⏳ Threads zinciri kontrol ediliyor…"
+                                    : komut === "arsiv"
+                                      ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
+                                      : "⏳ Durum sorgulanıyor…")
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }

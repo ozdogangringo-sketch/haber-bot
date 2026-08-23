@@ -57,7 +57,7 @@ _ayarlar_onbellek: dict = {}
 # ⚠️ `haber_sec`/`haber_vazgec` tur id'sini KOMUTTA taşıyor; Worker'ın
 # gönderdiği mesaj_id alternatif mesajına ait ve işe yaramıyor.
 MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
-                     "havuz_guncelle", "sondakika", "son_dakika",
+                     "havuz_guncelle", "sondakika", "son_dakika", "haftalik", "video", "reels",
                      "yonetim", "yonetim_panel", "duraklat", "devam_et",
                      "saglik_testi", "kota_raporu", "tur_temizle",
                      "haber_sec", "haber_vazgec",
@@ -284,6 +284,30 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     )
     con.commit()
 
+    # Doğrudan canlı gönderi link butonları
+    canli_link_dugmeleri = []
+    satir_1 = []
+    if baglanti:
+        satir_1.append({"text": "📸 Instagram'da Gör", "url": baglanti})
+    if th_gonderi_id:
+        th_url = threads.post_baglantisi(th_gonderi_id)
+        if th_url:
+            satir_1.append({"text": "🧵 Threads'te Gör", "url": th_url})
+    if satir_1:
+        canli_link_dugmeleri.append(satir_1)
+
+    satir_2 = []
+    if fb_id:
+        fb_url = facebook.post_baglantisi(fb_id)
+        if fb_url:
+            satir_2.append({"text": "📘 Facebook'ta Gör", "url": fb_url})
+    if tw_gonderi_id:
+        tw_url = twitter.post_baglantisi(tw_gonderi_id)
+        if tw_url:
+            satir_2.append({"text": "🐦 X'te Gör", "url": tw_url})
+    if satir_2:
+        canli_link_dugmeleri.append(satir_2)
+
     telegram_bot.sonucu_yaz(
         mesaj_id,
         f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}{th_notu}{tw_notu}\n"
@@ -291,16 +315,10 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         f"\nOnaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",
         bildir=True,
-        # Zincir yarım kaldıysa tek tuşla tamamlanabilsin. Komutu
-        # ("/tamamla") bilmek zorunda bırakmak, kullanıcının eksik
-        # halkaları ELLE yazmasına yol açtı (21 Ağu 2026).
-        # Her yayın sonucunda "durumu kontrol et": veritabanı ile
-        # Instagram ayrışabiliyor (20 Ağu 2026'da bir `ertele` komutu
-        # yayınlanmış turun kaydını bozdu) ve kuyrukta iptal edilen bir
-        # komut kullanıcıyı yayınlandı mı bilemez halde bırakıyordu.
         ek_dugmeler=(
-            ([[{"text": "🔗 Threads zincirini tamamla",
-                "callback_data": "tamamla"}]] if th_yarim else [])
+            canli_link_dugmeleri
+            + ([[{"text": "🔗 Threads zincirini tamamla",
+                  "callback_data": "tamamla"}]] if th_yarim else [])
             + [[{"text": "🔍 Yayın durumunu kontrol et",
                  "callback_data": f"yayin_kontrol:{mesaj_id}"}]]
         ),
@@ -2279,6 +2297,34 @@ def main() -> int:
                 html=True,
             )
         return sonuc
+
+    if komut == "haftalik":
+        from scripts import haftalik_ozet
+        telegram_bot.mesaj_gonder("🗓️ Haftalık Pazar özeti hazırlanıyor, son 7 günün manşetleri derleniyor…")
+        return haftalik_ozet.main()
+
+    if komut in ("video", "reels"):
+        from src import video
+        telegram_bot.mesaj_gonder("🎬 Son turun 9:16 MP4 Reels videosu hazırlanıyor…")
+        
+        # Son açık veya yayınlanan turun slaytlarını bul
+        satirlar = con.execute(
+            "SELECT gorsel_yolu FROM haberler WHERE gorsel_yolu IS NOT NULL "
+            "ORDER BY gonderim_zamani DESC, slayt_sirasi ASC LIMIT 10"
+        ).fetchall()
+        
+        yollar = [s["gorsel_yolu"] for s in satirlar if s["gorsel_yolu"] and Path(s["gorsel_yolu"]).exists()]
+        if not yollar:
+            # Fallback: data/output klasöründeki en son slaytları al
+            yollar = [str(p) for p in sorted(Path("data/output").glob("slayt-*.jpg"))[:6]]
+        
+        if not yollar:
+            telegram_bot.mesaj_gonder("⚠️ Video üretilecek slayt görseli bulunamadı.")
+            return 0
+            
+        video_yolu = video.slaytlardan_reels_uret(yollar, fps=24, slayt_suresi=3.0, gecis_suresi=0.4)
+        telegram_bot.video_gonder(video_yolu, aciklama="🎬 <b>Daily Brief Reels Videosu Hazır!</b>\nInstagram Reels ve Stories için optimize edildi.")
+        return 0
 
     if komut in ("hata:tur_tekrar", "tur_tekrar"):
         from scripts import ekonomi_turu

@@ -824,3 +824,33 @@ def oneri_gonder(adaylar: list) -> int:
     ]
     # Başlıklar `_kacir` ile kaçırıldığı için HTML güvenli.
     return mesaj_gonder("\n".join(satirlar), menu, html=True)
+
+
+def video_gonder(
+    video_yolu: Path | str,
+    aciklama: str = "",
+    butonlar: list | None = None,
+) -> int:
+    """
+    Üretilen MP4 Reels/video dosyasını Telegram grubuna gönderir.
+    """
+    p = Path(video_yolu)
+    if not p.exists():
+        raise FileNotFoundError(f"Video dosyası bulunamadı: {video_yolu}")
+
+    url = TABAN.format(jeton=_jeton(), metot="sendVideo")
+    data = {"chat_id": _sohbet_id()}
+    if aciklama:
+        data["caption"] = aciklama[:1024]
+    if butonlar:
+        data["reply_markup"] = json.dumps({"inline_keyboard": butonlar})
+
+    with open(p, "rb") as f:
+        files = {"video": f}
+        cevap = requests.post(url, data=data, files=files, timeout=180)
+
+    veri = cevap.json() if cevap.content else {}
+    if not veri.get("ok"):
+        raise RuntimeError(f"Telegram video gönderme hatası: {veri.get('description', cevap.text[:200])}")
+    return veri["result"]["message_id"]
+

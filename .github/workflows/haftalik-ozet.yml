@@ -1,0 +1,51 @@
+# =========================================================
+#  HAFTALIK PAZAR ÖZETİ BÜLTENİ
+#
+#  Her Pazar TR 18:00'de (UTC 15:00) çalışır.
+#  Son 7 günün en önemli haberlerini derleyip 'Haftanın Özeti'
+#  özel kapağı ile Telegram onayına sunar.
+# =========================================================
+
+name: Haftalık Pazar Özeti
+
+on:
+  schedule:
+    # Pazar günleri UTC 15:00 = TR 18:00
+    - cron: "0 15 * * 0"
+  repository_dispatch:
+    types: [haftalik_ozet]
+  workflow_dispatch:
+
+concurrency:
+  group: veritabani
+  cancel-in-progress: false
+
+jobs:
+  haftalik:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Haftalık özeti hazırla
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_API_KEY: ${{ secrets.GEMINI_IMAGE_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/haftalik_ozet.py
+
+      - name: Veritabanını kaydet
+        if: always()
+        run: python scripts/db_kaydet.py "Haftalık Pazar Özeti Onaya Sunuldu"

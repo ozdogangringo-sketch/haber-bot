@@ -36,7 +36,7 @@ import os
 import random
 import re
 import time
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import requests
@@ -1465,3 +1465,98 @@ def gorsel_uret(haber, ayarlar: dict, con=None) -> Path:
     gorsel.save(yol, "JPEG", quality=g["jpeg_kalite"], optimize=True)
     log.info("görsel üretildi (%s): %s", kaynak_tipi, yol)
     return yol
+
+
+def haftalik_kapak_ciz(
+    basliklar: list[str],
+    ayarlar: dict,
+    baslangic: date | None = None,
+    bitis: date | None = None,
+) -> Image.Image:
+    """
+    Haftalık Pazar bülteni için özel 'HAFTANIN ÖZETİ' kapak slaytı üretir.
+    4:5 dikey format (1080x1350).
+    """
+    g = ayarlar["gorsel"]
+    genislik, yukseklik = g["genislik"], g["yukseklik"]
+    kenar = g["kenar_bosluk"]
+    dikey_kenar = g.get("dikey_kenar_bosluk", g.get("kenar_bosluk", 60))
+    alan_genislik = genislik - 2 * kenar
+
+    gorsel = arkaplan_uret_yedek("turkiye", genislik, yukseklik, g)
+    ciz = ImageDraw.Draw(gorsel)
+
+    # --- Üst blok (144px Logo + Amber Rozet) ---
+    gorsel = _logoyu_bas(gorsel, kenar, dikey_kenar - 16, boy=144)
+    ciz = ImageDraw.Draw(gorsel)
+
+    rozet_x = kenar + 162
+    rozet_y = dikey_kenar + 15
+    rozet_w = 260
+    rozet_h = 36
+    ciz.rounded_rectangle(
+        [(rozet_x, rozet_y), (rozet_x + rozet_w, rozet_y + rozet_h)],
+        radius=6,
+        fill=(226, 170, 88),
+    )
+    ciz.text(
+        (rozet_x + 16, rozet_y + 7),
+        "HAFTANIN ÖZETİ",
+        font=_font(20, [14.0, 800.0]),
+        fill=(10, 20, 30),
+    )
+
+    # Tarih Aralığı (Örn: 17 – 23 AĞUSTOS 2026)
+    if bitis is None:
+        bitis = date.today()
+    if baslangic is None:
+        baslangic = bitis - timedelta(days=6)
+
+    ay_adi = AYLAR[bitis.month - 1]
+    tarih_str = f"{baslangic.day} – {bitis.day} {ay_adi} {bitis.year}"
+    ciz.text(
+        (rozet_x, rozet_y + 44),
+        tarih_str,
+        font=_font(24, EKSEN_KUCUK),
+        fill=(226, 170, 88),
+    )
+
+    # Ana Başlık
+    y = dikey_kenar + 140
+    ana_baslik = "Haftanın Öne Çıkan Gelişmeleri"
+    baslik_font = _font(58, EKSEN_BASLIK)
+    baslik_satirlari = _satirlara_bol(ana_baslik, baslik_font, alan_genislik, ciz)
+    for s in baslik_satirlari:
+        ciz.text((kenar, y), s, font=baslik_font, fill=(255, 255, 255))
+        y += int(58 * 1.18)
+
+    # Ayırıcı İnce Şerit
+    y += 15
+    ciz.rectangle([(kenar, y), (kenar + 100, y + 4)], fill=(226, 170, 88))
+    y += 30
+
+    # --- Manşet Listesi (Maddeler) ---
+    alt_bilgi_y = yukseklik - dikey_kenar - 10
+    madde_font = _font(27, EKSEN_OZET)
+    satir_y = int(27 * 1.32)
+
+    for i, b in enumerate(basliklar[:5], start=1):
+        blok = _satirlara_bol(b, madde_font, alan_genislik - 45, ciz)[:2]
+        # Küçük altın nokta
+        ciz.ellipse([kenar, y + 10, kenar + 10, y + 20], fill=(226, 170, 88))
+        for satir in blok:
+            ciz.text((kenar + 26, y), satir, font=madde_font, fill=(226, 231, 242))
+            y += satir_y
+        y += 18
+        if y > alt_bilgi_y - 60:
+            break
+
+    # --- Alt Bilgi & 4 Kanal İkonu ---
+    kucuk = _font(24, EKSEN_KUCUK)
+    hesap = ayarlar.get("instagram", {}).get("hesap_kullanici_adi", "")
+    if hesap:
+        ciz.text((kenar, alt_bilgi_y), f"@{hesap}  ·  Haftalık Bülten", font=kucuk, fill=(198, 206, 222))
+
+    gorsel = kanal_ikonlari_bas(gorsel, ayarlar, alt_bilgi_y + 12)
+    return gorsel
+
