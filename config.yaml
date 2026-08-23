@@ -45,9 +45,8 @@ genel:
   # Yayınlanmamış haberler kaç gün saklansın? Günlük raporda
   # temizleniyor. ⚠️ YAYINLANMIŞ haberler bundan MUAF — mükerrer
   # engeli onlara bakıyor.
-  # 21 Ağu 2026'da eklendi: hiç temizlik yoktu, 8 günde .git 237 MB
-  # oldu (veritabanı her job'da commit ediliyor).
-  kayit_saklama_gun: 7
+  # Kullanıcı isteği: Havuzda 3 günden eski haber tutulmaz.
+  kayit_saklama_gun: 3
 
   yayin_yasi_siniri_saat: 36
 

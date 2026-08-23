@@ -32,10 +32,8 @@ from src import db, telegram_bot, yonetim             # noqa: E402
 
 log = logging.getLogger("hatirlat")
 
-# Onay bekleyen tur kaç saat sonra havuza dönsün (24 saat).
-# Kullanıcı kararı: Görselleri hazırlanmış bir tur en az 1 gün boyunca
-# Telegram'da onaylanmaya hazır beklemelidir.
-AZAMI_BEKLEME_SAAT = 24
+# Onay bekleyen tur kaç saat sonra havuza dönsün (12 saat).
+AZAMI_BEKLEME_SAAT = 12
 
 
 def _tur_yasi_dakika(haber) -> float | None:
@@ -56,7 +54,7 @@ def bekleyen_tur(con):
     # SON DAKİKA TURLARI HARİÇ: onların kendi ömrü var ve son_dakika.py yönetiyor.
     return list(con.execute(
         # ⚠️ Planlanmış yayın (yayınla > "2 saat sonra") burada
-        # GÖRÜNMEMELİ: 24 saatlik bekleme kuralı turu havuza döndürür
+        # GÖRÜNMEMELİ: 12 saatlik bekleme kuralı turu havuza döndürür
         # ve o ana kadar her saat gereksiz hatırlatma atılırdı.
         # Zamanı gelince son dakika kontrolü yayınlıyor.
         "SELECT * FROM haberler WHERE planlanan_yayin IS NULL "
@@ -69,10 +67,16 @@ def bekleyen_tur(con):
 
 def _turu_isle(con, mesaj_id: int, haberler: list, simdi) -> None:
     """
-    Tek bir turu değerlendirir: 24 saat dolduysa kapat, dolmadıysa hatırlat.
+    Tek bir turu değerlendirir: 12 saat dolduysa kapat, dolmadıysa önceki hatırlatmayı silip yeni hatırlatma gönder.
     """
     yas = _tur_yasi_dakika(haberler[0])
     cok_bekledi = yas is not None and yas >= AZAMI_BEKLEME_SAAT * 60
+
+    anahtar_hatirlatma = f"hatirlatma_msg_{mesaj_id}"
+    satir = con.execute(
+        "SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_hatirlatma,)
+    ).fetchone()
+    eski_mid = int(satir["deger"]) if satir and satir["deger"] else None
 
     if cok_bekledi:
         con.execute(
@@ -82,34 +86,46 @@ def _turu_isle(con, mesaj_id: int, haberler: list, simdi) -> None:
             "WHERE telegram_message_id = ?",
             (mesaj_id,),
         )
+        con.execute("DELETE FROM ayarlar WHERE anahtar = ?", (anahtar_hatirlatma,))
         con.commit()
+        if eski_mid:
+            telegram_bot.mesajlari_sil([eski_mid])
         try:
             telegram_bot.sonucu_yaz(
                 mesaj_id,
-                f"⌛️ 24 saat boyunca onay gelmediği için tur kapandı.\n"
+                f"⌛️ 12 saat boyunca onay gelmediği için tur kapandı.\n"
                 f"{len(haberler)} haber havuza döndü — elenmediler, "
                 f"sonraki turlarda yeniden yarışacaklar.",
                 bildir=True,
             )
         except Exception as e:
             log.warning("sonuç mesajı yazılamadı: %s", e)
-        log.info("%s haber 24 saat sonra havuza döndürüldü", len(haberler))
+        log.info("%s haber 12 saat sonra havuza döndürüldü", len(haberler))
         return
 
-    # --- 24 saat dolmadı: hatırlat ---
+    # --- 12 saat dolmadı: Önceki hatırlatma mesajını sil ve yenisini gönder (bildirim tetiklenmesi için) ---
+    if eski_mid:
+        telegram_bot.mesajlari_sil([eski_mid])
+
     sayi = (haberler[0]["hatirlatma_sayisi"] or 0) + 1
     con.execute(
         "UPDATE haberler SET hatirlatma_sayisi = ? WHERE telegram_message_id = ?",
         (sayi, mesaj_id),
     )
-    con.commit()
 
-    telegram_bot.mesaj_gonder(
+    yeni_mid = telegram_bot.mesaj_gonder(
         f"⏳ Onay bekleyen {len(haberler)} haberlik tur var ({sayi}. hatırlatma).\n"
         f"Yukarıdaki mesajdan yayınlayabilir veya atlayabilirsin.\n"
         f"Onay gelmezse gece havuza dönecek — haberler elenmiyor."
     )
-    log.info("hatırlatma gönderildi (%s.)", sayi)
+
+    con.execute(
+        "INSERT INTO ayarlar (anahtar, deger) VALUES (?, ?) "
+        "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+        (anahtar_hatirlatma, str(yeni_mid)),
+    )
+    con.commit()
+    log.info("eski hatırlatma silindi, yeni hatırlatma (%s.) gönderildi (mid=%s)", sayi, yeni_mid)
     return
 
 
