@@ -274,6 +274,18 @@ def api_saglik_testi(ayarlar: dict) -> list[dict]:
             "mesaj": "Anahtar tanımlı",
         })
 
+    # 6. X (Twitter) API v2 Testi
+    tw_aktif = bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at"))
+    if not tw_aktif:
+        sonuclar.append({
+            "ad": "X (Twitter) API v2",
+            "durum": True,
+            "mesaj": "Devre dışı (config'de kapalı)",
+        })
+    else:
+        from src import twitter
+        sonuclar.append(twitter.api_saglik_testi())
+
     return sonuclar
 
 

@@ -147,8 +147,8 @@ function ayarAltMenu(yol, kodlar) {
   return { inline_keyboard: [satir, [{ text: "← Ayarlara dön", callback_data: "ayar" }]] };
 }
 
-// Kanal seçimi toggle komutu ("kanal:ig", "kanal:story", "kanal:threads", "kanal:facebook")
-const KANAL_TOGGLE = /^kanal:(ig|story|threads|facebook)$/;
+// Kanal seçimi toggle komutu ("kanal:ig", "kanal:story", "kanal:threads", "kanal:facebook", "kanal:twitter")
+const KANAL_TOGGLE = /^kanal:(ig|story|threads|facebook|twitter)$/;
 
 function seciliKanallariCikar(klavye) {
   if (!klavye || !klavye.length) return null;
@@ -170,6 +170,7 @@ function kanalButonlariSatiri(kanallar) {
     { text: `${varMi('story') ? '✅' : '⬜'} Story`, callback_data: "kanal:story" },
     { text: `${varMi('threads') ? '✅' : '⬜'} Threads`, callback_data: "kanal:threads" },
     { text: `${varMi('facebook') ? '✅' : '⬜'} FB`, callback_data: "kanal:facebook" },
+    { text: `${varMi('twitter') ? '✅' : '⬜'} X`, callback_data: "kanal:twitter" },
   ];
 }
 

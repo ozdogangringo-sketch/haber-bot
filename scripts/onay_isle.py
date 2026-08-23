@@ -39,7 +39,7 @@ from src import (                                  # noqa: E402
     filtre,
     instagram,
     secim,
-    slaytlar, telegram_bot, threads, upload_image, yonetim,
+    slaytlar, telegram_bot, threads, twitter, upload_image, yonetim,
 )
 from src import generate_text                      # noqa: E402
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -148,10 +148,12 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_story = "story" in k_set
         paylas_fb = "facebook" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
         paylas_th = "threads" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
+        paylas_tw = ("twitter" in k_set or "x" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
     else:
         paylas_story = True
         paylas_fb = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
         paylas_th = bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
+        paylas_tw = bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
 
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
@@ -169,12 +171,6 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     # 1-4 ayrıntı sayfası (metin uzunsa sayfa ekleniyor). Bunlar ayrı
     # kolonda JSON listesi olarak duruyor; buraya eklenmezse elde tek
     # görsel kalıyor ve Instagram carousel'i reddediyor.
-    #
-    # ⚠️ SADECE SON DAKİKA TURUNDA. Onaylanmayan son dakika haberi havuza
-    # dönerken `detay_url` üstünde kalıyor; aynı haber akşam turunda
-    # yeniden seçilince o eski ayrıntı sayfaları carousel'e sızıyordu.
-    # 17 Ağu 2026'da oldu: 10 haberlik tur 13 görselle yayınlanmaya
-    # çalıştı ve Instagram reddetti (sınır 10).
     for h in haberler:
         if h["son_dakika"]:
             urller.extend(_detay_urlleri(h["detay_url"]))
@@ -232,16 +228,6 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     th_yarim = False
     if paylas_th:
         try:
-            # ZİNCİR olarak gidiyor, carousel olarak değil: Threads metin
-            # platformu, sınırı 500 karakter ve uzun anlatım zincirle
-            # yapılıyor. Tam caption'ı tek gönderiye sıkıştırmak onu bir
-            # haberin ortasında kesiyordu.
-            # ⚠️ SON DAKİKADA TARİH YAZILMIYOR (`tarihli=False`).
-            # Bu düzeltme önce yalnızca gece otomatik yayınına
-            # uygulanmıştı; onaydan geçen son dakika postları buradan
-            # çıktığı için tarih yazmaya devam etti ve canlı zincirde
-            # "18 AĞUSTOS 2026 · Son dakika" göründü (18 Ağu 2026).
-            # Akşam turunda tarih KALIYOR: orada vaat günlük derleme.
             son_dakika_mi = bool(haberler[0]["son_dakika"])
             halkalar = caption.threads_halkalari(
                 haberler, urller, son_dakika=son_dakika_mi,
@@ -250,16 +236,6 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             th_id, th_adet = threads.zincir_yayinla(halkalar)
             th_gonderi_id = th_id
 
-            # ⚠️ YARIM KALDIYSA HEMEN BİR KEZ TAMAMLAMAYI DENE.
-            #
-            # 21 Ağu 2026: zincir 2. halkada "Media Not Found" ile
-            # kesildi ve kullanıcı eksik halkaları ELLE yazmak zorunda
-            # kaldı. `/tamamla` komutu vardı ama mesajda ne komut ne
-            # düğme geçiyordu — kullanıcı varlığını bilmiyordu.
-            #
-            # Kesilme sebebi geçici olduğu için (container yarışı)
-            # saniyeler sonra ikinci deneme büyük olasılıkla tutuyor.
-            # Maliyeti düşük: yalnızca eksik halkalar gönderiliyor.
             if th_adet < len(halkalar):
                 log.warning("zincir %s/%s kaldı, tamamlama deneniyor",
                             th_adet, len(halkalar))
@@ -271,9 +247,6 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             if th_adet == len(halkalar):
                 th_notu = f"\n🧵 Threads'e de paylaşıldı ({th_adet} halka)"
             else:
-                # Yarım zinciri "paylaşıldı" diye yazmak hatayı gizler.
-                # Düğme de veriliyor (aşağıda): kullanıcı komutu
-                # ezberlemek zorunda kalmasın.
                 th_yarim = True
                 th_notu = (f"\n⚠️ Threads zinciri yarım kaldı: "
                            f"{th_adet}/{len(halkalar)} halka\n"
@@ -283,10 +256,26 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             log.warning("Threads paylaşılamadı: %s", e)
             th_notu = f"\n⚠️ Threads'e gitmedi: {type(e).__name__}"
 
-    # ⚠️ ID'LER SAKLANMALI. Yayından kaldırmak gerektiğinde Facebook ve
-    # Threads bunlarla siliniyor; saklanmazsa elle girip aramak gerekiyor.
-    # (Instagram'da silme API'den mümkün değil, orada yalnızca bağlantı
-    #  gösteriliyor.)
+    # X (Twitter) API v2 paylaşımı
+    tw_notu = ""
+    tw_gonderi_id = None
+    if paylas_tw:
+        try:
+            if len(haberler) == 1 or bool(haberler[0]["son_dakika"]):
+                tw_gonderi_id = twitter.tekil_yayinla(haberler[0], urller, ayarlar)
+                if tw_gonderi_id:
+                    tw_notu = "\n🐦 X'e (Twitter) de paylaşıldı"
+            else:
+                tw_id, tw_adet = twitter.zincir_yayinla(haberler, urller, ayarlar)
+                tw_gonderi_id = tw_id
+                if tw_id:
+                    tw_notu = f"\n🐦 X'e (Twitter) de paylaşıldı ({tw_adet} tweet zinciri)"
+            log.info("Twitter: %s", tw_gonderi_id)
+        except Exception as e:
+            log.warning("Twitter paylaşılamadı: %s", e)
+            tw_notu = f"\n⚠️ X'e (Twitter) gitmedi: {type(e).__name__}"
+
+    # ⚠️ ID'LER SAKLANMALI.
     con.execute(
         "UPDATE haberler SET durum = 'yayinlandi', ig_post_id = ?, "
         "facebook_post_id = ?, threads_post_id = ? "
@@ -295,12 +284,9 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     )
     con.commit()
 
-    # `bildir=True`: sonuç ayrıca yeni mesaj olarak da gidiyor. Yalnızca
-    # onay mesajını düzenlemek yetmiyordu — düzenleme bildirim üretmiyor
-    # ve kullanıcı 2 dakika süren yayının sonucunu göremiyordu.
     telegram_bot.sonucu_yaz(
         mesaj_id,
-        f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}{th_notu}\n"
+        f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}{th_notu}{tw_notu}\n"
         f"\n{_yayin_ozeti(haberler)}\n"
         f"\nOnaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",

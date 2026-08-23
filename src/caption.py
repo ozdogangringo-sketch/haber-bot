@@ -440,3 +440,88 @@ def ekonomi_caption(
         parcalar.append(etiketler)
 
     return "\n\n".join(p for p in parcalar if p).strip()
+
+
+def twitter_metni_kur(haber: dict, ayarlar: dict | None = None) -> str:
+    """
+    X (Twitter) için 280 karakter sınırına tam uyumlu tekil post metni üretir.
+    URL link vergisine takılmamak için kaynak metin olarak belirtilir.
+    """
+    h_dict = dict(haber)
+    baslik = (h_dict.get("ig_baslik") or h_dict.get("baslik_orj") or "").strip()
+    ozet = (h_dict.get("slayt_ozet") or h_dict.get("ig_caption") or "").strip()
+    kaynak = kaynak_gosterim_adi(h_dict.get("kaynak", ""), ayarlar or {})
+
+    simge = "🚨 SON DAKİKA" if h_dict.get("son_dakika") else "📰"
+    vurgu_sayi = h_dict.get("vurgu_sayi")
+    vurgu_etiket = h_dict.get("vurgu_etiket")
+
+    metin_parcalari = [f"{simge} {baslik}"]
+
+    if vurgu_sayi and vurgu_etiket:
+        metin_parcalari.append(f"📊 {vurgu_sayi} ({vurgu_etiket})")
+
+    if ozet and len(ozet) > 10:
+        # Özetin ilk 1-2 cümlesi
+        ilk_cumle = ozet.split(". ")[0] + "."
+        if len(ilk_cumle) > 140:
+            ilk_cumle = ilk_cumle[:135] + "…"
+        metin_parcalari.append(ilk_cumle)
+
+    if kaynak:
+        metin_parcalari.append(f"Kaynak: {kaynak}")
+
+    # Temel etiketler
+    kat = h_dict.get("kategori") or "gundem"
+    etiket = f"#{kat} #DailyBrief"
+    metin_parcalari.append(etiket)
+
+    sonuc = "\n\n".join(metin_parcalari).strip()
+    if len(sonuc) > 280:
+        sonuc = sonuc[:277] + "…"
+    return sonuc
+
+
+def twitter_zincir_metinleri(
+    haberler: list[dict],
+    ayarlar: dict | None = None,
+) -> list[str]:
+    """
+    X (Twitter) için çoklu haber turunu birbirine bağlı Flood (Thread) metinlerine böler.
+    """
+    if not haberler:
+        return []
+
+    toplam = len(haberler)
+    halkalar = []
+
+    # 1. Halka: Giriş & Kapak
+    ilk = (
+        f"📊 Daily Brief | Günün Öne Çıkan Başlıkları 🧵\n\n"
+        f"Günün en sıcak ekonomi ve gündem gelişmelerini derledik. "
+        f"Detaylar zincirimizde 👇"
+    )
+    halkalar.append(ilk)
+
+    # 2..N Halkalar: Her bir haber
+    for i, h in enumerate(haberler, start=1):
+        h_dict = dict(h)
+        baslik = (h_dict.get("ig_baslik") or h_dict.get("baslik_orj") or "").strip()
+        ozet = (h_dict.get("slayt_ozet") or h_dict.get("ig_caption") or "").strip()
+        kaynak = kaynak_gosterim_adi(h_dict.get("kaynak", ""), ayarlar or {})
+
+        if len(ozet) > 120:
+            ozet = ozet[:115] + "…"
+
+        parcalar = [f"{i}/{toplam} 📌 {baslik}"]
+        if ozet:
+            parcalar.append(ozet)
+        if kaynak:
+            parcalar.append(f"Kaynak: {kaynak}")
+
+        metin = "\n\n".join(parcalar)
+        if len(metin) > 280:
+            metin = metin[:277] + "…"
+        halkalar.append(metin)
+
+    return halkalar

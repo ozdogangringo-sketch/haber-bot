@@ -84,6 +84,12 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 - **`2. /arastir <KONU>` (Canlı Web Araştırması):** Verilen konuyu Gemini ile webde derinlemesine araştırıp doğrulanmış gerçek bilgileri 4:5 slaytlara dönüştürür.
 - **`3. /ozel <METİN>` (Özel Bülten & Duyuru):** Kullanıcının doğrudan yazdığı duyuru/bülten metnini kurumsal Daily Brief şablonuna döker.
 
+### H. 4. Yayın Kanalı: X (Twitter) API v2 Entegrasyonu (`src/twitter.py`)
+- **OAuth 1.0a Saf Python Motoru:** Harici bağımlılığa gerek duymadan RFC 5849 standartlarında kalıcı yetkilendirme sağlar.
+- **4 Fotoğraflı Medya Yükleme & 280 Karakter:** 1.1 Media Upload ile 4 adet 1080x1350 slayt yüklenir; 280 karaktere optimize edilmiş metin paylaşılır. URL link vergisine (\$0.20) takılmamak için kaynak metin olarak yazılır (\$0.015 birim maliyet).
+- **Flood / Zincirleme Modu:** Çoklu haber turları birbirine yanıt veren Flood (Thread) olarak paylaşılır.
+- **Telegram `[✅ X]` Toggle Butonu:** Onay menüsünde tek tıkla açılıp kapatılabilir.
+
 ---
 
 ## 4. Dosya ve Dizin Yapısı
@@ -92,6 +98,7 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 |---|---|
 | `config.yaml` | Tüm bot ayarları, RSS kaynakları, ağırlıklar, eşikler ve sosyal medya anahtarları. |
 | `src/ozel_haber.py` | Telegram üzerinden `/link`, `/arastir` ve `/ozel` komutlarıyla havuz dışı özel haber üretimi. |
+| `src/twitter.py` | X (Twitter) API v2 üzerinden 4 fotoğraflı tekil post, Flood (zincir) paylaşımı ve sağlık testi. |
 | `src/piyasa.py` | Yahoo Finance üzerinden BİST, döviz, emtia, kripto ve ABD hisselerinin canlı çekimi & Gram TL hesabı. |
 | `src/piyasa_kart.py` | 1080x1350 dikey formatta Varyasyon 14 piyasa ısı haritası ve infografik kartı üretim motoru. |
 | `src/slaytlar.py` | 4:5 haber slaytlarının çizimi, tipografi, 144px 3D gölgeli logo, güvenli paylar ve fotoğraf yerleşimi. |
