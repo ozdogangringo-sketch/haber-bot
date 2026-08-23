@@ -393,7 +393,15 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     not_txt = "DailyBrief · BİST & Küresel Canlı Piyasa Göstergeleri"
     nw = draw.textlength(not_txt, font=f_alt_kucuk)
     draw.text((1035 - nw, 1264), not_txt, font=f_alt_kucuk, fill=RENK_BASLIK_KOYU)
-    draw.text((1035 - 200, 1292), "Yatırım tavsiyesi değildir.", font=_font(14, 500.0), fill=RENK_GRI_METIN)
+
+    # Sağ altta 4 kanal ikonu (IG, Threads, FB, X) + Yanında 'Yatırım tavsiyesi değildir'
+    from src.make_image import kanal_ikonlari_bas
+    img = kanal_ikonlari_bas(img, {"gorsel": {"kenar_bosluk": 45, "genislik": 1080, "kanal_ikon_boyu": 20}, "sosyal": {"kanallar": ["instagram", "threads", "facebook", "x"]}}, y_merkez=1295, renk=RENK_GRI_METIN)
+    draw = ImageDraw.Draw(img)
+    f_tavsiye = _font(13, 500.0)
+    tav_txt = "Yatırım tavsiyesi değildir."
+    tav_w = draw.textlength(tav_txt, font=f_tavsiye)
+    draw.text((1035 - 130 - tav_w, 1288), tav_txt, font=f_tavsiye, fill=RENK_GRI_METIN)
 
     cikti_yolu = CIKTI_KLASORU / f"piyasa_karti_{simdi.strftime('%Y%m%d')}.jpg"
     img.save(cikti_yolu, "JPEG", quality=95)
