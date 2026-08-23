@@ -147,6 +147,15 @@ def main() -> int:
         con.close()
         return 0
 
+    # 1. Zamanı gelmiş planlı yayınlar varsa hemen yayınla
+    try:
+        from scripts import son_dakika
+        with open(KOK / "config.yaml", encoding="utf-8") as f:
+            ayarlar = yaml.safe_load(f)
+        son_dakika.planli_yayinlari_isle(con, ayarlar)
+    except Exception as e:
+        log.warning("planlı yayınlar işlenirken hata: %s", e)
+
     haberler = bekleyen_tur(con)
     if not haberler:
         log.info("onay bekleyen tur yok, yapacak bir şey yok")

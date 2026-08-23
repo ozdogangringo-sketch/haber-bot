@@ -187,9 +187,9 @@ def planli_yayinlari_isle(con, ayarlar: dict) -> int:
     """
     simdi = datetime.now(timezone.utc)
     bekleyen = list(con.execute(
-        "SELECT DISTINCT telegram_message_id AS mid, planlanan_yayin "
+        "SELECT DISTINCT telegram_message_id AS mid, planlanan_yayin, yayin_kanallari "
         "FROM haberler WHERE planlanan_yayin IS NOT NULL "
-        "AND durum = 'onay_bekliyor' AND telegram_message_id IS NOT NULL"))
+        "AND durum IN ('onay_bekliyor', 'ertelendi') AND telegram_message_id IS NOT NULL"))
     if not bekleyen:
         return 0
 
@@ -245,7 +245,8 @@ def planli_yayinlari_isle(con, ayarlar: dict) -> int:
                     "WHERE telegram_message_id = ?", (mesaj_id,))
         con.commit()
         try:
-            onay_isle.yayinla(con, ayarlar, haberler, mesaj_id, "zamanlanmış")
+            kanallar = satir["yayin_kanallari"] if "yayin_kanallari" in satir.keys() else None
+            onay_isle.yayinla(con, ayarlar, haberler, mesaj_id, "zamanlanmış", kanallar=kanallar)
             yayinlanan += 1
         except Exception as e:
             log.exception("planlı yayın patladı (%s)", mesaj_id)
