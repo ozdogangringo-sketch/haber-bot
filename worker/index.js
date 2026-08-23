@@ -578,7 +578,7 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/tur", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel"].includes(komutMetni)) {
+        if (["/durum", "/tur", "/sondakika", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
             if (komut === "panel") komut = "yonetim";
             const iletildi = await githubaIlet(env, komut, null,
@@ -587,15 +587,17 @@ export default {
                 iletildi
                     ? (komut === "tur"
                         ? "⏳ Yeni tur hazırlanıyor, birkaç dakika sürebilir…"
-                        : komut === "ayar"
-                          ? "⏳ Ayarlar getiriliyor…"
-                          : komut === "yonetim"
-                            ? "⏳ Yönetim paneli getiriliyor…"
-                            : komut === "tamamla"
-                              ? "⏳ Threads zinciri kontrol ediliyor…"
-                              : komut === "arsiv"
-                                ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
-                                : "⏳ Durum sorgulanıyor…")
+                        : komut === "sondakika"
+                          ? "⚡️ Son dakika sıcak haber taraması başlatılıyor…"
+                          : komut === "ayar"
+                            ? "⏳ Ayarlar getiriliyor…"
+                            : komut === "yonetim"
+                              ? "⏳ Yönetim paneli getiriliyor…"
+                              : komut === "tamamla"
+                                ? "⏳ Threads zinciri kontrol ediliyor…"
+                                : komut === "arsiv"
+                                  ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
+                                  : "⏳ Durum sorgulanıyor…")
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }

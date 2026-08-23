@@ -22,7 +22,10 @@ import yaml
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 
-from src import caption, db, db_senkron, generate_text, piyasa, piyasa_kart, slaytlar, telegram_bot, upload_image, yonetim  # noqa: E402
+from src import (  # noqa: E402
+    caption, db, db_senkron, generate_text, make_image,
+    piyasa, piyasa_kart, slaytlar, telegram_bot, upload_image, yonetim,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -158,6 +161,19 @@ def main() -> int:
 
     con.commit()
 
+    # 5b. Story görseli üret ve yükle
+    story_url = None
+    try:
+        story_basliklar = [h["ig_baslik"] or h["baslik_orj"] for h in secilen_haberler]
+        story_gorsel = make_image.story_kapak(story_basliklar, ayarlar)
+        story_yol = make_image.CIKTI_KLASORU / "story-kapak-ekonomi.jpg"
+        story_gorsel.save(story_yol, "JPEG", quality=ayarlar["gorsel"].get("jpeg_kalite", 92), optimize=True)
+        story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+        story_url = story_yukleme["url"]
+        log.info("Ekonomi turu story görseli hazır: %s", story_url)
+    except Exception as e:
+        log.warning("Ekonomi turu story görseli üretilemedi: %s", e)
+
     # 6. Caption oluştur
     metin = caption.ekonomi_caption(
         piyasa_verileri=piyasa_verileri,
@@ -196,11 +212,12 @@ def main() -> int:
 
     # 8. Veritabanında haberleri 'onay_bekliyor' durumuna getir
     for idx, h in enumerate(secilen_haberler, start=2):
+        s_url = story_url if idx == 2 else None
         con.execute(
             "UPDATE haberler SET durum = 'onay_bekliyor', tur = 'ekonomi', "
             "telegram_message_id = ?, slayt_sirasi = ?, ig_caption = ?, "
-            "gonderim_zamani = datetime('now') WHERE id = ?",
-            (mesaj_id, idx, metin, h["id"]),
+            "story_url = ?, gonderim_zamani = datetime('now') WHERE id = ?",
+            (mesaj_id, idx, metin, s_url, h["id"]),
         )
     con.commit()
 

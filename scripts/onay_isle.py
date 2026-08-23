@@ -57,7 +57,7 @@ _ayarlar_onbellek: dict = {}
 # ⚠️ `haber_sec`/`haber_vazgec` tur id'sini KOMUTTA taşıyor; Worker'ın
 # gönderdiği mesaj_id alternatif mesajına ait ve işe yaramıyor.
 MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
-                     "havuz_guncelle",
+                     "havuz_guncelle", "sondakika", "son_dakika",
                      "yonetim", "yonetim_panel", "duraklat", "devam_et",
                      "saglik_testi", "kota_raporu", "tur_temizle",
                      "haber_sec", "haber_vazgec",
@@ -2265,10 +2265,20 @@ def main() -> int:
     if komut == "durum":
         return durum_bildir(con, ayarlar)
 
-    if komut == "hata:sondakika_tekrar":
+    if komut in ("hata:sondakika_tekrar", "sondakika", "son_dakika"):
         from scripts import son_dakika
-        telegram_bot.mesaj_gonder("🔄 Son dakika kontrolü yeniden başlatılıyor...")
-        return son_dakika.main()
+        telegram_bot.mesaj_gonder("🔍 Son dakika kontrolü yapılıyor, havuz ve kaynaklar taranıyor…")
+        sonuc = son_dakika.main()
+        acik_sayisi = con.execute("SELECT COUNT(*) FROM haberler WHERE durum = 'onay_bekliyor' AND son_dakika = 1").fetchone()[0]
+        if acik_sayisi == 0:
+            telegram_bot.mesaj_gonder(
+                "ℹ️ <b>Son dakika taraması tamamlandı.</b>\n\n"
+                "Havuzdaki ve RSS beslemelerindeki en sıcak haberler incelendi ancak şu an "
+                "son dakika eşiğini (8+/10) aşan yeni bir acil haber bulunamadı.\n"
+                "Sıcak bir gelişme olduğunda sistem otomatik olarak bildirecektir.",
+                html=True,
+            )
+        return sonuc
 
     if komut in ("hata:tur_tekrar", "tur_tekrar"):
         from scripts import ekonomi_turu
