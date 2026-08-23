@@ -74,6 +74,11 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 - **Instagram + Facebook + Threads Eşzamanlı Yayını:** Carousel, sayfa albümü ve 6 halkalı Threads zinciri aynı işlemde güvenle yayınlanır.
 - **Tip Güvenliği (`scripts/onay_isle.py` & `src/caption.py`):** `sqlite3.Row` nesnelerinden kaynaklanan `.get()` hataları `dict()` dönüşümüyle kökünden çözüldü.
 
+### F. Akıllı Hatırlatma & 3 Günlük Kati Havuz Temizliği
+- **Eski Hatırlatmayı Silme (Temiz Sohbet):** `scripts/hatirlat.py` yeni bir hatırlatma atarken önceki hatırlatma mesajını Telegram'dan otomatik siler; böylece her saat başı yeni bildirim düşer ancak grupta mesaj yığını oluşmaz.
+- **12 Saat Azami Tur Ömrü:** Cevap verilmeyen turlar 24 saat yerine 12 saat sonra otomatik kapanıp havuza döner.
+- **3 Günlük Kati Havuz Temizliği (`config.yaml` & `src/db.py`):** `kayit_saklama_gun: 3` yapıldı; 3 günden eski hiçbir yayınlanmamış haber veritabanında ve havuzda tutulmaz, her gece otomatik purge edilir. (Tek seferde 2.622 eski kayıt temizlendi).
+
 ---
 
 ## 4. Dosya ve Dizin Yapısı
