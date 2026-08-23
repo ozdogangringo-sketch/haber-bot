@@ -79,6 +79,11 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 - **12 Saat Azami Tur Ömrü:** Cevap verilmeyen turlar 24 saat yerine 12 saat sonra otomatik kapanıp havuza döner.
 - **3 Günlük Kati Havuz Temizliği (`config.yaml` & `src/db.py`):** `kayit_saklama_gun: 3` yapıldı; 3 günden eski hiçbir yayınlanmamış haber veritabanında ve havuzda tutulmaz, her gece otomatik purge edilir. (Tek seferde 2.622 eski kayıt temizlendi).
 
+### G. Havuz Dışı Özel Haber Üretim Motoru (`src/ozel_haber.py`)
+- **`1. /link <URL>` (Linkten Tam Post):** İstenen web sayfasının makale gövdesini ve orijinal basın fotoğraflarını çeker; Gemini ile Türkçe manşet, spot özet, vurgu rakamı ve Instagram caption'ını üretip onay kartı sunar.
+- **`2. /arastir <KONU>` (Canlı Web Araştırması):** Verilen konuyu Gemini ile webde derinlemesine araştırıp doğrulanmış gerçek bilgileri 4:5 slaytlara dönüştürür.
+- **`3. /ozel <METİN>` (Özel Bülten & Duyuru):** Kullanıcının doğrudan yazdığı duyuru/bülten metnini kurumsal Daily Brief şablonuna döker.
+
 ---
 
 ## 4. Dosya ve Dizin Yapısı
@@ -86,6 +91,7 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 | Dizin / Dosya | Görevi |
 |---|---|
 | `config.yaml` | Tüm bot ayarları, RSS kaynakları, ağırlıklar, eşikler ve sosyal medya anahtarları. |
+| `src/ozel_haber.py` | Telegram üzerinden `/link`, `/arastir` ve `/ozel` komutlarıyla havuz dışı özel haber üretimi. |
 | `src/piyasa.py` | Yahoo Finance üzerinden BİST, döviz, emtia, kripto ve ABD hisselerinin canlı çekimi & Gram TL hesabı. |
 | `src/piyasa_kart.py` | 1080x1350 dikey formatta Varyasyon 14 piyasa ısı haritası ve infografik kartı üretim motoru. |
 | `src/slaytlar.py` | 4:5 haber slaytlarının çizimi, tipografi, 144px 3D gölgeli logo, güvenli paylar ve fotoğraf yerleşimi. |

@@ -490,29 +490,77 @@ export default {
             // Yardım metni Worker'da duruyor: GitHub'ı uyandırmak 40+
             // saniye sürüyor, sabit bir metin için buna değmez.
             await mesajGonder(env, sohbet,
-                "🤖 Daily Brief botu\n\n" +
-                "/yonetim — duraklatma, kota, API testleri, acil durum\n" +
-                "/durum — onay bekleyen tur var mı, havuzda kaç haber var\n" +
-                "/tur — yeni tur hazırla (birkaç dakika sürer)\n" +
-                "/ayar — gece otomatik yayın, eşikler, kanallar\n" +
-                "/tamamla — yarım kalan Threads zincirini tamamla\n" +
-                "/arsiv — paylaşılmamış eski turları Threads'e gönder\n" +
-                "/haber <konu> — havuzda ara, çıkanları öneri olarak sun\n" +
-                "/guncelle — kaynakları hemen tara, havuzu tazele\n" +
-                "/yardim — bu mesaj\n\n" +
+                "🤖 Daily Brief Bot Komutları\n\n" +
+                "📋 ÖZEL HABER ÜRETİMİ (Havuz Dışı):\n" +
+                "• /link <url> — Herhangi bir haber linkinden tam post üretir\n" +
+                "• /arastir <konu> — Konuyu webde araştırıp doğrulanmış haber yapar\n" +
+                "• /ozel <metin> — Kendi bülten veya duyuru metninden post üretir\n\n" +
+                "⚙️ YÖNETİM & TUR KONTROLÜ:\n" +
+                "• /tur — Sabah/Akşam turunu hemen hazırla\n" +
+                "• /durum — Canlı kota, havuz ve bekleyen tur durumu\n" +
+                "• /yonetim — Botu duraklatma, API sağlık testleri\n" +
+                "• /haber <kelime> — Havuzdaki taze haberlerde ara\n" +
+                "• /guncelle — RSS kaynaklarını hemen tara\n" +
+                "• /ayar — Gece otomatik yayın ve kategori eşikleri\n" +
+                "• /tamamla — Yarım kalan Threads zincirini tamamla\n" +
+                "• /yardim — Bu yardım menüsü\n\n" +
                 "Onay mesajındaki butonlarla yayınlayabilir, slaytları " +
                 "değiştirebilir veya turu atlayabilirsin.");
             return new Response("ok");
         }
 
+        // /link <URL> — Verilen web linkinden özel haber üretir
+        if (komutMetni === "/link") {
+            const url = msj.text.trim().slice(komutMetni.length).trim();
+            if (!url.startsWith("http")) {
+                await mesajGonder(env, sohbet,
+                    "⚠️ Lütfen geçerli bir haber linki yaz:\n/link https://bloomberg.com/...");
+                return new Response("ok");
+            }
+            const iletildi = await githubaIlet(env, `link:${url}`,
+                null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? `🌐 Link taranıyor ve özel haber hazırlanıyor…\n${url.slice(0, 70)}`
+                    : "⚠️ Komut iletilemedi, tekrar dene.");
+            return new Response("ok");
+        }
+
+        // /arastir <KONU> — Konuyu webde araştırıp doğrulanmış haber üretir
+        if (komutMetni === "/arastir" || komutMetni === "/ara") {
+            const konu = msj.text.trim().slice(komutMetni.length).trim();
+            if (konu.length < 4) {
+                await mesajGonder(env, sohbet,
+                    "⚠️ Araştırmak istediğin konuyu yaz:\n/arastir Nvidia yeni kuantum yapay zeka çipini duyurdu");
+                return new Response("ok");
+            }
+            const iletildi = await githubaIlet(env, `arastir:${konu.slice(0, 300)}`,
+                null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? `🔍 "${konu.slice(0, 70)}" konusu canlı araştırılıyor ve haberleştiriliyor…`
+                    : "⚠️ Komut iletilemedi, tekrar dene.");
+            return new Response("ok");
+        }
+
+        // /ozel <METİN> — Kullanıcının bülten/duyuru metninden post üretir
+        if (komutMetni === "/ozel" || komutMetni === "/bulten" || komutMetni === "/duyuru") {
+            const metin = msj.text.trim().slice(komutMetni.length).trim();
+            if (metin.length < 15) {
+                await mesajGonder(env, sohbet,
+                    "⚠️ Post yapmak istediğin bülten veya duyuru metnini yaz:\n/ozel Daily Briefing mobil uygulamamız App Store ve Google Play'de yayına girdi...");
+                return new Response("ok");
+            }
+            const iletildi = await githubaIlet(env, `ozel:${metin.slice(0, 1500)}`,
+                null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? "✍️ Özel bülten metni işleniyor, slaytlar hazırlanıyor…"
+                    : "⚠️ Komut iletilemedi, tekrar dene.");
+            return new Response("ok");
+        }
+
         // /haber <konu> — havuzda arama yapıp öneri sunar.
-        //
-        // ⚠️ KULLANICININ YAZDIĞI METİNDEN POST ÜRETİLMİYOR. Projenin
-        // en temel kuralı "yalnızca kaynak metinde yazanı kullan";
-        // tek cümlelik bir istekten haber metni üretmek tam da o
-        // kuralın yasakladığı şey. Bunun yerine havuzdaki gerçek
-        // haberlerde arama yapılıyor ve eşleşenler öneri olarak
-        // sunuluyor — seçilenin metni kendi kaynağından üretiliyor.
         if (komutMetni === "/haber") {
             const konu = msj.text.trim().slice(komutMetni.length).trim();
             if (konu.length < 3) {
@@ -520,9 +568,6 @@ export default {
                     "Aramak istediğin konuyu yaz:\n/haber galatasaray transfer");
                 return new Response("ok");
             }
-            // Komut GitHub'a "ara:<konu>" olarak gidiyor. Konu
-            // client_payload içinde taşınıyor, callback_data sınırı
-            // burada geçerli değil.
             const iletildi = await githubaIlet(env, `ara:${konu.slice(0, 120)}`,
                 null, msj.from ? msj.from.first_name || "" : "");
             await mesajGonder(env, sohbet,

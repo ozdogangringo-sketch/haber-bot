@@ -2263,7 +2263,18 @@ def main() -> int:
     if komut == "oneri_gec":
         telegram_bot.sonucu_yaz(mesaj_id, "⏭ Öneri geçildi.")
         log.info("öneri geçildi")
-        return 0
+    # ── Özel Haber Komutları (/link, /arastir, /ozel) ──────────
+    if komut.startswith("link:"):
+        from src import ozel_haber
+        return ozel_haber.linkten_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan)
+
+    if komut.startswith("arastir:"):
+        from src import ozel_haber
+        return ozel_haber.arastir_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan)
+
+    if komut.startswith("ozel:"):
+        from src import ozel_haber
+        return ozel_haber.ozel_metin_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan)
 
     if komut == "durum":
         return durum_bildir(con, ayarlar)
