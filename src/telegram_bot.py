@@ -187,16 +187,17 @@ def kanal_butonlari(kanallar: dict | None = None) -> list[dict]:
     """
     Yayın kanallarını açıp kapamak için toggle buton satırı üretir.
 
-    Örnek: [✅ IG] [✅ Story] [✅ Threads] [✅ FB] [✅ X]
+    Örnek: [✅ IG] [⬜ Reels] [✅ Story] [✅ Threads] [✅ FB] [✅ X]
     """
     if kanallar is None:
-        kanallar = {"ig": True, "story": True, "threads": True, "facebook": True, "twitter": True}
+        kanallar = {"ig": True, "reels": False, "story": True, "threads": True, "facebook": True, "twitter": True}
 
     def _simge(k):
-        return "✅" if kanallar.get(k, True) else "⬜"
+        return "✅" if kanallar.get(k, False if k == "reels" else True) else "⬜"
 
     return [
         {"text": f"{_simge('ig')} IG", "callback_data": "kanal:ig"},
+        {"text": f"{_simge('reels')} Reels", "callback_data": "kanal:reels"},
         {"text": f"{_simge('story')} Story", "callback_data": "kanal:story"},
         {"text": f"{_simge('threads')} Threads", "callback_data": "kanal:threads"},
         {"text": f"{_simge('facebook')} FB", "callback_data": "kanal:facebook"},

@@ -145,12 +145,14 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     if secili:
         k_set = {k.strip().lower() for k in secili.split(",") if k.strip()}
-        paylas_ig = "ig" in k_set
+        paylas_reels = "reels" in k_set
+        paylas_ig = "ig" in k_set and not paylas_reels
         paylas_story = "story" in k_set
         paylas_fb = "facebook" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
         paylas_th = "threads" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
         paylas_tw = ("twitter" in k_set or "x" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
     else:
+        paylas_reels = False
         paylas_ig = True
         paylas_story = True
         paylas_fb = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
@@ -177,7 +179,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         if h["son_dakika"]:
             urller.extend(_detay_urlleri(h["detay_url"]))
 
-    if len(urller) < 2:
+    if len(urller) < 2 and not paylas_reels:
         raise RuntimeError(
             f"yayın için en az 2 görsel gerekli, {len(urller)} var. "
             f"Tur bozuk görünüyor — /tur ile yenisini kurabilirsin."
@@ -196,12 +198,22 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     post_id = None
     baglanti = None
     ig_notu = ""
-    if paylas_ig:
+    if paylas_reels:
+        # Reels Manuel Paylaşım Modu: Açıklamayı kopyalanabilir monospaced olarak Telegram'a gönder
+        reels_mesaji = (
+            f"🎬 <b>REELS / STORY MANUEL PAYLAŞIM PAKETİ</b>\n\n"
+            f"📌 <b>Instagram Açıklaması (Kopyalamak için metne tıkla):</b>\n\n"
+            f"<code>{metin}</code>\n\n"
+            f"💡 <i>Görseller Telegram albümünde ve 9:16 Story formatında hazır. Tek dokunuşla galeriye kaydedip Instagram Reels/Story olarak paylaşabilirsin.</i>"
+        )
+        telegram_bot.mesaj_gonder(reels_mesaji, html=True)
+        ig_notu = "🎬 Reels Manuel Paylaşım Paketi Telegram'a iletildi"
+    elif paylas_ig:
         post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
         baglanti = instagram.post_baglantisi(post_id, ayarlar)
         ig_notu = "📸 Instagram gönderisi yayınlandı"
     else:
-        ig_notu = "📸 Instagram atlandı (Manuel paylaşım)"
+        ig_notu = "📸 Instagram atlandı"
 
     # Story postla birlikte gidiyor (kullanıcı kapatmadıysa).
     story_notu = ""

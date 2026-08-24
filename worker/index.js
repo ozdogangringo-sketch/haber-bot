@@ -148,8 +148,8 @@ function ayarAltMenu(yol, kodlar) {
   return { inline_keyboard: [satir, [{ text: "← Ayarlara dön", callback_data: "ayar" }]] };
 }
 
-// Kanal seçimi toggle komutu ("kanal:ig", "kanal:story", "kanal:threads", "kanal:facebook", "kanal:twitter")
-const KANAL_TOGGLE = /^kanal:(ig|story|threads|facebook|twitter)$/;
+// Kanal seçimi toggle komutu ("kanal:ig", "kanal:reels", "kanal:story", "kanal:threads", "kanal:facebook", "kanal:twitter")
+const KANAL_TOGGLE = /^kanal:(ig|reels|story|threads|facebook|twitter)$/;
 
 function seciliKanallariCikar(klavye) {
   if (!klavye || !klavye.length) return null;
@@ -164,10 +164,12 @@ function kanalButonlariSatiri(kanallar) {
   const varMi = (k) => {
     if (Array.isArray(kanallar)) return kanallar.includes(k);
     if (kanallar && typeof kanallar === "object") return Boolean(kanallar[k]);
+    if (k === "reels") return false; // Varsayılan kapalı
     return true;
   };
   return [
     { text: `${varMi('ig') ? '✅' : '⬜'} IG`, callback_data: "kanal:ig" },
+    { text: `${varMi('reels') ? '✅' : '⬜'} Reels`, callback_data: "kanal:reels" },
     { text: `${varMi('story') ? '✅' : '⬜'} Story`, callback_data: "kanal:story" },
     { text: `${varMi('threads') ? '✅' : '⬜'} Threads`, callback_data: "kanal:threads" },
     { text: `${varMi('facebook') ? '✅' : '⬜'} FB`, callback_data: "kanal:facebook" },
@@ -721,14 +723,37 @@ export default {
 
     // --- Kanal seçimi toggle: Worker anında hallediyor ---
     if (KANAL_TOGGLE.test(komut)) {
+      const hedefKanal = komut.slice(6); // "ig", "reels", "story", "threads", "facebook", "twitter"
       const klavye = cb.message?.reply_markup?.inline_keyboard || [];
       const yeni = klavye.map((satir) =>
         satir.map((btn) => {
           const kopya = { ...btn };
-          if (kopya.callback_data === komut) {
-            kopya.text = kopya.text.startsWith("✅")
-              ? "⬜" + kopya.text.slice(1).trim()
-              : "✅" + kopya.text.slice(1).trim();
+          if (!String(kopya.callback_data || "").startsWith("kanal:")) return kopya;
+
+          const buKanal = kopya.callback_data.slice(6);
+          const suAnSecili = kopya.text.startsWith("✅");
+
+          if (hedefKanal === "reels") {
+            // Reels'e tıklandı:
+            if (buKanal === "reels") {
+              kopya.text = suAnSecili ? "⬜ Reels" : "✅ Reels";
+            } else if (buKanal === "ig") {
+              // Reels seçiliyse IG otomatik kapanır
+              if (!suAnSecili) kopya.text = "⬜ IG";
+            }
+          } else if (hedefKanal === "ig") {
+            // IG'ye tıklandı:
+            if (buKanal === "ig") {
+              kopya.text = suAnSecili ? "⬜ IG" : "✅ IG";
+            } else if (buKanal === "reels") {
+              // IG seçiliyse Reels otomatik kapanır
+              if (!suAnSecili) kopya.text = "⬜ Reels";
+            }
+          } else if (buKanal === hedefKanal) {
+            // Diğer bağımsız kanallar (story, threads, facebook, twitter)
+            kopya.text = suAnSecili
+              ? "⬜ " + kopya.text.slice(1).trim()
+              : "✅ " + kopya.text.slice(1).trim();
           }
           return kopya;
         })
