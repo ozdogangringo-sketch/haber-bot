@@ -231,9 +231,11 @@ def yonetim_menusu(duraklatildi: bool = False, kalan_sure: str = "") -> dict:
     duraklat_butonu = (
         {"text": f"▶️ Devam Ettir ({kalan_sure})", "callback_data": "devam_et"}
         if duraklatildi
-        else {"text": "⏸️ Botu Duraklat (Mute)", "callback_data": "duraklat_menu"}
+        else {"text": "⏸️ Botu Duraklat", "callback_data": "duraklat_menu"}
     )
     return {"inline_keyboard": [
+        [{"text": "🔄 Gündem Turu Hazırla", "callback_data": "tur_hazirla"},
+         {"text": "📈 Ekonomi Turu Hazırla", "callback_data": "ekonomi_hazirla"}],
         [duraklat_butonu, {"text": "📊 Kota & Durum", "callback_data": "kota_raporu"}],
         [{"text": "🧪 API Sağlık Testi", "callback_data": "saglik_testi"},
          {"text": "🧹 Askıdaki Turları Temizle", "callback_data": "tur_temizle"}],

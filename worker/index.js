@@ -32,7 +32,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "manuel_paket", "yayinla_diger", "manuel_tamam",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
-                  "kota_raporu", "tur_temizle",
+                  "kota_raporu", "tur_temizle", "tur_hazirla", "ekonomi_hazirla", "ekonomi",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
                   "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
@@ -579,9 +579,11 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/tur", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel"].includes(komutMetni)) {
+        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
             if (komut === "panel") komut = "yonetim";
+            if (komut === "hazirla") komut = "tur";
+            if (komut === "temizle") komut = "tur_temizle";
             if (komut === "pazar") komut = "haftalik";
             if (komut === "reels") komut = "video";
             const iletildi = await githubaIlet(env, komut, null,
@@ -589,22 +591,26 @@ export default {
             await mesajGonder(env, sohbet,
                 iletildi
                     ? (komut === "tur"
-                        ? "⏳ Yeni tur hazırlanıyor, birkaç dakika sürebilir…"
-                        : komut === "sondakika"
-                          ? "⚡️ Son dakika sıcak haber taraması başlatılıyor…"
-                          : komut === "haftalik"
-                            ? "🗓️ Haftalık Pazar özeti hazırlanıyor, son 7 günün manşetleri taranıyor…"
-                            : komut === "video"
-                              ? "🎬 Son turun 9:16 MP4 Reels videosu render ediliyor…"
-                              : komut === "ayar"
-                                ? "⏳ Ayarlar getiriliyor…"
-                                : komut === "yonetim"
-                                  ? "⏳ Yönetim paneli getiriliyor…"
-                                  : komut === "tamamla"
-                                    ? "⏳ Threads zinciri kontrol ediliyor…"
-                                    : komut === "arsiv"
-                                      ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
-                                      : "⏳ Durum sorgulanıyor…")
+                        ? "⏳ Yeni gündem turu hazırlanıyor, birkaç dakika sürebilir…"
+                        : komut === "ekonomi"
+                          ? "📊 Yeni Ekonomi & Piyasa turu hazırlanıyor…"
+                          : komut === "tur_temizle"
+                            ? "🧹 Askıdaki cevapsız turlar temizleniyor…"
+                            : komut === "sondakika"
+                              ? "⚡️ Son dakika sıcak haber taraması başlatılıyor…"
+                              : komut === "haftalik"
+                                ? "🗓️ Haftalık Pazar özeti hazırlanıyor, son 7 günün manşetleri taranıyor…"
+                                : komut === "video"
+                                  ? "🎬 Son turun 9:16 MP4 Reels videosu render ediliyor…"
+                                  : komut === "ayar"
+                                    ? "⏳ Ayarlar getiriliyor…"
+                                    : komut === "yonetim"
+                                      ? "⏳ Yönetim paneli getiriliyor…"
+                                      : komut === "tamamla"
+                                        ? "⏳ Threads zinciri kontrol ediliyor…"
+                                        : komut === "arsiv"
+                                          ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
+                                          : "⏳ Durum sorgulanıyor…")
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }
