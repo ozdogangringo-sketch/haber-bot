@@ -143,6 +143,7 @@ ISI_HARITASI_SEKTORLERI = {
         {"sym": "TRY=X", "etiket": "USD / TL", "icon": "dollar", "varsayilan": 0.10},
         {"sym": "EURTRY=X", "etiket": "EUR / TL", "icon": "euro", "varsayilan": 0.03},
         {"sym": "GC=F", "etiket": "GRAM ALTIN", "icon": "gold", "varsayilan": 0.30},
+        {"sym": "SI=F", "etiket": "GRAM GÜMÜŞ", "icon": "silver", "varsayilan": -1.00},
     ],
     "BİST & TÜRKİYE HİSSELERİ": [
         {"sym": "XU100.IS", "etiket": "BIST 100", "val": 52, "varsayilan": 0.20},
@@ -155,12 +156,12 @@ ISI_HARITASI_SEKTORLERI = {
         {"sym": "ASELS.IS", "etiket": "ASELS", "val": 18, "varsayilan": -0.56},
         {"sym": "EREGL.IS", "etiket": "EREGL", "val": 16, "varsayilan": 0.89},
     ],
-    "DÖVİZ & EMTİA (MAKRO)": [
+    "EMTİA & KÜRESEL MAKRO": [
         {"sym": "BZ=F", "etiket": "BRENT", "icon": "oil", "varsayilan": -1.37},
-        {"sym": "SI=F", "etiket": "GÜMÜŞ", "icon": "silver", "varsayilan": -1.00},
         {"sym": "GC=F_ONS", "etiket": "ONS ALTIN", "icon": "gold_ons", "varsayilan": 0.45},
         {"sym": "SI=F_ONS", "etiket": "ONS GÜMÜŞ", "icon": "silver_ons", "varsayilan": -0.20},
         {"sym": "DX-Y.NYB", "etiket": "DXY", "icon": "dxy", "varsayilan": 0.18},
+        {"sym": "NG=F", "etiket": "DOĞALGAZ", "icon": "gas", "varsayilan": 1.12},
     ],
     "KÜRESEL PİYASALAR & KRİPTO": [
         {"sym": "BTC-USD", "etiket": "BITCOIN", "icon": "btc", "varsayilan": -0.64},
@@ -192,21 +193,27 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
     def _tek_cek(s):
         try:
             r = requests.get(
-                f"https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d",
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=30m&range=1d",
                 headers=headers,
                 timeout=4,
             )
             if r.status_code == 200:
-                res = r.json()["chart"]["result"][0]["meta"]
+                veri = r.json()["chart"]["result"][0]
+                res = veri["meta"]
                 prev = res.get("chartPreviousClose") or res.get("previousClose")
                 price = res.get("regularMarketPrice")
                 chg = ((price - prev) / prev) * 100 if prev else 0.0
-                return s, {"price": price, "chg": chg}
+
+                # Gün içi gerçek fiyat kapanış serisi (Sparkline)
+                closes = veri.get("indicators", {}).get("quote", [{}])[0].get("close", [])
+                sparkline = [float(c) for c in closes if c is not None]
+
+                return s, {"price": price, "chg": chg, "sparkline": sparkline}
         except Exception:
             pass
         return s, None
 
-    with ThreadPoolExecutor(max_workers=15) as ex:
+    with ThreadPoolExecutor(max_workers=16) as ex:
         for sym, res in ex.map(_tek_cek, list(tum_semboller)):
             if res:
                 fiyat_verileri[sym] = res
@@ -222,6 +229,7 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
             canli = fiyat_verileri.get(sym)
             degisim = canli["chg"] if canli else oge["varsayilan"]
             fiyat = canli["price"] if canli else 0.0
+            sparkline = canli.get("sparkline", []) if canli else []
 
             # Gram TL Çevrimleri
             if sym_raw == "GC=F" and fiyat:
@@ -230,7 +238,6 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
             elif sym_raw == "SI=F" and fiyat:
                 # Gram Gümüş (TL)
                 fiyat = (fiyat / 31.1034768) * dolar_kuru
-            # GC=F_ONS ve SI=F_ONS saf dolar fiyatı olarak kalır ($2750, $32.40)
 
             sektor_ogeleri.append({
                 "sym": sym_raw,
@@ -239,6 +246,7 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
                 "icon": oge.get("icon", ""),
                 "degisim": degisim,
                 "fiyat": fiyat,
+                "sparkline": sparkline,
             })
         sonuclar[sektor] = sektor_ogeleri
 

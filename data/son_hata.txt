@@ -1,0 +1,3 @@
+[2026-08-23T23:06:59.318116+00:00] son_dakika.py -> Zamanlanmış yayın yapılamadı
+
+Graph API hatası (/17841458696652166/media): HTTP 400: {"error":{"message":"Only photo or video can be accepted as media type.","type":"OAuthException","code":9004,"error_subcode":2207052,"is_transient":false,"error_user_title":"Medya indirme i\u015flemi ba\u015far\u0131s\u0131z oldu. Medya URI'si gereksinimlerimizi kar\u015f\u0131lam\u0131yor.","error_

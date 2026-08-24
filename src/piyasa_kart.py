@@ -178,69 +178,80 @@ def _arka_plan_ciz() -> Image.Image:
 def _ciz_vektor_ikon(draw: ImageDraw.ImageDraw, icon: str, x: int, y: int, r: int, renk: tuple[int, int, int]):
     """İkonları pürüzsüz vektörel çizer."""
     if icon == "dollar":
-        # Dolar Simgesi $
-        draw.text((x - 9, y - 18), "$", font=_font(32, 900.0), fill=renk)
+        draw.text((x - 8, y - 16), "$", font=_font(28, 900.0), fill=renk)
     elif icon == "euro":
-        # Euro Simgesi €
-        draw.text((x - 9, y - 18), "€", font=_font(30, 900.0), fill=renk)
+        draw.text((x - 8, y - 16), "€", font=_font(26, 900.0), fill=renk)
     elif icon in ("gold", "gold_ons"):
-        # Altın Külçeleri (2 katmanlı sarı parlak bloklar)
-        draw.polygon([(x - 14, y + 6), (x - 4, y - 6), (x + 10, y - 6), (x + 14, y + 6)], fill=(245, 158, 11))
-        draw.polygon([(x - 6, y - 6), (x + 2, y - 14), (x + 14, y - 14), (x + 10, y - 6)], fill=(251, 191, 36))
+        draw.polygon([(x - 12, y + 5), (x - 3, y - 5), (x + 9, y - 5), (x + 12, y + 5)], fill=(245, 158, 11))
+        draw.polygon([(x - 5, y - 5), (x + 2, y - 12), (x + 12, y - 12), (x + 9, y - 5)], fill=(251, 191, 36))
     elif icon in ("silver", "silver_ons"):
-        # Gümüş Külçeleri (Gümüş gri parlak bloklar)
-        draw.polygon([(x - 14, y + 6), (x - 4, y - 6), (x + 10, y - 6), (x + 14, y + 6)], fill=(148, 163, 184))
-        draw.polygon([(x - 6, y - 6), (x + 2, y - 14), (x + 14, y - 14), (x + 10, y - 6)], fill=(203, 213, 225))
+        draw.polygon([(x - 12, y + 5), (x - 3, y - 5), (x + 9, y - 5), (x + 12, y + 5)], fill=(148, 163, 184))
+        draw.polygon([(x - 5, y - 5), (x + 2, y - 12), (x + 12, y - 12), (x + 9, y - 5)], fill=(203, 213, 225))
     elif icon == "oil":
-        # Petrol Varili
-        draw.rounded_rectangle([(x - 9, y - 12), (x + 9, y + 12)], radius=3, outline=renk, width=2)
-        draw.line([(x - 9, y - 4), (x + 9, y - 4)], fill=renk, width=1)
-        draw.line([(x - 9, y + 4), (x + 9, y + 4)], fill=renk, width=1)
+        draw.rounded_rectangle([(x - 8, y - 11), (x + 8, y + 11)], radius=3, outline=renk, width=2)
+        draw.line([(x - 8, y - 3), (x + 8, y - 3)], fill=renk, width=1)
+        draw.line([(x - 8, y + 4), (x + 8, y + 4)], fill=renk, width=1)
+    elif icon == "gas":
+        # Doğalgaz Alev / Damla İkonu
+        draw.polygon([(x, y - 12), (x + 8, y + 2), (x + 5, y + 11), (x - 5, y + 11), (x - 8, y + 2)], fill=(251, 146, 60))
+        draw.polygon([(x, y - 5), (x + 4, y + 3), (x + 2, y + 8), (x - 2, y + 8), (x - 4, y + 3)], fill=(254, 215, 170))
     elif icon == "btc":
-        draw.text((x - 8, y - 16), "₿", font=_font(28, 900.0), fill=(245, 158, 11))
+        draw.text((x - 7, y - 15), "₿", font=_font(26, 900.0), fill=(245, 158, 11))
     elif icon == "eth":
-        # Ethereum Elmas Şekli
-        draw.polygon([(x, y - 14), (x + 9, y), (x, y + 6), (x - 9, y)], fill=(148, 163, 184))
-        draw.polygon([(x, y + 8), (x + 9, y + 2), (x, y + 15), (x - 9, y + 2)], fill=(203, 213, 225))
+        draw.polygon([(x, y - 13), (x + 8, y), (x, y + 5), (x - 8, y)], fill=(148, 163, 184))
+        draw.polygon([(x, y + 7), (x + 8, y + 2), (x, y + 14), (x - 8, y + 2)], fill=(203, 213, 225))
     elif icon == "nvda":
-        # Nvidia Logo Gözü / Çip
-        draw.rounded_rectangle([(x - 11, y - 8), (x + 11, y + 8)], radius=4, fill=(34, 197, 94))
+        draw.rounded_rectangle([(x - 10, y - 7), (x + 10, y + 7)], radius=4, fill=(34, 197, 94))
     elif icon == "aapl":
-        # Apple Elma
-        draw.text((x - 8, y - 16), "", font=_font(28, 900.0), fill=(226, 232, 240))
+        draw.text((x - 7, y - 15), "", font=_font(26, 900.0), fill=(226, 232, 240))
     elif icon == "tsla":
-        # Tesla T İkonu
-        draw.text((x - 7, y - 16), "T", font=_font(28, 900.0), fill=(239, 68, 68))
+        draw.text((x - 6, y - 15), "T", font=_font(26, 900.0), fill=(239, 68, 68))
     elif icon == "dxy":
-        # Dünya / Dolar Endeksi
-        draw.ellipse([(x - 11, y - 11), (x + 11, y + 11)], outline=renk, width=2)
-        draw.line([(x - 11, y), (x + 11, y)], fill=renk, width=1)
-        draw.line([(x, y - 11), (x, y + 11)], fill=renk, width=1)
+        draw.ellipse([(x - 10, y - 10), (x + 10, y + 10)], outline=renk, width=2)
+        draw.line([(x - 10, y), (x + 10, y)], fill=renk, width=1)
+        draw.line([(x, y - 10), (x, y + 10)], fill=renk, width=1)
     else:
-        # Genel Çember Nokta
-        draw.ellipse([(x - 8, y - 8), (x + 8, y + 8)], fill=renk)
+        draw.ellipse([(x - 7, y - 7), (x + 7, y + 7)], fill=renk)
 
 
-def _ciz_sparkline(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, degisim: float):
-    """Mini trend sparkline grafiği çizer."""
+def _ciz_sparkline_gercek(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, degisim: float, serisi: list[float] | None = None):
+    """Gerçek gün içi fiyat serisinden pürüzsüz sparkline grafiği çizer."""
     artis = degisim >= 0
     renk = (34, 197, 94) if artis else (239, 68, 68)
 
+    # Gerçek veri serisi varsa onu kullan
+    if serisi and len(serisi) >= 4:
+        min_p = min(serisi)
+        max_p = max(serisi)
+        fark = max_p - min_p if max_p > min_p else 1.0
+
+        noktalar = []
+        n = len(serisi)
+        for i, val in enumerate(serisi):
+            px = x + int(w * (i / (n - 1)))
+            oran_y = (val - min_p) / fark
+            py = y + h - int(oran_y * (h - 8)) - 4
+            py = max(y + 2, min(y + h - 2, py))
+            noktalar.append((px, py))
+
+        for i in range(len(noktalar) - 1):
+            draw.line([noktalar[i], noktalar[i + 1]], fill=renk, width=2)
+        return
+
+    # Yoksa simüle edilmiş eğri
     noktalar = []
     ad_sayisi = 12
     for i in range(ad_sayisi):
         oran = i / (ad_sayisi - 1)
         px = x + int(w * oran)
-        # Dalgalı gerçekçi simülasyon çizgisi
-        dalga = math.sin(i * 1.2) * (h * 0.22)
+        dalga = math.sin(i * 1.2) * (h * 0.20)
         if artis:
-            py = y + h - int(oran * (h * 0.75)) + int(dalga)
+            py = y + h - int(oran * (h * 0.72)) + int(dalga)
         else:
-            py = y + int(oran * (h * 0.75)) + int(dalga)
+            py = y + int(oran * (h * 0.72)) + int(dalga)
         py = max(y + 2, min(y + h - 2, py))
         noktalar.append((px, py))
 
-    # Çizgiyi çiz
     for i in range(len(noktalar) - 1):
         draw.line([noktalar[i], noktalar[i + 1]], fill=renk, width=2)
 
@@ -263,8 +274,6 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     f_tarih_buyuk = _font(24, 800.0)
     f_tarih_kucuk = _font(19, 600.0)
     f_sektor = _font(19, 800.0)
-    f_link = _font(17, 600.0)
-    f_alt_kucuk = _font(16, 600.0)
 
     # --- 1. HEADER (ÜST ALAN) ---
     logo_boyut = 120
@@ -304,7 +313,7 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     simdi = datetime.now(timezone.utc)
     aksam_mi = simdi.hour >= 15
     baslik_ana = "Günü Nasıl Kapattı?" if aksam_mi else "Güne Nasıl Başladı?"
-    baslik_alt = "Piyasaların kapanış özeti" if aksam_mi else "Piyasaların açılış özeti"
+    baslik_alt = "BİST ve piyasalarda günün kapanış rakamları" if aksam_mi else "BİST ve piyasalarda günün açılış rakamları"
     oturum_adi = "Kapanış" if aksam_mi else "Açılış"
 
     draw.text((header_x, 82), baslik_ana, font=f_baslik, fill=RENK_BASLIK_KOYU)
@@ -324,41 +333,41 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     draw.text((sag_kenar - w_t1, 80), tarih_satir1, font=f_tarih_buyuk, fill=RENK_BASLIK_KOYU)
     draw.text((sag_kenar - w_t2, 114), tarih_satir2, font=f_tarih_kucuk, fill=RENK_GRI_METIN)
 
-    # --- 2. VİTRİN ÜST 3'LÜ KAHRAMAN KART (DOLAR, EURO, ALTIN) ---
+    # --- 2. VİTRİN ÜST 4'LÜ KAHRAMAN KART (DOLAR, EURO, GRAM ALTIN, GRAM GÜMÜŞ) ---
     vitrin_ogeleri = sektor_verileri.get("VİTRİN_ÜST", [])
     vx = 45
     vy = 175
-    vw = 316
+    vw = 236
     vh = 96
-    v_gap = 21
+    v_gap = 15
 
-    for i, v_oge in enumerate(vitrin_ogeleri[:3]):
+    for i, v_oge in enumerate(vitrin_ogeleri[:4]):
         kutu_x = vx + i * (vw + v_gap)
         draw.rounded_rectangle(
             [(kutu_x, vy), (kutu_x + vw, vy + vh)],
-            radius=16,
+            radius=15,
             fill=RENK_KART_CONTAINER,
             outline=RENK_KART_BORDER,
             width=2,
         )
 
         # Sol Dairesel İkon Kutusu
-        ik_cx = kutu_x + 48
+        ik_cx = kutu_x + 36
         ik_cy = vy + 48
-        draw.ellipse([(ik_cx - 32, ik_cy - 32), (ik_cx + 32, ik_cy + 32)], fill=(15, 52, 62), outline=(25, 85, 96), width=1)
-        _ciz_vektor_ikon(draw, v_oge.get("icon", ""), ik_cx, ik_cy, 32, RENK_CYAN)
+        draw.ellipse([(ik_cx - 24, ik_cy - 24), (ik_cx + 24, ik_cy + 24)], fill=(15, 52, 62), outline=(25, 85, 96), width=1)
+        _ciz_vektor_ikon(draw, v_oge.get("icon", ""), x=ik_cx, y=ik_cy, r=24, renk=RENK_CYAN)
 
         # Sağ Metinler (Sembol, Fiyat, Değişim)
-        tx = kutu_x + 94
+        tx = kutu_x + 72
         degisim = v_oge["degisim"]
         fiyat_str = _fiyat_bicimlendir(v_oge["sym"], v_oge["fiyat"])
         chg_str = f"{'▲ %' if degisim >= 0 else '▼ %'}{abs(degisim):.2f}".replace(".", ",")
 
-        draw.text((tx, vy + 12), v_oge["etiket"], font=_font(17, 700.0), fill=RENK_GRI_METIN)
-        draw.text((tx, vy + 34), fiyat_str, font=_font(34, 900.0), fill=RENK_BEYAZ)
+        draw.text((tx, vy + 12), v_oge["etiket"], font=_font(15, 700.0), fill=RENK_GRI_METIN)
+        draw.text((tx, vy + 32), fiyat_str, font=_font(27, 900.0), fill=RENK_BEYAZ)
 
         c_chg = (34, 197, 94) if degisim > 0.05 else ((239, 68, 68) if degisim < -0.05 else RENK_GRI_METIN)
-        draw.text((tx, vy + 68), chg_str, font=_font(19, 800.0), fill=c_chg)
+        draw.text((tx, vy + 66), chg_str, font=_font(17, 800.0), fill=c_chg)
 
     # --- 3. BÖLÜM 1: BİST & TÜRKİYE HİSSELERİ (AĞAÇ HARİTASI) ---
     bist_x = 45
@@ -375,9 +384,6 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         width=2,
     )
     draw.text((bist_x + 18, bist_y + 10), "› BİST & TÜRKİYE HİSSELERİ", font=f_sektor, fill=(246, 243, 236))
-    link_txt = "Tümü için tıkla →"
-    lw = draw.textlength(link_txt, font=f_link)
-    draw.text((bist_x + bist_w - lw - 18, bist_y + 11), link_txt, font=f_link, fill=RENK_GRI_METIN)
 
     bist_icerik_rect = (bist_x + 4, bist_y + ribbon_h + 2, bist_w - 8, bist_h - ribbon_h - 6)
     bist_ogeler = sektor_verileri.get("BİST & TÜRKİYE HİSSELERİ", [])
@@ -438,11 +444,11 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
             draw.text((mid_x - sw_s / 2, y1), sembol, font=f_sym, fill=RENK_BEYAZ)
             draw.text((mid_x - sw_alt / 2, y2), alt_metin, font=f_chg, fill=RENK_BEYAZ)
 
-    # --- 4. BÖLÜM 2: DÖVİZ & EMTİA (MAKRO) (5'Lİ KART) ---
+    # --- 4. BÖLÜM 2: EMTİA & KÜRESEL MAKRO (5'Lİ KART + SPARKLINE) ---
     makro_x = 45
     makro_y = 702
     makro_w = 990
-    makro_h = 236
+    makro_h = 246
 
     draw.rounded_rectangle(
         [(makro_x, makro_y), (makro_x + makro_w, makro_y + makro_h)],
@@ -451,11 +457,11 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         outline=RENK_KART_BORDER,
         width=2,
     )
-    draw.text((makro_x + 18, makro_y + 10), "› DÖVİZ & EMTİA (MAKRO)", font=f_sektor, fill=(246, 243, 236))
+    draw.text((makro_x + 18, makro_y + 10), "› EMTİA & KÜRESEL MAKRO", font=f_sektor, fill=(246, 243, 236))
 
-    makro_ogeler = sektor_verileri.get("DÖVİZ & EMTİA (MAKRO)", [])
+    makro_ogeler = sektor_verileri.get("EMTİA & KÜRESEL MAKRO", [])
     kw = 186
-    kh = 175
+    kh = 185
     k_gap = 12
     kx_start = makro_x + 10
     ky = makro_y + ribbon_h + 8
@@ -470,30 +476,29 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
             width=1,
         )
 
-        # İkon Çemberi
-        ik_x = kx + kw // 2
-        ik_y = ky + 34
-        draw.ellipse([(ik_x - 22, ik_y - 22), (ik_x + 22, ik_y + 22)], fill=(18, 62, 74), outline=(32, 95, 108), width=1)
-        _ciz_vektor_ikon(draw, m_oge.get("icon", ""), x=ik_x, y=ik_y, r=22, renk=RENK_CYAN)
+        # İkon & İsim
+        ik_x = kx + 28
+        ik_y = ky + 24
+        _ciz_vektor_ikon(draw, m_oge.get("icon", ""), x=ik_x, y=ik_y, r=16, renk=RENK_CYAN)
+
+        draw.text((kx + 50, ky + 14), m_oge["etiket"], font=_font(17, 800.0), fill=RENK_BEYAZ)
 
         degisim = m_oge["degisim"]
         fiyat_str = _fiyat_bicimlendir(m_oge["sym"], m_oge["fiyat"])
         chg_str = f"{'▲ %' if degisim >= 0 else '▼ %'}{abs(degisim):.2f}".replace(".", ",")
 
-        # Metinler
-        sw_lbl = draw.textlength(m_oge["etiket"], font=_font(16, 700.0))
-        draw.text((ik_x - sw_lbl / 2, ky + 66), m_oge["etiket"], font=_font(16, 700.0), fill=RENK_GRI_METIN)
-
-        sw_f = draw.textlength(fiyat_str, font=_font(23, 900.0))
-        draw.text((ik_x - sw_f / 2, ky + 94), fiyat_str, font=_font(23, 900.0), fill=RENK_BEYAZ)
+        # Fiyat ve Değişim
+        draw.text((kx + 14, ky + 48), fiyat_str, font=_font(24, 900.0), fill=RENK_BEYAZ)
 
         c_chg = (34, 197, 94) if degisim > 0.05 else ((239, 68, 68) if degisim < -0.05 else RENK_GRI_METIN)
-        sw_c = draw.textlength(chg_str, font=_font(18, 800.0))
-        draw.text((ik_x - sw_c / 2, ky + 132), chg_str, font=_font(18, 800.0), fill=c_chg)
+        draw.text((kx + 14, ky + 82), chg_str, font=_font(18, 800.0), fill=c_chg)
 
-    # --- 5. BÖLÜM 3: KÜRESEL PİYASALAR & KRİPTO (5'Lİ SPARKLINE KART) ---
+        # Alt Gerçek Sparkline Grafiği
+        _ciz_sparkline_gercek(draw, kx + 12, ky + 115, kw - 24, 55, degisim, m_oge.get("sparkline"))
+
+    # --- 5. BÖLÜM 3: KÜRESEL PİYASALAR & KRİPTO (5'Lİ KART + SPARKLINE) ---
     kuresel_x = 45
-    kuresel_y = 958
+    kuresel_y = 964
     kuresel_w = 990
     kuresel_h = 246
 
@@ -505,8 +510,6 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         width=2,
     )
     draw.text((kuresel_x + 18, kuresel_y + 10), "› KÜRESEL PİYASALAR & KRİPTO", font=f_sektor, fill=(246, 243, 236))
-    lw2 = draw.textlength(link_txt, font=f_link)
-    draw.text((kuresel_x + kuresel_w - lw2 - 18, kuresel_y + 11), link_txt, font=f_link, fill=RENK_GRI_METIN)
 
     kuresel_ogeler = sektor_verileri.get("KÜRESEL PİYASALAR & KRİPTO", [])
     ky2 = kuresel_y + ribbon_h + 8
@@ -539,13 +542,13 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
         c_chg = (34, 197, 94) if degisim > 0.05 else ((239, 68, 68) if degisim < -0.05 else RENK_GRI_METIN)
         draw.text((kx + 14, ky2 + 82), chg_str, font=_font(18, 800.0), fill=c_chg)
 
-        # Alt Mini Sparkline Grafiği
-        _ciz_sparkline(draw, kx + 12, ky2 + 115, kw - 24, 55, degisim)
+        # Alt Gerçek Sparkline Grafiği
+        _ciz_sparkline_gercek(draw, kx + 12, ky2 + 115, kw - 24, 55, degisim, k_oge.get("sparkline"))
 
     # --- 6. FOOTER (RENK LEJANTI & YASAL UYARI) ---
-    draw.line([(45, 1224), (1035, 1224)], fill=(24, 75, 85), width=1)
+    draw.line([(45, 1228), (1035, 1228)], fill=(24, 75, 85), width=1)
 
-    skala_y = 1242
+    skala_y = 1244
     draw.text((45, skala_y), "DEĞİŞİM ARALIĞI", font=_font(14, 800.0), fill=RENK_GRI_METIN)
 
     skala_noktalari = [

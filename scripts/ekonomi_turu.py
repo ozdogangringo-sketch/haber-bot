@@ -24,7 +24,7 @@ sys.path.insert(0, str(KOK))
 
 from src import (  # noqa: E402
     caption, db, db_senkron, generate_text, make_image,
-    piyasa, piyasa_kart, slaytlar, telegram_bot, upload_image, yonetim,
+    piyasa, piyasa_kart, piyasa_tablo, slaytlar, telegram_bot, upload_image, yonetim,
 )
 
 logging.basicConfig(
@@ -45,7 +45,8 @@ def main() -> int:
     # 1. Bot duraklatılmış mı kontrol et
     duraklatildi, kalan = yonetim.duraklatildi_mi(con)
     if duraklatildi:
-        log.info("Bot duraklatılmış durumda (kalan: %s), ekonomi turu atlanıyor", kalan)
+        log.info("Bot duraklatılmış (kalan: %s), ekonomi turu atlanıyor.", kalan)
+        con.close()
         return 0
 
     log.info("--- EKONOMİ & PİYASA TURU HAZIRLANIYOR ---")
@@ -53,10 +54,15 @@ def main() -> int:
     # 2. Canlı piyasa göstergelerini çek
     piyasa_verileri = piyasa.piyasa_verileri_getir()
 
-    # 3. 1. Slayt (Yeşil Temalı İnfografik Kartı) üret ve ImgBB'ye yükle
+    # 3a. 1. Slayt (Isı Haritası & Sparkline İnfografik Kartı)
     kart_yolu = piyasa_kart.piyasa_karti_uret(piyasa_verileri)
     kart_yukleme = upload_image.gorsel_yukle(kart_yolu, ayarlar)
     kart_url = kart_yukleme["url"]
+
+    # 3b. 2. Slayt (Detaylı Fiyat Tablosu & Piyasa Karnesi)
+    tablo_yolu = piyasa_tablo.piyasa_tablosu_uret()
+    tablo_yukleme = upload_image.gorsel_yukle(tablo_yolu, ayarlar)
+    tablo_url = tablo_yukleme["url"]
 
     # 4. Taze ekonomi haberlerini seç (Piyasa ve finans odaklı puanlama)
     sinir = datetime.now(timezone.utc) - timedelta(
@@ -142,8 +148,11 @@ def main() -> int:
     log.info("Piyasa kartı + %s ekonomi haberi seçildi", len(secilen_haberler))
 
     # 5. Seçilen haberlerin slaytlarını üret ve ImgBB'ye yükle
-    slayt_urlleri = [kart_url]
-    slayt_sonuclari = [{"katman": "infografik", "atif": "Daily Briefing Finans", "yol": str(kart_yolu)}]
+    slayt_urlleri = [kart_url, tablo_url]
+    slayt_sonuclari = [
+        {"katman": "infografik_isi_haritasi", "atif": "Daily Briefing Finans", "yol": str(kart_yolu)},
+        {"katman": "infografik_piyasa_tablosu", "atif": "Daily Briefing Finans", "yol": str(tablo_yolu)},
+    ]
 
     for h in secilen_haberler:
         try:
