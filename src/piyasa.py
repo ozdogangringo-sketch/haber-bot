@@ -139,30 +139,35 @@ def piyasa_verileri_getir() -> dict[str, dict]:
 
 
 ISI_HARITASI_SEKTORLERI = {
+    "VİTRİN_ÜST": [
+        {"sym": "TRY=X", "etiket": "USD / TL", "icon": "dollar", "varsayilan": 0.10},
+        {"sym": "EURTRY=X", "etiket": "EUR / TL", "icon": "euro", "varsayilan": 0.03},
+        {"sym": "GC=F", "etiket": "GRAM ALTIN", "icon": "gold", "varsayilan": 0.30},
+    ],
     "BİST & TÜRKİYE HİSSELERİ": [
-        {"sym": "XU100.IS", "etiket": "BIST 100", "val": 55, "varsayilan": 0.82},
-        {"sym": "THYAO.IS", "etiket": "THYAO", "val": 36, "varsayilan": -0.08},
-        {"sym": "TUPRS.IS", "etiket": "TUPRS", "val": 26, "varsayilan": 2.91},
-        {"sym": "KCHOL.IS", "etiket": "KCHOL", "val": 24, "varsayilan": 2.02},
-        {"sym": "GARAN.IS", "etiket": "GARAN", "val": 22, "varsayilan": 0.46},
-        {"sym": "AKBNK.IS", "etiket": "AKBNK", "val": 20, "varsayilan": 0.72},
-        {"sym": "BIMAS.IS", "etiket": "BIMAS", "val": 18, "varsayilan": 1.34},
-        {"sym": "ASELS.IS", "etiket": "ASELS", "val": 18, "varsayilan": 0.25},
-        {"sym": "EREGL.IS", "etiket": "EREGL", "val": 16, "varsayilan": 0.10},
+        {"sym": "XU100.IS", "etiket": "BIST 100", "val": 52, "varsayilan": 0.20},
+        {"sym": "THYAO.IS", "etiket": "THYAO", "val": 35, "varsayilan": 0.00},
+        {"sym": "TUPRS.IS", "etiket": "TUPRS", "val": 26, "varsayilan": -1.78},
+        {"sym": "KCHOL.IS", "etiket": "KCHOL", "val": 24, "varsayilan": 0.36},
+        {"sym": "GARAN.IS", "etiket": "GARAN", "val": 22, "varsayilan": 2.77},
+        {"sym": "AKBNK.IS", "etiket": "AKBNK", "val": 20, "varsayilan": 3.95},
+        {"sym": "BIMAS.IS", "etiket": "BIMAS", "val": 24, "varsayilan": -1.20},
+        {"sym": "ASELS.IS", "etiket": "ASELS", "val": 18, "varsayilan": -0.56},
+        {"sym": "EREGL.IS", "etiket": "EREGL", "val": 16, "varsayilan": 0.89},
     ],
     "DÖVİZ & EMTİA (MAKRO)": [
-        {"sym": "GC=F", "etiket": "GRAM ALTIN", "val": 42, "varsayilan": 2.47},
-        {"sym": "TRY=X", "etiket": "USD / TL", "val": 30, "varsayilan": 0.08},
-        {"sym": "EURTRY=X", "etiket": "EUR / TL", "val": 26, "varsayilan": 0.06},
-        {"sym": "BZ=F", "etiket": "BRENT", "val": 22, "varsayilan": 0.65},
-        {"sym": "SI=F", "etiket": "GÜMÜŞ", "val": 16, "varsayilan": 2.09},
+        {"sym": "BZ=F", "etiket": "BRENT", "icon": "oil", "varsayilan": -1.37},
+        {"sym": "SI=F", "etiket": "GÜMÜŞ", "icon": "silver", "varsayilan": -1.00},
+        {"sym": "GC=F_ONS", "etiket": "ONS ALTIN", "icon": "gold_ons", "varsayilan": 0.45},
+        {"sym": "SI=F_ONS", "etiket": "ONS GÜMÜŞ", "icon": "silver_ons", "varsayilan": -0.20},
+        {"sym": "DX-Y.NYB", "etiket": "DXY", "icon": "dxy", "varsayilan": 0.18},
     ],
-    "KÜRESEL DEVLER & KRİPTO": [
-        {"sym": "BTC-USD", "etiket": "BITCOIN", "val": 38, "varsayilan": -1.99},
-        {"sym": "NVDA", "etiket": "NVDA", "val": 30, "varsayilan": -0.98},
-        {"sym": "TSLA", "etiket": "TSLA", "val": 26, "varsayilan": 5.14},
-        {"sym": "AAPL", "etiket": "AAPL", "val": 24, "varsayilan": -0.63},
-        {"sym": "ETH-USD", "etiket": "ETHEREUM", "val": 20, "varsayilan": -4.48},
+    "KÜRESEL PİYASALAR & KRİPTO": [
+        {"sym": "BTC-USD", "etiket": "BITCOIN", "icon": "btc", "varsayilan": -0.64},
+        {"sym": "ETH-USD", "etiket": "ETHEREUM", "icon": "eth", "varsayilan": -0.59},
+        {"sym": "NVDA", "etiket": "NVIDIA", "icon": "nvda", "varsayilan": -0.98},
+        {"sym": "AAPL", "etiket": "APPLE", "icon": "aapl", "varsayilan": -0.63},
+        {"sym": "TSLA", "etiket": "TESLA", "icon": "tsla", "varsayilan": 5.14},
     ],
 }
 
@@ -176,7 +181,10 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
     tum_semboller = set()
     for ogeler in ISI_HARITASI_SEKTORLERI.values():
         for oge in ogeler:
-            tum_semboller.add(oge["sym"])
+            sym = oge["sym"]
+            if sym.endswith("_ONS"):
+                sym = sym.replace("_ONS", "")
+            tum_semboller.add(sym)
 
     headers = {"User-Agent": "Mozilla/5.0"}
     fiyat_verileri = {}
@@ -198,32 +206,37 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
             pass
         return s, None
 
-    with ThreadPoolExecutor(max_workers=12) as ex:
+    with ThreadPoolExecutor(max_workers=15) as ex:
         for sym, res in ex.map(_tek_cek, list(tum_semboller)):
             if res:
                 fiyat_verileri[sym] = res
 
     sonuclar = {}
+    dolar_kuru = (fiyat_verileri.get("TRY=X") or {}).get("price", 48.08)
+
     for sektor, ogeler in ISI_HARITASI_SEKTORLERI.items():
         sektor_ogeleri = []
         for oge in ogeler:
-            sym = oge["sym"]
+            sym_raw = oge["sym"]
+            sym = sym_raw.replace("_ONS", "") if sym_raw.endswith("_ONS") else sym_raw
             canli = fiyat_verileri.get(sym)
             degisim = canli["chg"] if canli else oge["varsayilan"]
             fiyat = canli["price"] if canli else 0.0
-            
-            # Altın ve Gümüş Ons fiyatını Gram TL'ye çevir
-            if sym == "GC=F" and fiyat:
-                dolar_kuru = (fiyat_verileri.get("TRY=X") or {}).get("price", 48.03)
+
+            # Gram TL Çevrimleri
+            if sym_raw == "GC=F" and fiyat:
+                # Gram Altın (TL)
                 fiyat = (fiyat / 31.1034768) * dolar_kuru
-            elif sym == "SI=F" and fiyat:
-                dolar_kuru = (fiyat_verileri.get("TRY=X") or {}).get("price", 48.03)
+            elif sym_raw == "SI=F" and fiyat:
+                # Gram Gümüş (TL)
                 fiyat = (fiyat / 31.1034768) * dolar_kuru
+            # GC=F_ONS ve SI=F_ONS saf dolar fiyatı olarak kalır ($2750, $32.40)
 
             sektor_ogeleri.append({
-                "sym": sym,
+                "sym": sym_raw,
                 "etiket": oge["etiket"],
-                "val": oge["val"],
+                "val": oge.get("val", 20),
+                "icon": oge.get("icon", ""),
                 "degisim": degisim,
                 "fiyat": fiyat,
             })

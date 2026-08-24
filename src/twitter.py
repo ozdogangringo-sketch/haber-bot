@@ -249,9 +249,10 @@ def zincir_yayinla(
     haberler: list[dict],
     urller: list[str],
     ayarlar: dict,
+    son_dakika: bool = False,
 ) -> tuple[str | None, int]:
     """
-    Çoklu haber turunu Twitter'da birbirine bağlı Flood (Zincir) olarak paylaşır.
+    Çoklu haber turunu veya son dakika detaylarını Twitter'da birbirine bağlı Flood (Zincir) olarak paylaşır.
 
     1. Tweet: Giriş & Özet / Piyasa Kartı
     2..N Tweet: Her haberin slaytı ve özeti (önceki tweete yanıt olarak)
@@ -261,7 +262,7 @@ def zincir_yayinla(
 
     from . import caption
 
-    halkalar = caption.twitter_zincir_metinleri(haberler, ayarlar)
+    halkalar = caption.twitter_zincir_metinleri(haberler, ayarlar, son_dakika=son_dakika)
     ilk_id = None
     onceki_id = None
     yayinlanan = 0

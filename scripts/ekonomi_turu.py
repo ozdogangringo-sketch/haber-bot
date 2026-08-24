@@ -165,7 +165,7 @@ def main() -> int:
     story_url = None
     try:
         story_basliklar = [h["ig_baslik"] or h["baslik_orj"] for h in secilen_haberler]
-        story_gorsel = make_image.story_kapak(story_basliklar, ayarlar)
+        story_gorsel = make_image.story_ekonomi_kapak(story_basliklar, ayarlar)
         story_yol = make_image.CIKTI_KLASORU / "story-kapak-ekonomi.jpg"
         story_gorsel.save(story_yol, "JPEG", quality=ayarlar["gorsel"].get("jpeg_kalite", 92), optimize=True)
         story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)

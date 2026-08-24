@@ -271,15 +271,16 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     tw_gonderi_id = None
     if paylas_tw:
         try:
-            if len(haberler) == 1 or bool(haberler[0]["son_dakika"]):
-                tw_gonderi_id = twitter.tekil_yayinla(haberler[0], urller, ayarlar)
-                if tw_gonderi_id:
-                    tw_notu = "\n🐦 X'e (Twitter) de paylaşıldı"
-            else:
-                tw_id, tw_adet = twitter.zincir_yayinla(haberler, urller, ayarlar)
+            son_dakika_mi = bool(haberler[0]["son_dakika"]) if haberler else False
+            if len(haberler) > 1 or (son_dakika_mi and len(urller) > 1):
+                tw_id, tw_adet = twitter.zincir_yayinla(haberler, urller, ayarlar, son_dakika=son_dakika_mi)
                 tw_gonderi_id = tw_id
                 if tw_id:
                     tw_notu = f"\n🐦 X'e (Twitter) de paylaşıldı ({tw_adet} tweet zinciri)"
+            else:
+                tw_gonderi_id = twitter.tekil_yayinla(haberler[0], urller, ayarlar)
+                if tw_gonderi_id:
+                    tw_notu = "\n🐦 X'e (Twitter) de paylaşıldı"
             log.info("Twitter: %s", tw_gonderi_id)
         except Exception as e:
             log.warning("Twitter paylaşılamadı: %s", e)
