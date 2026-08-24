@@ -159,37 +159,40 @@ def instagram_otomatik_paylas(
         d(descriptionContains="Seç").click()
     time.sleep(1)
 
-    # 6. Slaytları sırasıyla seç (DCIM/Camera en başı)
+    # 6. Slaytları sırasıyla çemberlerinden seç (DCIM/Camera en başı)
     log.info("Slaytlar sırayla seçiliyor (toplam %s)...", slayt_sayisi)
-    # 1. Sütun Kamera, 2. Sütun Slayt 1, 3. Sütun Slayt 2, 2. Satır 1. Sütun Slayt 3
+    # Galeri Çember Koordinatları:
+    # 1. Slayt (Kapak - Row 2 Col 1): Çember (x=290, y=450)
+    # 2. Slayt (Detay 1 - Row 1 Col 2): Çember (x=500, y=190)
+    # 3. Slayt (Detay 2 - Row 1 Col 3): Çember (x=680, y=190)
     if slayt_sayisi == 1:
-        d.click(480, 280)
+        d.click(290, 450)
     elif slayt_sayisi == 2:
-        d.click(480, 280)
-        time.sleep(0.3)
-        d.click(640, 280)
+        d.click(290, 450)
+        time.sleep(0.4)
+        d.click(500, 190)
     elif slayt_sayisi == 3:
-        d.click(480, 280)
-        time.sleep(0.3)
-        d.click(640, 280)
-        time.sleep(0.3)
-        d.click(100, 520)
+        d.click(290, 450)
+        time.sleep(0.4)
+        d.click(500, 190)
+        time.sleep(0.4)
+        d.click(680, 190)
     elif slayt_sayisi >= 4:
-        d.click(480, 280)
-        time.sleep(0.3)
-        d.click(640, 280)
-        time.sleep(0.3)
-        d.click(100, 520)
-        time.sleep(0.3)
-        d.click(320, 520)
+        d.click(290, 450)
+        time.sleep(0.4)
+        d.click(500, 190)
+        time.sleep(0.4)
+        d.click(680, 190)
+        time.sleep(0.4)
+        d.click(500, 450)
         if slayt_sayisi >= 5:
-            time.sleep(0.3)
-            d.click(540, 520)
+            time.sleep(0.4)
+            d.click(680, 450)
         if slayt_sayisi >= 6:
-            time.sleep(0.3)
-            d.click(100, 760)
+            time.sleep(0.4)
+            d.click(290, 710)
 
-    time.sleep(0.5)
+    time.sleep(0.6)
 
     # 7. 'İleri >' butonuna bas
     if d(textContains="İleri").exists(timeout=2):
