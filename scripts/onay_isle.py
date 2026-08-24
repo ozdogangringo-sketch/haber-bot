@@ -2468,13 +2468,22 @@ def main() -> int:
                 metin = caption.caption_kur(haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
 
             android_bridge.paketi_hazirla(mesaj_id, [dict(h) for h in haberler], gorsel_yollari, metin, ayarlar)
+            yedek_butonlar = {
+                "inline_keyboard": [
+                    [{"text": "✅ Normal Yayınla (API)", "callback_data": "yayinla"}],
+                    [{"text": "❌ Bu Turu İptal Et", "callback_data": "iptal"}],
+                ]
+            }
             telegram_bot.sonucu_yaz(
                 mesaj_id,
                 f"🎵 <b>ANDROİD MÜZİKLİ CAROUSEL PAKETİ HAZIR!</b>\n\n"
                 f"📱 <b>{len(gorsel_yollari)} Slayt</b> ve açıklama Android otomasyon istasyonuna aktarıldı.\n"
                 f"Cihazda Instagram açılarak müzikli carousel yayını başlatılıyor.\n\n"
+                f"<i>İstasyon henüz açık değilse aşağıdaki düğmeyle normal yayınlayabilirsin:</i>\n\n"
                 f"Onaylayan: {basan or 'bilinmiyor'}",
                 bildir=True,
+                butonlar=yedek_butonlar,
+                ek_dugmeler=[[{"text": "✅ Normal Yayınla (API)", "callback_data": "yayinla"}]],
             )
             return 0
         if komut == "tura_birak":
