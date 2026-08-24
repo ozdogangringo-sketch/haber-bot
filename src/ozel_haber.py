@@ -316,3 +316,136 @@ def ozel_metin_haber_uret(metin: str, con, ayarlar: dict, basan: str = "") -> in
         log.exception("Özel metin postu üretilemedi: %s", e)
         telegram_bot.mesaj_gonder(f"⚠️ Özel metin işlenirken bir hata oluştu:\n<code>{html.escape(str(e)[:300])}</code>", html=True)
         return 1
+
+
+def makro_haber_uret(komut_metni: str, con, ayarlar: dict, basan: str = "", veri_tipi: str = "makro") -> int:
+    """
+    /faiz, /enflasyon, /fed veya /makro komutu:
+    Kritik makro ekonomik veriler için anında 1080x1350 ve 1080x1920 infografik postu üretir.
+    """
+    from . import makro_kart
+
+    komut_metni = komut_metni.strip()
+    telegram_bot.mesaj_gonder(f"⚡ <b>Kritik Makro İnfografik Kartı Hazırlanıyor…</b>\nVeriler analiz ediliyor ve canlı piyasa reaksiyonu işleniyor…", html=True)
+
+    try:
+        prompt = (
+            f"Kullanıcının verdiği aşağıdaki makro ekonomik karar/veri girdisini yapılandırılmış JSON formatına dönüştür:\n\n"
+            f"GİRDİ (Türü: {veri_tipi}):\n{komut_metni}\n\n"
+            f"İSTENEN JSON FORMATI:\n"
+            f"{{\n"
+            f'  "rozet_metni": "TCMB POLİTİKA FAİZİ" veya "TÜİK TÜFE ENFLASYON" veya "FED FOMC KARARI" veya "MAKRO EKONOMİ",\n'
+            f'  "ana_deger": "%45.00" (Örn: faiz veya enflasyon oranı, dev rakam),\n'
+            f'  "durum_etiketi": "POLİTİKA FAİZİ SABİT TUTULDU" veya "+250 BAZ PUAN ARTIŞ" veya "YILLIK TÜFE: %61.78",\n'
+            f'  "karsilastirma": {{"onceki": "%45.00", "beklenti": "%45.00", "aciklanan": "%45.00"}},\n'
+            f'  "spot_metin": "1-2 cümlelik en vurucu karar ve piyasa analizi özeti",\n'
+            f'  "ig_baslik": "Instagram ve sosyal medya için çarpıcı Türkçe manşet (max 90 karakter)",\n'
+            f'  "ig_caption": "2-3 paragraflık detaylı, emojili ve hashtagli kurumsal Instagram açıklaması",\n'
+            f'  "kaynak": "TCMB" veya "TÜİK" veya "Federal Reserve"\n'
+            f"}}\n"
+            f"Sadece saf JSON döndür."
+        )
+
+        yanit = generate_text.gemini_cagir(prompt, ayarlar)
+        if not yanit or not isinstance(yanit, dict):
+            raise RuntimeError("Gemini makro veriyi işleyemedi.")
+
+        rozet_metni = yanit.get("rozet_metni", "MAKRO EKONOMİ")
+        ana_deger = yanit.get("ana_deger", "%0.00")
+        durum_etiketi = yanit.get("durum_etiketi", "AÇIKLANDI")
+        karsilastirma = yanit.get("karsilastirma", {})
+        spot_metin = yanit.get("spot_metin", komut_metni[:180])
+        kaynak = yanit.get("kaynak", "TCMB")
+        ig_baslik = yanit.get("ig_baslik", f"{rozet_metni}: {ana_deger}")
+        ig_caption = yanit.get("ig_caption", spot_metin)
+
+        # 1. 4:5 Post ve 9:16 Story Görsellerini Çiz
+        post_yolu = makro_kart.makro_karti_ciz(
+            rozet_metni=rozet_metni,
+            ana_deger=ana_deger,
+            durum_etiketi=durum_etiketi,
+            karsilastirma=karsilastirma,
+            spot_metin=spot_metin,
+            kaynak=kaynak,
+            dikey_story=False,
+        )
+        story_yolu = makro_kart.makro_karti_ciz(
+            rozet_metni=rozet_metni,
+            ana_deger=ana_deger,
+            durum_etiketi=durum_etiketi,
+            karsilastirma=karsilastirma,
+            spot_metin=spot_metin,
+            kaynak=kaynak,
+            dikey_story=True,
+        )
+
+        # 2. ImgBB / Barındırıcıya Yükle
+        yukleme_post = upload_image.gorsel_yukle(post_yolu, ayarlar)
+        post_url = yukleme_post["url"]
+
+        story_url = None
+        try:
+            yukleme_story = upload_image.gorsel_yukle(story_yolu, ayarlar)
+            story_url = yukleme_story["url"]
+        except Exception as e:
+            log.warning("Story yüklenemedi: %s", e)
+
+        # 3. Veritabanına Kaydet
+        cursor = con.execute(
+            """INSERT INTO haberler (
+                kaynak, kategori, agirlik, baslik_orj, link, ozet_orj,
+                ig_baslik, ig_caption, slayt_ozet, detay_metni, onem_puani,
+                vurgu_sayi, vurgu_etiket, gorsel_url, story_url, gorsel_kaynagi,
+                yayin_tarihi, cekilme_zamani, durum, son_dakika
+            ) VALUES (
+                ?, 'ekonomi', 10, ?, ?, ?,
+                ?, ?, ?, ?, 10,
+                ?, ?, ?, ?, 'makro_kart',
+                datetime('now'), datetime('now'), 'onay_bekliyor', 1
+            )""",
+            (
+                kaynak,
+                ig_baslik[:250],
+                f"https://dailybrief.co/makro/{int(time.time())}",
+                spot_metin[:800],
+                ig_baslik,
+                ig_caption,
+                spot_metin,
+                spot_metin,
+                ana_deger,
+                durum_etiketi,
+                post_url,
+                story_url,
+            ),
+        )
+        haber_id = cursor.lastrowid
+        con.commit()
+
+        # 4. Telegram Onay Kartına Sun
+        taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber_id,)).fetchone()
+        basliklar = [ig_baslik]
+        foto_mesaj_idler = telegram_bot.slaytlari_gonder([post_url], basliklar=basliklar)
+
+        ana_bilgi = f"⚡ <b>KRİTİK MAKRO VERİ ALARMI: {rozet_metni}</b>\n\n📌 <b>{ig_baslik}</b>\n\n{spot_metin}\n\n🏷️ Kaynak: {kaynak}"
+        menu = telegram_bot.ana_menu(1)
+        onay_mesaj_id = telegram_bot.mesaj_gonder(ana_bilgi, butonlar=menu["inline_keyboard"], html=True)
+
+        con.execute(
+            "UPDATE haberler SET telegram_message_id = ? WHERE id = ?",
+            (onay_mesaj_id, haber_id),
+        )
+        con.commit()
+
+        try:
+            db_senkron.hemen_kaydet(f"makro haber olusturuldu: {haber_id}")
+        except Exception as e:
+            log.warning("db senkron hatası: %s", e)
+
+        log.info("Makro haber kartı Telegram'a sunuldu (haber_id=%s, mesaj_id=%s)", haber_id, onay_mesaj_id)
+        return 0
+
+    except Exception as e:
+        log.exception("Makro haber üretilemedi: %s", e)
+        telegram_bot.mesaj_gonder(f"⚠️ Makro haber kartı üretilirken bir hata oluştu:\n<code>{html.escape(str(e)[:300])}</code>", html=True)
+        return 1
+

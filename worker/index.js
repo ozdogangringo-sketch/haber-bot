@@ -552,7 +552,7 @@ export default {
             const metin = msj.text.trim().slice(komutMetni.length).trim();
             if (metin.length < 15) {
                 await mesajGonder(env, sohbet,
-                    "⚠️ Post yapmak istediğin bülten veya duyuru metnini yaz:\n/ozel Daily Briefing mobil uygulamamız App Store ve Google Play'de yayına girdi...");
+                    "⚠️ Post yapmak istediğin bülten veya duyuru metnini yaz:\n/ozel Daily Brief mobil uygulamamız App Store ve Google Play'de yayına girdi...");
                 return new Response("ok");
             }
             const iletildi = await githubaIlet(env, `ozel:${metin.slice(0, 1500)}`,
@@ -560,6 +560,24 @@ export default {
             await mesajGonder(env, sohbet,
                 iletildi
                     ? "✍️ Özel bülten metni işleniyor, slaytlar hazırlanıyor…"
+                    : "⚠️ Komut iletilemedi, tekrar dene.");
+            return new Response("ok");
+        }
+
+        // /faiz, /enflasyon, /fed, /makro — Kritik Makro Veri İnfografik Kartı Üretir
+        if (["/faiz", "/enflasyon", "/fed", "/makro"].includes(komutMetni)) {
+            const metin = msj.text.trim().slice(komutMetni.length).trim();
+            const turu = komutMetni.slice(1);
+            if (metin.length < 2) {
+                await mesajGonder(env, sohbet,
+                    `⚠️ Lütfen veri veya açıklama gir:\n${komutMetni} 45 TCMB politika faizini yüzde 45'te sabit bıraktı.`);
+                return new Response("ok");
+            }
+            const iletildi = await githubaIlet(env, `${turu}:${metin.slice(0, 800)}`,
+                null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? `⚡ <b>${turu.toUpperCase()} İnfografik Kartı Hazırlanıyor…</b>\nPiyasa reaksiyonu ve dev vitrin kartı çiziliyor…`
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }

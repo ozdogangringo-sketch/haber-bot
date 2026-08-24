@@ -2313,6 +2313,22 @@ def main() -> int:
         from src import ozel_haber
         return ozel_haber.ozel_metin_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan)
 
+    if komut.startswith("faiz:"):
+        from src import ozel_haber
+        return ozel_haber.makro_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan, veri_tipi="faiz")
+
+    if komut.startswith("enflasyon:"):
+        from src import ozel_haber
+        return ozel_haber.makro_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan, veri_tipi="enflasyon")
+
+    if komut.startswith("fed:"):
+        from src import ozel_haber
+        return ozel_haber.makro_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan, veri_tipi="fed")
+
+    if komut.startswith("makro:"):
+        from src import ozel_haber
+        return ozel_haber.makro_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan, veri_tipi="makro")
+
     if komut == "durum":
         return durum_bildir(con, ayarlar)
 
