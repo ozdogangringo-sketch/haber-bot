@@ -8,7 +8,7 @@ name: Ekonomi Turu
 
 on:
   schedule:
-    - cron: "5 7 * * *"        # Her sabah TR 10:05 (BIST ve piyasa açılışı)
+    - cron: "12 7 * * 1-5"       # Hafta içi TR 10:12 (BIST 10:00 açılışı sonrası canlı verilerle)
   workflow_dispatch:          # Actions ekranından elle çalıştırma
   repository_dispatch:
     types: [ekonomi_turu]
