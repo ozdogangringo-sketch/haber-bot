@@ -145,11 +145,13 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     if secili:
         k_set = {k.strip().lower() for k in secili.split(",") if k.strip()}
+        paylas_ig = "ig" in k_set
         paylas_story = "story" in k_set
         paylas_fb = "facebook" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
         paylas_th = "threads" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
         paylas_tw = ("twitter" in k_set or "x" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
     else:
+        paylas_ig = True
         paylas_story = True
         paylas_fb = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
         paylas_th = bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
@@ -190,8 +192,16 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     else:
         metin = caption.caption_kur(
             haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
-    post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
-    baglanti = instagram.post_baglantisi(post_id, ayarlar)
+
+    post_id = None
+    baglanti = None
+    ig_notu = ""
+    if paylas_ig:
+        post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
+        baglanti = instagram.post_baglantisi(post_id, ayarlar)
+        ig_notu = "📸 Instagram gönderisi yayınlandı"
+    else:
+        ig_notu = "📸 Instagram atlandı (Manuel paylaşım)"
 
     # Story postla birlikte gidiyor (kullanıcı kapatmadıysa).
     story_notu = ""
@@ -2456,9 +2466,8 @@ def main() -> int:
                     "Önce başlıkları onayla.")
                 return 0
             return yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar=kanallar)
-        if komut == "android_muzikli":
-            gorsel_yollari = [Path(h["gorsel_yolu"]) for h in haberler if h["gorsel_yolu"] and Path(h["gorsel_yolu"]).exists()]
-            ilk_h_dict = dict(haberler[0])
+        if komut == "manuel_paket":
+            ilk_h_dict = dict(haberler[0]) if haberler else {}
             if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
                 metin = ilk_h_dict["ig_caption"]
             elif haberler[0]["son_dakika"]:
@@ -2466,52 +2475,44 @@ def main() -> int:
             else:
                 metin = caption.caption_kur(haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
 
-            # 1. JSON Paketini kaydet (yedek)
-            android_bridge.paketi_hazirla(mesaj_id, [dict(h) for h in haberler], [str(p) for p in gorsel_yollari], metin, ayarlar)
+            butonlar = {
+                "inline_keyboard": [
+                    [{"text": "📸 Instagram'ı Aç", "url": "https://instagram.com"}],
+                    [{"text": "🚀 Diğer Kanallarda Yayınla (FB, Threads, X)", "callback_data": "yayinla_diger"}],
+                    [{"text": "✅ Paylaştım (Tamamlandı Olarak İşaretle)", "callback_data": "manuel_tamam"}],
+                    [{"text": "← Geri", "callback_data": f"yayin_geri:{len(haberler)}"}],
+                ]
+            }
+            mesaj = (
+                f"📲 <b>MANUEL INSTAGRAM PAYLAŞIM PAKETİ</b>\n\n"
+                f"Aşağıdaki açıklama metnini kopyalayıp Instagram'da gönderi veya Reels olarak paylaşabilirsin:\n\n"
+                f"<code>{metin}</code>\n\n"
+                f"💡 <i>Görseller yukarıdaki Telegram albümünde hazır. Tek tıkla telefonunun galerisine kaydedebilirsin.</i>\n"
+                f"Diğer sosyal ağlarda (Threads, FB, X) paylaşım hakkını kaybetmemek için aşağıdaki butonu kullanabilirsin."
+            )
+            telegram_bot.mesaj_gonder(mesaj, butonlar=butonlar["inline_keyboard"])
+            return 0
 
-            # 2. Doğrudan Samsung Galaxy A05 Otomasyonu ile yayınla
-            basarili = False
-            try:
-                basarili = android_otomasyon.instagram_otomatik_paylas(gorsel_yollari, metin, reel_olarak=True)
-            except Exception as e:
-                log.error("Android otomasyon hatası: %s", e)
+        if komut == "yayinla_diger":
+            # Instagram'ı atlayıp FB, Threads, X'e yayınla
+            return yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar="story,threads,facebook,twitter")
 
-            if basarili:
-                # Veritabanında yayınlandı olarak işaretle
-                simdi = datetime.now(timezone.utc).isoformat()
-                for h in haberler:
-                    con.execute(
-                        "UPDATE haberler SET durum = 'yayinlandi', yayin_tarihi = ?, daha_once_yayinlandi = 1 WHERE id = ?",
-                        (simdi, h["id"]),
-                    )
-                con.commit()
-                telegram_bot.sonucu_yaz(
-                    mesaj_id,
-                    f"🎉 <b>MÜZİKLİ REELS/CAROUSEL YAYINLANDI!</b>\n\n"
-                    f"📱 Samsung Galaxy A05 istasyonu üzerinden {len(gorsel_yollari)} slayt trend müzikle Instagram'da paylaşıldı.\n\n"
-                    f"Onaylayan: {basan or 'bilinmiyor'}",
-                    bildir=True,
+        if komut == "manuel_tamam":
+            simdi = datetime.now(timezone.utc).isoformat()
+            for h in haberler:
+                con.execute(
+                    "UPDATE haberler SET durum = 'yayinlandi', yayin_tarihi = ?, daha_once_yayinlandi = 1 WHERE id = ?",
+                    (simdi, h["id"]),
                 )
-                return 0
-            else:
-                # Cihaza ulaşılamadıysa yedek butonları sun
-                yedek_butonlar = {
-                    "inline_keyboard": [
-                        [{"text": "✅ Normal Yayınla (API)", "callback_data": "yayinla"}],
-                        [{"text": "❌ Bu Turu İptal Et", "callback_data": "iptal"}],
-                    ]
-                }
-                telegram_bot.sonucu_yaz(
-                    mesaj_id,
-                    f"⚠️ <b>SAMSUNG İSTASYONUNA ULAŞILAMADI!</b>\n\n"
-                    f"Samsung telefon açık değil veya Wi-Fi ağına bağlı değil.\n"
-                    f"Aşağıdaki butonla turu standart API üzerinden hemen yayınlayabilirsin.\n\n"
-                    f"Onaylayan: {basan or 'bilinmiyor'}",
-                    bildir=True,
-                    butonlar=yedek_butonlar,
-                    ek_dugmeler=[[{"text": "✅ Normal Yayınla (API)", "callback_data": "yayinla"}]],
-                )
-                return 1
+            con.commit()
+            telegram_bot.sonucu_yaz(
+                mesaj_id,
+                f"✅ <b>MANUEL PAYLAŞIM TAMAMLANDI</b>\n\n"
+                f"Haberler veritabanında yayınlandı olarak işaretlendi.\n\n"
+                f"Onaylayan: {basan or 'bilinmiyor'}",
+                bildir=True,
+            )
+            return 0
         if komut == "tura_birak":
             return tura_birak(con, haberler, mesaj_id, basan)
         if komut == "iptal":
