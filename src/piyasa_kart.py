@@ -53,23 +53,37 @@ def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
 
 def _renk_hesapla_canli(degisim: float) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
     """
-    Karanlık petrol zemin üstünde parlayan canlı, kontrastlı kutu renkleri.
+    Finviz ve TradingView standartlarında 7 kademeli dinamik ısı haritası renk motoru.
+    Hafif hareketler derin tonlarda, sert ralli/düşüşler parlak tonlarda ışıldar.
     Döner: (Kutu_Zemin_Rengi, Kutu_Cerceve_Rengi)
     """
-    if degisim >= 2.5:
+    if degisim >= 3.0:
+        # Güçlü Ralli / Tavan (Parlak Zümrüt)
         return (16, 185, 129), (5, 150, 105)
-    elif degisim >= 0.5:
+    elif degisim >= 1.5:
+        # Belirgin Artış (Canlı Yeşil)
         return (22, 163, 74), (21, 128, 61)
-    elif degisim > 0.05:
+    elif degisim >= 0.5:
+        # Ilımlı Artış (Orman Yeşili)
         return (21, 128, 61), (20, 83, 45)
-    elif degisim >= -0.05:
-        return (51, 65, 85), (30, 41, 59)
+    elif degisim > 0.10:
+        # Hafif Pozitif (Derin Petrol Yeşili)
+        return (18, 72, 54), (24, 95, 72)
+    elif degisim >= -0.10:
+        # Tam Yatay / Nötr (Koyu Slate Grisi)
+        return (40, 52, 68), (30, 41, 59)
     elif degisim > -0.5:
-        return (153, 27, 27), (127, 29, 29)
-    elif degisim > -2.5:
+        # Hafif Negatif (Derin Mat Bordo)
+        return (90, 26, 26), (120, 35, 35)
+    elif degisim > -1.5:
+        # Ilımlı Düşüş (Koyu Kızıl)
+        return (145, 25, 25), (120, 20, 20)
+    elif degisim > -3.0:
+        # Belirgin Düşüş (Canlı Kırmızı)
         return (185, 28, 28), (153, 27, 27)
     else:
-        return (220, 38, 38), (185, 28, 28)
+        # Sert Çöküş / Taban (Parlak Kızıl)
+        return (225, 35, 35), (190, 25, 25)
 
 
 def _fiyat_bicimlendir(sym: str, fiyat: float) -> str:
@@ -552,11 +566,13 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     draw.text((45, skala_y), "DEĞİŞİM ARALIĞI", font=_font(14, 800.0), fill=RENK_GRI_METIN)
 
     skala_noktalari = [
-        ("≤ -2,5%", (220, 38, 38)),
-        ("-2,5% / -0,5%", (185, 28, 28)),
-        ("-0,5% / 0,5%", (51, 65, 85)),
-        ("0,5% / 1,5%", (21, 128, 61)),
-        ("≥ 1,5%", (16, 185, 129)),
+        ("≤ -3%", (225, 35, 35)),
+        ("-1,5%", (185, 28, 28)),
+        ("-0,5%", (145, 25, 25)),
+        ("0,0%", (40, 52, 68)),
+        ("+0,5%", (21, 128, 61)),
+        ("+1,5%", (22, 163, 74)),
+        ("≥ +3%", (16, 185, 129)),
     ]
 
     nx = 45
@@ -564,7 +580,7 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     for txt, col in skala_noktalari:
         draw.ellipse([(nx, ny + 3), (nx + 10, ny + 13)], fill=col)
         draw.text((nx + 14, ny), txt, font=_font(13, 600.0), fill=RENK_GRI_METIN)
-        nx += int(draw.textlength(txt, font=_font(13, 600.0))) + 28
+        nx += int(draw.textlength(txt, font=_font(13, 600.0))) + 22
 
     tav_txt1 = "Yatırım tavsiyesi değildir."
     tav_txt2 = "Kaynak: Matriks, Investing, TradingView"
