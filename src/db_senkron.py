@@ -72,14 +72,14 @@ def _birlestir() -> None:
 
     Burada çakışma sessizce çözülüyor: ikili dosyada birleştirme diye
     bir şey yok, birini seçmek zorundayız ve elimizdeki taze tur daha
-    değerli. Kaybedilen, o arada başka bir job'ın yazdığı satırlar —
-    çakışmayı asıl önleyen şey workflow'lardaki ortak `concurrency`
-    grubu, burası son emniyet supabı.
+    değerli.
     """
     _calistir("git", "fetch", "origin", DAL, saniye=90)
+    _calistir("git", "stash", "--include-untracked")
 
     tamam, _ = _calistir("git", "rebase", f"origin/{DAL}")
     if tamam:
+        _calistir("git", "stash", "pop")
         return
 
     # Rebase sırasında "theirs" = yeniden uygulanan commit, yani BİZİM
@@ -94,6 +94,7 @@ def _birlestir() -> None:
         # push'u da, sonraki job'ları da bozuyor.
         log.warning("db_senkron: rebase çözülemedi, iptal ediliyor: %s", cikti[:200])
         _calistir("git", "rebase", "--abort")
+    _calistir("git", "stash", "pop")
 
 
 def _wal_bosalt() -> None:
