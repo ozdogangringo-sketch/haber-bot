@@ -16,6 +16,8 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from typing import Optional
+
 try:
     import uiautomator2 as u2
 except ImportError:
