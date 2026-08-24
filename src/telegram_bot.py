@@ -208,7 +208,8 @@ def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
     """Onay mesajının ilk buton seti."""
     return {"inline_keyboard": [
         kanal_butonlari(kanallar),
-        [{"text": "✅ Yayınla", "callback_data": f"yayin_menu:{adet}"}],
+        [{"text": "✅ Yayınla", "callback_data": f"yayin_menu:{adet}"},
+         {"text": "🎵 Müzikli (Android)", "callback_data": "android_muzikli"}],
         [{"text": "🔄 Tüm metinleri yeniden üret", "callback_data": "metin_yenile"}],
         [{"text": f"🎨 Slayt düzenle ({adet} slayt)",
           "callback_data": f"slayt_menu:{adet}"}],

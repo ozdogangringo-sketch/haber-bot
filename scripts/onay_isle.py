@@ -35,7 +35,7 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    aday, ayar, caption, db, db_senkron, dogrula, facebook, fetch_news,
+    aday, android_bridge, ayar, caption, db, db_senkron, dogrula, facebook, fetch_news,
     filtre,
     instagram,
     secim,
@@ -2456,6 +2456,27 @@ def main() -> int:
                     "Önce başlıkları onayla.")
                 return 0
             return yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar=kanallar)
+        if komut == "android_muzikli":
+            urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
+            gorsel_yollari = [h["gorsel_yolu"] for h in haberler if h["gorsel_yolu"]]
+            ilk_h_dict = dict(haberler[0])
+            if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
+                metin = ilk_h_dict["ig_caption"]
+            elif haberler[0]["son_dakika"]:
+                metin = caption.son_dakika_caption(haberler[0], _sonuclari_kur(haberler), ayarlar)
+            else:
+                metin = caption.caption_kur(haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
+
+            android_bridge.paketi_hazirla(mesaj_id, [dict(h) for h in haberler], gorsel_yollari, metin, ayarlar)
+            telegram_bot.sonucu_yaz(
+                mesaj_id,
+                f"🎵 <b>ANDROİD MÜZİKLİ CAROUSEL PAKETİ HAZIR!</b>\n\n"
+                f"📱 <b>{len(gorsel_yollari)} Slayt</b> ve açıklama Android otomasyon istasyonuna aktarıldı.\n"
+                f"Cihazda Instagram açılarak müzikli carousel yayını başlatılıyor.\n\n"
+                f"Onaylayan: {basan or 'bilinmiyor'}",
+                bildir=True,
+            )
+            return 0
         if komut == "tura_birak":
             return tura_birak(con, haberler, mesaj_id, basan)
         if komut == "iptal":

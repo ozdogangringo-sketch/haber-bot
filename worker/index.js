@@ -28,7 +28,7 @@
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak", "cope_at",
-                  "plan_iptal", "havuz_guncelle", "havuzdan_ekle",
+                  "plan_iptal", "havuz_guncelle", "havuzdan_ekle", "android_muzikli",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
                   "kota_raporu", "tur_temizle",
