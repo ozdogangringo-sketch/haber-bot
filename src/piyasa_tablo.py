@@ -1,6 +1,7 @@
 """
 piyasa_tablo.py — 1080x1350 Instagram Carousel 2. Slaytı için Derin Petrol & Siber Turkuaz Temalı
-3 Sütunlu (BİST, ABD/Global Borsa, Kripto - 10'ar Satır) Büyük Tipografili Piyasa Karnesi.
+3 Sütunlu (BİST, ABD/Global Borsa, Kripto)
+Düzen: Solda BÜYÜK Hisse/Varlık İsmi, Sağda Üstte Fiyat ve Altta Değişim Rozeti.
 """
 
 from __future__ import annotations
@@ -179,7 +180,7 @@ def _temiz_fiyat_yazisi(sym: str, fiyat: float) -> str:
 def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
     """
     1080x1350 Instagram 2. slayt için 3 sütunlu (BİST, ABD/Global, Kripto)
-    10'ar satırlı, büyük ve ferah tipografili piyasa karnesi tablosunu üretir.
+    10'ar satırlı, solda BÜYÜK hisse adı, sağda fiyat ve değişim rozeti olan tabloyu üretir.
     """
     CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
@@ -194,9 +195,12 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
     f_tarih_buyuk = _font(25, 800.0)
     f_tarih_kucuk = _font(20, 600.0)
     f_sutun_baslik = _font(22, 900.0)
-    f_sym = _font(19, 900.0)
-    f_price = _font(18, 800.0)
-    f_badge = _font(16, 900.0)
+
+    # Tipografiler (Özellikle Hisse İsmi Büyütüldü)
+    f_sym_normal = _font(23, 900.0)
+    f_sym_uzun = _font(19, 900.0)
+    f_price = _font(19, 800.0)
+    f_badge = _font(15, 900.0)
 
     # --- 1. HEADER (ÜST ALAN) ---
     logo_boyut = 120
@@ -309,25 +313,28 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
                 fill=bg_color,
             )
 
-            # Sembol / İsim (Sol Üst)
+            # --- SOL TARAF: SADECE BÜYÜK HİSSE / VARLIK İSMİ (Dikeyde Ortalı) ---
             sembol_txt = oge["etiket"]
-            draw.text((col_x + 14, cur_y + row_h * 0.14), sembol_txt, font=f_sym, fill=RENK_BEYAZ)
+            f_font_sym = f_sym_uzun if len(sembol_txt) >= 9 else f_sym_normal
+            draw.text((col_x + 16, cur_y + int(row_h * 0.35)), sembol_txt, font=f_font_sym, fill=RENK_BEYAZ)
 
-            # Fiyat (Sol Alt)
+            # --- SAĞ TARAF: ÜSTTE FİYAT, ALTTA DEĞİŞİM ROZETİ ---
+            # 1. Fiyat (Sağ Üst)
             fiyat_txt = _temiz_fiyat_yazisi(sym, fiyat)
-            draw.text((col_x + 14, cur_y + row_h * 0.52), fiyat_txt, font=f_price, fill=RENK_FIYAT_ACIK)
+            pw = draw.textlength(fiyat_txt, font=f_price)
+            draw.text((col_x + col_w - pw - 16, cur_y + 11), fiyat_txt, font=f_price, fill=RENK_FIYAT_ACIK)
 
-            # Değişim Rozeti (Sağ)
+            # 2. Değişim Rozeti (Sağ Alt)
             chg_str = f"{'▲ %' if degisim >= 0 else '▼ %'}{abs(degisim):.2f}".replace(".", ",")
             c_bg, c_bd = _renk_hesapla_canli(degisim)
 
-            bw = draw.textlength(chg_str, font=f_badge) + 20
-            bx = col_x + col_w - bw - 14
-            by = cur_y + int(row_h * 0.22)
-            bh = 38
+            bw = draw.textlength(chg_str, font=f_badge) + 16
+            bx = col_x + col_w - bw - 16
+            by = cur_y + 45
+            bh = 32
 
-            draw.rounded_rectangle([(bx, by), (bx + bw, by + bh)], radius=7, fill=c_bg, outline=c_bd, width=1)
-            draw.text((bx + 10, by + 9), chg_str, font=f_badge, fill=RENK_BEYAZ)
+            draw.rounded_rectangle([(bx, by), (bx + bw, by + bh)], radius=6, fill=c_bg, outline=c_bd, width=1)
+            draw.text((bx + 8, by + 6), chg_str, font=f_badge, fill=RENK_BEYAZ)
 
     # --- 3. FOOTER (ALT BİLGİ & YASAL UYARI) ---
     draw.line([(45, 1228), (1035, 1228)], fill=(24, 75, 85), width=1)
@@ -341,5 +348,5 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
 
     cikti_yolu = CIKTI_KLASORU / f"piyasa_tablosu_{simdi.strftime('%Y%m%d')}.jpg"
     img.save(cikti_yolu, "JPEG", quality=95)
-    log.info("10 Satırlı 3 Sütunlu piyasa tablosu üretildi: %s", cikti_yolu)
+    log.info("Yeni düzenli piyasa tablosu üretildi: %s", cikti_yolu)
     return cikti_yolu
