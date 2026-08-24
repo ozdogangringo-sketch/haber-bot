@@ -51,40 +51,62 @@ def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
     return f
 
 
+def _lerp_renk(c1: tuple[int, int, int], c2: tuple[int, int, int], t: float) -> tuple[int, int, int]:
+    """İki RGB renk arasında doğrusal yumuşak geçiş hesaplar."""
+    t = max(0.0, min(1.0, t))
+    return (
+        int(c1[0] + (c2[0] - c1[0]) * t),
+        int(c1[1] + (c2[1] - c1[1]) * t),
+        int(c1[2] + (c2[2] - c1[2]) * t),
+    )
+
+
 def _renk_hesapla_canli(degisim: float) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
     """
-    Finviz ve TradingView standartlarında dinamik ısı haritası renk motoru.
-    Negatif her değer (küçük olsa bile) bordo/kırmızı, pozitif her değer yeşil ton alır.
-    Nötr (gri) yalnızca tam 0.00% yatay durumlar içindir.
+    Finviz & TradingView standartlarında sürekli ve pürüzsüz (interpolasyonlu) renk motoru.
+    Renkler sert basamaklar yerine yüzde oranına göre milimetrik ve hafif hafif geçiş yapar.
     Döner: (Kutu_Zemin_Rengi, Kutu_Cerceve_Rengi)
     """
-    if degisim >= 3.0:
-        # Güçlü Ralli / Tavan (Parlak Zümrüt)
-        return (16, 185, 129), (5, 150, 105)
-    elif degisim >= 1.5:
-        # Belirgin Artış (Canlı Yeşil)
-        return (22, 163, 74), (21, 128, 61)
-    elif degisim >= 0.5:
-        # Ilımlı Artış (Orman Yeşili)
-        return (21, 128, 61), (20, 83, 45)
-    elif degisim > 0.02:
-        # Hafif Pozitif (Derin Petrol Yeşili)
-        return (18, 72, 54), (24, 95, 72)
-    elif degisim >= -0.02:
-        # Tam Nötr 0.00% (Koyu Slate Grisi)
-        return (40, 52, 68), (30, 41, 59)
-    elif degisim > -0.5:
-        # Hafif Negatif (Derin Mat Bordo - Düşüş hissi net)
-        return (95, 26, 26), (130, 35, 35)
-    elif degisim > -1.5:
-        # Ilımlı Düşüş (Koyu Kızıl)
-        return (145, 25, 25), (120, 20, 20)
-    elif degisim > -3.0:
-        # Belirgin Düşüş (Canlı Kırmızı)
-        return (185, 28, 28), (153, 27, 27)
+    if abs(degisim) < 0.01:
+        # Tam Nötr 0.00%
+        return (42, 54, 68), (55, 70, 88)
+
+    # Kırmızı Çapa Noktaları (0% -> -5% Sert Düşüş)
+    kirmizi_capalar = [
+        (0.0,  (65, 24, 24),  (90, 32, 32)),
+        (-0.5, (105, 25, 25), (135, 32, 32)),
+        (-1.5, (155, 28, 28), (185, 35, 35)),
+        (-3.0, (200, 32, 32), (230, 42, 42)),
+        (-5.0, (235, 38, 38), (255, 55, 55)),
+    ]
+
+    # Yeşil Çapa Noktaları (0% -> +5% Sert Ralli)
+    yesil_capalar = [
+        (0.0,  (18, 55, 42),  (26, 75, 58)),
+        (0.5,  (18, 90, 58),  (24, 118, 75)),
+        (1.5,  (22, 138, 72), (28, 172, 90)),
+        (3.0,  (16, 185, 120), (20, 220, 140)),
+        (5.0,  (10, 215, 135), (30, 245, 160)),
+    ]
+
+    if degisim < 0:
+        val = abs(degisim)
+        for i in range(len(kirmizi_capalar) - 1):
+            v1, bg1, bd1 = kirmizi_capalar[i]
+            v2, bg2, bd2 = kirmizi_capalar[i + 1]
+            if abs(v1) <= val <= abs(v2):
+                t = (val - abs(v1)) / (abs(v2) - abs(v1))
+                return _lerp_renk(bg1, bg2, t), _lerp_renk(bd1, bd2, t)
+        return kirmizi_capalar[-1][1], kirmizi_capalar[-1][2]
     else:
-        # Sert Çöküş / Taban (Parlak Kızıl)
-        return (225, 35, 35), (190, 25, 25)
+        val = degisim
+        for i in range(len(yesil_capalar) - 1):
+            v1, bg1, bd1 = yesil_capalar[i]
+            v2, bg2, bd2 = yesil_capalar[i + 1]
+            if v1 <= val <= v2:
+                t = (val - v1) / (v2 - v1)
+                return _lerp_renk(bg1, bg2, t), _lerp_renk(bd1, bd2, t)
+        return yesil_capalar[-1][1], yesil_capalar[-1][2]
 
 
 def _fiyat_bicimlendir(sym: str, fiyat: float) -> str:
