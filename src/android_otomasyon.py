@@ -25,24 +25,20 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 ADB_BIN = "/Users/macbook/Library/Android/sdk/platform-tools/adb"
-DEFAULT_IP = "192.168.0.112:5555"
 DEFAULT_SERIAL = "R96X200KERL"
+DEFAULT_IP = "192.168.0.112:5555"
 
 
 def cihaza_baglan() -> Optional["u2.Device"]:
     """
-    Samsung cihaza önce Wi-Fi (192.168.0.112:5555), olmazsa USB üzerinden bağlanır.
+    Samsung cihaza önce USB (R96X200KERL), olmazsa Wi-Fi (192.168.0.112:5555) üzerinden bağlanır.
     """
     if u2 is None:
         log.warning("uiautomator2 kütüphanesi kurulu değil, Android otomasyonu atlanıyor.")
         return None
 
-    try:
-        subprocess.run([ADB_BIN, "connect", DEFAULT_IP], capture_output=True, timeout=5)
-    except Exception as e:
-        log.warning("Wi-Fi ADB connect denemesi: %s", e)
-
-    for hedef in [DEFAULT_IP, DEFAULT_SERIAL, None]:
+    # Önce USB serial, sonra Wi-Fi, sonra varsayılan cihazı dene
+    for hedef in [DEFAULT_SERIAL, DEFAULT_IP, None]:
         try:
             if hedef:
                 d = u2.connect(hedef)
@@ -55,7 +51,16 @@ def cihaza_baglan() -> Optional["u2.Device"]:
         except Exception as e:
             log.debug("Bağlantı denemesi (%s) başarısız: %s", hedef, e)
 
-    log.error("❌ Samsung cihaza bağlanılamadı. Cihaz açık ve aynı Wi-Fi ağında mı?")
+    # Wi-Fi ADB connect dene ve tekrar dene
+    try:
+        subprocess.run([ADB_BIN, "connect", DEFAULT_IP], capture_output=True, timeout=5)
+        d = u2.connect(DEFAULT_IP)
+        if d.info:
+            return d
+    except Exception:
+        pass
+
+    log.error("❌ Samsung cihaza bağlanılamadı. Cihaz açık ve bağlı mı?")
     return None
 
 
