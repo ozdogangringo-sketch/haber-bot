@@ -205,6 +205,12 @@ def instagram_otomatik_paylas(
         d.click(360, 915)  # Mavi Paylaş butonu koordinatı
         log.info("🎉 Koordinat ile 'Paylaş' butonuna basıldı!")
 
-    time.sleep(5)
+    time.sleep(6)
+    try:
+        d.screen_off()  # İşlem bitince ekranı kapatıp uykuya al
+        log.info("Ekran kapatıldı, cihaz uykuya alındı.")
+    except Exception:
+        pass
+
     log.info("✅ Samsung otomasyonu ile paylaşım tamamlandı.")
     return True
