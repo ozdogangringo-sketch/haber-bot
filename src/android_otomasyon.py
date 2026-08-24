@@ -16,9 +16,10 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional
-
-import uiautomator2 as u2
+try:
+    import uiautomator2 as u2
+except ImportError:
+    u2 = None
 
 log = logging.getLogger(__name__)
 
@@ -28,10 +29,14 @@ DEFAULT_IP = "192.168.0.112:5555"
 DEFAULT_SERIAL = "R96X200KERL"
 
 
-def cihaza_baglan() -> Optional[u2.Device]:
+def cihaza_baglan() -> Optional["u2.Device"]:
     """
     Samsung cihaza önce Wi-Fi (192.168.0.112:5555), olmazsa USB üzerinden bağlanır.
     """
+    if u2 is None:
+        log.warning("uiautomator2 kütüphanesi kurulu değil, Android otomasyonu atlanıyor.")
+        return None
+
     # 1. Wi-Fi üzerinden ADB bağlantısını dene
     try:
         subprocess.run([ADB_BIN, "connect", DEFAULT_IP], capture_output=True, timeout=5)
