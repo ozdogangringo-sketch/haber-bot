@@ -486,9 +486,11 @@ def twitter_zincir_metinleri(
     haberler: list[dict],
     ayarlar: dict | None = None,
     son_dakika: bool = False,
+    urller: list[str] | None = None,
 ) -> list[str]:
     """
     X (Twitter) için haber turunu veya son dakika detaylarını birbirine bağlı Flood (Thread) metinlerine böler.
+    Her halkanın metni ile urller[i] görseli 1-e-1 birebir örtüşür; görsel kayması yaşanmaz.
     """
     if not haberler:
         return []
@@ -503,62 +505,90 @@ def twitter_zincir_metinleri(
         ozet = (ilk_h.get("slayt_ozet") or "").strip()
         kaynak = kaynak_gosterim_adi(ilk_h.get("kaynak", ""), ayarlar or {})
 
-        # 1. Tweet: Manşet & Giriş
-        tweet1 = f"🚨 SON DAKİKA | {baslik}\n\nDetaylar zincirimizde 🧵👇"
+        # 1. Tweet: Manşet & Ana Özet (1. Slayt Görseli ile eşleşir)
+        tweet1 = f"🚨 SON DAKİKA | {baslik}\n\n📌 {ozet}"
+        if kaynak:
+            tweet1 += f"\n\nKaynak: {kaynak}"
+        tweet1 += "\n\n🧵 Ayrıntılar zincirimizde 👇"
         if len(tweet1) > 280:
             tweet1 = tweet1[:277] + "…"
         halkalar.append(tweet1)
 
-        # 2. Tweet: Ana Özet & Rakam
-        vurgu = ""
-        if ilk_h.get("vurgu_sayi") and ilk_h.get("vurgu_etiket"):
-            vurgu = f"📊 {ilk_h['vurgu_sayi']} ({ilk_h['vurgu_etiket']})\n\n"
-        tweet2 = f"📌 {vurgu}{ozet}"
-        if kaynak:
-            tweet2 += f"\n\nKaynak: {kaynak}"
-        if len(tweet2) > 280:
-            tweet2 = tweet2[:277] + "…"
-        halkalar.append(tweet2)
-
-        # 3. Tweet: Varsa geniş metin / detay
+        # 2..N Tweet: Varsa geniş ayrıntı sayfaları (2..N slayt görselleriyle eşleşir)
         detay = (ilk_h.get("ig_caption") or "").strip()
-        if detay and len(detay) > 100:
-            paragraf = detay.split("\n\n")[0] if "\n\n" in detay else detay[:240]
-            tweet3 = f"🔍 Ayrıntılar:\n\n{paragraf}"
-            if len(tweet3) > 280:
-                tweet3 = tweet3[:277] + "…"
-            halkalar.append(tweet3)
+        if detay and len(detay) > 80:
+            paragraflar = [p.strip() for p in detay.split("\n\n") if len(p.strip()) > 30]
+            for p in paragraflar[:2]:
+                tw_detay = f"🔍 Detay:\n\n{p}"
+                if len(tw_detay) > 280:
+                    tw_detay = tw_detay[:277] + "…"
+                halkalar.append(tw_detay)
 
         return halkalar
 
-    # 2. Durum: Ekonomi Turu veya Çoklu Haber Turu Flood'u
-    toplam = len(haberler)
+    # 2. Durum: Ekonomi Turu Flood'u (1. Isı Haritası, 2. Piyasa Tablosu, 3..7 Finans Haberleri)
     if tur_turu == "ekonomi":
+        toplam_haber = len(haberler)
+        # 1. Halka: Piyasa Isı Haritası Slaytı ile eşleşir
         halkalar.append(
             "📊 Daily Brief | Piyasa & Ekonomi Turu 🧵\n\n"
-            "Borsa, döviz, altın ve küresel piyasaların en sıcak finans gelişmelerini derledik. "
-            "Günün 5 kritik başlığı 👇"
+            "Borsa İstanbul, döviz, emtia ve küresel piyasalarda anlık görünüm:\n\n"
+            "Detaylı borsa karnesi ve günün kritik finans gelişmeleri zincirimizde 👇"
         )
-    else:
-        halkalar.append(
-            f"🗞️ Daily Brief | Günün Öne Çıkan Başlıkları 🧵\n\n"
-            f"Türkiye ve dünya gündeminden derlediğimiz {toplam} kritik gelişme zincirimizde 👇"
-        )
+        # 2. Halka: 3 Sütunlu Piyasa Tablosu Slaytı ile eşleşir (eğer 2. slayt varsa)
+        if urller and len(urller) >= toplam_haber + 2:
+            halkalar.append(
+                "📋 Global & Yerel Piyasa Karnesi\n\n"
+                "Borsa İstanbul, Wall Street ve Kripto Piyasaları güncel fiyat ve sektör değişim listesi 📈👇"
+            )
 
+        # 3..N Halkalar: Finans Haberlerinin kendi slayt görselleriyle eşleşir
+        for i, h in enumerate(haberler, start=1):
+            h_dict = dict(h)
+            baslik = (h_dict.get("ig_baslik") or h_dict.get("baslik_orj") or "").strip()
+            ozet = (h_dict.get("slayt_ozet") or h_dict.get("ig_caption") or "").strip()
+            kaynak = kaynak_gosterim_adi(h_dict.get("kaynak", ""), ayarlar or {})
+
+            if len(ozet) > 140:
+                ozet = ozet[:135] + "…"
+
+            parcalar = [f"{i}/{toplam_haber} 📌 {baslik}"]
+            if ozet:
+                parcalar.append(ozet)
+            if kaynak:
+                parcalar.append(f"Kaynak: {kaynak}")
+
+            metin = "\n\n".join(parcalar)
+            if len(metin) > 280:
+                metin = metin[:277] + "…"
+            halkalar.append(metin)
+
+        return halkalar
+
+    # 3. Durum: Genel Gündem Turu (10 Haber)
+    # Her tweet tam 1 habere ve onun slayt görseline (1..10) 1-e-1 karşılık gelir.
+    toplam = len(haberler)
     for i, h in enumerate(haberler, start=1):
         h_dict = dict(h)
         baslik = (h_dict.get("ig_baslik") or h_dict.get("baslik_orj") or "").strip()
         ozet = (h_dict.get("slayt_ozet") or h_dict.get("ig_caption") or "").strip()
         kaynak = kaynak_gosterim_adi(h_dict.get("kaynak", ""), ayarlar or {})
 
-        if len(ozet) > 140:
-            ozet = ozet[:135] + "…"
+        if len(ozet) > 135:
+            ozet = ozet[:130] + "…"
 
-        parcalar = [f"{i}/{toplam} 📌 {baslik}"]
+        if i == 1:
+            parcalar = [f"🗞️ Daily Brief | 1/{toplam} 📌 {baslik}"]
+        else:
+            parcalar = [f"{i}/{toplam} 📌 {baslik}"]
+
         if ozet:
             parcalar.append(ozet)
         if kaynak:
             parcalar.append(f"Kaynak: {kaynak}")
+
+        if i == 1:
+            parcalar.append(f"🧵 Günün {toplam} kritik gelişmesi zincirimizde 👇")
 
         metin = "\n\n".join(parcalar)
         if len(metin) > 280:

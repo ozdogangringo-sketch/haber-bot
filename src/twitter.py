@@ -262,7 +262,9 @@ def zincir_yayinla(
 
     from . import caption
 
-    halkalar = caption.twitter_zincir_metinleri(haberler, ayarlar, son_dakika=son_dakika)
+    halkalar = caption.twitter_zincir_metinleri(
+        haberler, ayarlar, son_dakika=son_dakika, urller=urller
+    )
     ilk_id = None
     onceki_id = None
     yayinlanan = 0
