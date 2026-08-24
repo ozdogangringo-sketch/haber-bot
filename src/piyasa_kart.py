@@ -53,8 +53,9 @@ def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
 
 def _renk_hesapla_canli(degisim: float) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
     """
-    Finviz ve TradingView standartlarında 7 kademeli dinamik ısı haritası renk motoru.
-    Hafif hareketler derin tonlarda, sert ralli/düşüşler parlak tonlarda ışıldar.
+    Finviz ve TradingView standartlarında dinamik ısı haritası renk motoru.
+    Negatif her değer (küçük olsa bile) bordo/kırmızı, pozitif her değer yeşil ton alır.
+    Nötr (gri) yalnızca tam 0.00% yatay durumlar içindir.
     Döner: (Kutu_Zemin_Rengi, Kutu_Cerceve_Rengi)
     """
     if degisim >= 3.0:
@@ -66,15 +67,15 @@ def _renk_hesapla_canli(degisim: float) -> tuple[tuple[int, int, int], tuple[int
     elif degisim >= 0.5:
         # Ilımlı Artış (Orman Yeşili)
         return (21, 128, 61), (20, 83, 45)
-    elif degisim > 0.10:
+    elif degisim > 0.02:
         # Hafif Pozitif (Derin Petrol Yeşili)
         return (18, 72, 54), (24, 95, 72)
-    elif degisim >= -0.10:
-        # Tam Yatay / Nötr (Koyu Slate Grisi)
+    elif degisim >= -0.02:
+        # Tam Nötr 0.00% (Koyu Slate Grisi)
         return (40, 52, 68), (30, 41, 59)
     elif degisim > -0.5:
-        # Hafif Negatif (Derin Mat Bordo)
-        return (90, 26, 26), (120, 35, 35)
+        # Hafif Negatif (Derin Mat Bordo - Düşüş hissi net)
+        return (95, 26, 26), (130, 35, 35)
     elif degisim > -1.5:
         # Ilımlı Düşüş (Koyu Kızıl)
         return (145, 25, 25), (120, 20, 20)
