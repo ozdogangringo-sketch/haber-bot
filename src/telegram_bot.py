@@ -498,6 +498,63 @@ def slaytlari_gonder(
         raise
 
 
+def yerel_albom_gonder(
+    dosya_yollari: list[Path | str],
+    basliklar: list[str] | None = None,
+) -> list[int]:
+    """
+    Yerel dosya yollarını (örneğin 9:16 Reels görsellerini) doğrudan albüm olarak Telegram'a gönderir.
+    """
+    if not dosya_yollari:
+        return []
+
+    files = {}
+    media = []
+    file_handles = []
+
+    try:
+        for idx, yol in enumerate(dosya_yollari):
+            p = Path(yol)
+            if not p.exists():
+                continue
+            attach_name = f"photo_{idx}"
+            fh = open(p, "rb")
+            file_handles.append(fh)
+            files[attach_name] = (p.name, fh, "image/jpeg")
+
+            cap = ""
+            if basliklar and idx < len(basliklar):
+                cap = f"{idx + 1}. {basliklar[idx]}"[:1024]
+            elif idx == 0:
+                cap = "📱 9:16 Dikey Format (Reels / Story)"
+
+            media.append({
+                "type": "photo",
+                "media": f"attach://{attach_name}",
+                "caption": cap,
+            })
+
+        if not media:
+            return []
+
+        url_api = TABAN.format(jeton=_jeton(), metot="sendMediaGroup")
+        data = {"chat_id": _sohbet_id(), "media": json.dumps(media)}
+        res = requests.post(url_api, data=data, files=files, timeout=90)
+        veri = res.json() if res.content else {}
+        if veri.get("ok"):
+            log.info("Yerel 9:16 albüm Telegram'a başarıyla iletildi.")
+            return [m["message_id"] for m in veri["result"]]
+        else:
+            log.warning("Yerel albüm gönderilemedi: %s", veri)
+            return []
+    finally:
+        for fh in file_handles:
+            try:
+                fh.close()
+            except Exception:
+                pass
+
+
 def tur_ozeti(haberler: list, uyari_sayisi: int = 0) -> str:
     """
     Onay mesajının başına konan özet tablo.

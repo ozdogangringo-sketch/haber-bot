@@ -199,15 +199,24 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     baglanti = None
     ig_notu = ""
     if paylas_reels:
-        # Reels Manuel Paylaşım Modu: Açıklamayı kopyalanabilir monospaced olarak Telegram'a gönder
+        # Reels Manuel Paylaşım Modu: 9:16 dikey görseller üretilir + açıklama kopyalanabilir gönderilir
+        try:
+            from src import video
+            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller)
+            if dikey_gorseller:
+                basliklar = [(dict(h).get("ig_baslik") or dict(h).get("baslik_orj") or "") for h in haberler]
+                telegram_bot.yerel_albom_gonder(dikey_gorseller, basliklar=basliklar)
+        except Exception as e:
+            log.warning("9:16 dikey görseller üretilemedi: %s", e)
+
         reels_mesaji = (
-            f"🎬 <b>REELS / STORY MANUEL PAYLAŞIM PAKETİ</b>\n\n"
+            f"🎬 <b>REELS / STORY MANUEL PAYLAŞIM PAKETİ (9:16 Dikey)</b>\n\n"
             f"📌 <b>Instagram Açıklaması (Kopyalamak için metne tıkla):</b>\n\n"
             f"<code>{metin}</code>\n\n"
-            f"💡 <i>Görseller Telegram albümünde ve 9:16 Story formatında hazır. Tek dokunuşla galeriye kaydedip Instagram Reels/Story olarak paylaşabilirsin.</i>"
+            f"💡 <i>Görseller 9:16 dikey Reels/Story formatında yukarıya albüm olarak yüklendi. Tek dokunuşla galeriye kaydedip Instagram'da Reels veya Hikaye olarak paylaşabilirsin.</i>"
         )
         telegram_bot.mesaj_gonder(reels_mesaji, html=True)
-        ig_notu = "🎬 Reels Manuel Paylaşım Paketi Telegram'a iletildi"
+        ig_notu = "🎬 9:16 Reels/Story Görselleri & Açıklama Telegram'a iletildi"
     elif paylas_ig:
         post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
         baglanti = instagram.post_baglantisi(post_id, ayarlar)

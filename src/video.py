@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 import numpy as np
+import io
+import requests
 from PIL import Image, ImageFilter, ImageOps
 import imageio
 
@@ -19,6 +21,43 @@ log = logging.getLogger(__name__)
 CIKTI_KLASORU = Path("data") / "output"
 HEDEF_GENISLIK = 1080
 HEDEF_YUKSEKLIK = 1920
+
+
+def reels_dikey_gorselleri_uret(
+    gorsel_kaynaklari: list[Path | str],
+    cikti_dizini: Path | str | None = None,
+) -> list[Path]:
+    """
+    4:5 formatındaki slayt görsellerini veya URL'leri alır,
+    arka planı sinematik derin okyanus petrolü blur efektiyle doldurarak
+    1080x1920 (9:16) tam dikey Reels / Story görselleri üretir.
+    """
+    if cikti_dizini is None:
+        cikti_dizini = CIKTI_KLASORU / "reels_9_16"
+    else:
+        cikti_dizini = Path(cikti_dizini)
+    cikti_dizini.mkdir(parents=True, exist_ok=True)
+
+    uretilen_yollar: list[Path] = []
+    for idx, kaynak in enumerate(gorsel_kaynaklari):
+        try:
+            if str(kaynak).startswith("http://") or str(kaynak).startswith("https://"):
+                r = requests.get(str(kaynak), timeout=20)
+                img = Image.open(io.BytesIO(r.content))
+            else:
+                p = Path(kaynak)
+                if not p.exists():
+                    continue
+                img = Image.open(p)
+
+            dikey_img = _reels_kare_hazirla(img)
+            hedef_yol = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
+            dikey_img.save(hedef_yol, "JPEG", quality=95)
+            uretilen_yollar.append(hedef_yol)
+        except Exception as e:
+            log.warning("9:16 görsel üretilemedi (%s): %s", kaynak, e)
+
+    return uretilen_yollar
 
 
 def _reels_kare_hazirla(img: Image.Image, genislik: int = HEDEF_GENISLIK, yukseklik: int = HEDEF_YUKSEKLIK) -> Image.Image:
