@@ -1,6 +1,6 @@
 """
 piyasa_tablo.py — 1080x1350 Instagram Carousel 2. Slaytı için Derin Petrol & Siber Turkuaz Temalı
-3 Sütunlu (BİST, ABD/Global Borsa, Kripto) Detaylı Piyasa Karnesi ve Fiyat Listesi.
+3 Sütunlu (BİST, ABD/Global Borsa, Kripto - 10'ar Satır) Büyük Tipografili Piyasa Karnesi.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from . import piyasa
-from .piyasa_kart import _lerp_renk, _renk_hesapla_canli, _fiyat_bicimlendir
+from .piyasa_kart import _lerp_renk, _renk_hesapla_canli
 
 log = logging.getLogger(__name__)
 
@@ -34,16 +34,16 @@ RENK_GLOW = (6, 182, 212, 40)
 
 RENK_KART_CONTAINER = (8, 32, 38)
 RENK_KART_BORDER = (20, 68, 78)
-RENK_SATIR_EVEN = (12, 45, 54)
+RENK_SATIR_EVEN = (12, 46, 56)
 RENK_SATIR_ODD = (10, 38, 46)
 
 RENK_BASLIK_KOYU = (255, 255, 255)
-RENK_GRI_METIN = (140, 185, 195)
+RENK_GRI_METIN = (145, 190, 200)
 RENK_BEYAZ = (255, 255, 255)
 RENK_FIYAT_ACIK = (246, 243, 236)
 RENK_CYAN = (6, 182, 212)
 
-# 3 SÜTUNLU LİSTE YAPILANDIRMASI (8'er varlık)
+# 3 SÜTUNLU LİSTE YAPILANDIRMASI (10'ar varlık = 30 Enstrüman)
 SUTUNLAR = {
     "bist": {
         "baslik": "› BİST & TÜRKİYE",
@@ -56,6 +56,8 @@ SUTUNLAR = {
             {"sym": "AKBNK.IS", "etiket": "AKBNK", "varsayilan": 3.44},
             {"sym": "BIMAS.IS", "etiket": "BIMAS", "varsayilan": -1.02},
             {"sym": "ASELS.IS", "etiket": "ASELS", "varsayilan": -0.87},
+            {"sym": "EREGL.IS", "etiket": "EREGL", "varsayilan": 0.10},
+            {"sym": "SISE.IS", "etiket": "SISE", "varsayilan": -0.40},
         ],
     },
     "global": {
@@ -69,6 +71,8 @@ SUTUNLAR = {
             {"sym": "TSLA", "etiket": "TESLA", "varsayilan": -2.08},
             {"sym": "MSFT", "etiket": "MICROSOFT", "varsayilan": 1.00},
             {"sym": "AMZN", "etiket": "AMAZON", "varsayilan": 1.24},
+            {"sym": "GOOGL", "etiket": "ALPHABET", "varsayilan": 1.22},
+            {"sym": "META", "etiket": "META", "varsayilan": 1.42},
         ],
     },
     "kripto": {
@@ -82,6 +86,8 @@ SUTUNLAR = {
             {"sym": "ADA-USD", "etiket": "CARDANO", "varsayilan": -3.59},
             {"sym": "AVAX-USD", "etiket": "AVALANCHE", "varsayilan": -0.92},
             {"sym": "DOGE-USD", "etiket": "DOGECOIN", "varsayilan": -5.09},
+            {"sym": "LINK-USD", "etiket": "CHAINLINK", "varsayilan": -0.51},
+            {"sym": "NEAR-USD", "etiket": "NEAR", "varsayilan": -3.39},
         ],
     },
 }
@@ -118,7 +124,7 @@ def _arka_plan_ciz() -> Image.Image:
 
 
 def _tum_fiyatlari_cek() -> dict[str, dict]:
-    """Tüm 24 sembolün canlı fiyat ve değişim verilerini çeker."""
+    """Tüm 30 sembolün canlı fiyat ve değişim verilerini çeker."""
     tum_semboller = set()
     for s_info in SUTUNLAR.values():
         for oge in s_info["ogeler"]:
@@ -144,7 +150,7 @@ def _tum_fiyatlari_cek() -> dict[str, dict]:
             pass
         return s, None
 
-    with ThreadPoolExecutor(max_workers=20) as ex:
+    with ThreadPoolExecutor(max_workers=25) as ex:
         for sym, res in ex.map(_tek, list(tum_semboller)):
             if res:
                 fiyatlar[sym] = res
@@ -153,7 +159,7 @@ def _tum_fiyatlari_cek() -> dict[str, dict]:
 
 
 def _temiz_fiyat_yazisi(sym: str, fiyat: float) -> str:
-    """Kutular için sığabilir kısa ve okunaklı fiyat metni."""
+    """Kutular için büyük ve okunaklı fiyat metni."""
     if not fiyat:
         return ""
     if sym in ("XU100.IS", "^GSPC", "^IXIC", "^DJI"):
@@ -173,7 +179,7 @@ def _temiz_fiyat_yazisi(sym: str, fiyat: float) -> str:
 def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
     """
     1080x1350 Instagram 2. slayt için 3 sütunlu (BİST, ABD/Global, Kripto)
-    detaylı piyasa karnesi tablosunu üretir.
+    10'ar satırlı, büyük ve ferah tipografili piyasa karnesi tablosunu üretir.
     """
     CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
@@ -182,15 +188,15 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
     img = _arka_plan_ciz()
     draw = ImageDraw.Draw(img)
 
-    f_etiket = _font(20, 800.0)
-    f_baslik = _font(44, 900.0)
-    f_alt_baslik = _font(21, 500.0)
-    f_tarih_buyuk = _font(24, 800.0)
-    f_tarih_kucuk = _font(19, 600.0)
-    f_sutun_baslik = _font(20, 900.0)
-    f_sym = _font(16, 800.0)
-    f_price = _font(16, 700.0)
-    f_badge = _font(14, 800.0)
+    f_etiket = _font(21, 800.0)
+    f_baslik = _font(46, 900.0)
+    f_alt_baslik = _font(22, 500.0)
+    f_tarih_buyuk = _font(25, 800.0)
+    f_tarih_kucuk = _font(20, 600.0)
+    f_sutun_baslik = _font(22, 900.0)
+    f_sym = _font(19, 900.0)
+    f_price = _font(18, 800.0)
+    f_badge = _font(16, 900.0)
 
     # --- 1. HEADER (ÜST ALAN) ---
     logo_boyut = 120
@@ -234,7 +240,7 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
     oturum_adi = "Kapanış" if aksam_mi else "Açılış"
 
     draw.text((header_x, 82), baslik_ana, font=f_baslik, fill=RENK_BASLIK_KOYU)
-    draw.text((header_x, 134), baslik_alt, font=f_alt_baslik, fill=RENK_GRI_METIN)
+    draw.text((header_x, 136), baslik_alt, font=f_alt_baslik, fill=RENK_GRI_METIN)
 
     # Tarih Alanı
     aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -250,13 +256,13 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
     draw.text((sag_kenar - w_t1, 80), tarih_satir1, font=f_tarih_buyuk, fill=RENK_BASLIK_KOYU)
     draw.text((sag_kenar - w_t2, 114), tarih_satir2, font=f_tarih_kucuk, fill=RENK_GRI_METIN)
 
-    # --- 2. 3 SÜTUNLU PİYASA TABLOSU ---
+    # --- 2. 3 SÜTUNLU PİYASA TABLOSU (10'AR SATIR) ---
     col_w = 318
     col_gap = 18
     start_x = 45
     start_y = 175
-    col_h = 1035
-    ribbon_h = 44
+    col_h = 1042
+    ribbon_h = 48
 
     sutun_anahtarlari = ["bist", "global", "kripto"]
 
@@ -279,12 +285,12 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
             radius=12,
             fill=(18, 62, 74),
         )
-        draw.text((col_x + 16, start_y + 11), s_data["baslik"], font=f_sutun_baslik, fill=(246, 243, 236))
+        draw.text((col_x + 18, start_y + 12), s_data["baslik"], font=f_sutun_baslik, fill=(246, 243, 236))
 
-        # Satırlar (8 Adet)
+        # Satırlar (10 Adet)
         ogeler = s_data["ogeler"]
-        row_start_y = start_y + ribbon_h + 10
-        row_avail_h = col_h - ribbon_h - 18
+        row_start_y = start_y + ribbon_h + 8
+        row_avail_h = col_h - ribbon_h - 14
         row_h = row_avail_h / len(ogeler)
 
         for row_idx, oge in enumerate(ogeler):
@@ -298,35 +304,35 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
 
             # Satır Kutusu
             draw.rounded_rectangle(
-                [(col_x + 8, cur_y + 3), (col_x + col_w - 8, cur_y + row_h - 3)],
+                [(col_x + 6, cur_y + 2), (col_x + col_w - 6, cur_y + row_h - 2)],
                 radius=8,
                 fill=bg_color,
             )
 
-            # Sembol / İsim (Sol)
+            # Sembol / İsim (Sol Üst)
             sembol_txt = oge["etiket"]
-            draw.text((col_x + 16, cur_y + row_h * 0.18), sembol_txt, font=f_sym, fill=RENK_BEYAZ)
+            draw.text((col_x + 14, cur_y + row_h * 0.14), sembol_txt, font=f_sym, fill=RENK_BEYAZ)
 
-            # Fiyat (Sol Alt veya Orta)
+            # Fiyat (Sol Alt)
             fiyat_txt = _temiz_fiyat_yazisi(sym, fiyat)
-            draw.text((col_x + 16, cur_y + row_h * 0.54), fiyat_txt, font=f_price, fill=RENK_GRI_METIN)
+            draw.text((col_x + 14, cur_y + row_h * 0.52), fiyat_txt, font=f_price, fill=RENK_FIYAT_ACIK)
 
             # Değişim Rozeti (Sağ)
             chg_str = f"{'▲ %' if degisim >= 0 else '▼ %'}{abs(degisim):.2f}".replace(".", ",")
             c_bg, c_bd = _renk_hesapla_canli(degisim)
 
-            bw = draw.textlength(chg_str, font=f_badge) + 16
-            bx = col_x + col_w - bw - 16
-            by = cur_y + int(row_h * 0.24)
-            bh = 32
+            bw = draw.textlength(chg_str, font=f_badge) + 20
+            bx = col_x + col_w - bw - 14
+            by = cur_y + int(row_h * 0.22)
+            bh = 38
 
-            draw.rounded_rectangle([(bx, by), (bx + bw, by + bh)], radius=6, fill=c_bg, outline=c_bd, width=1)
-            draw.text((bx + 8, by + 7), chg_str, font=f_badge, fill=RENK_BEYAZ)
+            draw.rounded_rectangle([(bx, by), (bx + bw, by + bh)], radius=7, fill=c_bg, outline=c_bd, width=1)
+            draw.text((bx + 10, by + 9), chg_str, font=f_badge, fill=RENK_BEYAZ)
 
     # --- 3. FOOTER (ALT BİLGİ & YASAL UYARI) ---
     draw.line([(45, 1228), (1035, 1228)], fill=(24, 75, 85), width=1)
     skala_y = 1244
-    not_txt1 = "DailyBrief · 3 Sektörlü Detaylı Piyasa Karnesi"
+    not_txt1 = "DailyBrief · 30 Enstrümanlı Canlı Piyasa Karnesi"
     not_txt2 = "Yatırım tavsiyesi değildir · Kaynak: Matriks, TradingView"
 
     draw.text((45, skala_y), not_txt1, font=_font(15, 700.0), fill=RENK_BEYAZ)
@@ -335,5 +341,5 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
 
     cikti_yolu = CIKTI_KLASORU / f"piyasa_tablosu_{simdi.strftime('%Y%m%d')}.jpg"
     img.save(cikti_yolu, "JPEG", quality=95)
-    log.info("3 Sütunlu piyasa tablosu üretildi: %s", cikti_yolu)
+    log.info("10 Satırlı 3 Sütunlu piyasa tablosu üretildi: %s", cikti_yolu)
     return cikti_yolu
