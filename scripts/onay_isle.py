@@ -1261,10 +1261,11 @@ def _albumu_yenile(con, mesaj_id: int) -> None:
         return
     urller = []
     for h in yeniler:
-        if h["gorsel_url"]:
-            urller.append(h["gorsel_url"])
-        if h.get("detay_url"):
-            urller.extend(_detay_urlleri(h["detay_url"]))
+        h_dict = dict(h)
+        if h_dict.get("gorsel_url"):
+            urller.append(h_dict["gorsel_url"])
+        if h_dict.get("detay_url"):
+            urller.extend(_detay_urlleri(h_dict["detay_url"]))
 
     eski_albom = db.ayar_oku(con, f"albom_{mesaj_id}", "")
     if eski_albom:
@@ -1712,9 +1713,9 @@ def menuyu_geri_koy(con, mesaj_id: int) -> None:
     try:
         uyari, isaretli = dogrula.turu_dogrula(haberler)
         if len(haberler) == 1 and haberler[0]["son_dakika"]:
-            h = haberler[0]
+            h = dict(haberler[0])
             adet = 1 + len(_detay_urlleri(h.get("detay_url")))
-            ozet = (f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {h['onem_puani']}/10\n"
+            ozet = (f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {h.get('onem_puani', 8)}/10\n"
                     f"⌛️ 24 saat boyunca onaya hazır bekler")
         else:
             adet = len(haberler)
