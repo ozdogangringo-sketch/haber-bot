@@ -721,22 +721,20 @@ def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
 
 
 def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
-              uyari, katman_raporu) -> int:
+              uyari, katman_raporu, story_detay_url: str | None = None) -> int:
     """
     Hazırlanan tekil postu Telegram'da onaya sunar.
-
-    ⚠️ `main()` içinde 30 satırlık bir blok olarak duruyordu. Davranış
-    AYNEN korundu — yalnızca yeri değişti.
-
-    Onay mesajı gider gitmez veritabanı push ediliyor: onay düğmesi
-    GitHub'daki kopyaya bakıyor ve workflow'un son adımını beklersek
-    kullanıcı o aralıkta onayladığında yayın job'ı turu göremiyor
-    (17 Ağu 2026'da tam olarak bu oldu).
     """
     # --- 6b) Onaya sun ---
-    # Telegram'a gönderilen albüm 9:16 Story formatında sunulur!
-    telegram_urller = [story_url] if story_url else urller
-    albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, ["Son Dakika"])
+    # Telegram'a gönderilen albüm 9:16 Story formatında sunulur (Haber + Ayrıntı)
+    telegram_urller = [story_url] if story_url else [urller[0]]
+    if story_detay_url:
+        telegram_urller.append(story_detay_url)
+    elif len(urller) > 1:
+        telegram_urller.append(urller[1])
+
+    etiketler = ["Haber", "Ayrıntı"][:len(telegram_urller)]
+    albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
     mesaj_id = telegram_bot.onay_iste(
         metin, len(telegram_urller),
         uyari=(uyari or ""),
@@ -957,6 +955,21 @@ def main(zorla_haber_id: int | None = None) -> int:
             except Exception as e:
                 log.warning("story yüklenemedi: %s", e)
 
+        # Slayt 2 (Detay) için 9:16 Story formatı üret
+        story_detay_url = None
+        detay_slayt = next((s for s in sonuclar if s.get("katman") == "detay"), None)
+        if detay_slayt:
+            try:
+                from src import video
+                from PIL import Image
+                detay_img = Image.open(detay_slayt["yol"])
+                detay_9_16 = video._cercevele_9_16(detay_img, baslik_rozet="HABERİN AYRINTILARI")
+                detay_9_16_yol = make_image.CIKTI_KLASORU / f"story-{aday['id']}-detay.jpg"
+                detay_9_16.save(detay_9_16_yol, "JPEG", quality=92, optimize=True)
+                story_detay_url = upload_image.gorsel_yukle(detay_9_16_yol, ayarlar)["url"]
+            except Exception as e:
+                log.warning("detay story yüklenemedi: %s", e)
+
         metin = caption.son_dakika_caption(taze, sonuclar, ayarlar)
         uyari, isaretli = dogrula.turu_dogrula([taze])
 
@@ -978,7 +991,8 @@ def main(zorla_haber_id: int | None = None) -> int:
 
 
         return onaya_sun(con, ayarlar, aday, taze, urller,
-                        story_url, metin, uyari, katman_raporu)
+                        story_url, metin, uyari, katman_raporu,
+                        story_detay_url=story_detay_url)
 
     except Exception as e:
         log.exception("son dakika turu hazırlanamadı")

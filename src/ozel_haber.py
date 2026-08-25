@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 
 from . import (
     caption, db, db_senkron, fetch_article,
-    generate_text, slaytlar, telegram_bot, upload_image,
+    generate_text, make_image, slaytlar, telegram_bot, upload_image,
 )
 
 log = logging.getLogger("ozel_haber")
@@ -83,6 +83,7 @@ def _post_olustur_ve_onaya_sun(
     urller = []
     katman_raporu = []
     story_url = None
+    story_detay_url = None
 
     for s in sonuclar:
         if s.get("katman") == "story":
@@ -96,7 +97,21 @@ def _post_olustur_ve_onaya_sun(
 
         yukleme = upload_image.gorsel_yukle(s["yol"], ayarlar)
         urller.append(yukleme["url"])
-        if s.get("katman") != "detay":
+
+        # Detay slaytı varsa 9:16 Story formatı üret
+        if s.get("katman") == "detay":
+            try:
+                from src import video
+                from PIL import Image
+                detay_img = Image.open(s["yol"])
+                detay_9_16 = video._cercevele_9_16(detay_img, baslik_rozet="HABERİN AYRINTILARI")
+                detay_9_16_yol = make_image.CIKTI_KLASORU / f"story-{haber_id}-detay.jpg"
+                detay_9_16.save(detay_9_16_yol, "JPEG", quality=92, optimize=True)
+                story_detay_yukleme = upload_image.gorsel_yukle(detay_9_16_yol, ayarlar)
+                story_detay_url = story_detay_yukleme["url"]
+            except Exception as e:
+                log.warning("detay story yüklenemedi: %s", e)
+        else:
             simge = telegram_bot.KATMAN_SIMGE.get(s.get("katman", "gradyan"), "▫️")
             katman_raporu.append(f"{simge} Görsel: {s.get('katman', 'gradyan')}")
 
@@ -106,9 +121,15 @@ def _post_olustur_ve_onaya_sun(
     # 3. Caption hazırla
     metin = caption.son_dakika_caption(taze, ayarlar, sonuclar)
 
-    # 4. Telegram'a albüm ve onay mesajı gönder (9:16 Story formatında)
-    telegram_urller = [story_url] if story_url else urller
-    telegram_bot.slaytlari_gonder(telegram_urller, ["Haber"])
+    # 4. Telegram'a albüm ve onay mesajı gönder (9:16 Story formatında, Haber + Ayrıntı)
+    telegram_urller = [story_url] if story_url else [urller[0]]
+    if story_detay_url:
+        telegram_urller.append(story_detay_url)
+    elif len(urller) > 1:
+        telegram_urller.append(urller[1])
+
+    etiketler = ["Haber", "Ayrıntı"][:len(telegram_urller)]
+    telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
     mesaj_id = telegram_bot.onay_iste(
         metin,
         len(telegram_urller),
