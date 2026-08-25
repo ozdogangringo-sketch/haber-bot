@@ -823,58 +823,97 @@ def story_kapak(
     genislik, yukseklik = STORY_GENISLIK, STORY_YUKSEKLIK
     kenar = ayarlar["gorsel"]["kenar_bosluk"]
 
-    gorsel = arkaplan_uret_yedek("turkiye", genislik, yukseklik)
-    ciz = ImageDraw.Draw(gorsel)
+    # Derin Gece Mavisi / Antrasit gradyan zemin (#060B14 -> #02050A)
+    img = Image.new("RGB", (genislik, yukseklik))
+    draw = ImageDraw.Draw(img)
+
+    for y in range(yukseklik):
+        oran = y / float(yukseklik)
+        r = int(6 * (1 - oran) + 2 * oran)
+        g = int(11 * (1 - oran) + 5 * oran)
+        b = int(20 * (1 - oran) + 10 * oran)
+        draw.line([(0, y), (genislik, y)], fill=(r, g, b))
+
+    # Atmosferik Çift Parıltı (Sol üst Kobalt Mavi, Sağ alt Sıcak Kehribar)
+    glow = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    gdraw = ImageDraw.Draw(glow)
+    gdraw.ellipse([(-150, 100), (650, 700)], fill=(37, 99, 235, 45))
+    gdraw.ellipse([(550, 1200), (1200, 1850)], fill=(245, 158, 11, 35))
+    glow = glow.filter(ImageFilter.GaussianBlur(160))
+    img.paste(Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB"), (0, 0))
+
+    ciz = ImageDraw.Draw(img)
     alan_genislik = genislik - 2 * kenar
 
-    # --- Üst blok ---
-    y = STORY_GUVENLI_PAY
-    ciz.rectangle([kenar, y, kenar + 92, y + 7], fill=(226, 170, 88))
-    ciz.text((kenar, y + 30), tarih_metni(gun),
-             font=_font(30, EKSEN_KUCUK), fill=(226, 170, 88))
+    # --- Üst Blok ---
+    y = STORY_GUVENLI_PAY + 20
 
-    b_font = _font(76, EKSEN_BASLIK)
-    ciz.text((kenar + 2, y + 76 + 2), "GÜNÜN GÜNDEMİ", font=b_font,
-             fill=(0, 0, 0))
-    ciz.text((kenar, y + 76), "GÜNÜN GÜNDEMİ", font=b_font,
-             fill=(255, 255, 255))
-    ust_alt = y + 76 + 96
+    # Rozet: DAILYBRIEF · GÜNÜN GÜNDEMİ
+    rozet_txt = "DAILYBRIEF · GÜNÜN GÜNDEMİ"
+    f_rozet = _font(22, 800.0)
+    rw = ciz.textlength(rozet_txt, font=f_rozet)
+    ciz.rounded_rectangle(
+        [(kenar, y), (kenar + rw + 28, y + 42)],
+        radius=8,
+        fill=(28, 25, 23),
+        outline=(245, 158, 11),
+        width=2,
+    )
+    ciz.text((kenar + 14, y + 8), rozet_txt, font=f_rozet, fill=(245, 158, 11))
+    y += 65
 
-    # --- Alt bilgi ---
-    alt_bilgi_y = yukseklik - STORY_GUVENLI_PAY
-    hesap = ayarlar.get("instagram", {}).get("hesap_kullanici_adi", "")
+    # Başlık: GÜNÜN GÜNDEMİ
+    b_font = _font(72, EKSEN_BASLIK)
+    ciz.text((kenar, y), "GÜNÜN GÜNDEMİ", font=b_font, fill=(255, 255, 255))
+    y += 90
 
-    # --- Manşet listesi: kalan alanda dikeyde ortalı ---
-    madde_font = _font(34, EKSEN_OZET)
-    satir_y = int(34 * 1.34)
+    # Tarih ve Oturum
+    simdi = datetime.now(timezone.utc)
+    aksam_mi = simdi.hour >= 15
+    oturum = "Akşam Özeti" if aksam_mi else "Sabah Özeti"
+    tarih_str = f"{tarih_metni(gun)} · {oturum}"
+    ciz.text((kenar, y), tarih_str, font=_font(28, EKSEN_KUCUK), fill=(226, 170, 88))
+    y += 60
+
+    ciz.line([(kenar, y), (genislik - kenar, y)], fill=(30, 41, 59), width=2)
+    y += 40
+    ust_alt = y
+
+    # --- Alt Bilgi ---
+    alt_bilgi_y = yukseklik - STORY_GUVENLI_PAY - 20
+    hesap = ayarlar.get("instagram", {}).get("hesap_kullanici_adi", "dailybrief.co")
+
+    # --- Manşet Listesi: Numaralı ve Ferah Kartlar ---
+    madde_font = _font(36, EKSEN_OZET)
+    satir_y = int(36 * 1.36)
     bloklar = [
-        _satirlara_bol(b, madde_font, alan_genislik - 36, ciz)[:2]
-        for b in basliklar
+        _satirlara_bol(b, madde_font, alan_genislik - 60, ciz)[:2]
+        for b in basliklar[:5]
     ]
 
-    kullanilabilir = alt_bilgi_y - 40 - ust_alt
-    while bloklar:
-        toplam = sum(len(x) * satir_y + 20 for x in bloklar)
-        if toplam <= kullanilabilir:
-            break
-        bloklar.pop()          # sığmayan en az önemli maddeden atıyoruz
-
-    toplam = sum(len(x) * satir_y + 20 for x in bloklar)
+    kullanilabilir = alt_bilgi_y - 60 - ust_alt
+    toplam = sum(len(x) * satir_y + 36 for x in bloklar)
     y = ust_alt + max(0, (kullanilabilir - toplam) // 2)
 
-    for satirlar in bloklar:
-        ciz.ellipse([kenar, y + 14, kenar + 10, y + 24], fill=(226, 170, 88))
+    for i, satirlar in enumerate(bloklar, start=1):
+        ciz.rounded_rectangle([(kenar, y + 4), (kenar + 38, y + 42)], radius=8, fill=(28, 25, 23), outline=(245, 158, 11), width=1)
+        ciz.text((kenar + 12, y + 8), str(i), font=_font(22, 800.0), fill=(245, 158, 11))
+
+        cur_y = y
         for satir in satirlar:
-            ciz.text((kenar + 28, y), satir, font=madde_font,
-                     fill=(226, 231, 242))
-            y += satir_y
-        y += 20
+            ciz.text((kenar + 52, cur_y), satir, font=madde_font, fill=(246, 243, 236))
+            cur_y += satir_y
+        y += max(cur_y - y, 42) + 32
 
-    if hesap:
-        ciz.text((kenar, alt_bilgi_y), f"@{hesap}",
-                 font=_font(28, EKSEN_KUCUK), fill=(198, 206, 222))
+    # --- Alt Bilgi & Çağrı ---
+    ciz.line([(kenar, alt_bilgi_y - 20), (genislik - kenar, alt_bilgi_y - 20)], fill=(30, 41, 59), width=1)
+    ciz.text((kenar, alt_bilgi_y), f"@{hesap}", font=_font(30, EKSEN_KUCUK), fill=(148, 163, 184))
 
-    return gorsel
+    kaydir_txt = "Detaylar gönderide 👉"
+    kw = ciz.textlength(kaydir_txt, font=_font(28, 700.0))
+    ciz.text((genislik - kenar - kw, alt_bilgi_y), kaydir_txt, font=_font(28, 700.0), fill=(245, 158, 11))
+
+    return img
 
 
 def story_ekonomi_kapak(
