@@ -2446,6 +2446,77 @@ def main() -> int:
         telegram_bot.mesaj_gonder("\n".join(satirlar), html=True)
         return 0
 
+    if komut.startswith("hisse:") or komut.startswith("kripto:"):
+        from src import piyasa
+        sembol = komut.split(":", 1)[1].strip()
+        veri = piyasa.varlik_sorgula(sembol)
+        if not veri:
+            telegram_bot.mesaj_gonder(
+                f"⚠️ <b>{sembol.upper()}</b> sembolü bulunamadı veya veri alınamadı.\n"
+                f"Örnek: <code>/hisse THYAO</code>, <code>/hisse ASELS</code>, <code>/kripto BTC</code>, <code>/hisse NVDA</code>",
+                html=True,
+            )
+            return 0
+
+        yon = "🟢 +" if veri["degisim"] >= 0 else "🔴 "
+        para = "₺" if veri["currency"] == "TRY" else ("$" if veri["currency"] == "USD" else veri["currency"])
+        fiyat_str = piyasa.turkce_sayi(veri["fiyat"], 2)
+        yuksek_str = piyasa.turkce_sayi(veri["gun_yuksek"], 2)
+        dusuk_str = piyasa.turkce_sayi(veri["gun_dusuk"], 2)
+
+        satirlar = [
+            f"📊 <b>CANLI FİNANS SORGUSU: {veri['ad']}</b>\n",
+            f"💰 <b>Anlık Fiyat:</b> {fiyat_str} {para} ({yon}%{veri['degisim']:.2f})",
+            f"📈 <b>Gün İçi En Yüksek:</b> {yuksek_str} {para}",
+            f"📉 <b>Gün İçi En Düşük:</b> {dusuk_str} {para}",
+            f"🏷️ <b>Sembol / Borsa:</b> <code>{veri['sembol']}</code>",
+            f"\n⏰ <i>Canlı Veri: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}</i>",
+        ]
+        telegram_bot.mesaj_gonder("\n".join(satirlar), html=True)
+        return 0
+
+    if komut in ("sonpostlar", "son_postlar"):
+        satirlar_db = con.execute(
+            "SELECT ig_baslik, durum, yayin_tarihi, telegram_message_id "
+            "FROM haberler WHERE durum = 'yayinlandi' "
+            "GROUP BY telegram_message_id ORDER BY yayin_tarihi DESC LIMIT 5"
+        ).fetchall()
+        if not satirlar_db:
+            telegram_bot.mesaj_gonder("ℹ️ Henüz yayınlanmış bir tur kaydı bulunamadı.")
+            return 0
+
+        rapor = ["📰 <b>SON YAYINLANAN POSTLAR & KANALLAR</b>\n"]
+        for idx, s in enumerate(satirlar_db, start=1):
+            baslik = s["ig_baslik"] or "Daily Brief Haber Turu"
+            tarih = s["yayin_tarihi"] or "Yeni"
+            rapor.append(
+                f"{idx}. <b>{baslik[:65]}</b>\n"
+                f"   ⏰ <i>{tarih[:16]}</i> · ✅ Instagram, Threads, FB, X\n"
+            )
+        rapor.append("🔗 <i>Sosyal medya hesaplarından canlı görüntüleyebilirsiniz.</i>")
+        telegram_bot.mesaj_gonder("\n".join(rapor), html=True)
+        return 0
+
+    if komut in ("bulten", "kahve"):
+        sinir = datetime.now(timezone.utc) - timedelta(hours=36)
+        taze = con.execute(
+            "SELECT ig_baslik, ig_ozet, onem_puani, kategori FROM haberler "
+            "WHERE durum = 'metin_hazir' AND yayin_tarihi >= ? "
+            "ORDER BY onem_puani DESC LIMIT 5",
+            (sinir.isoformat(),),
+        ).fetchall()
+        if not taze:
+            telegram_bot.mesaj_gonder("ℹ️ Havuzda şu an taze özetlenecek haber yok. <code>/guncelle</code> yazarak tarayabilirsin.", html=True)
+            return 0
+
+        satirlar = ["☕ <b>DAILY BRIEF ANLIK HABER BÜLTENİ</b>\n"]
+        for idx, h in enumerate(taze, start=1):
+            kat = f"[{h['kategori'].upper()}] " if h.get("kategori") else ""
+            satirlar.append(f"<b>{idx}. {kat}{h['ig_baslik']}</b>\n{h['ig_ozet']}\n")
+        satirlar.append("<i>Bu haberler onay bekleyen tur havuzundan canlı derlenmiştir.</i>")
+        telegram_bot.mesaj_gonder("\n".join(satirlar), html=True)
+        return 0
+
     if komut in ("hata:tur_tekrar", "tur_tekrar"):
         from scripts import ekonomi_turu
         telegram_bot.mesaj_gonder("🔄 Ekonomi & Piyasa turu sıfırdan hazırlanıyor...")

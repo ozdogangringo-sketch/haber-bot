@@ -138,6 +138,93 @@ def piyasa_verileri_getir() -> dict[str, dict]:
     return sonuclar
 
 
+def varlik_sorgula(girdi: str) -> dict | None:
+    """
+    Kullanıcının yazdığı sembolü (BİST hissesi, kripto para, döviz, emtia veya ABD hissesi)
+    canlı olarak sorgular ve güncel fiyat, değişim, gün aralığı verilerini döner.
+    """
+    if not girdi or not girdi.strip():
+        return None
+
+    sembol = girdi.upper().strip()
+    # Özel takma adlar
+    if sembol in ("DOLAR", "USD", "USDTRY"):
+        sym = "TRY=X"
+        ad = "Dolar / TL"
+    elif sembol in ("EURO", "EUR", "EURTRY"):
+        sym = "EURTRY=X"
+        ad = "Euro / TL"
+    elif sembol in ("ALTIN", "GOLD"):
+        sym = "GC=F"
+        ad = "Gram Altın"
+    elif sembol in ("GUMUS", "SILVER"):
+        sym = "SI=F"
+        ad = "Gümüş"
+    elif sembol in ("BTC", "BITCOIN"):
+        sym = "BTC-USD"
+        ad = "Bitcoin"
+    elif sembol in ("ETH", "ETHEREUM"):
+        sym = "ETH-USD"
+        ad = "Ethereum"
+    elif sembol in ("SOL", "SOLANA"):
+        sym = "SOL-USD"
+        ad = "Solana"
+    elif "." not in sembol and "-" not in sembol and len(sembol) <= 5:
+        # BİST hissesi varsayımı
+        sym = f"{sembol}.IS"
+        ad = sembol
+    else:
+        sym = sembol
+        ad = sembol
+
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d"
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
+    try:
+        r = requests.get(url, headers=headers, timeout=6)
+        if r.status_code != 200 and sym.endswith(".IS"):
+            # Belki BİST değil ABD hissesidir
+            sym = sembol
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d"
+            r = requests.get(url, headers=headers, timeout=6)
+
+        if r.status_code == 200:
+            veri = r.json()
+            meta = veri["chart"]["result"][0]["meta"]
+            fiyat = float(meta["regularMarketPrice"])
+            kapanis = float(meta.get("chartPreviousClose", meta.get("previousClose", fiyat)))
+            degisim = ((fiyat - kapanis) / kapanis) * 100 if kapanis else 0.0
+            currency = meta.get("currency", "")
+            high = float(meta.get("regularMarketDayHigh", fiyat))
+            low = float(meta.get("regularMarketDayLow", fiyat))
+
+            # Gram altın özel hesaplama
+            if sym == "GC=F":
+                try:
+                    dolar_r = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/TRY=X?interval=1d", headers=headers, timeout=5)
+                    if dolar_r.status_code == 200:
+                        dolar_fiyat = float(dolar_r.json()["chart"]["result"][0]["meta"]["regularMarketPrice"])
+                        gram_tl = (fiyat / 31.1034768) * dolar_fiyat
+                        ad = "Gram Altın (TL)"
+                        fiyat = gram_tl
+                        currency = "TRY"
+                except Exception:
+                    pass
+
+            return {
+                "ad": ad,
+                "sembol": sym,
+                "fiyat": fiyat,
+                "degisim": degisim,
+                "currency": currency,
+                "gun_yuksek": high,
+                "gun_dusuk": low,
+            }
+    except Exception as e:
+        log.warning("varlik_sorgula hatası (%s): %s", girdi, e)
+
+    return None
+
+
 ISI_HARITASI_SEKTORLERI = {
     "VİTRİN_ÜST": [
         {"sym": "TRY=X", "etiket": "USD / TL", "icon": "dollar", "varsayilan": 0.10},

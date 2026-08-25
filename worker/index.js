@@ -33,7 +33,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
                   "kota_raporu", "tur_temizle", "tur_hazirla", "ekonomi_hazirla", "ekonomi",
-                  "piyasa", "piyasa_ozet",
+                  "piyasa", "piyasa_ozet", "bulten", "sonpostlar", "son_postlar",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
                   "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
@@ -126,6 +126,7 @@ const HATA_AYRINTI = "hata:ayrinti";
 
 const MAKRO_EYLEM = /^(makro|faiz|enflasyon|fed):.+$/;
 const LINK_EYLEM = /^link:.+$/;
+const VARLIK_EYLEM = /^(hisse|kripto):.+$/;
 
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 500) return false;
@@ -137,7 +138,8 @@ function eylemMi(veri) {
     || GORSEL_ONAY.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
-    || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri);
+    || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
+    || VARLIK_EYLEM.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -637,6 +639,10 @@ export default {
                     { text: "📉 Enflasyon Kartı", callback_data: "enflasyon:61.78 TÜİK yıllık TÜFE enflasyonunu açıkladı." },
                 ],
                 [
+                    { text: "☕ Kahve Bülteni", callback_data: "bulten" },
+                    { text: "📰 Son Postlar", callback_data: "sonpostlar" },
+                ],
+                [
                     { text: "🩺 API Sağlık Testi", callback_data: "saglik_testi" },
                     { text: "🧹 Askıdakileri Sıfırla", callback_data: "tur_temizle" },
                 ],
@@ -657,7 +663,31 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam"].includes(komutMetni)) {
+        // /hisse <SEMBOL> — Canlı Hisse Senedi Fiyatı Sorgula
+        if (komutMetni === "/hisse") {
+            const sembol = msj.text.trim().slice(komutMetni.length).trim();
+            if (!sembol) {
+                await mesajGonder(env, sohbet, "⚠️ Lütfen hisse sembolü girin:\n/hisse THYAO veya /hisse ASELS");
+                return new Response("ok");
+            }
+            const iletildi = await githubaIlet(env, `hisse:${sembol.slice(0, 30)}`, null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet, iletildi ? `📊 <b>${sembol.toUpperCase()}</b> canlı piyasa verisi sorgulanıyor…` : "⚠️ İstek iletilemedi.", "HTML");
+            return new Response("ok");
+        }
+
+        // /kripto <SEMBOL> — Canlı Kripto Para Fiyatı Sorgula
+        if (komutMetni === "/kripto") {
+            const sembol = msj.text.trim().slice(komutMetni.length).trim();
+            if (!sembol) {
+                await mesajGonder(env, sohbet, "⚠️ Lütfen kripto sembolü girin:\n/kripto BTC veya /kripto ETH");
+                return new Response("ok");
+            }
+            const iletildi = await githubaIlet(env, `kripto:${sembol.slice(0, 30)}`, null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet, iletildi ? `🪙 <b>${sembol.toUpperCase()}</b> canlı kripto verisi sorgulanıyor…` : "⚠️ İstek iletilemedi.", "HTML");
+            return new Response("ok");
+        }
+
+        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
             if (komut === "panel") komut = "yonetim";
             if (komut === "hazirla") komut = "tur";
@@ -667,6 +697,7 @@ export default {
             if (komut === "saglik") komut = "saglik_testi";
             if (komut === "durdur") komut = "yonetim";
             if (komut === "devam") komut = "devam_et";
+            if (komut === "kahve") komut = "bulten";
             const iletildi = await githubaIlet(env, komut, null,
                 msj.from ? msj.from.first_name || "" : "");
             await mesajGonder(env, sohbet,
@@ -683,19 +714,23 @@ export default {
                                 ? "📈 Canlı piyasa ve borsa verileri çekiliyor…"
                                 : komut === "saglik_testi"
                                   ? "🩺 Sosyal medya API bağlantıları test ediliyor…"
-                                  : komut === "haftalik"
-                                    ? "🗓️ Haftalık Pazar özeti hazırlanıyor, son 7 günün manşetleri taranıyor…"
-                                    : komut === "video"
-                                      ? "🎬 Son turun 9:16 MP4 Reels videosu render ediliyor…"
-                                      : komut === "ayar"
-                                        ? "⏳ Ayarlar getiriliyor…"
-                                        : komut === "yonetim"
-                                          ? "⏳ Yönetim paneli getiriliyor…"
-                                          : komut === "tamamla"
-                                            ? "⏳ Threads zinciri kontrol ediliyor…"
-                                            : komut === "arsiv"
-                                              ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
-                                              : "⏳ Durum sorgulanıyor…")
+                                  : komut === "bulten"
+                                    ? "☕ Taze haberlerden kahve bülteni derleniyor…"
+                                    : komut === "sonpostlar"
+                                      ? "📰 Son yayınlanan post kayıtları getiriliyor…"
+                                      : komut === "haftalik"
+                                        ? "🗓️ Haftalık Pazar özeti hazırlanıyor, son 7 günün manşetleri taranıyor…"
+                                        : komut === "video"
+                                          ? "🎬 Son turun 9:16 MP4 Reels videosu render ediliyor…"
+                                          : komut === "ayar"
+                                            ? "⏳ Ayarlar getiriliyor…"
+                                            : komut === "yonetim"
+                                              ? "⏳ Yönetim paneli getiriliyor…"
+                                              : komut === "tamamla"
+                                                ? "⏳ Threads zinciri kontrol ediliyor…"
+                                                : komut === "arsiv"
+                                                  ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
+                                                  : "⏳ Durum sorgulanıyor…")
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }
@@ -717,6 +752,22 @@ export default {
                 );
                 return new Response("ok");
             }
+        }
+
+        // Akıllı Fotoğraf & Başlık Yakalayıcı
+        if (msj.photo && typeof msj.caption === "string" && msj.caption.trim().length > 5) {
+            const cap = msj.caption.trim();
+            const photoButtons = [
+                [{ text: "🚀 Bu Açıklamayla Post Üret", callback_data: `ozel:${cap.slice(0, 300)}` }],
+                [{ text: "❌ İptal", callback_data: "iptal" }]
+            ];
+            await butonluMesajGonder(env, sohbet,
+                `📸 <b>Fotoğraflı İçerik Algılandı!</b>\n\n` +
+                `Bu açıklama metninden Daily Brief 9:16 postu hazırlamak ister misin?\n\n` +
+                `📝 <i>${cap.slice(0, 100)}</i>`,
+                photoButtons, "HTML"
+            );
+            return new Response("ok");
         }
 
         return new Response("ok");

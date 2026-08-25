@@ -938,6 +938,10 @@ def kontrol_merkezi_menusu() -> list[list[dict]]:
             {"text": "📉 Enflasyon Kartı", "callback_data": "makro:enflasyon"},
         ],
         [
+            {"text": "☕ Kahve Bülteni", "callback_data": "bulten"},
+            {"text": "📰 Son Postlar", "callback_data": "sonpostlar"},
+        ],
+        [
             {"text": "🩺 API Sağlık Testi", "callback_data": "saglik_testi"},
             {"text": "🧹 Askıdakileri Sıfırla", "callback_data": "tur_temizle"},
         ],
@@ -963,6 +967,10 @@ def komut_menusu_kaydet() -> bool:
         {"command": "tur", "description": "🌅 Sabah / Akşam Gündem Turu Başlat"},
         {"command": "sondakika", "description": "🚨 Son Dakika ve Sıcak Gelişmeleri Tara"},
         {"command": "piyasa", "description": "📈 Canlı BİST, Altın, Dolar & Kripto Fiyatları"},
+        {"command": "hisse", "description": "🏢 Canlı Hisse Senedi Sorgula (Örn: /hisse THYAO)"},
+        {"command": "kripto", "description": "🪙 Canlı Kripto Para Sorgula (Örn: /kripto BTC)"},
+        {"command": "bulten", "description": "☕ Havuzdaki Taze Haberlerle Anlık Kahve Bülteni"},
+        {"command": "sonpostlar", "description": "📰 Son Yayınlanan Postlar ve Sosyal Medya Linkleri"},
         {"command": "durum", "description": "📊 Havuz, Kota ve Sistem Durumu"},
         {"command": "faiz", "description": "🏦 TCMB / Fed Faiz Kararı İnfografiği"},
         {"command": "enflasyon", "description": "📉 TÜİK Enflasyon İnfografiği"},
