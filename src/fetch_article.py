@@ -219,6 +219,15 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
         u = u.strip()
         if u.startswith("//"):
             u = "https:" + u
+        # Anadolu Ajansı (AA) thumbs_ öneklerini kaldırarak ham 5K/4K görsele ulaş
+        if "aa.com.tr" in u and "thumbs_" in u:
+            u = re.sub(r"thumbs_[a-z0-9_]+_", "", u)
+        # NTV / Milliyet / Hürriyet / Sözcü / Habertürk küçültme parametrelerini kaldır
+        if any(d in u for d in ("ntv.com.tr", "hurriyet.com.tr", "milliyet.com.tr", "sozcu.com.tr", "haberturk.com")) and "?" in u:
+            u = u.split("?")[0]
+        # TRT boyut kalıplarını temizle / 1920x1080'e yükselt
+        if "trt.com.tr" in u or "trthaber" in u:
+            u = re.sub(r"_(?:640x360|800x450|1280x720)", "_1920x1080", u)
         # WordPress vb. thumbnail uzantılarını orijinaline çevir (örn: resim-300x200.jpg -> resim.jpg)
         u = re.sub(r"-\d{3,4}x\d{3,4}(\.[a-zA-Z]{3,4})$", r"\1", u)
         return u
@@ -272,6 +281,54 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
                 return _temiz_url(u)
 
     return None
+
+
+def hd_gorsel_url_coz(u: str) -> list[str]:
+    """
+    Haber ajanslarının ve sitelerinin CDN'lerinden sıkıştırılmış küçük thumbnail'ler
+    yerine tam çözünürlüklü (4K/2K/1080p) master basın fotoğrafı linklerini türetir.
+    """
+    if not u or not isinstance(u, str):
+        return []
+    u = u.strip()
+    if u.startswith("//"):
+        u = "https:" + u
+
+    adaylar = []
+
+    # 1. Anadolu Ajansı (AA) thumbs_ öneklerini kaldırarak ham 5K/4K görsele ulaş
+    if "aa.com.tr" in u and "thumbs_" in u:
+        temiz = re.sub(r"thumbs_[a-z0-9_]+_", "", u)
+        if temiz != u:
+            adaylar.append(temiz)
+
+    # 2. NTV / Milliyet / Hürriyet / Sözcü / Habertürk kırpma parametreleri
+    if any(d in u for d in ("ntv.com.tr", "hurriyet.com.tr", "milliyet.com.tr", "sozcu.com.tr", "haberturk.com")) and "?" in u:
+        adaylar.append(u.split("?")[0])
+
+    # 3. TRT Haber / Spor boyut kalıpları
+    if "trt.com.tr" in u or "trthaber" in u:
+        for kucuk in ("_640x360", "_800x450", "_1280x720"):
+            if kucuk in u:
+                adaylar.append(u.replace(kucuk, "_1920x1080"))
+                adaylar.append(u.replace(kucuk, ""))
+
+    # 4. Motorsport TR
+    if "motorsport.com" in u:
+        for s in ("/s6/", "/s8/", "/s1000/"):
+            if s in u:
+                adaylar.append(u.replace(s, "/s1600/").replace("/amp/", "/"))
+                adaylar.append(u.replace(s, "/s1200/").replace("/amp/", "/"))
+
+    # 5. WordPress boyut kırpıntıları (resim-300x200.jpg -> resim.jpg)
+    wp_ham = re.sub(r"-\d{3,4}x\d{3,4}(\.[a-zA-Z]{3,4})$", r"\1", u)
+    if wp_ham != u:
+        adaylar.append(wp_ham)
+
+    if u not in adaylar:
+        adaylar.append(u)
+
+    return adaylar
 
 
 def makale_metni_cek(

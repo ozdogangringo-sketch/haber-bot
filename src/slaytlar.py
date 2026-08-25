@@ -77,36 +77,43 @@ def _alan(haber, ad: str) -> str:
 
 def _gorseli_indir(url: str, g: dict):
     """
-    Haber görselini indirir; küçük ya da bozuksa None döner.
-
-    ⚠️ BOYUT DENETİMİ ŞART. `og:image` bazen sitenin logosu ya da
-    paylaşım rozeti oluyor; 1080x1350'ye büyütülünce bulanık bir leke
-    çıkıyor. Eşiğin altındakiler eleniyor ve akış bir sonraki katmana
-    (Commons/Pexels) düşüyor.
-
-    ⚠️ YÜKSEKLİK DE DENETLENİYOR. Önce yalnızca genişliğe bakılıyordu ve
-    1200x400 gibi geniş bantlı bir görsel eşiği geçiyordu; 4:5 orana
-    kırpılınca elde kalan alan çok küçük oluyor ve slayt gözle görülür
-    biçimde bulanıklaşıyordu. Bu katman zincirin BİRİNCİ sırasında,
-    yani en sık kullanılan yol.
+    Haber görselini indirir; CDN thumbnail'lerini otomatik 4K/2K ham basın görseline çözer.
+    Eşiğin altındaki kalitesiz/küçük görseller elenir ve akış bir sonraki katmana (Pexels/Commons) aktarılır.
     """
     asgari = g.get("haber_gorseli_asgari_genislik", 800)
     asgari_y = g.get("haber_gorseli_asgari_yukseklik", 500)
-    try:
-        cevap = requests.get(url, timeout=20,
-                             headers={"User-Agent": "Mozilla/5.0"})
-        cevap.raise_for_status()
-        foto = Image.open(io.BytesIO(cevap.content))
-        foto.load()
-    except Exception as e:
-        log.warning("haber görseli indirilemedi: %s", e)
-        return None
-
-    if foto.width < asgari or foto.height < asgari_y:
-        log.info("haber görseli küçük (%sx%s, asgari %sx%s), atlanıyor",
-                 foto.width, foto.height, asgari, asgari_y)
-        return None
-    return foto.convert("RGB")
+    
+    adaylar = fetch_article.hd_gorsel_url_coz(url)
+    
+    en_iyi_foto = None
+    en_buyuk_alan = 0
+    
+    for u in adaylar:
+        try:
+            cevap = requests.get(
+                u,
+                timeout=15,
+                headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+            )
+            if cevap.status_code != 200:
+                continue
+            foto = Image.open(io.BytesIO(cevap.content))
+            foto.load()
+            alan = foto.width * foto.height
+            if foto.width >= asgari and foto.height >= asgari_y:
+                if alan > en_buyuk_alan:
+                    en_iyi_foto = foto.convert("RGB")
+                    en_buyuk_alan = alan
+        except Exception as e:
+            log.debug("görsel adayı indirilemedi %s: %s", u, e)
+            continue
+            
+    if en_iyi_foto:
+        return en_iyi_foto
+        
+    log.info("haber görseli küçük veya indirilemedi (%s, asgari %sx%s), atlanıyor",
+             url, asgari, asgari_y)
+    return None
 
 
 # Son kullanılan stok fotoğraf id'leri. Modül seviyesinde tutuluyor:

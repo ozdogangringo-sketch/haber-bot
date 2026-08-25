@@ -383,7 +383,10 @@ def fotograftan_arkaplan(
         ust = int((f_yukseklik - yeni_yukseklik) * 0.12)   # birazcık nefes payı
         foto = foto.crop((0, ust, f_genislik, ust + yeni_yukseklik))
 
-    return foto.resize((genislik, yukseklik), Image.LANCZOS)
+    res = foto.resize((genislik, yukseklik), Image.LANCZOS)
+    # Akıllı keskinleştirme: İnterpolasyon bulanıklığını yok edip kristal netlik kazandırır
+    res = res.filter(ImageFilter.UnsharpMask(radius=1.2, percent=105, threshold=2))
+    return res
 
 
 def _bayragi_bas(
