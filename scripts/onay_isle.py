@@ -392,6 +392,21 @@ def zinciri_tamamla(con, ayarlar) -> int:
 
     haberler = turu_getir(con, satir["msg"])
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
+    ilk_h_dict = dict(haberler[0]) if haberler else {}
+    if ilk_h_dict.get("tur") == "ekonomi":
+        tablo_satir = con.execute(
+            "SELECT deger FROM ayarlar WHERE anahtar = ?",
+            (f"piyasa_tablosu_{satir['msg']}",)
+        ).fetchone()
+        kart_satir = con.execute(
+            "SELECT deger FROM ayarlar WHERE anahtar = ?",
+            (f"piyasa_karti_{satir['msg']}",)
+        ).fetchone()
+        if tablo_satir and tablo_satir["deger"]:
+            urller.insert(0, tablo_satir["deger"])
+        if kart_satir and kart_satir["deger"]:
+            urller.insert(0, kart_satir["deger"])
+
     son_dakika_mi = bool(haberler[0]["son_dakika"])
     if son_dakika_mi:
         for h in haberler:
@@ -1274,24 +1289,32 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
 
 def _albumu_yenile(con, mesaj_id: int) -> None:
     """
-    Üstteki slayt albümünü siler ve güncel hâlini yeniden gönderir.
-
-    ⚠️ TELEGRAM ALBÜMÜNDE TEK FOTOĞRAF DEĞİŞTİRİLEMİYOR. Media group
-    atomik bir birim; `editMessageMedia` albüm öğelerinde çalışmıyor.
-    Albümü güncel göstermenin tek yolu eskisini silip yeniden göndermek.
-
-    ⚠️ İKİ YERDEN çağrılıyor (görsel değiştirme ve haber değiştirme).
-    Kopyalamak yerine tek fonksiyon: bu projedeki kusurların çoğu aynı
-    işi yapan iki kod yolundan birinin unutulmasıydı.
+    Üstteki slayt albümünü siler ve güncel hâlini (9:16 Story formatında) yeniden gönderir.
     """
     yeniler = turu_getir(con, mesaj_id)
     if not yeniler:
         return
     urller = []
+    ilk_h = dict(yeniler[0]) if yeniler else {}
+    if ilk_h.get("tur") == "ekonomi":
+        kart_satir = con.execute(
+            "SELECT deger FROM ayarlar WHERE anahtar = ?",
+            (f"piyasa_karti_{mesaj_id}",)
+        ).fetchone()
+        tablo_satir = con.execute(
+            "SELECT deger FROM ayarlar WHERE anahtar = ?",
+            (f"piyasa_tablosu_{mesaj_id}",)
+        ).fetchone()
+        if kart_satir and kart_satir["deger"]:
+            urller.append(kart_satir["deger"])
+        if tablo_satir and tablo_satir["deger"]:
+            urller.append(tablo_satir["deger"])
+
     for h in yeniler:
         h_dict = dict(h)
-        if h_dict.get("gorsel_url"):
-            urller.append(h_dict["gorsel_url"])
+        u = h_dict.get("story_url") or h_dict.get("gorsel_url")
+        if u:
+            urller.append(u)
         if h_dict.get("detay_url"):
             urller.extend(_detay_urlleri(h_dict["detay_url"]))
 
@@ -1302,7 +1325,8 @@ def _albumu_yenile(con, mesaj_id: int) -> None:
         except Exception as e:                        # noqa: BLE001
             log.warning("eski albüm silinemedi: %s", e)
     try:
-        yeni_idler = telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
+        basliklar = [f"Slayt {i}" for i in range(1, len(urller) + 1)]
+        yeni_idler = telegram_bot.slaytlari_gonder(urller, basliklar)
         db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(yeni_idler or []))
     except Exception as e:                            # noqa: BLE001
         log.warning("albüm yenilenemedi: %s", e)
@@ -1740,18 +1764,29 @@ def menuyu_geri_koy(con, mesaj_id: int) -> None:
         return
     try:
         uyari, isaretli = dogrula.turu_dogrula(haberler)
-        if len(haberler) == 1 and haberler[0]["son_dakika"]:
-            h = dict(haberler[0])
-            adet = 1 + len(_detay_urlleri(h.get("detay_url")))
-            ozet = (f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {h.get('onem_puani', 8)}/10\n"
+        ilk_h = dict(haberler[0]) if haberler else {}
+        if len(haberler) == 1 and ilk_h.get("son_dakika"):
+            adet = 1 + len(_detay_urlleri(ilk_h.get("detay_url")))
+            ozet = (f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {ilk_h.get('onem_puani', 8)}/10\n"
                     f"⌛️ 24 saat boyunca onaya hazır bekler")
+            metin = caption.son_dakika_caption(haberler[0], _sonuclari_kur(haberler), ayarlar=_ayarlar_onbellek)
+        elif ilk_h.get("tur") == "ekonomi":
+            adet = len(haberler) + 2
+            ozet = (
+                f"📊 <b>GÜNE BAŞLARKEN EKONOMİ & PİYASALAR</b>\n"
+                f"1 Piyasa Kartı + 1 Piyasa Tablosu + {len(haberler)} Ekonomi Haberi ({adet} slayt)\n"
+                f"⌛️ 24 saat boyunca onaya hazır bekler"
+            )
+            metin = ilk_h.get("ig_caption") or caption.caption_kur(
+                haberler, _sonuclari_kur(haberler), ayarlar=_ayarlar_onbellek
+            )
         else:
             adet = len(haberler)
             ozet = telegram_bot.tur_ozeti(haberler, isaretli)
+            metin = caption.caption_kur(
+                haberler, _sonuclari_kur(haberler), ayarlar=_ayarlar_onbellek
+            )
 
-        metin = caption.caption_kur(
-            haberler, _sonuclari_kur(haberler), ayarlar=_ayarlar_onbellek
-        )
         parcalar = [p for p in (uyari, ozet) if p]
         parcalar.append("— Instagram açıklaması —\n" + metin)
         telegram_bot.mesaji_guncelle(

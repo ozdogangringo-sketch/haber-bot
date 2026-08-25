@@ -159,15 +159,16 @@ def turu_tamamla(con, ayarlar: dict, secilen: list, kuru: bool = False) -> int:
         metin, len(urller), uyari=uyari, ozet=ozet
     )
 
-    for idx, haber in enumerate(secilen):
+    for idx, haber in enumerate(secilen, start=1):
         con.execute(
-            "UPDATE haberler SET durum = 'onay_bekliyor', "
+            "UPDATE haberler SET durum = 'onay_bekliyor', slayt_sirasi = ?, "
             "telegram_message_id = ?, gonderim_zamani = datetime('now'), "
             "gorsel_url = ?, story_url = ? WHERE id = ?",
             (
+                idx,
                 mesaj_id,
-                urller[idx] if idx < len(urller) else None,
-                story_urller[idx] if idx < len(story_urller) else story_url,
+                urller[idx - 1] if (idx - 1) < len(urller) else None,
+                story_urller[idx - 1] if (idx - 1) < len(story_urller) else story_url,
                 haber["id"],
             ),
         )

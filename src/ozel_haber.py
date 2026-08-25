@@ -119,7 +119,7 @@ def _post_olustur_ve_onaya_sun(
         raise RuntimeError("Görseller ImgBB'ye yüklenemedi.")
 
     # 3. Caption hazırla
-    metin = caption.son_dakika_caption(taze, ayarlar, sonuclar)
+    metin = caption.son_dakika_caption(taze, sonuclar, ayarlar)
 
     # 4. Telegram'a albüm ve onay mesajı gönder (9:16 Story formatında, Haber + Ayrıntı)
     telegram_urller = [story_url] if story_url else [urller[0]]
