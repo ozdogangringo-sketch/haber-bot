@@ -256,7 +256,13 @@ def threads_halkalari(
     ilk_haber = dict(haberler[0]) if haberler else {}
     if ilk_haber.get("tur") == "ekonomi":
         halkalar = [{"metin": "📊 Günün Piyasa Açılışı ve Öne Çıkan Ekonomi Başlıkları", "gorsel_url": urller[0]}]
-        for sira, (haber, url) in enumerate(zip(haberler, urller[1:]), start=2):
+        if len(urller) >= len(haberler) + 2:
+            halkalar.append({"metin": "📋 Global & Yerel 30 Varlık Piyasa Karnesi", "gorsel_url": urller[1]})
+            haber_urller = urller[2:]
+        else:
+            haber_urller = urller[1:]
+
+        for sira, (haber, url) in enumerate(zip(haberler, haber_urller), start=1):
             manset = (haber["ig_baslik"] or haber["baslik_orj"]).strip()
             halkalar.append({"metin": f"{sira}. {manset}", "gorsel_url": url})
         return halkalar

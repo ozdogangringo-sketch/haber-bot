@@ -233,11 +233,15 @@ def main() -> int:
         ozet=ozet,
     )
 
-    # Albüm ID'lerini ve Piyasa Kartı URL'sini ayarlar tablosuna kaydet
+    # Albüm ID'lerini, Piyasa Kartı ve Tablo URL'sini ayarlar tablosuna kaydet
     if mesaj_id:
         con.execute(
             "INSERT OR REPLACE INTO ayarlar (anahtar, deger) VALUES (?, ?)",
             (f"piyasa_karti_{mesaj_id}", kart_url),
+        )
+        con.execute(
+            "INSERT OR REPLACE INTO ayarlar (anahtar, deger) VALUES (?, ?)",
+            (f"piyasa_tablosu_{mesaj_id}", tablo_url),
         )
         if albom_idler:
             con.execute(
@@ -245,9 +249,9 @@ def main() -> int:
                 (f"albom_{mesaj_id}", json.dumps(albom_idler)),
             )
 
-    # 8. Veritabanında haberleri 'onay_bekliyor' durumuna getir
-    for idx, h in enumerate(secilen_haberler, start=2):
-        s_url = story_url if idx == 2 else None
+    # 8. Veritabanında haberleri 'onay_bekliyor' durumuna getir (1: Isı Haritası, 2: Tablo, 3..7: Haberler)
+    for idx, h in enumerate(secilen_haberler, start=3):
+        s_url = story_url if idx == 3 else None
         con.execute(
             "UPDATE haberler SET durum = 'onay_bekliyor', tur = 'ekonomi', "
             "telegram_message_id = ?, slayt_sirasi = ?, ig_caption = ?, "

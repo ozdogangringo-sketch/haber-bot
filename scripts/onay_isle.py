@@ -161,15 +161,22 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
-    # Ekonomi turu: 1. slayt piyasa infografik kartıdır
+    # Ekonomi turu: 1. slayt Piyasa Isı Haritası, 2. slayt 30 Varlık Tablosudur
     ilk_h_dict = dict(haberler[0]) if haberler else {}
     if ilk_h_dict.get("tur") == "ekonomi":
-        satir = con.execute(
+        tablo_satir = con.execute(
+            "SELECT deger FROM ayarlar WHERE anahtar = ?",
+            (f"piyasa_tablosu_{mesaj_id}",)
+        ).fetchone()
+        kart_satir = con.execute(
             "SELECT deger FROM ayarlar WHERE anahtar = ?",
             (f"piyasa_karti_{mesaj_id}",)
         ).fetchone()
-        if satir and satir["deger"]:
-            urller.insert(0, satir["deger"])
+
+        if tablo_satir and tablo_satir["deger"]:
+            urller.insert(0, tablo_satir["deger"])
+        if kart_satir and kart_satir["deger"]:
+            urller.insert(0, kart_satir["deger"])
 
     # Son dakika turu TEK haberden birden çok slayt üretiyor: 1 haber +
     # 1-4 ayrıntı sayfası (metin uzunsa sayfa ekleniyor). Bunlar ayrı
