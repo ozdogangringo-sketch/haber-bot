@@ -919,3 +919,70 @@ def video_gonder(
         raise RuntimeError(f"Telegram video gönderme hatası: {veri.get('description', cevap.text[:200])}")
     return veri["result"]["message_id"]
 
+
+def kontrol_merkezi_menusu() -> list[list[dict]]:
+    """
+    /menu ve /kontrol için interaktif buton paneli döner.
+    """
+    return [
+        [
+            {"text": "📊 Ekonomi Turu", "callback_data": "ekonomi_hazirla"},
+            {"text": "🌅 Gündem Turu", "callback_data": "tur_hazirla"},
+        ],
+        [
+            {"text": "🚨 Son Dakika Tara", "callback_data": "sondakika"},
+            {"text": "📈 Canlı Piyasa", "callback_data": "piyasa_ozet"},
+        ],
+        [
+            {"text": "🏦 Faiz Kartı", "callback_data": "makro:faiz"},
+            {"text": "📉 Enflasyon Kartı", "callback_data": "makro:enflasyon"},
+        ],
+        [
+            {"text": "🩺 API Sağlık Testi", "callback_data": "saglik_testi"},
+            {"text": "🧹 Askıdakileri Sıfırla", "callback_data": "tur_temizle"},
+        ],
+        [
+            {"text": "📊 Durum & Kota", "callback_data": "kota_raporu"},
+            {"text": "🔄 RSS Tara (Havuz)", "callback_data": "havuz_guncelle"},
+        ],
+        [
+            {"text": "⏸️ Botu Duraklat", "callback_data": "yonetim"},
+            {"text": "⚙️ Ayarlar", "callback_data": "ayar"},
+        ],
+    ]
+
+
+def komut_menusu_kaydet() -> bool:
+    """
+    Telegram Botunun resmi komut açılır menüsünü (setMyCommands) kaydeder.
+    Kullanıcı Telegram'da '/' yazdığında Türkçe ve emojili komut listesi açılır.
+    """
+    komutlar = [
+        {"command": "menu", "description": "🎛️ İnteraktif Kontrol Merkezi & Canlı Panel"},
+        {"command": "ekonomi", "description": "📊 Canlı Piyasa & Ekonomi Turu Başlat"},
+        {"command": "tur", "description": "🌅 Sabah / Akşam Gündem Turu Başlat"},
+        {"command": "sondakika", "description": "🚨 Son Dakika ve Sıcak Gelişmeleri Tara"},
+        {"command": "piyasa", "description": "📈 Canlı BİST, Altın, Dolar & Kripto Fiyatları"},
+        {"command": "durum", "description": "📊 Havuz, Kota ve Sistem Durumu"},
+        {"command": "faiz", "description": "🏦 TCMB / Fed Faiz Kararı İnfografiği"},
+        {"command": "enflasyon", "description": "📉 TÜİK Enflasyon İnfografiği"},
+        {"command": "saglik", "description": "🩺 4 Sosyal Medya API Bağlantı Testi"},
+        {"command": "temizle", "description": "🧹 Askıda Kalan Onay Turlarını Sıfırla"},
+        {"command": "durdur", "description": "⏸️ Botu Geçici Süreyle Duraklat"},
+        {"command": "devam", "description": "▶️ Duraklatılmış Botu Tekrar Başlat"},
+        {"command": "guncelle", "description": "🔄 RSS Kaynaklarını Hemen Tara"},
+        {"command": "yardim", "description": "❓ Komutlar ve Kullanım Rehberi"},
+    ]
+    try:
+        url = TABAN.format(jeton=_jeton(), metot="setMyCommands")
+        r = requests.post(url, json={"commands": komutlar}, timeout=15)
+        res = r.json() if r.content else {}
+        if res.get("ok"):
+            log.info("Telegram komut menüsü başarıyla kaydedildi.")
+            return True
+        log.warning("Telegram komut menüsü kaydedilemedi: %s", res)
+        return False
+    except Exception as e:
+        log.warning("setMyCommands isteği başarısız: %s", e)
+        return False
+

@@ -33,6 +33,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
                   "kota_raporu", "tur_temizle", "tur_hazirla", "ekonomi_hazirla", "ekonomi",
+                  "piyasa", "piyasa_ozet",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
                   "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
@@ -123,8 +124,11 @@ const HATA_EYLEM = /^hata:(tur_tekrar|tur_metinsiz|sondakika_tekrar)$/;
 const SONDAKIKA_EYLEM = "hata:sondakika_tekrar";
 const HATA_AYRINTI = "hata:ayrinti";
 
+const MAKRO_EYLEM = /^(makro|faiz|enflasyon|fed):.+$/;
+const LINK_EYLEM = /^link:.+$/;
+
 function eylemMi(veri) {
-  if (typeof veri !== "string" || veri.length > 64) return false;
+  if (typeof veri !== "string" || veri.length > 500) return false;
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
     || YAYINLA_SONRA.test(veri)
     || HABER_DEGISTIR.test(veri) || HABER_SEC.test(veri)
@@ -133,7 +137,7 @@ function eylemMi(veri) {
     || GORSEL_ONAY.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
-    || DURAKLAT.test(veri);
+    || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -356,6 +360,24 @@ async function mesajGonder(env, sohbetId, metin, parseMode = null) {
     chat_id: sohbetId,
     text: metin.slice(0, 4096),
     disable_web_page_preview: true,
+  };
+  if (parseMode) body.parse_mode = parseMode;
+  await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Butonlu mesaj gönderir (İnteraktif kontrol merkezi vb. için). */
+async function butonluMesajGonder(env, sohbetId, metin, butonlar, parseMode = "HTML") {
+  if (!sohbetId) return;
+  const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const body = {
+    chat_id: sohbetId,
+    text: metin.slice(0, 4096),
+    disable_web_page_preview: true,
+    reply_markup: { inline_keyboard: butonlar },
   };
   if (parseMode) body.parse_mode = parseMode;
   await fetch(url, {
@@ -599,13 +621,52 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel"].includes(komutMetni)) {
+        // /menu & /kontrol — İnteraktif Kontrol Merkezi
+        if (komutMetni === "/menu" || komutMetni === "/kontrol") {
+            const menuButonlar = [
+                [
+                    { text: "📊 Ekonomi Turu Başlat", callback_data: "ekonomi_hazirla" },
+                    { text: "🌅 Gündem Turu Başlat", callback_data: "tur_hazirla" },
+                ],
+                [
+                    { text: "🚨 Son Dakika Tara", callback_data: "sondakika" },
+                    { text: "📈 Canlı Piyasa & Borsa", callback_data: "piyasa_ozet" },
+                ],
+                [
+                    { text: "🏦 Faiz Kartı (TCMB)", callback_data: "faiz:45 TCMB politika faizini yüzde 45 seviyesinde sabit bıraktı." },
+                    { text: "📉 Enflasyon Kartı", callback_data: "enflasyon:61.78 TÜİK yıllık TÜFE enflasyonunu açıkladı." },
+                ],
+                [
+                    { text: "🩺 API Sağlık Testi", callback_data: "saglik_testi" },
+                    { text: "🧹 Askıdakileri Sıfırla", callback_data: "tur_temizle" },
+                ],
+                [
+                    { text: "📊 Durum & Kota Raporu", callback_data: "kota_raporu" },
+                    { text: "🔄 RSS Tara (Havuz)", callback_data: "havuz_guncelle" },
+                ],
+                [
+                    { text: "⏸️ Botu Duraklat", callback_data: "yonetim" },
+                    { text: "⚙️ Ayarlar", callback_data: "ayar" },
+                ],
+            ];
+            await butonluMesajGonder(env, sohbet,
+                "🎛️ <b>DAILY BRIEF KONTROL MERKEZİ</b>\n\n" +
+                "Aşağıdaki interaktif panelden turları başlatabilir, son dakika taraması yapabilir veya sistemi yönetebilirsin:",
+                menuButonlar, "HTML"
+            );
+            return new Response("ok");
+        }
+
+        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
             if (komut === "panel") komut = "yonetim";
             if (komut === "hazirla") komut = "tur";
             if (komut === "temizle") komut = "tur_temizle";
             if (komut === "pazar") komut = "haftalik";
             if (komut === "reels") komut = "video";
+            if (komut === "saglik") komut = "saglik_testi";
+            if (komut === "durdur") komut = "yonetim";
+            if (komut === "devam") komut = "devam_et";
             const iletildi = await githubaIlet(env, komut, null,
                 msj.from ? msj.from.first_name || "" : "");
             await mesajGonder(env, sohbet,
@@ -618,21 +679,44 @@ export default {
                             ? "🧹 Askıdaki cevapsız turlar temizleniyor…"
                             : komut === "sondakika"
                               ? "⚡️ Son dakika sıcak haber taraması başlatılıyor…"
-                              : komut === "haftalik"
-                                ? "🗓️ Haftalık Pazar özeti hazırlanıyor, son 7 günün manşetleri taranıyor…"
-                                : komut === "video"
-                                  ? "🎬 Son turun 9:16 MP4 Reels videosu render ediliyor…"
-                                  : komut === "ayar"
-                                    ? "⏳ Ayarlar getiriliyor…"
-                                    : komut === "yonetim"
-                                      ? "⏳ Yönetim paneli getiriliyor…"
-                                      : komut === "tamamla"
-                                        ? "⏳ Threads zinciri kontrol ediliyor…"
-                                        : komut === "arsiv"
-                                          ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
-                                          : "⏳ Durum sorgulanıyor…")
+                              : komut === "piyasa"
+                                ? "📈 Canlı piyasa ve borsa verileri çekiliyor…"
+                                : komut === "saglik_testi"
+                                  ? "🩺 Sosyal medya API bağlantıları test ediliyor…"
+                                  : komut === "haftalik"
+                                    ? "🗓️ Haftalık Pazar özeti hazırlanıyor, son 7 günün manşetleri taranıyor…"
+                                    : komut === "video"
+                                      ? "🎬 Son turun 9:16 MP4 Reels videosu render ediliyor…"
+                                      : komut === "ayar"
+                                        ? "⏳ Ayarlar getiriliyor…"
+                                        : komut === "yonetim"
+                                          ? "⏳ Yönetim paneli getiriliyor…"
+                                          : komut === "tamamla"
+                                            ? "⏳ Threads zinciri kontrol ediliyor…"
+                                            : komut === "arsiv"
+                                              ? "⏳ Arşiv paylaşımı başlatılıyor, uzun sürebilir…"
+                                              : "⏳ Durum sorgulanıyor…")
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
+        }
+
+        // Akıllı Link Yakalayıcı: Kullanıcı /link yazmadan düz haber linki atarsa otomatik buton sun
+        if (!msj.text.startsWith("/")) {
+            const urlMatch = msj.text.match(/https?:\/\/[^\s]+/i);
+            if (urlMatch) {
+                const url = urlMatch[0];
+                const linkButonlar = [
+                    [{ text: "🚀 Bu Linkten Post Üret", callback_data: `link:${url.slice(0, 300)}` }],
+                    [{ text: "❌ İptal", callback_data: "iptal" }]
+                ];
+                await butonluMesajGonder(env, sohbet,
+                    `🌐 <b>Haber Linki Algılandı!</b>\n\n` +
+                    `Bu haber linkinden Daily Brief formatında 9:16 infografik post üretmek ister misin?\n\n` +
+                    `🔗 <code>${url.slice(0, 80)}</code>`,
+                    linkButonlar, "HTML"
+                );
+                return new Response("ok");
+            }
         }
 
         return new Response("ok");

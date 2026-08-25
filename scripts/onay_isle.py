@@ -2413,8 +2413,37 @@ def main() -> int:
             telegram_bot.mesaj_gonder("⚠️ Video üretilecek slayt görseli bulunamadı.")
             return 0
             
-        video_yolu = video.slaytlardan_reels_uret(yollar, fps=24, slayt_suresi=3.0, gecis_suresi=0.4)
-        telegram_bot.video_gonder(video_yolu, aciklama="🎬 <b>Daily Brief Reels Videosu Hazır!</b>\nInstagram Reels ve Stories için optimize edildi.")
+    if komut in ("piyasa", "piyasa_ozet"):
+        from src import piyasa
+        pv = piyasa.piyasa_verileri_getir()
+        satirlar = ["📈 <b>CANLI PİYASA & BORSA ÖZETİ</b>\n"]
+        if "bist100" in pv:
+            b = pv["bist100"]
+            yon = "🟢 +" if b['degisim'] >= 0 else "🔴 "
+            satirlar.append(f"• <b>BİST 100:</b> {b['fiyat']:,.2f} ({yon}%{b['degisim']:.2f})")
+        if "dolar" in pv:
+            d = pv["dolar"]
+            yon = "🟢 +" if d['degisim'] >= 0 else "🔴 "
+            satirlar.append(f"• <b>Dolar/TL:</b> {d['fiyat']:.2f} ₺ ({yon}%{d['degisim']:.2f})")
+        if "euro" in pv:
+            e = pv["euro"]
+            yon = "🟢 +" if e['degisim'] >= 0 else "🔴 "
+            satirlar.append(f"• <b>Euro/TL:</b> {e['fiyat']:.2f} ₺ ({yon}%{e['degisim']:.2f})")
+        if "gram_altin" in pv:
+            g = pv["gram_altin"]
+            yon = "🟢 +" if g['degisim'] >= 0 else "🔴 "
+            satirlar.append(f"• <b>Gram Altın:</b> {g['fiyat']:,.2f} ₺ ({yon}%{g['degisim']:.2f})")
+        if "btc" in pv:
+            btc = pv["btc"]
+            yon = "🟢 +" if btc['degisim'] >= 0 else "🔴 "
+            satirlar.append(f"• <b>Bitcoin:</b> ${btc['fiyat']:,.0f} ({yon}%{btc['degisim']:.2f})")
+        if "brent" in pv:
+            br = pv["brent"]
+            yon = "🟢 +" if br['degisim'] >= 0 else "🔴 "
+            satirlar.append(f"• <b>Brent Petrol:</b> ${br['fiyat']:.2f} ({yon}%{br['degisim']:.2f})")
+
+        satirlar.append(f"\n⏰ <i>Güncelleme: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}</i>")
+        telegram_bot.mesaj_gonder("\n".join(satirlar), html=True)
         return 0
 
     if komut in ("hata:tur_tekrar", "tur_tekrar"):
