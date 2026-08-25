@@ -743,35 +743,34 @@ export default {
     if (KANAL_TOGGLE.test(komut)) {
       const hedefKanal = komut.slice(6); // "ig", "reels", "story", "threads", "facebook", "twitter"
       const klavye = cb.message?.reply_markup?.inline_keyboard || [];
+      
+      // 1. Tıklanan hedefin şu anki durumunu bulalım
+      let hedefSuAnSecili = false;
+      for (const satir of klavye) {
+        for (const btn of satir) {
+          if (btn.callback_data === `kanal:${hedefKanal}`) {
+            hedefSuAnSecili = String(btn.text || "").startsWith("✅");
+          }
+        }
+      }
+      const hedefYeniSecili = !hedefSuAnSecili;
+
+      // 2. Butonları güncelle
       const yeni = klavye.map((satir) =>
         satir.map((btn) => {
           const kopya = { ...btn };
           if (!String(kopya.callback_data || "").startsWith("kanal:")) return kopya;
 
           const buKanal = kopya.callback_data.slice(6);
-          const suAnSecili = kopya.text.startsWith("✅");
 
-          if (hedefKanal === "reels") {
-            // Reels'e tıklandı:
-            if (buKanal === "reels") {
-              kopya.text = suAnSecili ? "⬜ Reels" : "✅ Reels";
-            } else if (buKanal === "ig") {
-              // Reels seçiliyse IG otomatik kapanır
-              if (!suAnSecili) kopya.text = "⬜ IG";
-            }
-          } else if (hedefKanal === "ig") {
-            // IG'ye tıklandı:
-            if (buKanal === "ig") {
-              kopya.text = suAnSecili ? "⬜ IG" : "✅ IG";
-            } else if (buKanal === "reels") {
-              // IG seçiliyse Reels otomatik kapanır
-              if (!suAnSecili) kopya.text = "⬜ Reels";
-            }
-          } else if (buKanal === hedefKanal) {
-            // Diğer bağımsız kanallar (story, threads, facebook, twitter)
-            kopya.text = suAnSecili
-              ? "⬜ " + kopya.text.slice(1).trim()
-              : "✅ " + kopya.text.slice(1).trim();
+          if (buKanal === hedefKanal) {
+            kopya.text = (hedefYeniSecili ? "✅ " : "⬜ ") + kopya.text.slice(1).trim();
+          } else if (hedefKanal === "reels" && hedefYeniSecili && buKanal === "ig") {
+            // Reels AÇILDIYSA -> IG MUTLAKA KAPANIR
+            kopya.text = "⬜ IG";
+          } else if (hedefKanal === "ig" && hedefYeniSecili && buKanal === "reels") {
+            // IG AÇILDIYSA -> Reels MUTLAKA KAPANIR
+            kopya.text = "⬜ Reels";
           }
           return kopya;
         })

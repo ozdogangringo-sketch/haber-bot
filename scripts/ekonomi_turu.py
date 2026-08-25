@@ -148,10 +148,26 @@ def main() -> int:
     log.info("Piyasa kartı + %s ekonomi haberi seçildi", len(secilen_haberler))
 
     # 5. Seçilen haberlerin slaytlarını üret ve ImgBB'ye yükle
+    from src import video
+    from PIL import Image
+
+    # 1. Slayt 9:16 (Isı Haritası)
+    reels_kart = video._cercevele_9_16(Image.open(kart_yolu), baslik_rozet="CANLI PİYASA ISI HARİTASI")
+    reels_kart_yolu = make_image.CIKTI_KLASORU / "story-piyasa-karti.jpg"
+    reels_kart.save(reels_kart_yolu, "JPEG", quality=95)
+    kart_story_url = upload_image.gorsel_yukle(reels_kart_yolu, ayarlar)["url"]
+
+    # 2. Slayt 9:16 (30 Varlık Tablosu)
+    reels_tablo = video._cercevele_9_16(Image.open(tablo_yolu), baslik_rozet="30 VARLIK PİYASA KARNESİ")
+    reels_tablo_yolu = make_image.CIKTI_KLASORU / "story-piyasa-tablosu.jpg"
+    reels_tablo.save(reels_tablo_yolu, "JPEG", quality=95)
+    tablo_story_url = upload_image.gorsel_yukle(reels_tablo_yolu, ayarlar)["url"]
+
     slayt_urlleri = [kart_url, tablo_url]
+    telegram_story_urlleri = [kart_story_url, tablo_story_url]
     slayt_sonuclari = [
-        {"katman": "infografik_isi_haritasi", "atif": "Daily Briefing Finans", "yol": str(kart_yolu)},
-        {"katman": "infografik_piyasa_tablosu", "atif": "Daily Briefing Finans", "yol": str(tablo_yolu)},
+        {"katman": "infografik_isi_haritasi", "atif": "Daily Brief Finans", "yol": str(kart_yolu)},
+        {"katman": "infografik_piyasa_tablosu", "atif": "Daily Brief Finans", "yol": str(tablo_yolu)},
     ]
 
     for h in secilen_haberler:
@@ -160,10 +176,20 @@ def main() -> int:
             yukleme = upload_image.gorsel_yukle(yol, ayarlar)
             slayt_urlleri.append(yukleme["url"])
             slayt_sonuclari.append({"katman": katman, "atif": atif, "yol": str(yol)})
+
+            # 9:16 Story görseli
+            story_yol = make_image.CIKTI_KLASORU / f"story-{h['id']}.jpg"
+            if story_yol.exists():
+                h_story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                h_story_url = h_story_yukleme["url"]
+            else:
+                h_story_url = yukleme["url"]
+            telegram_story_urlleri.append(h_story_url)
+
             con.execute(
-                "UPDATE haberler SET gorsel_url = ?, gorsel_yolu = ?, "
+                "UPDATE haberler SET gorsel_url = ?, story_url = ?, gorsel_yolu = ?, "
                 "gorsel_kaynagi = ?, gorsel_atif = ? WHERE id = ?",
-                (yukleme["url"], str(yol), katman, atif, h["id"]),
+                (yukleme["url"], h_story_url, str(yol), katman, atif, h["id"]),
             )
         except Exception as e:
             log.warning("Haber slaytı üretilemedi (id=%s): %s", h["id"], e)
@@ -191,9 +217,9 @@ def main() -> int:
         ayarlar=ayarlar,
     )
 
-    # 7. Telegram'a gönder (Albüm + Onay Mesajı)
-    etiketler = ["Piyasa"] + [f"Haber {i}" for i in range(1, len(slayt_urlleri))]
-    albom_idler = telegram_bot.slaytlari_gonder(slayt_urlleri, etiketler)
+    # 7. Telegram'a gönder (Albüm 9:16 Story formatında + Onay Mesajı)
+    etiketler = ["Piyasa", "Tablo"] + [f"Haber {i}" for i in range(1, len(telegram_story_urlleri) - 1)]
+    albom_idler = telegram_bot.slaytlari_gonder(telegram_story_urlleri, etiketler)
 
     ozet = (
         f"📊 <b>GÜNE BAŞLARKEN EKONOMİ & PİYASALAR</b>\n"

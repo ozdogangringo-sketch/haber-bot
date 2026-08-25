@@ -139,24 +139,37 @@ def turu_tamamla(con, ayarlar: dict, secilen: list, kuru: bool = False) -> int:
     secilen = [sira_ile.get(h["id"], h) for h in secilen]
 
     urller = [y["url"] for y in yuklemeler]
+
+    # 9:16 Dikey Story görsellerini yükle (Telegram albümüne tam ekran 9:16 gider)
+    story_yuklemeler = upload_image.hepsini_yukle(
+        [s["story_yol"] for s in sonuclar if s.get("story_yol")], ayarlar
+    )
+    story_urller = [y["url"] for y in story_yuklemeler]
+    if not story_urller:
+        story_urller = urller
+
     # ⚠️ Albüm id'leri saklanıyor — slayt görseli değiştirilip
-    # onaylandığında albüm silinip yeniden gönderiliyor (Telegram'da
-    # media group atomik, tek fotoğraf düzenlenemiyor).
+    # onaylandığında albüm silinip yeniden gönderiliyor.
+    # Telegram'a gönderilen albüm 9:16 Story formatında sunulur!
     albom_idler = telegram_bot.slaytlari_gonder(
-        urller, [h["ig_baslik"] or h["baslik_orj"] for h in secilen]
+        story_urller, [h["ig_baslik"] or h["baslik_orj"] for h in secilen]
     )
     ozet = telegram_bot.tur_ozeti(secilen, isaretli)
     mesaj_id = telegram_bot.onay_iste(
         metin, len(urller), uyari=uyari, ozet=ozet
     )
 
-    for haber in secilen:
+    for idx, haber in enumerate(secilen):
         con.execute(
             "UPDATE haberler SET durum = 'onay_bekliyor', "
             "telegram_message_id = ?, gonderim_zamani = datetime('now'), "
-            "story_url = ? WHERE id = ?",
-            (mesaj_id, story_url if haber is secilen[0] else None,
-             haber["id"]),
+            "gorsel_url = ?, story_url = ? WHERE id = ?",
+            (
+                mesaj_id,
+                urller[idx] if idx < len(urller) else None,
+                story_urller[idx] if idx < len(story_urller) else story_url,
+                haber["id"],
+            ),
         )
     db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(albom_idler or []))
     con.commit()

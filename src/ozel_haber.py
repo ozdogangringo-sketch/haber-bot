@@ -106,11 +106,12 @@ def _post_olustur_ve_onaya_sun(
     # 3. Caption hazırla
     metin = caption.son_dakika_caption(taze, ayarlar, sonuclar)
 
-    # 4. Telegram'a albüm ve onay mesajı gönder
-    telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
+    # 4. Telegram'a albüm ve onay mesajı gönder (9:16 Story formatında)
+    telegram_urller = [story_url] if story_url else urller
+    telegram_bot.slaytlari_gonder(telegram_urller, ["Haber"])
     mesaj_id = telegram_bot.onay_iste(
         metin,
-        len(urller),
+        len(telegram_urller),
         ozet=(
             f"{ozet_not or '✨ ÖZEL HABER'}\n"
             f"Kaynak: {kaynak}  ·  Puan: {taze['onem_puani'] or 9}/10\n"

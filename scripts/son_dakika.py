@@ -734,13 +734,11 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
     (17 Ağu 2026'da tam olarak bu oldu).
     """
     # --- 6b) Onaya sun ---
-    # ⚠️ ALBÜM ID'LERİ SAKLANIYOR. Slayt görseli değiştirilip
-    # onaylandığında albümün yenilenmesi gerekiyor (Telegram'da media
-    # group atomik, tek fotoğraf düzenlenemiyor) ve bunun için eski
-    # albümü silmek şart. Önce bu id'ler dönüyor ama atılıyordu.
-    albom_idler = telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
+    # Telegram'a gönderilen albüm 9:16 Story formatında sunulur!
+    telegram_urller = [story_url] if story_url else urller
+    albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, ["Son Dakika"])
     mesaj_id = telegram_bot.onay_iste(
-        metin, len(urller),
+        metin, len(telegram_urller),
         uyari=(uyari or ""),
         ozet=(f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {taze['onem_puani']}/10\n"
               "⌛️ 24 saat boyunca onaya hazır bekler\n"

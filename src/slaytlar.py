@@ -334,7 +334,26 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
     yol = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
     # Instagram PNG kabul etmiyor — JPEG şart
     gorsel.save(yol, "JPEG", quality=_kalite(g, katman), optimize=True)
-    log.info("slayt üretildi [%s] #%s → %s", katman, haber["id"], yol.name)
+
+    # 9:16 Dikey Story / Reels slaytı (Telegram albümlerinde ve Story'de kullanılır)
+    story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+    try:
+        story_gorsel = make_image.story_haber(
+            _slayt_metni(haber, "ig_baslik", ayarlar),
+            _slayt_metni(haber, "slayt_ozet", ayarlar),
+            make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
+            ayarlar,
+            arkaplan=(arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
+            kategori=haber["kategori"] or "turkiye",
+            ulke_kodu=_alan(haber, "ulke_kodu") or None,
+            ulke_adi=_alan(haber, "ulke_adi") or None,
+        )
+        story_gorsel.save(story_yol, "JPEG", quality=_kalite(g, katman), optimize=True)
+    except Exception as e:
+        log.warning("Haber story slaytı üretilemedi #%s: %s", haber["id"], e)
+        story_yol = None
+
+    log.info("slayt üretildi [%s] #%s → %s (story: %s)", katman, haber["id"], yol.name, bool(story_yol))
     return yol, katman, atif
 
 
@@ -357,6 +376,8 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
             log.error("slayt üretilemedi #%s: %s", haber["id"], e)
             continue
 
+        story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+
         if con is not None:
             # Atıf da yazılıyor: caption yayın anında yeniden kuruluyor ve
             # hazırlık ile onay arasında saatler geçebiliyor. Bellekte
@@ -375,7 +396,13 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
             con.commit()
 
         sonuclar.append(
-            {"id": haber["id"], "yol": yol, "katman": katman, "atif": atif}
+            {
+                "id": haber["id"],
+                "yol": yol,
+                "story_yol": story_yol if story_yol.exists() else yol,
+                "katman": katman,
+                "atif": atif,
+            }
         )
 
     return sonuclar
