@@ -577,29 +577,27 @@ def yaziyi_bas(
     ozet_ust = alt_bilgi_y - 44 - ozet_yuksekligi
     baslik_ust = ozet_ust - (26 if ozet else 0) - satir_yuksekligi * len(satirlar)
 
-    # --- 2) Sinematik Arka Plan Vignette: fotoğrafı kesmeden, tabana kadar derinlikli yumuşak geçiş ---
+    # --- 2) Perde: Standart kurumsal kategori renk şeridi (özet ve alt bilgiyi tam opak korur) ---
     taban = _perde_taban_alfa(gorsel, (0, baslik_ust, genislik, yukseklik))
-    perde_basi = max(0, baslik_ust - (170 + int(taban * 0.4)))
     renk = serit_rengi(kategori, g)
+    serit_ust = ozet_ust - 30 if ozet else alt_bilgi_y - 30
+    serit_basi = max(0, serit_ust - (150 + taban))
 
     perde = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
     perde_ciz = ImageDraw.Draw(perde)
 
-    # Üst köşelere hafif sinematik vignette (logo ve flama arkasında netlik)
+    # Üst köşelere hafif netleştirici vignette (logo ve flama arkası)
     for y in range(0, min(320, yukseklik)):
         ust_alfa = int(115 * ((320 - y) / 320) ** 1.8)
         perde_ciz.line([(0, y), (genislik, y)], fill=(6, 10, 18, ust_alfa))
 
-    # Alt bölgeye yumuşak üstel geçiş: max %88 (224) opasite, fotoğraf asla kesilmez
-    toplam_mesafe = max(1, yukseklik - perde_basi)
-    for y in range(perde_basi, yukseklik):
-        ilerleme = (y - perde_basi) / toplam_mesafe
-        # Organik cubic ease-in eğrisi
-        alfa = int(224 * (ilerleme ** 1.45))
-        r_aktif = int(renk[0] * (1 - ilerleme * 0.35))
-        g_aktif = int(renk[1] * (1 - ilerleme * 0.35))
-        b_aktif = int(renk[2] * (1 - ilerleme * 0.35))
-        perde_ciz.line([(0, y), (genislik, y)], fill=(r_aktif, g_aktif, b_aktif, min(230, alfa)))
+    gecis = max(1, serit_ust - serit_basi)
+    for y in range(serit_basi, yukseklik):
+        if y < serit_ust:
+            alfa = int(255 * ((y - serit_basi) / gecis) ** 1.6)
+        else:
+            alfa = 255
+        perde_ciz.line([(0, y), (genislik, y)], fill=renk + (alfa,))
 
     gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
 
