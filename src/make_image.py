@@ -1020,7 +1020,7 @@ def story_haber(
     }
 
     if arkaplan is None:
-        arkaplan = arkaplan_uret_yedek(kategori, STORY_GENISLIK, STORY_YUKSEKLIK, g)
+        arkaplan = arkaplan_uret_yedek(kategori, STORY_GENISLIK, STORY_YUKSEKLIK)
     else:
         arkaplan = fotograftan_arkaplan(
             arkaplan, STORY_GENISLIK, STORY_YUKSEKLIK

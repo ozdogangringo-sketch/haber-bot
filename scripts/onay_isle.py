@@ -202,7 +202,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         # Reels Manuel Paylaşım Modu: 9:16 dikey görseller üretilir + açıklama kopyalanabilir gönderilir
         try:
             from src import video
-            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller)
+            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
             if dikey_gorseller:
                 basliklar = [(dict(h).get("ig_baslik") or dict(h).get("baslik_orj") or "") for h in haberler]
                 telegram_bot.yerel_albom_gonder(dikey_gorseller, basliklar=basliklar)

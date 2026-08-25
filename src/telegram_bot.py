@@ -555,6 +555,10 @@ def yerel_albom_gonder(
                 pass
 
 
+# Türkçe yazım uyumluluğu için alias
+yerel_album_gonder = yerel_albom_gonder
+
+
 def tur_ozeti(haberler: list, uyari_sayisi: int = 0) -> str:
     """
     Onay mesajının başına konan özet tablo.

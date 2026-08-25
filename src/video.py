@@ -13,25 +13,131 @@ from pathlib import Path
 import numpy as np
 import io
 import requests
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 import imageio
 
 log = logging.getLogger(__name__)
 
-CIKTI_KLASORU = Path("data") / "output"
+KOK = Path(__file__).resolve().parent.parent
+FONT_YOLU = KOK / "assets" / "fonts" / "Inter-Variable.ttf"
+LOGO_YOLU = KOK / "assets" / "logo_circular.png"
+CIKTI_KLASORU = KOK / "data" / "output"
 HEDEF_GENISLIK = 1080
 HEDEF_YUKSEKLIK = 1920
+
+
+def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
+    f = ImageFont.truetype(str(FONT_YOLU), punto)
+    try:
+        f.set_variation_by_axes([20.0, agirlik])
+    except Exception:
+        pass
+    return f
+
+
+def _cercevele_9_16(img: Image.Image, baslik_rozet: str = "DAILY BRIEF · ÖZEL") -> Image.Image:
+    """
+    1080x1350 formatındaki piyasa kartı veya infografiği,
+    bulanık kopya metinler OLMADAN, şık Derin Petrol gradyan ve
+    güvenli alan logolu 1080x1920 (9:16) Reels/Story zeminine yerleştirir.
+    """
+    genislik, yukseklik = HEDEF_GENISLIK, HEDEF_YUKSEKLIK
+    if img.size == (genislik, yukseklik):
+        return img.convert("RGB")
+
+    # 1. Derin Petrol Dikey Gradyan Zemin (#04181C -> #08262C)
+    zemin = Image.new("RGB", (genislik, yukseklik), (4, 24, 28))
+    draw = ImageDraw.Draw(zemin)
+    for y in range(yukseklik):
+        oran = y / float(yukseklik)
+        if oran < 0.5:
+            t = oran * 2.0
+            r = int(4 * (1 - t) + 8 * t)
+            g = int(24 * (1 - t) + 38 * t)
+            b = int(28 * (1 - t) + 44 * t)
+        else:
+            t = (oran - 0.5) * 2.0
+            r = int(8 * (1 - t) + 3 * t)
+            g = int(38 * (1 - t) + 16 * t)
+            b = int(44 * (1 - t) + 20 * t)
+        draw.line([(0, y), (genislik, y)], fill=(r, g, b))
+
+    # Atmosferik Siber Turkuaz Parıltı
+    glow = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    gdraw = ImageDraw.Draw(glow)
+    gdraw.ellipse([(-100, 50), (600, 650)], fill=(6, 182, 212, 35))
+    gdraw.ellipse([(500, 1250), (1150, 1850)], fill=(6, 182, 212, 25))
+    glow = glow.filter(ImageFilter.GaussianBlur(140))
+    zemin.paste(Image.alpha_composite(zemin.convert("RGBA"), glow).convert("RGB"), (0, 0))
+
+    draw = ImageDraw.Draw(zemin)
+
+    # 2. Üst Güvenli Alan Rozeti (y = 140..220)
+    top_y = 140
+    rw = draw.textlength(baslik_rozet, font=_font(20, 800.0))
+    draw.rounded_rectangle(
+        [(60, top_y), (60 + rw + 36, top_y + 44)],
+        radius=8,
+        fill=(12, 45, 54),
+        outline=(6, 182, 212),
+        width=2,
+    )
+    draw.text((78, top_y + 11), baslik_rozet, font=_font(20, 800.0), fill=(255, 255, 255))
+    draw.text(
+        (60, top_y + 60),
+        "DAILY BRIEF  ·  REELS & STORY",
+        font=_font(16, 600.0),
+        fill=(140, 185, 195),
+    )
+
+    # 3. 4:5 Kartı Ortala (y = 285)
+    card_y = (yukseklik - img.height) // 2
+
+    # Kart Etrafına 3D Derinlik Gölgesi
+    golge = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    gldraw = ImageDraw.Draw(golge)
+    gldraw.rounded_rectangle(
+        [(30, card_y - 10), (genislik - 30, card_y + img.height + 10)],
+        radius=20,
+        fill=(0, 0, 0, 180),
+    )
+    golge = golge.filter(ImageFilter.GaussianBlur(15))
+    zemin.paste(golge, (0, 0), golge)
+
+    # Kartı Yapıştır
+    zemin.paste(img, (0, card_y))
+
+    # 4. Alt Güvenli Alan
+    bot_y = yukseklik - 140
+    draw.text(
+        (60, bot_y),
+        "dailybrief.co  ·  Detaylar Açıklamada",
+        font=_font(18, 600.0),
+        fill=(140, 185, 195),
+    )
+    draw.text(
+        (genislik - 220, bot_y),
+        "Daily Brief",
+        font=_font(18, 800.0),
+        fill=(6, 182, 212),
+    )
+
+    return zemin
 
 
 def reels_dikey_gorselleri_uret(
     gorsel_kaynaklari: list[Path | str],
     cikti_dizini: Path | str | None = None,
+    haberler: list | None = None,
+    ayarlar: dict | None = None,
 ) -> list[Path]:
     """
-    4:5 formatındaki slayt görsellerini veya URL'leri alır,
-    arka planı sinematik derin okyanus petrolü blur efektiyle doldurarak
-    1080x1920 (9:16) tam dikey Reels / Story görselleri üretir.
+    Tüm slaytları kusursuz 1080x1920 (9:16) Story/Reels görsellerine dönüştürür.
+    Haberler için doğrudan yerel story_haber() çağrılır, kartlar için ise
+    derin petrol çerçeve kullanılır.
     """
+    from . import make_image
+
     if cikti_dizini is None:
         cikti_dizini = CIKTI_KLASORU / "reels_9_16"
     else:
@@ -39,7 +145,58 @@ def reels_dikey_gorselleri_uret(
     cikti_dizini.mkdir(parents=True, exist_ok=True)
 
     uretilen_yollar: list[Path] = []
+    
     for idx, kaynak in enumerate(gorsel_kaynaklari):
+        hedef_yol = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
+        
+        # Eğer bu sıradaki haber verisi ve ayarlar mevcutsa
+        haber = dict(haberler[idx]) if haberler and idx < len(haberler) else None
+        
+        # 1. Öncelik: Eğer haberin story_url'i varsa doğrudan indirip kullan
+        if haber and haber.get("story_url"):
+            try:
+                r = requests.get(haber["story_url"], timeout=20)
+                if r.status_code == 200:
+                    with open(hedef_yol, "wb") as f:
+                        f.write(r.content)
+                    uretilen_yollar.append(hedef_yol)
+                    continue
+            except Exception as e:
+                log.warning("story_url indirilemedi: %s", e)
+
+        # 2. Öncelik: Haberin kendi metinleriyle yerel story_haber() çiz
+        if haber and ayarlar and haber.get("ig_baslik"):
+            try:
+                baslik = haber.get("ig_baslik") or haber.get("baslik_orj") or ""
+                ozet = haber.get("slayt_ozet") or ""
+                kaynak_adi = make_image.kaynak_gosterim_adi(haber.get("kaynak", ""), ayarlar)
+                kategori = haber.get("kategori", "turkiye")
+                
+                # Varsa orijinal arka plan görseli
+                arkaplan_img = None
+                if haber.get("gorsel_yolu") and Path(haber["gorsel_yolu"]).exists():
+                    try:
+                        arkaplan_img = Image.open(haber["gorsel_yolu"])
+                    except Exception:
+                        pass
+
+                story_img = make_image.story_haber(
+                    baslik=baslik,
+                    ozet=ozet,
+                    kaynak=kaynak_adi,
+                    ayarlar=ayarlar,
+                    arkaplan=arkaplan_img,
+                    kategori=kategori,
+                    ulke_kodu=haber.get("ulke_kodu"),
+                    ulke_adi=haber.get("ulke_adi"),
+                )
+                story_img.save(hedef_yol, "JPEG", quality=95)
+                uretilen_yollar.append(hedef_yol)
+                continue
+            except Exception as e:
+                log.warning("Yerel story_haber çizilemedi: %s", e)
+
+        # 3. Öncelik (Piyasa Isı Haritası / Tablosu / Fallback): 4:5 kartı zarif petrol 9:16 çerçeveye al
         try:
             if str(kaynak).startswith("http://") or str(kaynak).startswith("https://"):
                 r = requests.get(str(kaynak), timeout=20)
@@ -50,44 +207,19 @@ def reels_dikey_gorselleri_uret(
                     continue
                 img = Image.open(p)
 
-            dikey_img = _reels_kare_hazirla(img)
-            hedef_yol = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
+            rozet = "PİYASA ISI HARİTASI" if idx == 0 else ("PİYASA KARNESİ" if idx == 1 else "GÜNCEL GELİŞME")
+            dikey_img = _cercevele_9_16(img, baslik_rozet=rozet)
             dikey_img.save(hedef_yol, "JPEG", quality=95)
             uretilen_yollar.append(hedef_yol)
         except Exception as e:
-            log.warning("9:16 görsel üretilemedi (%s): %s", kaynak, e)
+            log.warning("9:16 çerçeveleme hatası (%s): %s", kaynak, e)
 
     return uretilen_yollar
 
 
 def _reels_kare_hazirla(img: Image.Image, genislik: int = HEDEF_GENISLIK, yukseklik: int = HEDEF_YUKSEKLIK) -> Image.Image:
-    """
-    1080x1350 veya farklı boyutlardaki slaytı 1080x1920 dikey Reels zeminine oturtur.
-    Arka plana hafif bulanıklaştırılmış ve karartılmış atmosfer görseli koyar.
-    """
-    if img.size == (genislik, yukseklik):
-        return img.convert("RGB")
-
-    # 1. Arka Plan: Orijinal görseli büyüt ve bulanıklaştır
-    arkaplan = ImageOps.fit(img, (genislik, yukseklik), method=Image.Resampling.LANCZOS)
-    arkaplan = arkaplan.filter(ImageFilter.GaussianBlur(radius=25))
-    
-    # Karartma katmanı (%40 siyah)
-    karartma = Image.new("RGB", (genislik, yukseklik), (10, 15, 25))
-    arkaplan = Image.blend(arkaplan, karartma, alpha=0.55)
-
-    # 2. Ön Plan: Slaytı orantılı boyutlandırıp merkeze yerleştir
-    oran = min(genislik / img.width, (yukseklik - 120) / img.height)
-    yeni_w = int(img.width * oran)
-    yeni_h = int(img.height * oran)
-    on_plan = img.resize((yeni_w, yeni_h), Image.Resampling.LANCZOS)
-
-    # Merkeze yapıştır
-    pos_x = (genislik - yeni_w) // 2
-    pos_y = (yukseklik - yeni_h) // 2
-    arkaplan.paste(on_plan, (pos_x, pos_y))
-
-    return arkaplan
+    """Video üretiminde her kareyi 1080x1920 zeminine yerleştirir."""
+    return _cercevele_9_16(img)
 
 
 def slaytlardan_reels_uret(
