@@ -38,6 +38,7 @@ from src import (                                  # noqa: E402
     aday, android_bridge, android_otomasyon, ayar, caption, db, db_senkron, dogrula, facebook, fetch_news,
     filtre,
     instagram,
+    make_image,
     secim,
     slaytlar, telegram_bot, threads, twitter, upload_image, yonetim,
 )
@@ -1153,9 +1154,17 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
         yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
         yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+        story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+        story_url = yukleme["url"]
+        if story_yol.exists():
+            try:
+                story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                story_url = story_yukleme.get("url") or story_url
+            except Exception as e:
+                log.warning("Story görseli yüklenemedi: %s", e)
         con.execute(
-            "UPDATE haberler SET gorsel_url = ?, gorsel_yolu = ? WHERE id = ?",
-            (yukleme["url"], str(yol), haber["id"]),
+            "UPDATE haberler SET gorsel_url = ?, story_url = ?, gorsel_yolu = ? WHERE id = ?",
+            (yukleme["url"], story_url, str(yol), haber["id"]),
         )
         con.commit()
         telegram_bot.mesaj_gonder(f"🧹 <b>{sira}. slayttaki sansürler (* işaretleri) kaldırıldı.</b>", html=True)
@@ -1175,9 +1184,17 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
         yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
         yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+        story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+        story_url = yukleme["url"]
+        if story_yol.exists():
+            try:
+                story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                story_url = story_yukleme.get("url") or story_url
+            except Exception as e:
+                log.warning("Story görseli yüklenemedi: %s", e)
         con.execute(
-            "UPDATE haberler SET gorsel_url = ?, gorsel_yolu = ? WHERE id = ?",
-            (yukleme["url"], str(yol), haber["id"]),
+            "UPDATE haberler SET gorsel_url = ?, story_url = ?, gorsel_yolu = ? WHERE id = ?",
+            (yukleme["url"], story_url, str(yol), haber["id"]),
         )
         con.commit()
         telegram_bot.mesaj_gonder(f"🛡️ <b>{sira}. slayta hassas kelime filtresi uygulandı.</b>", html=True)
@@ -1203,9 +1220,17 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
                 taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
                 yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
                 yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+                story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+                story_url = yukleme["url"]
+                if story_yol.exists():
+                    try:
+                        story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                        story_url = story_yukleme.get("url") or story_url
+                    except Exception as e:
+                        log.warning("Story görseli yüklenemedi: %s", e)
                 con.execute(
-                    "UPDATE haberler SET gorsel_url = ?, gorsel_yolu = ? WHERE id = ?",
-                    (yukleme["url"], str(yol), haber["id"]),
+                    "UPDATE haberler SET gorsel_url = ?, story_url = ?, gorsel_yolu = ? WHERE id = ?",
+                    (yukleme["url"], story_url, str(yol), haber["id"]),
                 )
                 con.commit()
                 telegram_bot.mesaj_gonder(
@@ -1250,16 +1275,24 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         haber_gorseli_atla=foto_atla)
 
     yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+    story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+    story_url_aday = None
+    if story_yol.exists():
+        try:
+            story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+            story_url_aday = story_yukleme.get("url")
+        except Exception as e:
+            log.warning("Story görseli yüklenemedi: %s", e)
 
     # ⚠️ ADAY ALANLARA YAZILIYOR, ASIL ALANLARA DEĞİL.
     # Önce `gorsel_url` doğrudan güncelleniyordu: kullanıcı yeni görseli
     # beğenmese bile geri dönüş yoktu ve eski dosya da üzerine
     # yazıldığı için diskte kalmıyordu. Artık onay bekliyor.
     con.execute(
-        "UPDATE haberler SET gorsel_url_aday = ?, gorsel_kaynagi_aday = ?, "
-        "gorsel_atif_aday = ?, gorsel_yolu_aday = ?, gorsel_deneme = ? "
-        "WHERE id = ?",
-        (yukleme["url"], katman, atif, str(yol), deneme, haber["id"]),
+        "UPDATE haberler SET gorsel_url_aday = ?, story_url_aday = ?, "
+        "gorsel_kaynagi_aday = ?, gorsel_atif_aday = ?, gorsel_yolu_aday = ?, "
+        "gorsel_deneme = ? WHERE id = ?",
+        (yukleme["url"], story_url_aday or yukleme["url"], katman, atif, str(yol), deneme, haber["id"]),
     )
     con.commit()
 
@@ -1422,11 +1455,19 @@ def metin_duzenle(con, ayarlar: dict, haberler: list, mesaj_id: int, gelen_metin
     taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
     yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
     yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+    story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+    story_url = yukleme["url"]
+    if story_yol.exists():
+        try:
+            story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+            story_url = story_yukleme.get("url") or story_url
+        except Exception as e:
+            log.warning("Story görseli yüklenemedi: %s", e)
 
     con.execute(
-        "UPDATE haberler SET gorsel_url = ?, gorsel_yolu = ?, "
+        "UPDATE haberler SET gorsel_url = ?, story_url = ?, gorsel_yolu = ?, "
         "gorsel_kaynagi = ?, gorsel_atif = ? WHERE id = ?",
-        (yukleme["url"], str(yol), katman, atif, haber["id"]),
+        (yukleme["url"], story_url, str(yol), katman, atif, haber["id"]),
     )
     con.commit()
 
@@ -1580,12 +1621,20 @@ def havuzdan_haber_ekle(con, ayarlar: dict, haberler: list, mesaj_id: int) -> in
     # Durum 2: Görsel onayı aşaması (Slayt üretilmeli)
     yol, katman, atif = slaytlar.slayt_uret(aday_haber, ayarlar)
     yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+    story_yol = make_image.CIKTI_KLASORU / f"story-{aday_haber['id']}.jpg"
+    story_url = yukleme["url"]
+    if story_yol.exists():
+        try:
+            story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+            story_url = story_yukleme.get("url") or story_url
+        except Exception as e:
+            log.warning("Story görseli yüklenemedi: %s", e)
 
     con.execute(
         "UPDATE haberler SET durum = 'onay_bekliyor', telegram_message_id = ?, "
-        "slayt_sirasi = ?, gorsel_url = ?, gorsel_yolu = ?, gorsel_kaynagi = ?, "
+        "slayt_sirasi = ?, gorsel_url = ?, story_url = ?, gorsel_yolu = ?, gorsel_kaynagi = ?, "
         "gorsel_atif = ?, gonderim_zamani = datetime('now') WHERE id = ?",
-        (mesaj_id, yeni_sira, yukleme["url"], str(yol), katman, atif, aday_haber["id"]),
+        (mesaj_id, yeni_sira, yukleme["url"], story_url, str(yol), katman, atif, aday_haber["id"]),
     )
     con.commit()
 
@@ -1685,6 +1734,14 @@ def haberi_degistir_uygula(con, ayarlar, haberler, eski_id: int, yeni_id: int,
     try:
         yol, katman, atif = slaytlar.slayt_uret(dict(yeni), ayarlar)
         url = upload_image.gorsel_yukle(yol, ayarlar)["url"]
+        story_yol = make_image.CIKTI_KLASORU / f"story-{yeni_id}.jpg"
+        story_url = url
+        if story_yol.exists():
+            try:
+                story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                story_url = story_yukleme.get("url") or story_url
+            except Exception as e:
+                log.warning("Story görseli yüklenemedi: %s", e)
     except Exception as e:                            # noqa: BLE001
         log.exception("alternatif slaytı üretilemedi")
         telegram_bot.mesaj_gonder(
@@ -1700,9 +1757,9 @@ def haberi_degistir_uygula(con, ayarlar, haberler, eski_id: int, yeni_id: int,
         "tur = NULL WHERE id = ?", (eski["id"],))
     con.execute(
         "UPDATE haberler SET durum = 'onay_bekliyor', telegram_message_id = ?, "
-        "tur = ?, gorsel_yolu = ?, gorsel_url = ?, gorsel_kaynagi = ?, "
+        "tur = ?, gorsel_yolu = ?, gorsel_url = ?, story_url = ?, gorsel_kaynagi = ?, "
         "gorsel_atif = ?, gonderim_zamani = ? WHERE id = ?",
-        (mesaj_id, eski["tur"], str(yol), url, katman, atif,
+        (mesaj_id, eski["tur"], str(yol), url, story_url, katman, atif,
          eski["gonderim_zamani"], yeni_id))
     con.commit()
     db_senkron.hemen_kaydet(f"Turda {sira}. haber değiştirildi")
@@ -1733,9 +1790,10 @@ def gorseli_kabul_et(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
 
     con.execute(
         "UPDATE haberler SET gorsel_url = gorsel_url_aday, "
+        "story_url = COALESCE(story_url_aday, gorsel_url_aday), "
         "gorsel_kaynagi = gorsel_kaynagi_aday, gorsel_atif = gorsel_atif_aday, "
         "gorsel_yolu = gorsel_yolu_aday, "
-        "gorsel_url_aday = NULL, gorsel_yolu_aday = NULL, "
+        "gorsel_url_aday = NULL, story_url_aday = NULL, gorsel_yolu_aday = NULL, "
         "gorsel_kaynagi_aday = NULL, gorsel_atif_aday = NULL "
         "WHERE id = ?", (haber["id"],))
     con.commit()

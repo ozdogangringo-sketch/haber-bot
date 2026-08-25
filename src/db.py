@@ -106,6 +106,7 @@ EK_KOLONLAR = {
     # Değiştirilen görselin ADAY URL'si — kullanıcı onaylayana kadar
     # `gorsel_url` üzerine yazılmıyor.
     "gorsel_url_aday": "TEXT",
+    "story_url_aday": "TEXT",
     "gorsel_yolu_aday": "TEXT",
     "gorsel_kaynagi_aday": "TEXT",
     "gorsel_atif_aday": "TEXT",

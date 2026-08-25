@@ -574,55 +574,40 @@ def yaziyi_bas(
     ozet_ust = alt_bilgi_y - 44 - ozet_yuksekligi
     baslik_ust = ozet_ust - (26 if ozet else 0) - satir_yuksekligi * len(satirlar)
 
-    # --- 2) Perde: tam olarak yazı bloğunu koruyacak şekilde ---
+    # --- 2) Sinematik Arka Plan Vignette: fotoğrafı kesmeden, tabana kadar derinlikli yumuşak geçiş ---
     taban = _perde_taban_alfa(gorsel, (0, baslik_ust, genislik, yukseklik))
-
-    # Geçiş payı sabit olamaz: perde ne kadar koyuysa yumuşamak için o kadar
-    # uzun mesafe gerekiyor. 190 piksel sabitken açık pembe bir arka planda
-    # perde düz siyah bir blok gibi başlıyordu.
-    perde_basi = max(0, baslik_ust - (190 + taban))
-
-    # ⚠️ RENK ŞERİDİ BAŞLIĞIN ALTINDAN BAŞLIYOR.
-    #
-    # Şerit önce başlığı da kaplıyordu; okunaklıydı ama fotoğrafın yarıdan
-    # fazlasını yutuyordu. Artık yalnızca AÇIKLAMA ve alt bilgi düz renk
-    # üstünde; başlık fotoğrafın üstünde duruyor ve okunmayı gölgeden
-    # alıyor. Böylece fotoğraf çok daha fazla görünüyor.
-    #
-    # `taban` yine ölçülüyor ama artık yalnızca geçişin nerede
-    # başlayacağını belirliyor: koyu fotoğrafta geçiş erken başlayıp
-    # yumuşuyor.
+    perde_basi = max(0, baslik_ust - (170 + int(taban * 0.4)))
     renk = serit_rengi(kategori, g)
-    serit_ust = ozet_ust - 30 if ozet else alt_bilgi_y - 30
-    serit_basi = max(0, serit_ust - (150 + taban))
 
-    perde = Image.new("RGBA", (genislik, yukseklik), renk + (0,))
+    perde = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
     perde_ciz = ImageDraw.Draw(perde)
-    gecis = max(1, serit_ust - serit_basi)
-    for y in range(serit_basi, yukseklik):
-        if y < serit_ust:
-            alfa = int(255 * ((y - serit_basi) / gecis) ** 1.6)
-        else:
-            alfa = 255
-        perde_ciz.line([(0, y), (genislik, y)], fill=renk + (min(255, alfa),))
+
+    # Üst köşelere hafif sinematik vignette (logo ve flama arkasında netlik)
+    for y in range(0, min(320, yukseklik)):
+        ust_alfa = int(115 * ((320 - y) / 320) ** 1.8)
+        perde_ciz.line([(0, y), (genislik, y)], fill=(6, 10, 18, ust_alfa))
+
+    # Alt bölgeye yumuşak üstel geçiş: max %88 (224) opasite, fotoğraf asla kesilmez
+    toplam_mesafe = max(1, yukseklik - perde_basi)
+    for y in range(perde_basi, yukseklik):
+        ilerleme = (y - perde_basi) / toplam_mesafe
+        # Organik cubic ease-in eğrisi
+        alfa = int(224 * (ilerleme ** 1.45))
+        r_aktif = int(renk[0] * (1 - ilerleme * 0.35))
+        g_aktif = int(renk[1] * (1 - ilerleme * 0.35))
+        b_aktif = int(renk[2] * (1 - ilerleme * 0.35))
+        perde_ciz.line([(0, y), (genislik, y)], fill=(r_aktif, g_aktif, b_aktif, min(230, alfa)))
 
     gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
-    ciz = ImageDraw.Draw(gorsel)
 
-    # --- 3) Yazı ---
-    #
-    # ⚠️ BAŞLIK GÖLGESİ GERÇEK BULANIK GÖLGE, tek piksel kaydırma değil.
-    # Başlık artık düz renk şeridin değil FOTOĞRAFIN üstünde duruyor;
-    # okunması tamamen gölgeye bağlı. Eski 2px kaydırma açık ve kalabalık
-    # fotoğraflarda yetmiyordu — harflerin kenarı zemine karışıyordu.
-    # Yumuşak gölge, arka plan rengi ne olursa olsun harfi ayırıyor.
+    # --- 3) Çok Katmanlı Difüzyon Gölgesi (Yazıyı arka plandan kristal gibi ayırır) ---
     golge = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
     golge_ciz = ImageDraw.Draw(golge)
     y = baslik_ust
     for satir in satirlar:
-        golge_ciz.text((kenar, y + 3), satir, font=font, fill=(0, 0, 0, 200))
+        golge_ciz.text((kenar, y + 4), satir, font=font, fill=(0, 0, 0, 230))
         y += satir_yuksekligi
-    golge = golge.filter(ImageFilter.GaussianBlur(9))
+    golge = golge.filter(ImageFilter.GaussianBlur(13))
     gorsel = Image.alpha_composite(gorsel.convert("RGBA"), golge).convert("RGB")
     ciz = ImageDraw.Draw(gorsel)
 
@@ -633,7 +618,7 @@ def yaziyi_bas(
 
     y = ozet_ust
     for satir in ozet_satirlari:
-        ciz.text((kenar, y), satir, font=ozet_font, fill=(220, 226, 238))
+        ciz.text((kenar, y), satir, font=ozet_font, fill=(226, 232, 240))
         y += ozet_satir_y
 
     # Kaynak adı — telif değil, şeffaflık için: haber nereden geldi
@@ -1561,8 +1546,8 @@ def gorsel_uret(haber, ayarlar: dict, con=None) -> Path:
                         ayarlar)
 
     yol = CIKTI_KLASORU / f"haber-{haber['id']}.jpg"
-    # Instagram PNG kabul etmiyor — JPEG şart
-    gorsel.save(yol, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+    # Instagram PNG kabul etmiyor — JPEG şart (subsampling=0 ile kristal netlik)
+    gorsel.save(yol, "JPEG", quality=g["jpeg_kalite"], subsampling=0, optimize=True)
     log.info("görsel üretildi (%s): %s", kaynak_tipi, yol)
     return yol
 

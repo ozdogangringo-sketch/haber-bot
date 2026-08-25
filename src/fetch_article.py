@@ -199,11 +199,12 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
         log.warning("Haber görseli için sayfa alınamadı %s: %s", link, e)
         return None
 
-    # İstenmeyen görsel kalıpları (avatar, logo, sayaç, banner reklam)
+    # İstenmeyen görsel kalıpları (avatar, logo, sayaç, banner reklam, küçük thumbnail)
     YASAK_DESENLER = [
         "avatar", "author", "yazar", "logo", "banner_ad", "pixel",
         "tracker", "spacer", "placeholder", "icon", ".svg", ".gif",
-        "share-button", "default_image", "no-image"
+        "share-button", "default_image", "no-image", "-150x150", "-300x",
+        "-thumb", "small_thumb", "widget"
     ]
 
     def _gecerli_url_mi(u: str) -> bool:
@@ -217,20 +218,12 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
     def _temiz_url(u: str) -> str:
         u = u.strip()
         if u.startswith("//"):
-            return "https:" + u
+            u = "https:" + u
+        # WordPress vb. thumbnail uzantılarını orijinaline çevir (örn: resim-300x200.jpg -> resim.jpg)
+        u = re.sub(r"-\d{3,4}x\d{3,4}(\.[a-zA-Z]{3,4})$", r"\1", u)
         return u
 
-    # 1. Meta Etiketleri (OpenGraph, Twitter, Thumbnail)
-    for ozellik in ("og:image", "og:image:secure_url", "twitter:image", "twitter:image:src", "thumbnail"):
-        etiket = (corba.find("meta", property=ozellik)
-                  or corba.find("meta", attrs={"name": ozellik})
-                  or corba.find("meta", attrs={"itemprop": "image"}))
-        if etiket and etiket.get("content"):
-            u = etiket["content"].strip()
-            if _gecerli_url_mi(u):
-                return _temiz_url(u)
-
-    # 2. JSON-LD Yapılandırılmış Veri (En yüksek çözünürlüklü basın fotoğrafı)
+    # 1. JSON-LD Yapılandırılmış Veri (Sitenin doğrudan sunduğu orijinal yüksek çözünürlüklü basın görseli)
     for script in corba.find_all("script", attrs={"type": "application/ld+json"}):
         if not script.string:
             continue
@@ -238,7 +231,7 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
             veri = json.loads(script.string)
         except Exception:
             continue
-        
+
         adaylar = []
         if isinstance(veri, dict):
             adaylar = veri.get("@graph") if "@graph" in veri else [veri]
@@ -256,17 +249,27 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
             elif isinstance(img, list) and img and isinstance(img[0], str) and _gecerli_url_mi(img[0]):
                 return _temiz_url(img[0])
 
-    # 3. Makale İçi Öne Çıkan Görsel (Featured / Hero Image)
+    # 2. Makale İçi Orijinal Basın Görseli (figure, featured-image, news-detail)
     for secici in (
+        "article figure img", ".news-detail-image img", "main figure img",
         ".featured-image img", ".post-thumbnail img", "figure.wp-block-image img",
-        "article figure img", ".entry-content figure img", ".article-body figure img",
-        "main figure img", ".news-detail-image img"
+        ".entry-content figure img", ".article-body figure img"
     ):
         img_el = corba.select_one(secici)
         if img_el:
             src = img_el.get("src") or img_el.get("data-src") or img_el.get("data-original")
             if src and _gecerli_url_mi(src):
                 return _temiz_url(src)
+
+    # 3. Meta Etiketleri (OpenGraph, Twitter kartı)
+    for ozellik in ("og:image:secure_url", "og:image", "twitter:image", "twitter:image:src", "thumbnail"):
+        etiket = (corba.find("meta", property=ozellik)
+                  or corba.find("meta", attrs={"name": ozellik})
+                  or corba.find("meta", attrs={"itemprop": "image"}))
+        if etiket and etiket.get("content"):
+            u = etiket["content"].strip()
+            if _gecerli_url_mi(u):
+                return _temiz_url(u)
 
     return None
 

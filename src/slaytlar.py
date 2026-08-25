@@ -90,8 +90,8 @@ def _gorseli_indir(url: str, g: dict):
     biçimde bulanıklaşıyordu. Bu katman zincirin BİRİNCİ sırasında,
     yani en sık kullanılan yol.
     """
-    asgari = g.get("haber_gorseli_asgari_genislik", 640)
-    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 360)
+    asgari = g.get("haber_gorseli_asgari_genislik", 800)
+    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 500)
     try:
         cevap = requests.get(url, timeout=20,
                              headers={"User-Agent": "Mozilla/5.0"})
@@ -332,8 +332,8 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
     )
 
     yol = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
-    # Instagram PNG kabul etmiyor — JPEG şart
-    gorsel.save(yol, "JPEG", quality=_kalite(g, katman), optimize=True)
+    # Instagram PNG kabul etmiyor — JPEG şart (subsampling=0 ile kristal netlik)
+    gorsel.save(yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
 
     # 9:16 Dikey Story / Reels slaytı (Telegram albümlerinde ve Story'de kullanılır)
     story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
@@ -348,7 +348,7 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
             ulke_kodu=_alan(haber, "ulke_kodu") or None,
             ulke_adi=_alan(haber, "ulke_adi") or None,
         )
-        story_gorsel.save(story_yol, "JPEG", quality=_kalite(g, katman), optimize=True)
+        story_gorsel.save(story_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
     except Exception as e:
         log.warning("Haber story slaytı üretilemedi #%s: %s", haber["id"], e)
         story_yol = None
@@ -444,7 +444,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         kategori=haber["kategori"] or "",
     )
     yol1 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
-    gorsel1.save(yol1, "JPEG", quality=_kalite(g, katman), optimize=True)
+    gorsel1.save(yol1, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
 
     # --- Slayt 2: detay ---
     # ig_caption zaten haberin 2-3 cümlelik özü; ayrı bir alan üretmek
@@ -509,9 +509,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         )
         ek = "" if len(sayfalar) == 1 else f"-{i}"
         yol2 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}-detay{ek}.jpg"
-        # ⚠️ Detay sayfaları DÜZ ZEMİN — yüksek kalite dosyayı şişirir,
-        # görsel fayda sağlamaz. Bilerek `jpeg_kalite` kullanılıyor.
-        gorsel2.save(yol2, "JPEG", quality=g["jpeg_kalite"], optimize=True)
+        gorsel2.save(yol2, "JPEG", quality=g["jpeg_kalite"], subsampling=0, optimize=True)
         detay_yollari.append(yol2)
 
     # --- Story (9:16): HAM arka planla, slaytla değil ---
@@ -522,13 +520,6 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
             _slayt_metni(haber, "slayt_ozet", ayarlar),
             make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
             ayarlar,
-            # Gradyan katmanında ham arka planı geçmiyoruz: story kendi
-            # ölçüsünde yeni bir gradyan üretsin, 4:5'liği esnetmesin.
-            #
-            # ⚠️ FOTOĞRAFLI KATMANLARIN HEPSİ BURADA OLMALI. "haber"
-            # katmanı (og:image) eklendiğinde bu liste güncellenmedi ve
-            # haber fotoğrafı kullanılan her postta story FOTOĞRAFSIZ
-            # çıktı — 18 Ağu 2026'da yayınlanan story'de görüldü.
             arkaplan=(ham_arkaplan.copy()
                       if katman in FOTOGRAFLI_KATMANLAR else None),
             kategori=haber["kategori"],
@@ -537,7 +528,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
             ulke_adi=_alan(haber, "ulke_adi") or None,
         )
         yol3 = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
-        story.save(yol3, "JPEG", quality=_kalite(g, katman), optimize=True)
+        story.save(yol3, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
     except Exception as e:
         # Story ikincil; patlarsa post yine çıkmalı.
         log.warning("story görseli üretilemedi: %s", e)
