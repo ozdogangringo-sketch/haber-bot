@@ -35,94 +35,35 @@ def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
     return f
 
 
-def _cercevele_9_16(img: Image.Image, baslik_rozet: str = "DAILY BRIEF · ÖZEL") -> Image.Image:
+def _cercevele_9_16(img: Image.Image, baslik_rozet: str = "") -> Image.Image:
     """
-    1080x1350 formatındaki piyasa kartı veya infografiği,
-    bulanık kopya metinler OLMADAN, şık Derin Petrol gradyan ve
-    güvenli alan logolu 1080x1920 (9:16) Reels/Story zeminine yerleştirir.
+    1080x1350 formatındaki slayt, detay veya piyasa kartını,
+    hiçbir yapay kutu, çerçeve veya renk ayrımı OLMADAN,
+    üstünü görselin/gradyanın doğal devamı, altını ise taban renginin devamı
+    olarak dikişsiz 1080x1920 (9:16) Reels/Story zeminine uzatır.
     """
     genislik, yukseklik = HEDEF_GENISLIK, HEDEF_YUKSEKLIK
-    if img.size == (genislik, yukseklik):
+    w, h = img.size
+    if (w, h) == (genislik, yukseklik):
         return img.convert("RGB")
 
-    # 1. Derin Petrol Dikey Gradyan Zemin (#04181C -> #08262C)
-    zemin = Image.new("RGB", (genislik, yukseklik), (4, 24, 28))
-    draw = ImageDraw.Draw(zemin)
-    for y in range(yukseklik):
-        oran = y / float(yukseklik)
-        if oran < 0.5:
-            t = oran * 2.0
-            r = int(4 * (1 - t) + 8 * t)
-            g = int(24 * (1 - t) + 38 * t)
-            b = int(28 * (1 - t) + 44 * t)
-        else:
-            t = (oran - 0.5) * 2.0
-            r = int(8 * (1 - t) + 3 * t)
-            g = int(38 * (1 - t) + 16 * t)
-            b = int(44 * (1 - t) + 20 * t)
-        draw.line([(0, y), (genislik, y)], fill=(r, g, b))
+    card_y = (yukseklik - h) // 2  # 285
+    tuval = Image.new("RGB", (genislik, yukseklik))
 
-    # Atmosferik Siber Turkuaz Parıltı
-    glow = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
-    gdraw = ImageDraw.Draw(glow)
-    gdraw.ellipse([(-100, 50), (600, 650)], fill=(6, 182, 212, 35))
-    gdraw.ellipse([(500, 1250), (1150, 1850)], fill=(6, 182, 212, 25))
-    glow = glow.filter(ImageFilter.GaussianBlur(140))
-    zemin.paste(Image.alpha_composite(zemin.convert("RGBA"), glow).convert("RGB"), (0, 0))
+    # 1. Üst Bölgeyi Dikişsiz Uzat (y = 0..285)
+    # Görselin en üst satırını yukarı doğru pürüzsüzce uzat
+    ust_cizgi = img.crop((0, 0, w, 2)).resize((w, card_y), Image.LANCZOS)
+    tuval.paste(ust_cizgi, (0, 0))
 
-    draw = ImageDraw.Draw(zemin)
+    # 2. Alt Bölgeyi Dikişsiz Uzat (y = 1635..1920)
+    # Görselin en alt satırını aşağı doğru pürüzsüzce uzat
+    alt_cizgi = img.crop((0, h - 2, w, h)).resize((w, yukseklik - (card_y + h)), Image.LANCZOS)
+    tuval.paste(alt_cizgi, (0, card_y + h))
 
-    # 2. Üst Güvenli Alan Rozeti (y = 140..220)
-    top_y = 140
-    rw = draw.textlength(baslik_rozet, font=_font(20, 800.0))
-    draw.rounded_rectangle(
-        [(60, top_y), (60 + rw + 36, top_y + 44)],
-        radius=8,
-        fill=(12, 45, 54),
-        outline=(6, 182, 212),
-        width=2,
-    )
-    draw.text((78, top_y + 11), baslik_rozet, font=_font(20, 800.0), fill=(255, 255, 255))
-    draw.text(
-        (60, top_y + 60),
-        "DAILY BRIEF  ·  REELS & STORY",
-        font=_font(16, 600.0),
-        fill=(140, 185, 195),
-    )
+    # 3. 4:5 Görseli merkez dikişsiz alana yerleştir
+    tuval.paste(img, (0, card_y))
 
-    # 3. 4:5 Kartı Ortala (y = 285)
-    card_y = (yukseklik - img.height) // 2
-
-    # Kart Etrafına 3D Derinlik Gölgesi
-    golge = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
-    gldraw = ImageDraw.Draw(golge)
-    gldraw.rounded_rectangle(
-        [(30, card_y - 10), (genislik - 30, card_y + img.height + 10)],
-        radius=20,
-        fill=(0, 0, 0, 180),
-    )
-    golge = golge.filter(ImageFilter.GaussianBlur(15))
-    zemin.paste(golge, (0, 0), golge)
-
-    # Kartı Yapıştır
-    zemin.paste(img, (0, card_y))
-
-    # 4. Alt Güvenli Alan
-    bot_y = yukseklik - 140
-    draw.text(
-        (60, bot_y),
-        "dailybrief.co  ·  Detaylar Açıklamada",
-        font=_font(18, 600.0),
-        fill=(140, 185, 195),
-    )
-    draw.text(
-        (genislik - 220, bot_y),
-        "Daily Brief",
-        font=_font(18, 800.0),
-        fill=(6, 182, 212),
-    )
-
-    return zemin
+    return tuval
 
 
 def reels_dikey_gorselleri_uret(
@@ -207,9 +148,8 @@ def reels_dikey_gorselleri_uret(
                     continue
                 img = Image.open(p)
 
-            rozet = "PİYASA ISI HARİTASI" if idx == 0 else ("PİYASA KARNESİ" if idx == 1 else "GÜNCEL GELİŞME")
-            dikey_img = _cercevele_9_16(img, baslik_rozet=rozet)
-            dikey_img.save(hedef_yol, "JPEG", quality=95)
+            dikey_img = _cercevele_9_16(img)
+            dikey_img.save(hedef_yol, "JPEG", quality=95, subsampling=0, optimize=True)
             uretilen_yollar.append(hedef_yol)
         except Exception as e:
             log.warning("9:16 çerçeveleme hatası (%s): %s", kaynak, e)
