@@ -815,9 +815,10 @@ def kanal_ikonlari_bas(gorsel, ayarlar, y_merkez: int, renk=(150, 160, 180)):
 # story 9:16 ve ikisi aynı anda üretiliyor.
 STORY_GENISLIK, STORY_YUKSEKLIK = 1080, 1920
 
-# Story'de üstte profil bilgisi, altta yanıt kutusu var; oralara denk
-# gelen içerik ya görünmüyor ya da parmakla kapanıyor.
-STORY_GUVENLI_PAY = 260
+# 4:5 Güvenli Alan Payı: 9:16 (1080x1920) görselin içindeki tüm içerik
+# (logo, başlık, özet, kaynak) 4:5 (1080x1350) merkez kutusunun (y=285..1635)
+# içine güvenle sığar.
+STORY_GUVENLI_PAY = 330
 
 
 def story_kapak(
