@@ -189,15 +189,18 @@ def yayin_kotasi(ayarlar: dict) -> dict:
     }
 
 
-def _container_bekle(container_id: str, ayarlar: dict) -> None:
+def _container_bekle(container_id: str, ayarlar: dict, azami_deneme: int | None = None) -> None:
     """
     Container'ın işlenmesini bekler.
 
-    Instagram görseli indirip işliyor; hazır olmadan publish çağırırsan
-    hata veriyor. 10 görselli carousel'de bu birkaç saniye sürebiliyor.
+    Instagram görsel veya videoyu indirip işliyor; hazır olmadan publish
+    çağırırsan hata veriyor. Video container'larında işleme biraz daha sürebilir.
     """
     g = ayarlar["instagram"]
-    for _ in range(g["hazir_azami_deneme"]):
+    deneme_sayisi = azami_deneme or g.get("hazir_azami_deneme", 12)
+    bekleme_sn = g.get("hazir_bekleme_saniye", 5)
+
+    for _ in range(deneme_sayisi):
         d = _istek("GET", f"/{container_id}", ayarlar,
                    fields="status_code,status")
         durum = d.get("status_code")
@@ -205,7 +208,7 @@ def _container_bekle(container_id: str, ayarlar: dict) -> None:
             return
         if durum == "ERROR":
             raise RuntimeError(f"container işlenemedi: {d.get('status')}")
-        time.sleep(g["hazir_bekleme_saniye"])
+        time.sleep(bekleme_sn)
 
     raise RuntimeError(f"container zamanında hazır olmadı: {container_id}")
 
@@ -288,6 +291,49 @@ def story_yayinla(gorsel_url: str, ayarlar: dict) -> str:
     story_id = d["id"]
     log.info("story yayınlandı (@%s): %s", hesap["username"], story_id)
     return story_id
+
+
+def reels_yayinla(
+    video_url: str,
+    caption: str,
+    ayarlar: dict,
+    kapak_url: str | None = None,
+) -> str:
+    """
+    Instagram Reels olarak video yayınlar, Instagram post id'sini döner.
+
+    media_type="REELS", video_url ve caption ile video container oluşturulur.
+    share_to_feed="true" ile ana akışta da görünür.
+    """
+    hesap = hesabi_dogrula(ayarlar)
+    kota = yayin_kotasi(ayarlar)
+    if kota["kullanilan"] >= kota["azami"]:
+        raise RuntimeError(
+            f"24 saatlik yayın kotası dolu ({kota['kullanilan']}/{kota['azami']})"
+        )
+    log.info("hedef @%s | Reels yayınlanıyor | kota %s/%s",
+             hesap["username"], kota["kullanilan"], kota["azami"])
+
+    parametreler = {
+        "media_type": "REELS",
+        "video_url": video_url,
+        "caption": caption,
+        "share_to_feed": "true",
+    }
+    if kapak_url:
+        parametreler["cover_url"] = kapak_url
+
+    d = _istek("POST", f"/{_kullanici_id()}/media", ayarlar, **parametreler)
+    container_id = d["id"]
+
+    # Reels / Video işlenmesi Meta tarafında birkaç saniye sürebilir (azami 30 deneme = 150 sn)
+    _container_bekle(container_id, ayarlar, azami_deneme=30)
+
+    d = _istek("POST", f"/{_kullanici_id()}/media_publish", ayarlar,
+               creation_id=container_id)
+    post_id = d["id"]
+    log.info("REELS YAYINLANDI (@%s): %s", hesap["username"], post_id)
+    return post_id
 
 
 def son_yayinlanan_basliklar(ayarlar: dict, adet: int = 25) -> list[str]:

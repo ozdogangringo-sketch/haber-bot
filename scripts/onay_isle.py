@@ -208,30 +208,44 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     baglanti = None
     ig_notu = ""
     if paylas_reels:
-        # Reels Manuel Paylaşım Modu: 9:16 dikey görseller üretilir + açıklama kopyalanabilir gönderilir
+        # Reels Otomatik Video Paylaşım Modu: Müziksiz 1080x1920 MP4 üretilir + Instagram Reels yayınlanır + Telegram'a video atılır
         try:
             from src import video
+            log.info("Reels videosu için 9:16 dikey görseller hazırlanıyor...")
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-            if dikey_gorseller:
-                basliklar = [(dict(h).get("ig_baslik") or dict(h).get("baslik_orj") or "") for h in haberler]
-                telegram_bot.yerel_albom_gonder(dikey_gorseller, basliklar=basliklar)
-        except Exception as e:
-            log.warning("9:16 dikey görseller üretilemedi: %s", e)
+            if not dikey_gorseller:
+                raise RuntimeError("Reels videosu için 9:16 görsel üretilemedi")
 
-        reels_mesaji = (
-            f"🎬 <b>REELS / STORY MANUEL PAYLAŞIM PAKETİ (9:16 Dikey)</b>\n\n"
-            f"📌 <b>Instagram Açıklaması (Kopyalamak için metne tıkla):</b>\n\n"
-            f"<code>{metin}</code>\n\n"
-            f"💡 <i>Görseller 9:16 dikey Reels/Story formatında yukarıya albüm olarak yüklendi. Tek dokunuşla galeriye kaydedip Instagram'da Reels veya Hikaye olarak paylaşabilirsin.</i>"
-        )
-        telegram_bot.mesaj_gonder(reels_mesaji, html=True)
-        ig_notu = "🎬 9:16 Reels/Story Görselleri & Açıklama Telegram'a iletildi"
+            # Müziksiz, yüksek kaliteli 1080x1920 MP4 videosu üret
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.4)
+
+            # Videoyu barındırıcıya yükle
+            video_url = upload_image.video_yukle(video_yolu, ayarlar)
+
+            # Instagram Reels olarak yayınla
+            kapak_url = urller[0] if urller else None
+            post_id = instagram.reels_yayinla(video_url, metin, ayarlar, kapak_url=kapak_url)
+            baglanti = instagram.post_baglantisi(post_id, ayarlar)
+            ig_notu = "\n🎬 Instagram Reels videosu yayınlandı"
+
+            # Üretilen MP4 videosunu Telegram grubuna da ilet
+            try:
+                telegram_bot.video_gonder(
+                    video_yolu,
+                    aciklama=f"🎬 <b>Daily Brief Reels Videosu Yayında!</b>\n\n🔗 {baglanti or 'Instagram Reels'}",
+                )
+            except Exception as e:
+                log.warning("Telegram'a video iletilemedi: %s", e)
+
+        except Exception as e:
+            log.exception("Instagram Reels yayınlama hatası")
+            ig_notu = f"\n⚠️ Instagram Reels yayınlanamadı: {type(e).__name__}: {e}"
     elif paylas_ig:
         post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
         baglanti = instagram.post_baglantisi(post_id, ayarlar)
-        ig_notu = "📸 Instagram gönderisi yayınlandı"
+        ig_notu = "\n📸 Instagram gönderisi yayınlandı"
     else:
-        ig_notu = "📸 Instagram atlandı"
+        ig_notu = "\n📸 Instagram atlandı"
 
     # Story postla birlikte gidiyor (kullanıcı kapatmadıysa).
     story_notu = ""
@@ -359,7 +373,9 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         telafi_dugmeleri.append([{"text": "🔄 🧵 Threads'e Tekrar Gönder", "callback_data": f"retry_kanal:threads:{mesaj_id}"}])
     if paylas_tw and (not tw_gonderi_id or "⚠️" in tw_notu):
         telafi_dugmeleri.append([{"text": "🔄 🐦 X'e (Twitter) Tekrar Gönder", "callback_data": f"retry_kanal:twitter:{mesaj_id}"}])
-    if paylas_ig and not post_id and not paylas_reels:
+    if paylas_reels and (not post_id or "⚠️" in ig_notu):
+        telafi_dugmeleri.append([{"text": "🔄 🎬 Reels'i Tekrar Gönder", "callback_data": f"retry_kanal:reels:{mesaj_id}"}])
+    elif paylas_ig and not post_id:
         telafi_dugmeleri.append([{"text": "🔄 📸 Instagram'ı Tekrar Dene", "callback_data": f"retry_kanal:ig:{mesaj_id}"}])
 
     if len(telafi_dugmeleri) > 1:
@@ -367,7 +383,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     telegram_bot.sonucu_yaz(
         mesaj_id,
-        f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}{th_notu}{tw_notu}\n"
+        f"✅ YAYINLANDI — {len(urller)} slayt{ig_notu}{story_notu}{fb_notu}{th_notu}{tw_notu}\n"
         f"\n{_yayin_ozeti(haberler)}\n"
         f"\nOnaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",
@@ -621,6 +637,35 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         except Exception as e:
             log.exception("Instagram telafi hatası: %s", e)
             sonuclar.append(f"⚠️ <b>Instagram:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+    # 6. INSTAGRAM REELS TELAFİSİ
+    if kanal in ("reels",):
+        try:
+            from src import video
+            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+            if not dikey_gorseller:
+                raise RuntimeError("Reels videosu için 9:16 görsel üretilemedi")
+
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.4)
+            video_url = upload_image.video_yukle(video_yolu, ayarlar)
+            kapak_url = urller[0] if urller else None
+            post_id = instagram.reels_yayinla(video_url, metin, ayarlar, kapak_url=kapak_url)
+            con.execute("UPDATE haberler SET ig_post_id = ? WHERE telegram_message_id = ?", (post_id, mesaj_id))
+            con.commit()
+            ig_url = instagram.post_baglantisi(post_id, ayarlar)
+            sonuclar.append("🎬 <b>Instagram Reels:</b> Başarıyla yayınlandı!")
+            if ig_url:
+                canli_linkler.append([{"text": "🎬 Reels'i Gör", "url": ig_url}])
+            try:
+                telegram_bot.video_gonder(
+                    video_yolu,
+                    aciklama=f"🎬 <b>Daily Brief Reels Videosu Yayında!</b>\n\n🔗 {ig_url or 'Instagram Reels'}",
+                )
+            except Exception:
+                pass
+        except Exception as e:
+            log.exception("Reels telafi hatası: %s", e)
+            sonuclar.append(f"⚠️ <b>Instagram Reels:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
 
     rapor = "\n".join(sonuclar)
     telegram_bot.mesaj_gonder(

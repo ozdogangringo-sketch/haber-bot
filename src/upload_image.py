@@ -215,3 +215,49 @@ def hepsini_yukle(yollar: list[Path], ayarlar: dict) -> list[dict]:
         log.info("yüklendi %d/%d: %s", i, len(yollar), sonuc["url"])
         sonuclar.append(sonuc)
     return sonuclar
+
+
+def video_yukle(yol: Path | str, ayarlar: dict | None = None) -> str:
+    """
+    MP4 video dosyasını barındırıcıya yükleyip herkese açık HTTPS URL döner.
+    Instagram Reels / Video Graph API'si için kullanılır.
+    """
+    p = Path(yol)
+    if not p.exists():
+        raise FileNotFoundError(f"Video dosyası bulunamadı: {p}")
+
+    zaman_asimi = 90
+    # 1. uguu.se (Hızlı, Instagram / Meta sunucuları doğrudan indirebiliyor)
+    try:
+        with open(p, "rb") as f:
+            cevap = requests.post(
+                "https://uguu.se/upload",
+                files={"files[]": (p.name, f, "video/mp4")},
+                timeout=zaman_asimi,
+            )
+        if cevap.status_code == 200:
+            veri = cevap.json()
+            url = (veri.get("files") or [{}])[0].get("url")
+            if url:
+                log.info("Video uguu'ya yüklendi: %s", url)
+                return url
+    except Exception as e:
+        log.warning("Video uguu'ya yüklenemedi: %s", e)
+
+    # 2. litterbox (Yedek servis)
+    try:
+        with open(p, "rb") as f:
+            cevap = requests.post(
+                "https://litterbox.catbox.moe/resources/internals/api.php",
+                data={"reqtype": "fileupload", "time": "72h"},
+                files={"fileToUpload": (p.name, f, "video/mp4")},
+                timeout=zaman_asimi,
+            )
+        if cevap.status_code == 200 and cevap.text.startswith("http"):
+            url = cevap.text.strip()
+            log.info("Video litterbox'a yüklendi: %s", url)
+            return url
+    except Exception as e:
+        log.warning("Video litterbox'a yüklenemedi: %s", e)
+
+    raise RuntimeError(f"Video hiçbir barındırıcıya yüklenemedi ({p.name})")

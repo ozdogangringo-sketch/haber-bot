@@ -165,8 +165,8 @@ def _reels_kare_hazirla(img: Image.Image, genislik: int = HEDEF_GENISLIK, yuksek
 def slaytlardan_reels_uret(
     gorsel_yollari: list[Path | str],
     cikti_yolu: Path | str | None = None,
-    fps: int = 24,
-    slayt_suresi: float = 3.0,
+    fps: int = 30,
+    slayt_suresi: float = 3.5,
     gecis_suresi: float = 0.4,
 ) -> Path:
     """
@@ -174,7 +174,7 @@ def slaytlardan_reels_uret(
 
     * `slayt_suresi`: Her slaytın ekranda kalma süresi (saniye).
     * `gecis_suresi`: İki slayt arasındaki yumuşak kararma geçişi (saniye).
-    * `fps`: Saniyedeki kare sayısı (24 veya 30).
+    * `fps`: Saniyedeki kare sayısı (30 fps Instagram için en ideal).
     """
     if not gorsel_yollari:
         raise ValueError("Video üretimi için en az 1 görsel gerekli")
@@ -185,7 +185,7 @@ def slaytlardan_reels_uret(
     else:
         cikti_yolu = Path(cikti_yolu)
 
-    log.info("Reels videosu üretiliyor: %s slayt -> %s", len(gorsel_yollari), cikti_yolu)
+    log.info("Reels videosu üretiliyor: %s slayt -> %s (fps=%s)", len(gorsel_yollari), cikti_yolu, fps)
 
     # 1. Tüm görselleri 1080x1920 RGB formatına dönüştür
     kareler_ham: list[Image.Image] = []
@@ -210,7 +210,7 @@ def slaytlardan_reels_uret(
         codec="libx264",
         pixelformat="yuv420p",
         macro_block_size=1,
-        quality=8,
+        quality=9,
     )
 
     try:
