@@ -38,7 +38,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
                   "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
 const PARAMETRELI_EYLEM =
-  /^(slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil|slayt_yukari|slayt_asagi|slayt_basa|sansur_kaldir|sansur_uygula|metin_uzat|metin_kisalt|cope_at_tekil):([1-9]|10)$/;
+  /^(slayt_carpici|slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil|slayt_yukari|slayt_asagi|slayt_basa|sansur_kaldir|sansur_uygula|metin_uzat|metin_kisalt|cope_at_tekil):([1-9]|10)$/;
 
 // Botu duraklatma (1s, 6s, 12s, 24s)
 const DURAKLAT = /^duraklat:(1|6|12|24)$/;
@@ -264,16 +264,17 @@ function slaytIslemMenusu(sira, adet) {
   }
 
   tuslar.push(
-    [{ text: `🔀 ${sira}. slayt: başka fotoğraf (bedava)`, callback_data: `slayt_foto:${sira}` }],
-    [{ text: `🎨 ${sira}. slayt: AI ile üret (~$0.04)`, callback_data: `slayt_ai:${sira}` }],
-    [{ text: `✏️ ${sira}. slaytın metnini yenile`, callback_data: `slayt_metin:${sira}` }],
-    [{ text: `✍️ ${sira}. slaytın başlığını elle yaz`, callback_data: `slayt_elle:${sira}` }],
-    [{ text: `🧹 ${sira}. slayt: Sansürü Kaldır (* sil)`, callback_data: `sansur_kaldir:${sira}` },
-     { text: `🛡️ ${sira}. slayt: Sansürle`, callback_data: `sansur_uygula:${sira}` }],
+    [{ text: `🔥 ${sira}. slayt: Başlığı Daha Dikkat Çekici Yap`, callback_data: `slayt_carpici:${sira}` }],
+    [{ text: `✏️ ${sira}. slayt: Metni & Başlığı Yeniden Yaz`, callback_data: `slayt_metin:${sira}` }],
+    [{ text: `✍️ ${sira}. slayt: Başlığı Elle Düzenle (Reply)`, callback_data: `slayt_elle:${sira}` }],
+    [{ text: `🔀 ${sira}. slayt: Başka Fotoğraf Seç (Bedava)`, callback_data: `slayt_foto:${sira}` }],
+    [{ text: `🎨 ${sira}. slayt: AI ile Görsel Çiz (~$0.04)`, callback_data: `slayt_ai:${sira}` }],
     [{ text: `➕ ${sira}. slayt: Metni Uzat`, callback_data: `metin_uzat:${sira}` },
      { text: `➖ ${sira}. slayt: Metni Kısalt`, callback_data: `metin_kisalt:${sira}` }],
+    [{ text: `🧹 ${sira}. slayt: Sansürü Kaldır (* sil)`, callback_data: `sansur_kaldir:${sira}` },
+     { text: `🛡️ ${sira}. slayt: Sansürle`, callback_data: `sansur_uygula:${sira}` }],
     [{ text: `📄 ${sira}. slaytın kaynak metnini göster`, callback_data: `slayt_kaynak:${sira}` }],
-    [{ text: `🔄 ${sira}. slaytın HABERİNİ değiştir`, callback_data: `haber_degistir:${sira}` }],
+    [{ text: `🔄 Havuzdan Farklı Bir Habere Geç`, callback_data: `haber_degistir:${sira}` }],
     [{ text: `🗑 ${sira}. slaytı çıkar`, callback_data: `slayt_sil:${sira}` },
      { text: `🗑️ Haberi Çöpe At`, callback_data: `cope_at_tekil:${sira}` }],
     [{ text: "← Geri", callback_data: `slayt_menu:${adet}` }],
@@ -313,6 +314,7 @@ const KOMUT_ADI = {
   iptal: "Tur atlanıyor",
   metin_yenile: "Metinler yeniden üretiliyor",
   ertele: "Erteleniyor",
+  slayt_carpici: "Başlık daha dikkat çekici yapılıyor",
   slayt_ai: "AI görsel üretiliyor",
   slayt_foto: "Başka fotoğraf aranıyor",
   slayt_metin: "Metin yeniden üretiliyor",

@@ -1476,6 +1476,115 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         except Exception as e:
             log.warning("Metin uzat/kısalt hatası: %s", e)
 
+    if komut == "slayt_carpici":
+        eski_baslik = haber["ig_baslik"] or haber["baslik_orj"] or ""
+        eski_ozet = haber["slayt_ozet"] or haber["ozet_orj"] or ""
+        govde = (haber["makale_metni"] or haber["ozet_orj"] or eski_baslik).strip()
+
+        prompt = (
+            "Sen Türkiye'nin en popüler sosyal medya haber yayınının (Daily Brief) "
+            "kıdemli genel yayın yönetmenisin. Aşağıdaki haberin başlığını ve spotunu, "
+            "Instagram ve sosyal medyada kullanıcıların dikkatini ilk saniyede çekecek, "
+            "merak uyandıran, son derece güçlü, vurucu ve profesyonel bir manşet olarak YENİDEN YAZ.\n\n"
+            "KURALLAR:\n"
+            "1. Haberdeki gerçek bilgileri asla çarpıtma veya uydurma.\n"
+            "2. Başlık (ig_baslik): En fazla 8-10 kelime, vurucu, aktif fiilli, büyük etki ve merak yaratan manşet.\n"
+            "3. Slayt Özeti (slayt_ozet): 15-25 kelime, olayın can alıcı noktasını net ve akıcı anlatan 1-2 cümle.\n\n"
+            f"KAYNAK: {haber['kaynak']}\n"
+            f"MEVCUT BAŞLIK: {eski_baslik}\n"
+            f"HABER DETAYI: {govde[:2500]}\n\n"
+            "Yalnızca şu JSON formatında yanıt ver:\n"
+            "{\n"
+            '  "ig_baslik": "...",\n'
+            '  "slayt_ozet": "..."\n'
+            "}"
+        )
+
+        try:
+            from src.generate_text import _model_ve_anahtar_dene
+            yanit, _, _ = _model_ve_anahtar_dene(prompt)
+            if yanit:
+                temiz = yanit.strip()
+                if "```json" in temiz:
+                    temiz = temiz.split("```json", 1)[1].split("```", 1)[0].strip()
+                elif "```" in temiz:
+                    temiz = temiz.split("```", 1)[1].split("```", 1)[0].strip()
+
+                veri = json.loads(temiz)
+                yeni_baslik = veri.get("ig_baslik", "").strip()
+                yeni_ozet = veri.get("slayt_ozet", "").strip()
+
+                if yeni_baslik:
+                    con.execute(
+                        "UPDATE haberler SET ig_baslik = ?, slayt_ozet = ? WHERE id = ?",
+                        (yeni_baslik, yeni_ozet or eski_ozet, haber["id"]),
+                    )
+                    con.commit()
+
+                    taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
+                    son_dakika_mi = len(haberler) == 1 and bool(haberler[0]["son_dakika"])
+                    if son_dakika_mi:
+                        sonuclar = slaytlar.son_dakika_uret(taze, ayarlar, con=con)
+                        urller = []
+                        story_url = None
+                        for s in sonuclar:
+                            if s.get("katman") == "story":
+                                if s.get("yol"):
+                                    try:
+                                        yukleme = upload_image.gorsel_yukle(s["yol"], ayarlar)
+                                        story_url = yukleme["url"]
+                                    except Exception as e:
+                                        log.warning("story yüklenemedi: %s", e)
+                                continue
+                            yukleme = upload_image.gorsel_yukle(s["yol"], ayarlar)
+                            urller.append(yukleme["url"])
+
+                        con.execute(
+                            "UPDATE haberler SET gorsel_url = ?, story_url = ?, detay_url = ? WHERE id = ?",
+                            (urller[0], story_url or urller[0], json.dumps(urller[1:]), haber["id"]),
+                        )
+                        con.commit()
+                        yeni_cap = caption.son_dakika_caption(taze, sonuclar, ayarlar)
+                        con.execute("UPDATE haberler SET ig_caption = ? WHERE id = ?", (yeni_cap, haber["id"]))
+                        con.commit()
+                    else:
+                        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+                        yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+                        story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+                        story_url = yukleme["url"]
+                        if story_yol.exists():
+                            try:
+                                story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                                story_url = story_yukleme.get("url") or story_url
+                            except Exception as e:
+                                log.warning("Story görseli yüklenemedi: %s", e)
+
+                        con.execute(
+                            "UPDATE haberler SET gorsel_url = ?, story_url = ?, gorsel_yolu = ?, "
+                            "gorsel_kaynagi = ?, gorsel_atif = ? WHERE id = ?",
+                            (yukleme["url"], story_url, str(yol), katman, atif, haber["id"]),
+                        )
+                        con.commit()
+                        guncel = turu_getir(con, mesaj_id)
+                        yeni_cap = caption.caption_kur(guncel, _sonuclari_kur(guncel), ayarlar=ayarlar)
+                        for h in guncel:
+                            con.execute("UPDATE haberler SET ig_caption = ? WHERE id = ?", (yeni_cap, h["id"]))
+                        con.commit()
+
+                    _albumu_yenile(con, mesaj_id)
+                    menuyu_geri_koy(con, mesaj_id)
+                    telegram_bot.mesaj_gonder(
+                        f"🔥 <b>{sira}. slaytın başlığı daha dikkat çekici olarak yenilendi:</b>\n\n"
+                        f"<b>Eski Başlık:</b> <s>{html.escape(eski_baslik)}</s>\n"
+                        f"<b>Yeni Manşet:</b> <b>{html.escape(yeni_baslik)}</b>\n"
+                        f"<b>Yeni Özet:</b> <i>{html.escape(yeni_ozet or '')}</i>",
+                        html=True,
+                    )
+                    db_senkron.hemen_kaydet(f"Başlık çarpıcı yapıldı: slayt {sira}")
+                    return 0
+        except Exception as e:
+            log.warning("Çarpıcı başlık üretme hatası: %s", e)
+
     if komut == "slayt_metin":
         con.execute("UPDATE haberler SET durum = 'yeni' WHERE id = ?", (haber["id"],))
         con.commit()
@@ -2002,17 +2111,40 @@ def haberi_degistir_uygula(con, ayarlar, haberler, eski_id: int, yeni_id: int,
         return 0
 
     # Slaytı ÜRET — hata olursa tura hiç dokunmuyoruz.
+    son_dakika_mi = bool(eski["son_dakika"]) or len(haberler) == 1
     try:
-        yol, katman, atif = slaytlar.slayt_uret(dict(yeni), ayarlar)
-        url = upload_image.gorsel_yukle(yol, ayarlar)["url"]
-        story_yol = make_image.CIKTI_KLASORU / f"story-{yeni_id}.jpg"
-        story_url = url
-        if story_yol.exists():
-            try:
-                story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
-                story_url = story_yukleme.get("url") or story_url
-            except Exception as e:
-                log.warning("Story görseli yüklenemedi: %s", e)
+        if son_dakika_mi:
+            sonuclar = slaytlar.son_dakika_uret(dict(yeni), ayarlar, con=con)
+            urller = []
+            story_url = None
+            for s in sonuclar:
+                if s.get("katman") == "story":
+                    if s.get("yol"):
+                        try:
+                            yukleme = upload_image.gorsel_yukle(s["yol"], ayarlar)
+                            story_url = yukleme["url"]
+                        except Exception as e:
+                            log.warning("story yüklenemedi: %s", e)
+                    continue
+                yukleme = upload_image.gorsel_yukle(s["yol"], ayarlar)
+                urller.append(yukleme["url"])
+            url = urller[0]
+            detay_json = json.dumps(urller[1:])
+            katman = sonuclar[0].get("katman", "og")
+            atif = sonuclar[0].get("atif", "")
+            yol = sonuclar[0].get("yol", "")
+        else:
+            yol, katman, atif = slaytlar.slayt_uret(dict(yeni), ayarlar)
+            url = upload_image.gorsel_yukle(yol, ayarlar)["url"]
+            story_yol = make_image.CIKTI_KLASORU / f"story-{yeni_id}.jpg"
+            story_url = url
+            detay_json = None
+            if story_yol.exists():
+                try:
+                    story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                    story_url = story_yukleme.get("url") or story_url
+                except Exception as e:
+                    log.warning("Story görseli yüklenemedi: %s", e)
     except Exception as e:                            # noqa: BLE001
         log.exception("alternatif slaytı üretilemedi")
         telegram_bot.mesaj_gonder(
@@ -2028,9 +2160,9 @@ def haberi_degistir_uygula(con, ayarlar, haberler, eski_id: int, yeni_id: int,
         "tur = NULL, slayt_sirasi = NULL WHERE id = ?", (eski["id"],))
     con.execute(
         "UPDATE haberler SET durum = 'onay_bekliyor', telegram_message_id = ?, "
-        "tur = ?, gorsel_yolu = ?, gorsel_url = ?, story_url = ?, gorsel_kaynagi = ?, "
+        "tur = ?, gorsel_yolu = ?, gorsel_url = ?, story_url = ?, detay_url = ?, gorsel_kaynagi = ?, "
         "gorsel_atif = ?, gonderim_zamani = ?, slayt_sirasi = ? WHERE id = ?",
-        (mesaj_id, eski["tur"], str(yol), url, story_url, katman, atif,
+        (mesaj_id, eski["tur"], str(yol), url, story_url, detay_json, katman, atif,
          eski["gonderim_zamani"], eski["slayt_sirasi"], yeni_id))
     con.commit()
     db_senkron.hemen_kaydet(f"Turda {sira}. haber değiştirildi")
