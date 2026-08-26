@@ -32,6 +32,7 @@ from pathlib import Path
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 
+import requests
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
@@ -348,6 +349,22 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     if satir_2:
         canli_link_dugmeleri.append(satir_2)
 
+    # Başarısız olan veya eksik kalan kanallar için anında tek tıkla telafi butonları
+    telafi_dugmeleri = []
+    if paylas_story and (not story_url or "⚠️" in story_notu):
+        telafi_dugmeleri.append([{"text": "🔄 📱 Story'i Tekrar Paylaş", "callback_data": f"retry_kanal:story:{mesaj_id}"}])
+    if paylas_fb and (not fb_id or "⚠️" in fb_notu):
+        telafi_dugmeleri.append([{"text": "🔄 📘 Facebook'a Tekrar Gönder", "callback_data": f"retry_kanal:facebook:{mesaj_id}"}])
+    if paylas_th and (not th_gonderi_id or "⚠️" in th_notu or th_yarim):
+        telafi_dugmeleri.append([{"text": "🔄 🧵 Threads'e Tekrar Gönder", "callback_data": f"retry_kanal:threads:{mesaj_id}"}])
+    if paylas_tw and (not tw_gonderi_id or "⚠️" in tw_notu):
+        telafi_dugmeleri.append([{"text": "🔄 🐦 X'e (Twitter) Tekrar Gönder", "callback_data": f"retry_kanal:twitter:{mesaj_id}"}])
+    if paylas_ig and not post_id and not paylas_reels:
+        telafi_dugmeleri.append([{"text": "🔄 📸 Instagram'ı Tekrar Dene", "callback_data": f"retry_kanal:ig:{mesaj_id}"}])
+
+    if len(telafi_dugmeleri) > 1:
+        telafi_dugmeleri.insert(0, [{"text": "🔄 Başarısız Tüm Kanalları Tekrar Dene", "callback_data": f"retry_kanal:hepsi:{mesaj_id}"}])
+
     telegram_bot.sonucu_yaz(
         mesaj_id,
         f"✅ YAYINLANDI — {len(urller)} slayt{story_notu}{fb_notu}{th_notu}{tw_notu}\n"
@@ -357,6 +374,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         bildir=True,
         ek_dugmeler=(
             canli_link_dugmeleri
+            + telafi_dugmeleri
             + ([[{"text": "🔗 Threads zincirini tamamla",
                   "callback_data": "tamamla"}]] if th_yarim else [])
             + [[{"text": "🔍 Yayın durumunu kontrol et",
@@ -433,6 +451,186 @@ def zinciri_tamamla(con, ayarlar) -> int:
             f"⚠️ Zincir hâlâ eksik: {yayinlanan}/{hedef} halka.\n"
             f"Threads medya hatası sürüyor olabilir, sonra tekrar dene.\n"
             f"{baglanti}")
+    return 0
+
+
+def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: str, basan: str) -> int:
+    """
+    Yayın sırasında herhangi bir platformda başarısız olan veya eksik kalan
+    gönderiyi Telegram'dan tek tıkla telafi eder ve yayınlar.
+    """
+    if not haberler:
+        haberler = turu_getir(con, mesaj_id)
+    if not haberler:
+        telegram_bot.mesaj_gonder(f"⚠️ #{mesaj_id} numaralı tura ait haber kaydı bulunamadı.")
+        return 0
+
+    ilk_h_dict = dict(haberler[0])
+    son_dakika_mi = bool(ilk_h_dict.get("son_dakika"))
+    tur_mu = len(haberler) > 1
+
+    # Görselleri ve varsa detay/piyasa slaytlarını topla
+    urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
+    if ilk_h_dict.get("tur") == "ekonomi":
+        tablo_satir = con.execute(
+            "SELECT deger FROM ayarlar WHERE anahtar = ?",
+            (f"piyasa_tablosu_{mesaj_id}",)
+        ).fetchone()
+        kart_satir = con.execute(
+            "SELECT deger FROM ayarlar WHERE anahtar = ?",
+            (f"piyasa_karti_{mesaj_id}",)
+        ).fetchone()
+        if tablo_satir and tablo_satir["deger"]:
+            urller.insert(0, tablo_satir["deger"])
+        if kart_satir and kart_satir["deger"]:
+            urller.insert(0, kart_satir["deger"])
+
+    for h in haberler:
+        if h["son_dakika"]:
+            urller.extend(_detay_urlleri(h["detay_url"]))
+
+    # Caption metni
+    if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
+        metin = ilk_h_dict["ig_caption"]
+    elif son_dakika_mi:
+        metin = caption.son_dakika_caption(haberler[0], _sonuclari_kur(haberler), ayarlar)
+    else:
+        metin = caption.caption_kur(haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
+
+    sonuclar = []
+    canli_linkler = []
+
+    # 1. STORY TELAFİSİ
+    if kanal in ("story", "hepsi"):
+        story_url = next((h["story_url"] for h in haberler if h["story_url"]), None)
+        # Eğer story_url erişilemezse veya catbox bağlantısı kopuyorsa yeniden üret & yükle
+        story_yenilendi = False
+        try:
+            r_test = requests.head(story_url, timeout=5) if story_url else None
+            if not r_test or r_test.status_code != 200:
+                story_yenilendi = True
+        except Exception:
+            story_yenilendi = True
+
+        if story_yenilendi or not story_url:
+            try:
+                story_yol = make_image.CIKTI_KLASORU / f"story-{ilk_h_dict['id']}.jpg"
+                if not story_yol.exists():
+                    story_img = make_image.story_haber(
+                        ilk_h_dict["ig_baslik"] or ilk_h_dict["baslik_orj"],
+                        ilk_h_dict["slayt_ozet"],
+                        ilk_h_dict["kaynak"],
+                        ayarlar,
+                        kategori=ilk_h_dict.get("kategori", "gundem")
+                    )
+                    story_yol.parent.mkdir(exist_ok=True, parents=True)
+                    story_img.save(story_yol, "JPEG", quality=96)
+
+                yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                story_url = yukleme.get("url")
+                con.execute("UPDATE haberler SET story_url = ? WHERE telegram_message_id = ?", (story_url, mesaj_id))
+                con.commit()
+            except Exception as e:
+                log.warning("Story görseli yerelden taze üretilemedi: %s", e)
+
+        if story_url:
+            try:
+                st_id = instagram.story_yayinla(story_url, ayarlar)
+                sonuclar.append(f"📱 <b>Instagram Story:</b> Başarıyla yayınlandı!")
+                con.execute("UPDATE haberler SET story_post_id = ? WHERE telegram_message_id = ?", (st_id, mesaj_id))
+                con.commit()
+            except Exception as e:
+                log.exception("Instagram Story telafi hatası: %s", e)
+                sonuclar.append(f"⚠️ <b>Instagram Story:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+            if bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at")):
+                try:
+                    fb_st_id = facebook.story_yayinla(story_url, ayarlar)
+                    sonuclar.append(f"📘 <b>Facebook Story:</b> Başarıyla yayınlandı!")
+                except Exception as e:
+                    log.warning("Facebook Story telafi hatası: %s", e)
+                    sonuclar.append(f"⚠️ <b>Facebook Story:</b> Başarısız ({type(e).__name__})")
+        else:
+            sonuclar.append("⚠️ <b>Story:</b> Story görseli üretilemedi/yüklenemedi.")
+
+    # 2. FACEBOOK POST TELAFİSİ
+    if kanal in ("facebook", "hepsi"):
+        try:
+            fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
+            con.execute("UPDATE haberler SET facebook_post_id = ? WHERE telegram_message_id = ?", (fb_id, mesaj_id))
+            con.commit()
+            fb_url = facebook.post_baglantisi(fb_id)
+            sonuclar.append(f"📘 <b>Facebook Albümü:</b> Başarıyla paylaşıldı!")
+            if fb_url:
+                canli_linkler.append([{"text": "📘 Facebook'ta Gör", "url": fb_url}])
+        except Exception as e:
+            log.exception("Facebook telafi hatası: %s", e)
+            sonuclar.append(f"⚠️ <b>Facebook:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+    # 3. THREADS TELAFİSİ
+    if kanal in ("threads", "hepsi"):
+        try:
+            halkalar = caption.threads_halkalari(
+                haberler, urller, son_dakika=son_dakika_mi,
+                ayarlar=ayarlar, tarihli=not son_dakika_mi
+            )
+            th_id, th_adet = threads.zincir_yayinla(halkalar)
+            if th_adet < len(halkalar):
+                try:
+                    th_adet, _ = threads.zinciri_tamamla(th_id, halkalar)
+                except Exception:
+                    pass
+            con.execute("UPDATE haberler SET threads_post_id = ? WHERE telegram_message_id = ?", (th_id, mesaj_id))
+            con.commit()
+            th_url = threads.post_baglantisi(th_id)
+            sonuclar.append(f"🧵 <b>Threads Zinciri:</b> Başarıyla paylaşıldı ({th_adet} halka)!")
+            if th_url:
+                canli_linkler.append([{"text": "🧵 Threads'te Gör", "url": th_url}])
+        except Exception as e:
+            log.exception("Threads telafi hatası: %s", e)
+            sonuclar.append(f"⚠️ <b>Threads:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+    # 4. TWITTER / X TELAFİSİ
+    if kanal in ("twitter", "hepsi"):
+        try:
+            if len(haberler) > 1 or (son_dakika_mi and len(urller) > 1):
+                tw_id, tw_adet = twitter.zincir_yayinla(haberler, urller, ayarlar, son_dakika=son_dakika_mi)
+            else:
+                tw_id = twitter.tekil_yayinla(haberler[0], urller, ayarlar)
+            if tw_id:
+                tw_url = twitter.post_baglantisi(tw_id)
+                sonuclar.append(f"🐦 <b>X (Twitter):</b> Başarıyla paylaşıldı!")
+                if tw_url:
+                    canli_linkler.append([{"text": "🐦 X'te Gör", "url": tw_url}])
+            else:
+                sonuclar.append("⚠️ <b>X (Twitter):</b> Yayınlanamadı (API hatası).")
+        except Exception as e:
+            log.exception("Twitter telafi hatası: %s", e)
+            sonuclar.append(f"⚠️ <b>X (Twitter):</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+    # 5. INSTAGRAM POST TELAFİSİ
+    if kanal in ("ig", "hepsi"):
+        try:
+            post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
+            con.execute("UPDATE haberler SET ig_post_id = ? WHERE telegram_message_id = ?", (post_id, mesaj_id))
+            con.commit()
+            ig_url = instagram.post_baglantisi(post_id, ayarlar)
+            sonuclar.append(f"📸 <b>Instagram Gönderisi:</b> Başarıyla yayınlandı!")
+            if ig_url:
+                canli_linkler.append([{"text": "📸 Instagram'da Gör", "url": ig_url}])
+        except Exception as e:
+            log.exception("Instagram telafi hatası: %s", e)
+            sonuclar.append(f"⚠️ <b>Instagram:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+    rapor = "\n".join(sonuclar)
+    telegram_bot.mesaj_gonder(
+        f"🛠️ <b>PLATFORM TELAFİ İŞLEMİ RAPORU</b>\n\n"
+        f"İşlemi Yapan: {basan or 'Bilinmiyor'}\n"
+        f"Hedef Tur: #{mesaj_id}\n\n"
+        f"{rapor}",
+        html=True,
+        butonlar=canli_linkler if canli_linkler else None
+    )
     return 0
 
 
@@ -805,16 +1003,8 @@ def havuzu_guncelle(con, ayarlar) -> int:
 
 def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
     """
-    Bu turun GERÇEKTEN yayınlanıp yayınlanmadığını Instagram'a sorar.
-
-    ⚠️ VERİTABANI GERÇEĞİN TEK KAYNAĞI DEĞİL. 20 Ağu 2026'da bir tur
-    yayınlandı, bir dakika sonra gelen `ertele` komutu kaydı bozdu ve
-    sistem postu "yayınlanmamış" sandı; aynı haber iki kez daha onaya
-    sunuldu. 21 Ağu'da da bir yayın komutu kuyrukta sessizce iptal
-    edildi ve kullanıcı yayınlandı mı bilemedi.
-
-    Bu düğme iki kaynağı da gösteriyor: veritabanı ne diyor, Instagram
-    ne diyor. Uyuşmuyorlarsa Instagram doğrudur.
+    Bu turun her platformdaki (Instagram, Story, Facebook, Threads, X) yayın durumunu denetler.
+    Eksik veya yayınlanmamış olan platformları tespit edip tek tıkla telafi butonları sunar.
     """
     haberler = turu_getir(con, mesaj_id)
     if not haberler:
@@ -822,13 +1012,19 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
             "⚠️ Bu mesaja bağlı tur bulunamadı — kapanmış olabilir.")
         return 0
 
-    db_durum = haberler[0]["durum"]
+    ilk = dict(haberler[0])
+    db_durum = ilk.get("durum")
     post_id = next((h["ig_post_id"] for h in haberler if h["ig_post_id"]), None)
+    story_id = next((h["story_post_id"] for h in haberler if h["story_post_id"]), None)
+    fb_id = next((h["facebook_post_id"] for h in haberler if h["facebook_post_id"]), None)
+    th_id = next((h["threads_post_id"] for h in haberler if h["threads_post_id"]), None)
     basliklar = [(h["ig_baslik"] or h["baslik_orj"] or "") for h in haberler]
 
-    satirlar = [f"🔍 <b>YAYIN DURUMU</b> ({len(haberler)} haber)", ""]
-    satirlar.append(f"Veritabanı : <code>{html.escape(db_durum)}</code>")
+    satirlar = [f"🔍 <b>TÜM PLATFORMLAR YAYIN DURUMU</b> (#{mesaj_id} - {len(haberler)} haber)", ""]
+    satirlar.append(f"<b>Veritabanı Durumu:</b> <code>{html.escape(str(db_durum))}</code>")
 
+    # 1. Instagram Feed
+    ig_var = False
     try:
         gecmis = instagram.son_yayinlanan_basliklar(ayarlar)
         bulunan = []
@@ -841,28 +1037,49 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
                     bulunan.append(b)
                     break
         if bulunan:
-            satirlar.append(f"Instagram  : ✅ <b>{len(bulunan)}/{len(basliklar)} "
-                            "haber yayında görünüyor</b>")
-            for b in bulunan[:3]:
-                satirlar.append(f"   • {html.escape(b[:56])}")
+            ig_var = True
+            satirlar.append(f"📸 <b>Instagram Post:</b> ✅ Yayında ({len(bulunan)}/{len(basliklar)} haber)")
+        elif post_id:
+            ig_var = True
+            satirlar.append(f"📸 <b>Instagram Post:</b> ✅ Yayında (ID: {post_id})")
         else:
-            satirlar.append("Instagram  : ❌ <b>bu haberler yayında YOK</b>")
-    except Exception as e:                            # noqa: BLE001
-        satirlar.append(f"Instagram  : ⚠️ sorulamadı ({type(e).__name__})")
-        bulunan = []
+            satirlar.append("📸 <b>Instagram Post:</b> ❌ Yayında YOK")
+    except Exception as e:
+        satirlar.append(f"📸 <b>Instagram Post:</b> ⚠️ Kontrol edilemedi ({type(e).__name__})")
 
-    if post_id:
-        satirlar += ["", instagram.post_baglantisi(post_id, ayarlar) or post_id]
-
-    if not bulunan and db_durum != "yayinlandi":
-        satirlar += ["", "Yayınlanmamış görünüyor — aşağıdaki düğmeyle "
-                         "tekrar deneyebilirsin."]
-        tuslar = [[{"text": "🔄 Tekrar yayınla",
-                    "callback_data": f"yeniden_yayinla:{mesaj_id}"}]]
+    # 2. Story
+    if story_id:
+        satirlar.append(f"📱 <b>Story:</b> ✅ Yayında (ID: {story_id})")
     else:
-        tuslar = None
+        satirlar.append("📱 <b>Story:</b> ⚠️ Yayınlanmadı / Bilgi Yok")
 
-    telegram_bot.mesaj_gonder("\n".join(satirlar), html=True, butonlar=tuslar)
+    # 3. Facebook
+    if fb_id:
+        satirlar.append(f"📘 <b>Facebook:</b> ✅ Yayında (ID: {fb_id})")
+    else:
+        satirlar.append("📘 <b>Facebook:</b> ⚠️ Yayınlanmadı / Kayıt Yok")
+
+    # 4. Threads
+    if th_id:
+        satirlar.append(f"🧵 <b>Threads:</b> ✅ Yayında (ID: {th_id})")
+    else:
+        satirlar.append("🧵 <b>Threads:</b> ⚠️ Yayınlanmadı / Kayıt Yok")
+
+    # Telafi Butonları
+    tuslar = []
+    if not story_id:
+        tuslar.append([{"text": "🔄 📱 Story'i Yayınla / Telafi Et", "callback_data": f"retry_kanal:story:{mesaj_id}"}])
+    if not fb_id and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at")):
+        tuslar.append([{"text": "🔄 📘 Facebook'a Gönder", "callback_data": f"retry_kanal:facebook:{mesaj_id}"}])
+    if not th_id and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")):
+        tuslar.append([{"text": "🔄 🧵 Threads'e Gönder", "callback_data": f"retry_kanal:threads:{mesaj_id}"}])
+    if not ig_var and db_durum != "yayinlandi":
+        tuslar.append([{"text": "🔄 📸 Instagram Postunu Yayınla", "callback_data": f"retry_kanal:ig:{mesaj_id}"}])
+
+    if len(tuslar) > 1:
+        tuslar.insert(0, [{"text": "🔄 Eksik Tüm Kanalları Yayınla", "callback_data": f"retry_kanal:hepsi:{mesaj_id}"}])
+
+    telegram_bot.mesaj_gonder("\n".join(satirlar), html=True, butonlar=tuslar if tuslar else None)
     return 0
 
 
@@ -2360,6 +2577,13 @@ def main() -> int:
             return gorseli_kabul_et(con, ayarlar, tur, int(sira), int(tur_mid))
         return slayt_islemi(con, ayarlar, tur, "slayt_foto",
                             int(sira), int(tur_mid))
+
+    if komut.startswith("retry_kanal:"):
+        parcalar = komut.split(":")
+        hedef_kanal = parcalar[1]
+        hedef_mid = int(parcalar[2]) if len(parcalar) > 2 else mesaj_id
+        tur = turu_getir(con, hedef_mid)
+        return kanal_telafi_et(con, ayarlar, tur, hedef_mid, hedef_kanal, basan)
 
     if komut.startswith("yayin_kontrol:"):
         return yayin_durumu_kontrol(con, ayarlar, int(komut.split(":")[1]))

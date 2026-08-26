@@ -121,8 +121,8 @@ def _uguya_yukle(yol: Path, zaman_asimi: int) -> dict:
 # tmpfiles ev bağlantısından çalışıyor ama veri merkezi IP'sinden
 # reddediliyor. Yeni aday eklemeden önce o scripti Actions'ta çalıştır.
 YEDEK_BARINDIRICILAR = (
-    ("litterbox", _litterboxa_yukle),
     ("uguu", _uguya_yukle),
+    ("litterbox", _litterboxa_yukle),
 )
 
 
