@@ -293,7 +293,11 @@ def kota_ve_durum_raporu(con, ayarlar: dict) -> str:
     """
     Veritabanı durumunu, haber sayılarını ve Gemini ücretli kullanım istatistiklerini raporlar.
     """
-    satirlar = ["📊 <b>CANLI DURUM & KOTA RAPORU</b>\n"]
+    from .zaman import su_an_tr, tr_format
+    satirlar = [
+        "📊 <b>CANLI DURUM & KOTA RAPORU</b>\n",
+        f"🕒 <b>Canlı Saat:</b> {tr_format(su_an_tr(), 'tarih_saat')}",
+    ]
 
     # 1. Duraklatma Durumu
     duraklatildi, kalan = duraklatildi_mi(con)

@@ -75,6 +75,8 @@ const HABER_VAZGEC = /^haber_vazgec:\d{1,12}$/;
 //   yeniden_yayinla:{turMesajId} -> önce kontrol, yayınlanmamışsa yayınlar
 const YAYIN_KONTROL = /^yayin_kontrol:\d{1,12}$/;
 const YENIDEN_YAYINLA = /^yeniden_yayinla:\d{1,12}$/;
+const RETRY_KANAL = /^retry_kanal:(story|facebook|threads|twitter|ig|reels|hepsi):\d{1,12}$/;
+const KURTAR = /^kurtar:\d{1,12}$/;
 
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
@@ -110,8 +112,8 @@ const KALDIR = /^kaldir:(\d{1,12})$/;
 // içinde taşınıyor ("ayarmenu:genel.gece_otomatik_yayin:true-false"),
 // böylece seçenek listesi yalnızca src/ayar.py'de duruyor — menüyü
 // üçüncü bir yerde tekrarlamıyoruz.
-const AYAR_MENU = /^ayarmenu:([a-z_]+\.[a-z_]+):([a-z0-9\-]{1,40})$/;
-const AYAR_SEC  = /^ayarsec:[a-z_]+\.[a-z_]+:[a-z0-9]{1,10}$/;
+const AYAR_MENU = /^ayarmenu:[a-z0-9_.]+:([a-z0-9_-]+)$/;
+const AYAR_SEC  = /^ayarsec:[a-z0-9_.]+:([a-z0-9_]+)$/;
 
 // Hata bildirimindeki eylem düğmeleri (src/hata_bildir.py üretiyor).
 // "tur_tekrar" ve "tur_metinsiz" GitHub'da tur kurdurur; "ayrinti"
@@ -135,6 +137,7 @@ function eylemMi(veri) {
     || HABER_DEGISTIR.test(veri) || HABER_SEC.test(veri)
     || HABER_VAZGEC.test(veri)
     || YAYIN_KONTROL.test(veri) || YENIDEN_YAYINLA.test(veri)
+    || RETRY_KANAL.test(veri) || KURTAR.test(veri)
     || GORSEL_ONAY.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
@@ -327,6 +330,8 @@ const KOMUT_ADI = {
   slayt_sil: "Slayt çıkarılıyor",
   metin_duzenle: "Yeni metin uygulanıyor",
   hata: "Tur yeniden kuruluyor",
+  kurtar: "Tur menüsü kurtarılıyor",
+  retry_kanal: "Kanal yayını telafi ediliyor",
 };
 
 /**

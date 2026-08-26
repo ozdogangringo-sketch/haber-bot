@@ -143,9 +143,12 @@ def _sadelestir(metin: str) -> str:
 def hata_kaydet(nerede: str, baslik: str, ham_hata: str, teshis: dict) -> None:
     """Her hatayı kalıcı jsonl ve son_hata.txt dosyalarına yazar."""
     try:
+        from .zaman import su_an_tr, tr_format
         HATA_LOG_YOLU.parent.mkdir(parents=True, exist_ok=True)
+        simdi = su_an_tr()
         kayit = {
-            "tarih": datetime.now(timezone.utc).isoformat(),
+            "tarih": simdi.isoformat(),
+            "tarih_tr": tr_format(simdi, "tarih_saat"),
             "nerede": nerede,
             "baslik": baslik,
             "ne_oldu": teshis.get("ne_oldu", ""),
@@ -159,7 +162,7 @@ def hata_kaydet(nerede: str, baslik: str, ham_hata: str, teshis: dict) -> None:
             f.write(json.dumps(kayit, ensure_ascii=False) + "\n")
 
         with open(SON_HATA_YOLU, "w", encoding="utf-8") as f:
-            f.write(f"[{kayit['tarih']}] {nerede} -> {baslik}\n\n{ham_hata[:3000]}")
+            f.write(f"[{kayit['tarih_tr']}] {nerede} -> {baslik}\n\n{ham_hata[:3000]}")
     except Exception as e:
         log.warning("hata loguna yazılamadı: %s", e)
 

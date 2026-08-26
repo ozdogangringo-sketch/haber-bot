@@ -124,12 +124,13 @@ def rapor_kur(con, ayarlar: dict, repo: str) -> str:
         pass
 
     # --- Dünkü yayınlar ---
+    from src.zaman import tr_format
     yayinlar = dunku_yayinlar(con)
     if yayinlar:
         satirlar.append(f"📤 SON 24 SAAT — {len(yayinlar)} yayın")
         for y in yayinlar:
             tur = "Son dakika" if y["sd"] else "Akşam turu"
-            saat = (y["zaman"] or "")[11:16]
+            saat = tr_format(y["zaman"], "saat") if y["zaman"] else ""
             kanal = "".join([
                 "📷" if y["ig"] else "",
                 "📘" if y["fb"] else "",

@@ -2305,47 +2305,97 @@ def menuyu_geri_koy(con, mesaj_id: int) -> None:
 
 def durum_bildir(con, ayarlar) -> int:
     """
-    /durum komutunun cevabı: bot şu an ne durumda?
-
-    Telegram'dan sorulabilmesi önemli — aksi halde "acaba tur hazırlandı
-    mı, onay bekleyen var mı" sorusunun cevabı yalnızca GitHub Actions
-    kayıtlarında oluyor ve telefondan bakmak zor.
+    /durum komutunun cevabı: Botun ve bekleyen tüm turların detaylı, şeffaf ve interaktif durum raporu.
     """
+    from src.zaman import tr_format, goreceli_zaman, su_an_tr
+
+    # 1. Genel Sayımlar
     sayim = dict(con.execute(
         "SELECT durum, COUNT(*) FROM haberler GROUP BY durum"
     ).fetchall())
 
-    bekleyen = list(con.execute(
-        "SELECT * FROM haberler WHERE durum IN ('onay_bekliyor','ertelendi') "
-        "ORDER BY onem_puani DESC"
-    ))
+    # 2. Onay Bekleyen veya Açık Turlar (telegram_message_id'ye göre grupla)
+    bekleyen_mesajlar = con.execute("""
+        SELECT telegram_message_id, tur, son_dakika, durum,
+               MIN(gonderim_zamani) as ilk_zaman,
+               COUNT(*) as slayt_sayisi,
+               GROUP_CONCAT(COALESCE(ig_baslik, baslik_orj), ' || ') as basliklar
+        FROM haberler 
+        WHERE durum IN ('onay_bekliyor', 'baslik_onayi', 'ertelendi')
+           OR (telegram_message_id IS NOT NULL AND durum != 'yayinlandi')
+        GROUP BY telegram_message_id
+        ORDER BY ilk_zaman DESC
+    """).fetchall()
 
-    son = con.execute(
-        "SELECT ig_post_id, MAX(gonderim_zamani) z, COUNT(*) n FROM haberler "
-        "WHERE durum = 'yayinlandi' AND ig_post_id IS NOT NULL"
-    ).fetchone()
+    # 3. Son Yayınlanan Post
+    son = con.execute("""
+        SELECT ig_post_id, MAX(gonderim_zamani) z, COUNT(*) n,
+               COALESCE(ig_baslik, baslik_orj) baslik
+        FROM haberler 
+        WHERE durum = 'yayinlandi' AND ig_post_id IS NOT NULL
+        GROUP BY telegram_message_id ORDER BY z DESC LIMIT 1
+    """).fetchone()
 
     satirlar = [
-        "📊 BOT DURUMU",
-        "",
-        f"Havuzda bekleyen haber : {sayim.get('yeni', 0)}",
-        f"Metni hazır            : {sayim.get('metin_hazir', 0)}",
-        f"Yayınlanmış            : {sayim.get('yayinlandi', 0)}",
+        "📊 <b>DAILY BRIEF — SİSTEM & YAYIN DURUMU</b>\n",
+        f"🕒 <b>Canlı Saat:</b> {tr_format(su_an_tr(), 'tarih_saat')}",
+        f"📰 <b>Taze Haber Havuzu:</b> {sayim.get('metin_hazir', 0)} hazır haber ({sayim.get('yeni', 0)} işlenmemiş)",
+        f"✅ <b>Yayınlanan Toplam:</b> {sayim.get('yayinlandi', 0)} haber\n",
     ]
 
-    if bekleyen:
-        satirlar += [
-            "",
-            f"⏳ ONAY BEKLEYEN TUR VAR — {len(bekleyen)} slayt",
-            "Onay mesajı yukarıda; görmüyorsan /tur ile yenisini kurabilirsin.",
-        ]
+    butonlar = []
+
+    if bekleyen_mesajlar:
+        satirlar.append(f"⏳ <b>AÇIKTA / ONAY BEKLEYEN {len(bekleyen_mesajlar)} İŞLEM:</b>\n")
+        for b in bekleyen_mesajlar:
+            mid = b["telegram_message_id"] or 0
+            tur_adi = "📊 Ekonomi Turu" if b["tur"] == "ekonomi" else ("⚡ Son Dakika" if b["son_dakika"] else "📋 Gündem Turu")
+            zaman_str = tr_format(b["ilk_zaman"], "tam") if b["ilk_zaman"] else "Bilinmiyor"
+            goreceli = goreceli_zaman(b["ilk_zaman"]) if b["ilk_zaman"] else ""
+            goreceli_ek = f" ({goreceli})" if goreceli else ""
+
+            ilk_baslik = (b["basliklar"] or "").split(" || ")[0]
+            if len(ilk_baslik) > 65:
+                ilk_baslik = ilk_baslik[:65] + "…"
+
+            satirlar.append(
+                f"🔹 <b>#{mid}</b> {tur_adi} ({b['slayt_sayisi']} slayt)\n"
+                f"   • <b>Manşet:</b> {html.escape(ilk_baslik)}\n"
+                f"   • <b>Durum:</b> <code>{b['durum']}</code>\n"
+                f"   • <b>Gönderim:</b> {zaman_str}{goreceli_ek}"
+            )
+
+            # Eğer 10 dakikadan eski ve hala onay bekliyorsa uyarı ekle
+            if goreceli and ("dakika" in goreceli or "saat" in goreceli or "gün" in goreceli):
+                satirlar.append("   ⚠️ <i>(Uzun süredir işlem bekliyor / kilitlenmiş olabilir)</i>")
+            satirlar.append("")
+
+            if mid > 0:
+                butonlar.append([
+                    {"text": f"🔄 #{mid} Menüyü Kurtar / Aç", "callback_data": f"kurtar:{mid}"},
+                    {"text": f"🚀 #{mid} Şimdi Yayınla", "callback_data": f"yayinla:{mid}"},
+                ])
+                butonlar.append([
+                    {"text": f"🔍 #{mid} Durum Sorgula", "callback_data": f"yayin_kontrol:{mid}"},
+                    {"text": f"🗑 #{mid} İptal / Havuza At", "callback_data": f"iptal:{mid}"},
+                ])
     else:
-        satirlar += ["", "✅ Onay bekleyen tur yok."]
+        satirlar.append("✅ <b>Onay bekleyen veya askıda kalan tur yok.</b> Her şey güncel.\n")
 
     if son and son["z"]:
-        satirlar += ["", f"Son yayın: {son['z']} (UTC)"]
+        son_zaman = tr_format(son["z"], "tam")
+        son_goreceli = goreceli_zaman(son["z"])
+        satirlar.append(f"📸 <b>Son Yayın:</b> {son_zaman} ({son_goreceli})\n«{html.escape(son['baslik'] or '')}»")
 
-    telegram_bot.mesaj_gonder("\n".join(satirlar))
+    butonlar.append([
+        {"text": "🔄 Durumu Yenile", "callback_data": "durum"},
+        {"text": "🧹 Askıdakileri Temizle", "callback_data": "tur_temizle"},
+    ])
+    butonlar.append([
+        {"text": "⚙️ Yönetim Paneli", "callback_data": "yonetim_panel"},
+    ])
+
+    telegram_bot.mesaj_gonder("\n".join(satirlar), html=True, butonlar=butonlar)
     return 0
 
 
@@ -2820,6 +2870,18 @@ def main() -> int:
         return yayin_durumu_kontrol(con, ayarlar, int(komut.split(":")[1]))
     if komut.startswith("yeniden_yayinla:"):
         return yeniden_yayinla(con, ayarlar, int(komut.split(":")[1]), basan)
+    if komut.startswith("kurtar:"):
+        hedef_mid = int(komut.split(":")[1])
+        menuyu_geri_koy(con, hedef_mid)
+        _albumu_yenile(con, hedef_mid)
+        telegram_bot.mesaj_gonder(
+            f"🔄 <b>#{hedef_mid} Numaralı Tur Başarıyla Kurtarıldı!</b>\n\n"
+            f"Onay butonları yeniden mesaja bağlandı ve slayt albümü tazelendi. "
+            f"Yukarıdaki mesajdan yayını başlatabilir veya düzenleyebilirsiniz.",
+            html=True,
+        )
+        return 0
+
     if komut.startswith("haber_vazgec:"):
         menuyu_geri_koy(con, int(komut.split(":")[1]))
         telegram_bot.mesaj_gonder("Haber değiştirilmedi.")
@@ -2973,12 +3035,14 @@ def main() -> int:
             yon = "🟢 +" if br['degisim'] >= 0 else "🔴 "
             satirlar.append(f"• <b>Brent Petrol:</b> ${br['fiyat']:.2f} ({yon}%{br['degisim']:.2f})")
 
-        satirlar.append(f"\n⏰ <i>Güncelleme: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}</i>")
+        from src.zaman import tr_format, su_an_tr
+        satirlar.append(f"\n⏰ <i>Canlı Piyasa: {tr_format(su_an_tr(), 'canli')}</i>")
         telegram_bot.mesaj_gonder("\n".join(satirlar), html=True)
         return 0
 
     if komut.startswith("hisse:") or komut.startswith("kripto:"):
         from src import piyasa
+        from src.zaman import tr_format, su_an_tr
         sembol = komut.split(":", 1)[1].strip()
         veri = piyasa.varlik_sorgula(sembol)
         if not veri:
@@ -3001,12 +3065,13 @@ def main() -> int:
             f"📈 <b>Gün İçi En Yüksek:</b> {yuksek_str} {para}",
             f"📉 <b>Gün İçi En Düşük:</b> {dusuk_str} {para}",
             f"🏷️ <b>Sembol / Borsa:</b> <code>{veri['sembol']}</code>",
-            f"\n⏰ <i>Canlı Veri: {datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}</i>",
+            f"\n⏰ <i>Canlı Veri: {tr_format(su_an_tr(), 'canli')}</i>",
         ]
         telegram_bot.mesaj_gonder("\n".join(satirlar), html=True)
         return 0
 
     if komut in ("sonpostlar", "son_postlar"):
+        from src.zaman import tr_format, goreceli_zaman
         satirlar_db = con.execute(
             "SELECT ig_baslik, durum, yayin_tarihi, telegram_message_id "
             "FROM haberler WHERE durum = 'yayinlandi' "
@@ -3019,10 +3084,12 @@ def main() -> int:
         rapor = ["📰 <b>SON YAYINLANAN POSTLAR & KANALLAR</b>\n"]
         for idx, s in enumerate(satirlar_db, start=1):
             baslik = s["ig_baslik"] or "Daily Brief Haber Turu"
-            tarih = s["yayin_tarihi"] or "Yeni"
+            tarih_str = tr_format(s["yayin_tarihi"], "tam") if s["yayin_tarihi"] else "Yeni"
+            goreceli = goreceli_zaman(s["yayin_tarihi"])
+            goreceli_ek = f" ({goreceli})" if goreceli else ""
             rapor.append(
-                f"{idx}. <b>{baslik[:65]}</b>\n"
-                f"   ⏰ <i>{tarih[:16]}</i> · ✅ Instagram, Threads, FB, X\n"
+                f"{idx}. <b>{html.escape(baslik[:65])}</b>\n"
+                f"   ⏰ <i>{tarih_str}{goreceli_ek}</i> · ✅ Instagram, Threads, FB, X\n"
             )
         rapor.append("🔗 <i>Sosyal medya hesaplarından canlı görüntüleyebilirsiniz.</i>")
         telegram_bot.mesaj_gonder("\n".join(rapor), html=True)
