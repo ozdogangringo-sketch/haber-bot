@@ -237,67 +237,19 @@ def threads_halkalari(
 ) -> list[dict]:
     """
     Turu Threads zincirine çevirir: her görsel bir halka.
-
-    `[{"metin": str, "gorsel_url": str}, ...]` döner; ilk eleman ana
-    gönderi, kalanlar sırayla ona zincirlenecek yanıtlar.
-
-    ANA HALKA akışta görünen tek gönderi: tarih + ilk manşet + hashtag.
-    Hashtag'i sonraki halkalara koymanın anlamı yok, onları yalnızca
-    zinciri açan görüyor.
-
-    AKŞAM TURU : her haber kendi slaytıyla bir halka.
-    SON DAKİKA : ilk halka haberin kendisi, sonrakiler ayrıntı sayfaları;
-                 metinleri `detay_metni` paragraflarından geliyor.
-
-    NEDEN CAROUSEL DEĞİL: Threads metin platformu, 500 karakter sınırı
-    var ve uzun anlatım zincirle yapılıyor. 10 slaytlık carousel oranın
-    dili değil, üstelik metin de kırpılıyordu.
+    Twitter (X) Flood yapısıyla %100 aynı zengin, numaralı ve kaynaklı metin şablonunu kullanır.
     """
-    ilk_haber = dict(haberler[0]) if haberler else {}
-    if ilk_haber.get("tur") == "ekonomi":
-        halkalar = [{"metin": "📊 Günün Piyasa Açılışı ve Öne Çıkan Ekonomi Başlıkları", "gorsel_url": urller[0]}]
-        if len(urller) >= len(haberler) + 2:
-            halkalar.append({"metin": "📋 Global & Yerel 30 Varlık Piyasa Karnesi", "gorsel_url": urller[1]})
-            haber_urller = urller[2:]
-        else:
-            haber_urller = urller[1:]
+    if not haberler:
+        return []
 
-        for sira, (haber, url) in enumerate(zip(haberler, haber_urller), start=1):
-            manset = (haber["ig_baslik"] or haber["baslik_orj"]).strip()
-            halkalar.append({"metin": f"{sira}. {manset}", "gorsel_url": url})
-        return halkalar
+    metinler = twitter_zincir_metinleri(
+        haberler, ayarlar=ayarlar, son_dakika=son_dakika, urller=urller
+    )
 
-    if son_dakika:
-        # Tarihsiz hâlde başlık tek başına duruyor; kırmızı nokta ve
-        # büyük harf onu akışta ayırt edilir kılıyor.
-        baslik = "🔴 SON DAKİKA" if not tarihli else "Son dakika"
-    else:
-        baslik = "Günün gündemi"
-
-    ana_metin = kisa_metin_kur(haberler[:1], THREADS_AZAMI, gun=gun,
-                               ayarlar=ayarlar, baslik=baslik,
-                               tarihli=tarihli)
-    halkalar = [{"metin": ana_metin, "gorsel_url": urller[0]}]
-
-    if son_dakika:
-        paragraflar = [p.strip() for p in
-                       (haberler[0]["detay_metni"] or "").split("\n\n")
-                       if p.strip()]
-        # `detay_metni` sonradan eklendi; eski kayıtlarda yok. Metinsiz
-        # bir gönderi Threads'te yavan duruyor — orada okunan şey metin.
-        if not paragraflar and haberler[0]["ig_caption"]:
-            paragraflar = [haberler[0]["ig_caption"].strip()]
-
-        for i, url in enumerate(urller[1:]):
-            metin = paragraflar[i] if i < len(paragraflar) else ""
-            if not metin:
-                continue          # söyleyecek sözü yoksa halka eklemiyoruz
-            halkalar.append({"metin": metin, "gorsel_url": url})
-    else:
-        for sira, (haber, url) in enumerate(zip(haberler[1:], urller[1:]),
-                                            start=2):
-            manset = (haber["ig_baslik"] or haber["baslik_orj"]).strip()
-            halkalar.append({"metin": f"{sira}. {manset}", "gorsel_url": url})
+    halkalar = []
+    for i, metin in enumerate(metinler):
+        url = urller[i] if i < len(urller) else None
+        halkalar.append({"metin": metin, "gorsel_url": url})
 
     return halkalar
 
