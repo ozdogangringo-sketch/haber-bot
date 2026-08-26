@@ -1413,12 +1413,19 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         )
         con.commit()
         kalan = len(haberler) - 1
+        if kalan == 0:
+            telegram_bot.sonucu_yaz(
+                mesaj_id,
+                f"🗑️ <b>Haber tamamen çöpe atıldı</b> (iptal edildi, havuza dönmeyecek).",
+            )
+            return 0
         telegram_bot.mesaj_gonder(
             f"🗑️ <b>{sira}. slayttaki haber tamamen çöpe atıldı</b> (iptal edildi, havuza dönmeyecek).\n"
             f"Kalan slayt sayısı: {kalan}",
             html=True,
         )
         _albumu_yenile(con, mesaj_id)
+        menuyu_geri_koy(con, mesaj_id)
         return 0
 
     if komut == "sansur_kaldir":
