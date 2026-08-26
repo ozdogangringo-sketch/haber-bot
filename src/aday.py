@@ -279,16 +279,18 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
                 and secim.ortak_kelime(isimler, onceki_i)):
             return False, "bu seçimde aynı olay zaten var"
 
-    # 5) Son günlerde YAYINLANMIŞ bir olayın tekrarı mı?
+    # 5) Son günlerde YAYINLANMIŞ veya ONAYDA OLAN bir olayın tekrarı mı?
     #
-    # ⚠️ Muafiyet: gerçekten büyük bir olay günün özetinde de yer
-    # almalı. Gündüz son dakika olarak paylaşılan bir deprem, akşam
-    # özetinde de görünmeli — özet o günü anlatıyor.
+    # ⚠️ Muafiyet: 9+ puanlık çok büyük olaylar akşam özetine girebilsin diye
+    # muafiyet uygulanır. Tekil postlar ve gece otomatik yayını ise
+    # katman0_mukerrer_denetimi ile ayrıca korunur.
     if puan < baglam.muafiyet_puani:
         for onceki_k, onceki_i in baglam.gecmis_konular:
-            if (len(secim.ortak_kelime(kelimeler, onceki_k)) >= baglam.gecmis_esik
-                    and secim.ortak_kelime(isimler, onceki_i)):
-                return False, "bu konu son günlerde yayınlandı"
+            ortak_k = secim.ortak_kelime(kelimeler, onceki_k)
+            ortak_i = secim.ortak_kelime(isimler, onceki_i)
+            if (ortak_i and len(ortak_k) >= 1) or len(ortak_k) >= baglam.gecmis_esik:
+                cakisan = ", ".join(ortak_i or list(ortak_k)[:2])
+                return False, f"bu konu son günlerde yayınlandı ({cakisan})"
 
     return True, "uygun"
 

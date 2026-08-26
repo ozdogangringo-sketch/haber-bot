@@ -297,26 +297,30 @@ def _anahtar_kelimeler(baslik: str) -> set[str]:
     return kelimeler
 
 
-def yayinlanmis_konular(con, ayarlar: dict) -> list[set]:
+def yayinlanmis_konular(con, ayarlar: dict) -> list[tuple[set[str], set[str]]]:
     """
-    Son günlerde YAYINLANMIŞ haberlerin anahtar kelime kümeleri.
+    Son günlerde YAYINLANMIŞ, ONAYDA BEKLEYEN veya İŞLENMİŞ haberlerin anahtar kelime kümeleri.
 
-    ⚠️ NEDEN GEREKTİ (18 Ağu 2026): "Bozbey CHP'den istifa etti" haberi
-    aynı gün İKİ KEZ yayınlandı (14:47 ve 16:48) ve akşam turunda
-    ÜÇÜNCÜ kez seçilmişti. Aynı olay beş ayrı kayıt olarak duruyordu —
-    Sözcü, TRT, BBC, Independent hepsi ayrı haber yazmıştı.
-
-    `haberler.link` UNIQUE olduğu için tekrar engeli sanılıyordu ama o
-    yalnızca AYNI LİNKİ engelliyor; farklı kaynakların aynı olayı ayrı
-    linklerle vermesi tekrar sayılmıyordu. `cesitlendir` de yalnızca
-    tur İÇİNDEKİ haberleri karşılaştırıyordu.
+    ⚠️ NEDEN GEREKTİ: Kullanıcı gündüz tekil post yayınladığında veya bir haber
+    onay beklerken, aynı olayın başka bir kaynaktan gelen kopyası gece otomatik
+    yayına ya da yeni bir tekil posta ASLA girememelidir.
     """
     gun = (ayarlar.get("secim", {}) or {}).get("gecmis_konu_gun", 2)
+    sutunlar = {col[1] for col in con.execute("PRAGMA table_info(haberler)").fetchall()}
+    has_mid = "telegram_message_id" in sutunlar
+    where_durum = ("(durum = 'yayinlandi' OR telegram_message_id IS NOT NULL OR durum IN ('onay_bekliyor', 'baslik_onayi', 'ertelendi'))"
+                   if has_mid else
+                   "(durum IN ('yayinlandi', 'onay_bekliyor', 'baslik_onayi', 'ertelendi'))")
+
     satirlar = con.execute(
-        """SELECT ig_baslik, baslik_orj FROM haberler
-           WHERE durum='yayinlandi'
-             AND gonderim_zamani > datetime('now', ?)""",
-        (f"-{gun} day",),
+        f"""SELECT ig_baslik, baslik_orj FROM haberler
+           WHERE {where_durum}
+             AND (
+               (gonderim_zamani IS NOT NULL AND gonderim_zamani > datetime('now', ?))
+               OR (yayin_tarihi IS NOT NULL AND yayin_tarihi > datetime('now', ?))
+               OR (cekilme_zamani IS NOT NULL AND cekilme_zamani > datetime('now', ?))
+             )""",
+        (f"-{gun} day", f"-{gun} day", f"-{gun} day"),
     ).fetchall()
     # ⚠️ `konu_imzasi` — `_ozel_isimler` DEĞİL. İkincisi başlığın ilk
     # kelimesini atlıyor ve haber başlıkları çok sık yer adıyla
@@ -325,16 +329,6 @@ def yayinlanmis_konular(con, ayarlar: dict) -> list[set]:
     basliklar = [b for b in ((r[0] or r[1]) for r in satirlar) if b]
 
     # ⚠️ VERİTABANI TEK KAYNAK DEĞİL — Instagram'a da soruyoruz.
-    #
-    # 20 Ağu 2026'da ölçüldü: "Merkez Bankası rezervleri" TR 17:47'de,
-    # "TUFAN Kamikaze İDA" TR 17:19'da Instagram'da YAYINLANDI ama
-    # veritabanında ikisinin de hiçbir kaydı 'yayinlandi' değildi.
-    # İkisi de akşam turuna yeniden girdi. Aynı turdaki Endonezya
-    # haberi ise DB'de doğru kayıtlıydı ve kural onu YAKALADI — yani
-    # kural sağlam, beslendiği veri eksikti.
-    #
-    # CLAUDE.md 1u aynı dersi zaten yazıyordu: bir haberin yayınlanıp
-    # yayınlanmadığının kesin cevabı Instagram API'sinde.
     basliklar += _instagram_gecmisi(ayarlar)
 
     return [konu_imzasi(b) for b in basliklar if b]

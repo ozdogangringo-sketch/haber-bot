@@ -287,22 +287,37 @@ def katman4_riskli_kategori(haber) -> tuple[bool, str]:
                    f"'en az / yaklaşık' gibi ihtiyat yok")
 
 
+def katman0_mukerrer_denetimi(con, haber, ayarlar: dict) -> tuple[bool, str]:
+    """
+    Son 48 saat içinde veritabanında (yayınlandı, onay bekliyor) veya Instagram'da
+    benzer bir haber var mı denetler. Varsa otomatik yayın DERHAL DURDURULUR.
+    """
+    from . import secim
+    gecmis = secim.yayinlanmis_konular(con, ayarlar)
+    baslik = haber.get("ig_baslik") or haber.get("baslik_orj") or ""
+    kelimeler, isimler = secim.konu_imzasi(baslik)
+
+    for onceki_k, onceki_i in gecmis:
+        ortak_k = secim.ortak_kelime(kelimeler, onceki_k)
+        ortak_i = secim.ortak_kelime(isimler, onceki_i)
+        if (ortak_i and len(ortak_k) >= 1) or len(ortak_k) >= 2:
+            cakisan = ", ".join(ortak_i or list(ortak_k)[:2])
+            return False, f"son 48 saatte benzer haber yayınlanmış/onayda ({cakisan})"
+
+    return True, "mükerrer değil, taze ve özgün konu"
+
+
 def otomatik_yayinlanabilir(con, haber, ayarlar: dict) -> tuple[bool, list[str]]:
     """
-    Dört katmanı sırayla uygular.
+    Çok katmanlı otomatik yayın doğrulamasını sırayla uygular.
 
     HEPSİ geçmek zorunda. Biri bile reddederse otomatik yayın yok;
     haber sabaha bırakılıp insana soruluyor.
-
-    Katmanlar ucuzdan pahalıya sıralı: LLM çağrısı en sonda, çünkü
-    ilk üç katmandan biri zaten reddediyorsa kotayı harcamanın anlamı
-    yok.
-
-    Döner: (yayinlanabilir, [her katmanın raporu])
     """
     rapor = []
 
     for ad, fn in (
+        ("0 mükerrer denetimi", lambda: katman0_mukerrer_denetimi(con, haber, ayarlar)),
         ("1 deterministik", lambda: katman1_deterministik(haber)),
         ("2 kaynak güveni", lambda: katman2_ikinci_kaynak(con, haber, ayarlar)),
         ("4 riskli kategori", lambda: katman4_riskli_kategori(haber)),
