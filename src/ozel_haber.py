@@ -169,19 +169,31 @@ def linkten_haber_uret(url: str, con, ayarlar: dict, basan: str = "") -> int:
             telegram_bot.mesaj_gonder("⚠️ Linkteki sayfa metni okunamadı veya erişim engellendi.")
             return 1
 
-        # Veritabanına geçici kayıt oluştur
-        cursor = con.execute(
-            """INSERT INTO haberler (
-                kaynak, kategori, agirlik, baslik_orj, link, ozet_orj, makale_metni,
-                yayin_tarihi, cekilme_zamani, durum
-            ) VALUES (?, 'dunya', 10, ?, ?, ?, ?, datetime('now'), datetime('now'), 'yeni')""",
-            (kaynak, baslik[:250], url, govde[:800], govde),
-        )
-        haber_id = cursor.lastrowid
-        con.commit()
+        # Veritabanında varsa getir veya yeni kayıt oluştur
+        var_mi = con.execute("SELECT id FROM haberler WHERE link = ?", (url,)).fetchone()
+        if var_mi:
+            haber_id = var_mi["id"]
+            con.execute(
+                """UPDATE haberler SET
+                    kaynak = ?, baslik_orj = ?, ozet_orj = ?, makale_metni = ?,
+                    yayin_tarihi = datetime('now'), durum = 'yeni'
+                WHERE id = ?""",
+                (kaynak, baslik[:250], govde[:800], govde, haber_id),
+            )
+            con.commit()
+        else:
+            cursor = con.execute(
+                """INSERT INTO haberler (
+                    kaynak, kategori, agirlik, baslik_orj, link, ozet_orj, makale_metni,
+                    yayin_tarihi, cekilme_zamani, durum
+                ) VALUES (?, 'dunya', 10, ?, ?, ?, ?, datetime('now'), datetime('now'), 'yeni')""",
+                (kaynak, baslik[:250], url, govde[:800], govde),
+            )
+            haber_id = cursor.lastrowid
+            con.commit()
 
         if gorsel:
-            con.execute("UPDATE haberler SET og_image_url = ? WHERE id = ?", (gorsel, haber_id))
+            con.execute("UPDATE haberler SET gorsel_kaynagi = 'haber_gorseli' WHERE id = ?", (haber_id,))
             con.commit()
 
         # Gemini ile metinleri üret

@@ -62,9 +62,11 @@ MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
                      "havuz_guncelle", "sondakika", "son_dakika", "haftalik", "video", "reels",
                      "yonetim", "yonetim_panel", "duraklat", "devam_et",
                      "saglik_testi", "kota_raporu", "tur_temizle",
-                     "haber_sec", "haber_vazgec",
+                     "haber_sec", "haber_vazgec", "kurtar",
+                     "link", "arastir", "ozel", "faiz", "enflasyon", "fed", "makro",
+                     "hisse", "kripto", "piyasa", "sonpostlar", "son_postlar",
                      # Tur id'sini KOMUTTA taşıyorlar (ayrı mesajın düğmesi)
-                     "yayin_kontrol", "yeniden_yayinla",
+                     "yayin_kontrol", "yeniden_yayinla", "retry_kanal",
                      "gorsel_kabul", "gorsel_yeni"}
 
 
