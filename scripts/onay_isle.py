@@ -1322,6 +1322,20 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         )
         return 0
 
+    if komut == "slayt_elle":
+        telegram_bot.mesaj_gonder(
+            f"✍️ <b>{sira}. Slaytın Başlık ve Metnini Elle Düzenleme</b>\n\n"
+            f"Mevcut Başlık: <i>{html.escape(haber['ig_baslik'] or haber['baslik_orj'] or '')}</i>\n"
+            f"Mevcut Özet: <i>{html.escape(haber['slayt_ozet'] or haber['ozet_orj'] or '')}</i>\n\n"
+            f"Bu mesaja <b>Yanıtla (Reply)</b> yaparak yeni metni yazabilirsin:\n"
+            f"• <b>Sadece Yeni Başlık:</b> <code>{sira}: Yeni Başlık Metni</code>\n"
+            f"• <b>Başlık + Açıklama:</b> <code>{sira}: Yeni Başlık | Yeni Açıklama Metni</code>\n\n"
+            f"<i>(Yazıp gönderdiğinde slayt otomatik güncellenecektir.)</i>",
+            html=True,
+        )
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
+
     if komut == "slayt_sil":
         if son_dakika_turu:
             telegram_bot.mesaj_gonder(
@@ -1342,6 +1356,8 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
             f"🗑 {sira}. slayt çıkarıldı ({kalan} slayt kaldı).\n"
             f"Haber elenmedi, havuza döndü."
         )
+        _albumu_yenile(con, mesaj_id)
+        menuyu_geri_koy(con, mesaj_id)
         return 0
 
     if komut == "cope_at_tekil":
@@ -1463,10 +1479,48 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     if komut == "slayt_metin":
         con.execute("UPDATE haberler SET durum = 'yeni' WHERE id = ?", (haber["id"],))
         con.commit()
-        metinleri_uret(ayarlar=ayarlar, haberler=[haber])
+        metinleri_uret(ayarlar=ayarlar, con=con, haberler=[haber])
         con.execute("UPDATE haberler SET durum = 'onay_bekliyor' WHERE id = ?",
                     (haber["id"],))
         con.commit()
+        taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
+        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+        yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+        story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+        story_url = yukleme["url"]
+        if story_yol.exists():
+            try:
+                story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                story_url = story_yukleme.get("url") or story_url
+            except Exception as e:
+                log.warning("Story görseli yüklenemedi: %s", e)
+
+        con.execute(
+            "UPDATE haberler SET gorsel_url = ?, story_url = ?, gorsel_yolu = ?, "
+            "gorsel_kaynagi = ?, gorsel_atif = ? WHERE id = ?",
+            (yukleme["url"], story_url, str(yol), katman, atif, haber["id"]),
+        )
+        con.commit()
+
+        guncel = turu_getir(con, mesaj_id)
+        if len(guncel) == 1 and guncel[0]["son_dakika"]:
+            yeni_cap = caption.son_dakika_caption(taze, _sonuclari_kur(guncel), ayarlar)
+        else:
+            yeni_cap = caption.caption_kur(guncel, _sonuclari_kur(guncel), ayarlar=ayarlar)
+        for h in guncel:
+            con.execute("UPDATE haberler SET ig_caption = ? WHERE id = ?", (yeni_cap, h["id"]))
+        con.commit()
+
+        _albumu_yenile(con, mesaj_id)
+        menuyu_geri_koy(con, mesaj_id)
+        telegram_bot.mesaj_gonder(
+            f"✍️ <b>{sira}. slaytın metni yapay zeka ile yeniden yazıldı:</b>\n\n"
+            f"<b>Başlık:</b> {html.escape(taze['ig_baslik'] or '')}\n"
+            f"<b>Özet:</b> {html.escape(taze['slayt_ozet'] or '')}",
+            html=True,
+        )
+        db_senkron.hemen_kaydet(f"Slayt {sira} metni yeniden üretildi")
+        return 0
 
     # slayt_ai / slayt_foto / metin sonrası: slaytı yeniden üret
     taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
@@ -1696,7 +1750,7 @@ def metin_duzenle(con, ayarlar: dict, haberler: list, mesaj_id: int, gelen_metin
         yeni_cap = caption.caption_kur(guncel_haberler, _sonuclari_kur(guncel_haberler), ayarlar=ayarlar)
 
     con.execute(
-        "UPDATE haberler SET caption = ? WHERE id = ?",
+        "UPDATE haberler SET ig_caption = ? WHERE id = ?",
         (yeni_cap, haber["id"]),
     )
     con.commit()
@@ -1771,7 +1825,7 @@ def slayt_tasi(con, ayarlar: dict, haberler: list, eylem: str, sira: int, mesaj_
     # Durum 2: Görsel onayı aşaması
     yeni_cap = caption.caption_kur(guncel, _sonuclari_kur(guncel), ayarlar=ayarlar)
     for h in guncel:
-        con.execute("UPDATE haberler SET caption = ? WHERE id = ?", (yeni_cap, h["id"]))
+        con.execute("UPDATE haberler SET ig_caption = ? WHERE id = ?", (yeni_cap, h["id"]))
     con.commit()
 
     try:
@@ -1858,7 +1912,7 @@ def havuzdan_haber_ekle(con, ayarlar: dict, haberler: list, mesaj_id: int) -> in
     guncel = turu_getir(con, mesaj_id)
     yeni_cap = caption.caption_kur(guncel, _sonuclari_kur(guncel), ayarlar=ayarlar)
     for h in guncel:
-        con.execute("UPDATE haberler SET caption = ? WHERE id = ?", (yeni_cap, h["id"]))
+        con.execute("UPDATE haberler SET ig_caption = ? WHERE id = ?", (yeni_cap, h["id"]))
     con.commit()
 
     try:
@@ -1967,17 +2021,17 @@ def haberi_degistir_uygula(con, ayarlar, haberler, eski_id: int, yeni_id: int,
         menuyu_geri_koy(con, mesaj_id)
         return 1
 
-    # Eski haber havuza, yeni haber tura. `tur` alanı korunuyor ki
+    # Eski haber havuza, yeni haber tura. `tur` ve `slayt_sirasi` korunuyor ki
     # sıralama bozulmasın.
     con.execute(
         "UPDATE haberler SET durum = 'metin_hazir', telegram_message_id = NULL, "
-        "tur = NULL WHERE id = ?", (eski["id"],))
+        "tur = NULL, slayt_sirasi = NULL WHERE id = ?", (eski["id"],))
     con.execute(
         "UPDATE haberler SET durum = 'onay_bekliyor', telegram_message_id = ?, "
         "tur = ?, gorsel_yolu = ?, gorsel_url = ?, story_url = ?, gorsel_kaynagi = ?, "
-        "gorsel_atif = ?, gonderim_zamani = ? WHERE id = ?",
+        "gorsel_atif = ?, gonderim_zamani = ?, slayt_sirasi = ? WHERE id = ?",
         (mesaj_id, eski["tur"], str(yol), url, story_url, katman, atif,
-         eski["gonderim_zamani"], yeni_id))
+         eski["gonderim_zamani"], eski["slayt_sirasi"], yeni_id))
     con.commit()
     db_senkron.hemen_kaydet(f"Turda {sira}. haber değiştirildi")
 
@@ -2607,6 +2661,24 @@ def main() -> int:
         return yonetim_kota_raporu_uygula(con, ayarlar, mesaj_id)
     if komut == "tur_temizle":
         return yonetim_tur_temizle_uygula(con, ayarlar, mesaj_id)
+    if komut == "duraklat_menu":
+        menu = telegram_bot.duraklatma_secenekleri_menusu()
+        telegram_bot.paneli_tazele(
+            mesaj_id,
+            "⏸️ <b>BOTU DURAKLATMA SEÇENEKLERİ</b>\n\n"
+            "Botu ne kadar süreyle duraklatmak istersiniz?\n"
+            "Duraklatma süresince otomatik turlar, hatırlatmalar ve son dakika kontrolleri askıya alınır.",
+            menu["inline_keyboard"],
+        )
+        return 0
+    if komut == "tur_hazirla":
+        from scripts import hazirla
+        telegram_bot.mesaj_gonder("🔄 Gündem turu sıfırdan hazırlanıyor...")
+        return hazirla.main()
+    if komut == "ekonomi_hazirla":
+        from scripts import ekonomi_turu
+        telegram_bot.mesaj_gonder("📈 Ekonomi & Finans turu sıfırdan hazırlanıyor...")
+        return ekonomi_turu.main()
 
     if komut == "ayar":
         return ayar_paneli(con, ayarlar)
@@ -3021,6 +3093,24 @@ def main() -> int:
             # yeniden üret. `slayt_islemi` sayacı kendisi artırıyor.
             return slayt_islemi(con, ayarlar, haberler, "slayt_foto",
                                 int(komut.split(":")[1]), mesaj_id)
+        # Menü Gezinme Düğmeleri (Worker yapamazsa veya doğrudan gelirse)
+        if komut.startswith("slayt_menu:"):
+            adet = int(komut.split(":")[1])
+            telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.slayt_secim_menusu(adet))
+            return 0
+        if komut.startswith("slayt:") and komut.count(":") == 2:
+            _, sira, adet = komut.split(":")
+            telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.slayt_islem_menusu(int(sira), int(adet)))
+            return 0
+        if komut.startswith("yayin_menu:"):
+            adet = int(komut.split(":")[1])
+            telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.yayin_zamani_menusu(adet))
+            return 0
+        if komut.startswith(("geri:", "yayin_geri:")):
+            adet = int(komut.split(":")[1])
+            telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.ana_menu(adet))
+            return 0
+
         if ":" in komut:
             ad, sira = komut.split(":", 1)
             sonuc = slayt_islemi(con, ayarlar, haberler, ad, int(sira), mesaj_id)
