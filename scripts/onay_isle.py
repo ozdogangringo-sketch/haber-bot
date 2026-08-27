@@ -210,8 +210,9 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     baglanti = None
     ig_notu = ""
     if paylas_reels:
-        # Reels Otomatik Video Paylaşım Modu: Müziksiz 1080x1920 MP4 üretilir + Instagram Reels yayınlanır + Telegram'a video atılır
+        # Reels Manuel Trend Müzik Modu: 1080x1920 MP4 üretilir + kopyalanabilir açıklama ile Telegram'a iletilir
         try:
+            import html as html_lib
             from src import video
             log.info("Reels videosu için 9:16 dikey görseller hazırlanıyor...")
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
@@ -221,27 +222,20 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             # Müziksiz, yüksek kaliteli 1080x1920 MP4 videosu üret
             video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
 
-            # Videoyu barındırıcıya yükle
-            video_url = upload_image.video_yukle(video_yolu, ayarlar)
-
-            # Instagram Reels olarak yayınla
-            kapak_url = urller[0] if urller else None
-            post_id = instagram.reels_yayinla(video_url, metin, ayarlar, kapak_url=kapak_url)
-            baglanti = instagram.post_baglantisi(post_id, ayarlar)
-            ig_notu = "\n🎬 Instagram Reels videosu yayınlandı"
-
-            # Üretilen MP4 videosunu Telegram grubuna da ilet
-            try:
-                telegram_bot.video_gonder(
-                    video_yolu,
-                    aciklama=f"🎬 <b>Daily Brief Reels Videosu Yayında!</b>\n\n🔗 {baglanti or 'Instagram Reels'}",
-                )
-            except Exception as e:
-                log.warning("Telegram'a video iletilemedi: %s", e)
+            # Üretilen MP4 videosunu ve kopyalanabilir caption'ı Telegram grubuna ilet
+            temiz_metin = html_lib.escape(metin.strip())
+            telegram_bot.video_gonder(
+                video_yolu,
+                aciklama="🎬 <b>Daily Brief Reels Videosu Hazır!</b>\n\n"
+                         "📝 <b>Açıklama (Kopyalamak için Dokun):</b>\n"
+                         f"<code>{temiz_metin}</code>\n\n"
+                         "💡 <i>Videoyu kaydedip Instagram uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>",
+            )
+            ig_notu = "\n🎬 Reels videosu ve açıklama metni Telegram'a iletildi"
 
         except Exception as e:
-            log.exception("Instagram Reels yayınlama hatası")
-            ig_notu = f"\n⚠️ Instagram Reels yayınlanamadı: {type(e).__name__}: {e}"
+            log.exception("Instagram Reels video hazırlama hatası")
+            ig_notu = f"\n⚠️ Reels videosu hazırlanamadı: {type(e).__name__}: {e}"
     elif paylas_ig:
         post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
         baglanti = instagram.post_baglantisi(post_id, ayarlar)
@@ -2645,13 +2639,16 @@ def haber_ara(con, ayarlar, komut: str) -> int:
 
     adaylar = [{"id": h["id"], "puan": h["onem_puani"] or 0,
                 "baslik": h["baslik_orj"], "kaynak": h["kaynak"],
-                "kategori": h["kategori"] or "-"}
+                "kategori": h["kategori"] or "-",
+                "yayin_tarihi": h["yayin_tarihi"] or ""}
                for h in bulunan]
-    adaylar.sort(key=lambda a: a["puan"], reverse=True)
+    # En güncel haberler en üstte, ardından puan sırasıyla
+    adaylar.sort(key=lambda a: (a.get("yayin_tarihi") or "", a["puan"]), reverse=True)
 
+    gosterilen_sayisi = min(len(adaylar), 6)
     telegram_bot.mesaj_gonder(
-        f"🔎 '{konu}' için {len(adaylar)} haber bulundu:")
-    telegram_bot.oneri_gonder(adaylar)
+        f"🔎 '{konu}' için {len(adaylar)} haber bulundu (en güncel {gosterilen_sayisi} tanesi listeleniyor):")
+    telegram_bot.oneri_gonder(adaylar, azami=6)
     db_senkron.hemen_kaydet(f"Haber araması: {konu[:40]}")
     log.info("'%s' araması: %d sonuç", konu, len(adaylar))
     return 0

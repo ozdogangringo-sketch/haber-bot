@@ -631,23 +631,36 @@ def mesajlari_sil(mesaj_idleri: list[int]) -> int:
 def onay_iste(caption: str, slayt_adedi: int, uyari: str = "",
               ozet: str = "") -> int:
     """
-    Özeti, caption'ı ve onay butonlarını gönderir. message_id döner.
+    Özeti, kopyalanabilir caption'ı ve onay butonlarını gönderir. message_id döner.
 
     Bu id `telegram_message_id` olarak saklanmalı — sonuç yazılırken
     düzenlenecek mesaj bu.
 
     Sıralama bilinçli: önce denetim uyarısı (varsa hemen görülmeli),
-    sonra özet tablo (karar burada veriliyor), en sonda caption
-    (Instagram'a gidecek metin, doğrulaması en az acil olan).
+    sonra özet tablo (karar burada veriliyor), en sonda kopyalanabilir caption
+    (Instagram'a gidecek metin, tek dokunuşla kopyalanır).
     """
-    parcalar = [p for p in (uyari, ozet) if p]
-    parcalar.append("— Instagram açıklaması —\n" + caption)
+    import html as html_lib
+
+    parcalar = []
+    if uyari:
+        parcalar.append(f"⚠️ <b>UYARI:</b>\n{html_lib.escape(uyari.strip())}")
+    if ozet:
+        parcalar.append(ozet.strip())
+
+    temiz_caption = html_lib.escape(caption.strip())
+    parcalar.append(
+        "📝 <b>Instagram Açıklaması (Kopyalamak için Dokun):</b>\n"
+        f"<code>{temiz_caption}</code>"
+    )
+
     metin = "\n\n".join(parcalar)
     # sendMessage sınırı 4096; caption ~1100 olduğu için pay bol.
     sonuc = _istek(
         "sendMessage",
         chat_id=_sohbet_id(),
         text=metin[:4096],
+        parse_mode="HTML",
         reply_markup=ana_menu(slayt_adedi),
         disable_web_page_preview=True,
     )
@@ -863,18 +876,31 @@ def oneri_gonder(adaylar: list) -> int:
     # gün boyunca okunamayacak kadar mesaj üretiyordu. Kullanıcı
     # tercihi (20 Ağu 2026): "yarım saatte bir çalışacağı için 3
     # öneriyle sınırlayalım".
-    rakam = ["1️⃣", "2️⃣", "3️⃣"]
-    satirlar = ["📰 <b>Tekil post adayları</b>", ""]
+def oneri_gonder(adaylar: list[dict], azami: int = 6) -> int:
+    """
+    Kullanıcıya tekil post için seçebileceği başlıkları önerir.
+
+    `azami`: Kaç adede kadar gösterileceği (arama için 6, otomatik için 3-6).
+    """
+    if not adaylar:
+        return 0
+
+    rakamlar = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
+    gosterilecek = adaylar[:min(len(adaylar), len(rakamlar), azami)]
+
+    satirlar = ["📰 <b>Haber / Post Adayları</b>", ""]
     secim_butonlari = []
-    for i, a in enumerate(adaylar[:len(rakam)]):
+    for i, a in enumerate(gosterilecek):
+        r_simge = rakamlar[i]
+        puan_str = f"[{a['puan']}] " if a.get("puan") is not None else ""
         satirlar.append(
-            f"{rakam[i]} <b>[{a['puan']}]</b> {_kacir(a['baslik'])}"
+            f"{r_simge} <b>{puan_str}</b>{_kacir(a['baslik'])}"
         )
         satirlar.append(
-            f"     <i>{_kacir(a['kaynak'])} · {_kacir(a['kategori'])}</i>"
+            f"     <i>{_kacir(a.get('kaynak', ''))} · {_kacir(a.get('kategori', ''))}</i>"
         )
         satirlar.append("")
-        secim_butonlari.append({"text": rakam[i],
+        secim_butonlari.append({"text": r_simge,
                                 "callback_data": f"sec:{a['id']}"})
 
     satirlar.append("<i>Numaralara basarak istediğin kadar haber seç, "
@@ -909,6 +935,7 @@ def video_gonder(
     data = {"chat_id": _sohbet_id()}
     if aciklama:
         data["caption"] = aciklama[:1024]
+        data["parse_mode"] = "HTML"
     if butonlar:
         data["reply_markup"] = json.dumps({"inline_keyboard": butonlar})
 
