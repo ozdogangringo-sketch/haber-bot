@@ -339,8 +339,9 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
     )
 
     yol = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
+    exif_meta = make_image.sirali_exif(sira=sira)
     # Instagram PNG kabul etmiyor — JPEG şart (subsampling=0 ile kristal netlik)
-    gorsel.save(yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
+    gorsel.save(yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True, exif=exif_meta)
 
     # 9:16 Dikey Story / Reels slaytı (Telegram albümlerinde ve Story'de kullanılır)
     story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
@@ -355,7 +356,7 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
             ulke_kodu=_alan(haber, "ulke_kodu") or None,
             ulke_adi=_alan(haber, "ulke_adi") or None,
         )
-        story_gorsel.save(story_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
+        story_gorsel.save(story_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True, exif=exif_meta)
     except Exception as e:
         log.warning("Haber story slaytı üretilemedi #%s: %s", haber["id"], e)
         story_yol = None
@@ -376,9 +377,9 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
     g = ayarlar["gorsel"]
     sonuclar = []
 
-    for haber in haberler[: g["slayt_sayisi"]]:
+    for idx, haber in enumerate(haberler[: g["slayt_sayisi"]], start=1):
         try:
-            yol, katman, atif = slayt_uret(haber, ayarlar)
+            yol, katman, atif = slayt_uret(haber, ayarlar, sira=idx)
         except Exception as e:
             log.error("slayt üretilemedi #%s: %s", haber["id"], e)
             continue

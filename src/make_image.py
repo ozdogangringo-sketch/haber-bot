@@ -798,7 +798,24 @@ def kanal_ikonlari_bas(gorsel, ayarlar, y_merkez: int, renk=(150, 160, 180)):
 # ----------------------------------------------------------------------
 
 # Story ölçüleri Instagram'ın standardı, config'den gelmiyor: post 4:5,
-# story 9:16 ve ikisi aynı anda üretiliyor.
+# story 9:16 ve ikisi aynı # Standart 4:5 dikey boyut (1080x1350)
+GENISLIK = 1080
+YUKSEKLIK = 1350
+
+
+def sirali_exif(sira: int = 1) -> Image.Exif:
+    """
+    Telefon galerilerinin (iOS Photos / Android Gallery) fotoğrafları toplu kaydettiğinde
+    1, 2, 3... sırasında dizmesi için artımlı EXIF zaman damgası ekler.
+    """
+    from PIL.ExifTags import Base
+    exif = Image.Exif()
+    # 2026-08-28 10:00:01, 10:00:02, 10:00:03...
+    zaman_str = (datetime(2026, 8, 28, 10, 0, 0) + timedelta(seconds=max(1, int(sira)))).strftime("%Y:%m:%d %H:%M:%S")
+    exif[Base.DateTime] = zaman_str
+    exif[Base.DateTimeOriginal] = zaman_str
+    exif[Base.DateTimeDigitized] = zaman_str
+    return exif
 STORY_GENISLIK, STORY_YUKSEKLIK = 1080, 1920
 
 # 4:5 Güvenli Alan Payı: 9:16 (1080x1920) görselin içindeki tüm içerik
