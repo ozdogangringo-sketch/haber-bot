@@ -273,7 +273,8 @@ def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
     satirlar, gecerli = [], ""
     for kelime in metin.split():
         aday = f"{gecerli} {kelime}".strip()
-        if ciz.textlength(aday, font=font) <= azami_genislik:
+        temiz_aday = re.sub(r"\*\*", "", aday)
+        if ciz.textlength(temiz_aday, font=font) <= azami_genislik:
             gecerli = aday
         else:
             if gecerli:
@@ -282,6 +283,55 @@ def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
     if gecerli:
         satirlar.append(gecerli)
     return satirlar
+
+
+def _formatli_satir_ciz(
+    ciz: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    satir: str,
+    punto: int,
+    spot: bool = False,
+    varsayilan_renk: tuple[int, int, int] | None = None,
+) -> None:
+    """
+    Satırdaki metni çizer; vurgu ve tırnak işaretlerini tipografik olarak işler:
+      * Normal metinde **bold** vurgusu -> kalın ve parlak beyaz (veya altın rengi)
+      * Spot (kalın) metinde **vurgu** -> normal/ince ağırlık (zıt ağırlık efekti)
+      * Tırnak içindeki söylemler "..." veya “...” -> açık parlak beyaz
+    """
+    base_wght = 750.0 if spot else 450.0
+    vurgu_wght = 400.0 if spot else 800.0
+
+    f_norm = _font(punto, [20.0, base_wght])
+    f_vurgu = _font(punto, [20.0, vurgu_wght])
+
+    c_norm = varsayilan_renk or ((255, 255, 255) if spot else (206, 214, 230))
+    c_vurgu = (226, 170, 88) if spot else (255, 255, 255)
+    c_alinti = (245, 248, 255)
+
+    desen = re.compile(r'(\*\*[^*]+\*\*|\"[^\"]+\"|“[^”]+”)')
+    cur_x = x
+    son = 0
+    for m in desen.finditer(satir):
+        if m.start() > son:
+            t = satir[son:m.start()]
+            ciz.text((cur_x, y), t, font=f_norm, fill=c_norm)
+            cur_x += int(ciz.textlength(t, font=f_norm))
+        ham = m.group()
+        if ham.startswith('**') and ham.endswith('**'):
+            t = ham[2:-2]
+            ciz.text((cur_x, y), t, font=f_vurgu, fill=c_vurgu)
+            cur_x += int(ciz.textlength(t, font=f_vurgu))
+        elif (ham.startswith('"') and ham.endswith('"')) or (ham.startswith('“') and ham.endswith('”')):
+            t = ham
+            ciz.text((cur_x, y), t, font=f_vurgu, fill=c_alinti)
+            cur_x += int(ciz.textlength(t, font=f_vurgu))
+        son = m.end()
+    if son < len(satir):
+        t = satir[son:]
+        ciz.text((cur_x, y), t, font=f_norm, fill=c_norm)
+        cur_x += int(ciz.textlength(t, font=f_norm))
 
 
 # ⚠️ BAŞLIK PUNTO TAVANI — 96'dan 80'e indirildi (18 Ağu 2026).
@@ -1355,11 +1405,9 @@ def detay_slayti(
         else:
             punto = b.get("punto") or (DETAY_SPOT_PUNTO if b["spot"]
                                        else DETAY_PUNTO)
-            f = _font(punto, EKSEN_OZET)
             satir_y = int(punto * 1.5)
-            renk = (255, 255, 255) if b["spot"] else (206, 214, 230)
             for satir in b["satirlar"]:
-                ciz.text((kenar, y), satir, font=f, fill=renk)
+                _formatli_satir_ciz(ciz, kenar, y, satir, punto, spot=b["spot"])
                 y += satir_y
 
         if i < len(bloklar) - 1:

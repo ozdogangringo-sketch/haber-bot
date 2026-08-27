@@ -206,7 +206,7 @@ DİĞER KURALLAR:
   zam yapıldı"). Her Kelimeyi Büyük Harfle Başlatma. Bu bir tutarlılık
   kuralı: aynı carousel'de iki üslup yan yana gelince özensiz duruyor.
   Sonuna nokta koyma.
-- ig_caption: 2-3 cümle, haberin özü. Kaynak adını yazma.
+- ig_caption: 2-3 cümle, haberin özü. Haberdeki en can alıcı anahtar terimleri, kurumları veya oranları **bold** (çift yıldız) ile vurgula. Kişi söylemlerini çift tırnak "..." içine al. Kaynak adını yazma.
 - ig_hashtag: 5-8 adet, Türkçe ve konuyla ilgili, '#' işareti OLMADAN.
 - Taraf tutma, yorum katma, spekülasyon yapma.
 
@@ -222,6 +222,10 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
 
 - detay_metni: 120-220 kelime, PARAGRAFLAR HÂLİNDE. Haberin ayrıntılı
   anlatımı — slaytlara yayılıyor.
+
+  VURGULAMA VE SÖYLEMLER (TİPOGRAFİK HİYERARŞİ):
+  * Paragraf içinde ilk bakışta yakalanması gereken kritik rakamları, tarihleri, kişi veya kurum isimlerini **vurgulu** (çift yıldız) yaz.
+  * Kişilerin doğrudan ağzından çıkan söylemleri, demeçleri ve resmi açıklamaları mutlaka çift tırnak içine al: "..." veya “...”.
 
   BİÇİM: 3-5 paragraf, her biri 20-32 kelime. KISA TUT — uzun paragraf
   slaytta tek başına sayfayı dolduruyor ve düzen yine tekdüze oluyor.
