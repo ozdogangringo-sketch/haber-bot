@@ -1327,27 +1327,30 @@ def detay_sayfalara_bol(
         n_punto = DETAY_PUNTO - 4
         n_font = _font(n_punto, EKSEN_OZET)
         n_satirlar = _satirlara_bol(neden_onemli.strip(), n_font, alan - 48, olcu)
+    # Smart Brevity: Neden Önemli (Doğal editoryal blok)
+    if neden_onemli and neden_onemli.strip():
+        n_punto = DETAY_PUNTO - 3
+        n_font = _font(n_punto, EKSEN_OZET)
+        n_satirlar = _satirlara_bol(neden_onemli.strip(), n_font, alan - 32, olcu)
         bloklar.append({
             "tip": "neden_onemli",
-            "baslik": "💡 NEDEN ÖNEMLİ?",
             "metin": neden_onemli.strip(),
             "satirlar": n_satirlar,
             "spot": False,
-            "yukseklik": int(n_punto * 1.5) * len(n_satirlar) + 48,
+            "yukseklik": int(n_punto * 1.5) * len(n_satirlar),
         })
 
-    # Smart Brevity: Sırada Ne Var Kartı
+    # Smart Brevity: Sırada Ne Var (Doğal editoryal blok)
     if sirada_ne_var and sirada_ne_var.strip():
-        s_punto = DETAY_PUNTO - 4
+        s_punto = DETAY_PUNTO - 3
         s_font = _font(s_punto, EKSEN_OZET)
-        s_satirlar = _satirlara_bol(sirada_ne_var.strip(), s_font, alan - 48, olcu)
+        s_satirlar = _satirlara_bol(sirada_ne_var.strip(), s_font, alan - 32, olcu)
         bloklar.append({
             "tip": "sirada_ne_var",
-            "baslik": "🔮 SIRADA NE VAR?",
             "metin": sirada_ne_var.strip(),
             "satirlar": s_satirlar,
             "spot": False,
-            "yukseklik": int(s_punto * 1.5) * len(s_satirlar) + 48,
+            "yukseklik": int(s_punto * 1.5) * len(s_satirlar),
         })
 
     # Alıntı en sonda: kapanış
@@ -1514,22 +1517,16 @@ def detay_slayti(
         elif tip in ("neden_onemli", "sirada_ne_var"):
             is_neden = (tip == "neden_onemli")
             kenar_renk = (226, 170, 88) if is_neden else (6, 182, 212)
-            kart_h = b.get("yukseklik", 120)
-            ciz.rounded_rectangle(
-                [kenar, y, kenar + alan_genislik, y + kart_h],
-                radius=10,
-                fill=(10, 24, 38) if is_neden else (8, 22, 32),
-                outline=kenar_renk,
-                width=2,
-            )
-            ciz.text((kenar + 18, y + 12), b["baslik"], font=_font(21, [14.0, 700.0]), fill=kenar_renk)
-            y_yazi = y + 42
-            punto_kart = DETAY_PUNTO - 4
+            punto_kart = DETAY_PUNTO - 3
             satir_h = int(punto_kart * 1.5)
+            blok_yuk = satir_h * len(b["satirlar"])
+            # Zarif sol vurgu çizgisi (kutu yok, doğal ferah editoryal akış)
+            ciz.rectangle([kenar, y, kenar + 4, y + blok_yuk], fill=kenar_renk)
+            y_yazi = y
             for s in b["satirlar"]:
-                _formatli_satir_ciz(ciz, kenar + 18, y_yazi, s, punto_kart, spot=False, varsayilan_renk=(226, 232, 240) if is_neden else (206, 214, 230))
+                _formatli_satir_ciz(ciz, kenar + 22, y_yazi, s, punto_kart, spot=False, varsayilan_renk=(226, 232, 240) if is_neden else (206, 214, 230))
                 y_yazi += satir_h
-            y += kart_h
+            y += blok_yuk
 
         else:
             punto = b.get("punto") or (DETAY_SPOT_PUNTO if b["spot"]

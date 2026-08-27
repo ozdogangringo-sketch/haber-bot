@@ -291,9 +291,10 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   bulamazsa alıntıyı ATIYOR.
   Haberde doğrudan alıntı yoksa İKİSİNİ DE BOŞ BIRAK.
 
-- neden_onemli: TEK CÜMLE (en fazla 22 kelime). Haberin ekonomik, sektörel
-  veya vatandaşa doğrudan etkisini açıkla. "Neden bilmeliyiz?" sorusunun
-  net cevabı olsun. Yalnızca kaynakta yer alan verileri baz al.
+- neden_onemli: TEK CÜMLE (en fazla 22 kelime).
+  ⚠️ TEKRAR YASAKTIR: İlk paragrafta (spot) veya başlıkta geçen sayıları/olayları farklı kelimelerle TEKRAR ETME.
+  "Neden önemli?" bölümü sadece ve sadece haberin DOLAYLI ETKİSİNİ, SEKTÖREL / MAKRO SONUCUNU veya
+  VATANDAŞA YANSIMASINI taşısın. Eğer haberin spot metninden farklı ayrı bir sonucu/etkisi yoksa BOŞ STRING ("") BIRAK.
 
 - sirada_ne_var: TEK CÜMLE (en fazla 18 kelime). Haberde açıkça belirtilen
   sonraki resmi adım, duruşma tarihi, toplantı veya yürürlük tarihi.

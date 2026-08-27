@@ -878,11 +878,6 @@ def main(zorla_haber_id: int | None = None) -> int:
         )
         log.info("RSS: %s yeni haber", rapor["eklenen"])
 
-        if acik_tur_var:
-            # Tur kurulamaz ama öneri gönderilebilir.
-            onerileri_gonder(con, ayarlar, kuru=kuru)
-            return 0
-
         if zorla_haber_id:
             # Kullanıcı Telegram'da bir ÖNERİYİ seçti. Eşik/tazelik
             # denetimleri burada uygulanmıyor — insan zaten bakıp
@@ -905,6 +900,10 @@ def main(zorla_haber_id: int | None = None) -> int:
                     "Gemini metni üretemedi (kota ya da güvenlik filtresi "
                     "olabilir). Haber havuzda duruyor, tekrar denenebilir.")
                 return 1
+        elif acik_tur_var:
+            # Otomatik periyodik kontrolde açık tur varsa yeni tur kurulmaz ama öneri gönderilebilir.
+            onerileri_gonder(con, ayarlar, kuru=kuru)
+            return 0
         else:
             # Metni ZATEN hazır bir aday var mı? (daha önce seçilmiş
             # ama tur kurulamamış olabilir)
