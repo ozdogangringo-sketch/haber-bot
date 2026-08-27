@@ -73,12 +73,9 @@ def reels_dikey_gorselleri_uret(
     ayarlar: dict | None = None,
 ) -> list[Path]:
     """
-    Tüm slaytları kusursuz 1080x1920 (9:16) Story/Reels görsellerine dönüştürür.
-    Haberler için doğrudan yerel story_haber() çağrılır, kartlar için ise
-    derin petrol çerçeve kullanılır.
+    Verilen tüm slayt görsellerini sırasıyla 1080x1920 (9:16) Reels video karelerine dönüştürür.
+    Carousel'deki 1. slayt (Piyasa Isı Haritası vb.) videonun da 1. karesi olur; hiçbir görsel atlanmaz.
     """
-    from . import make_image
-
     if cikti_dizini is None:
         cikti_dizini = CIKTI_KLASORU / "reels_9_16"
     else:
@@ -86,68 +83,25 @@ def reels_dikey_gorselleri_uret(
     cikti_dizini.mkdir(parents=True, exist_ok=True)
 
     uretilen_yollar: list[Path] = []
-    
+
     for idx, kaynak in enumerate(gorsel_kaynaklari):
         hedef_yol = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
-        
-        # Eğer bu sıradaki haber verisi ve ayarlar mevcutsa
-        haber = dict(haberler[idx]) if haberler and idx < len(haberler) else None
-        
-        # 1. Öncelik: Eğer haberin story_url'i varsa doğrudan indirip kullan
-        if haber and haber.get("story_url"):
-            try:
-                r = requests.get(haber["story_url"], timeout=20)
-                if r.status_code == 200:
-                    with open(hedef_yol, "wb") as f:
-                        f.write(r.content)
-                    uretilen_yollar.append(hedef_yol)
-                    continue
-            except Exception as e:
-                log.warning("story_url indirilemedi: %s", e)
 
-        # 2. Öncelik: Haberin kendi metinleriyle yerel story_haber() çiz
-        if haber and ayarlar and haber.get("ig_baslik"):
-            try:
-                baslik = haber.get("ig_baslik") or haber.get("baslik_orj") or ""
-                ozet = haber.get("slayt_ozet") or ""
-                kaynak_adi = make_image.kaynak_gosterim_adi(haber.get("kaynak", ""), ayarlar)
-                kategori = haber.get("kategori", "turkiye")
-                
-                # Varsa orijinal arka plan görseli
-                arkaplan_img = None
-                if haber.get("gorsel_yolu") and Path(haber["gorsel_yolu"]).exists():
-                    try:
-                        arkaplan_img = Image.open(haber["gorsel_yolu"])
-                    except Exception:
-                        pass
-
-                story_img = make_image.story_haber(
-                    baslik=baslik,
-                    ozet=ozet,
-                    kaynak=kaynak_adi,
-                    ayarlar=ayarlar,
-                    arkaplan=arkaplan_img,
-                    kategori=kategori,
-                    ulke_kodu=haber.get("ulke_kodu"),
-                    ulke_adi=haber.get("ulke_adi"),
-                )
-                story_img.save(hedef_yol, "JPEG", quality=95)
-                uretilen_yollar.append(hedef_yol)
-                continue
-            except Exception as e:
-                log.warning("Yerel story_haber çizilemedi: %s", e)
-
-        # 3. Öncelik (Piyasa Isı Haritası / Tablosu / Fallback): 4:5 kartı zarif petrol 9:16 çerçeveye al
         try:
             if str(kaynak).startswith("http://") or str(kaynak).startswith("https://"):
-                r = requests.get(str(kaynak), timeout=20)
+                r = requests.get(str(kaynak), timeout=25)
+                if r.status_code != 200:
+                    log.warning("Görsel indirilemedi (HTTP %s): %s", r.status_code, kaynak)
+                    continue
                 img = Image.open(io.BytesIO(r.content))
             else:
                 p = Path(kaynak)
                 if not p.exists():
+                    log.warning("Görsel dosyası bulunamadı: %s", p)
                     continue
                 img = Image.open(p)
 
+            # Görseli 1080x1920 dikişsiz zeminine dönüştür
             dikey_img = _cercevele_9_16(img)
             dikey_img.save(hedef_yol, "JPEG", quality=95, subsampling=0, optimize=True)
             uretilen_yollar.append(hedef_yol)

@@ -219,7 +219,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 raise RuntimeError("Reels videosu için 9:16 görsel üretilemedi")
 
             # Müziksiz, yüksek kaliteli 1080x1920 MP4 videosu üret
-            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.4)
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
 
             # Videoyu barındırıcıya yükle
             video_url = upload_image.video_yukle(video_yolu, ayarlar)
@@ -648,7 +648,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             if not dikey_gorseller:
                 raise RuntimeError("Reels videosu için 9:16 görsel üretilemedi")
 
-            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.4)
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
             video_url = upload_image.video_yukle(video_yolu, ayarlar)
             kapak_url = urller[0] if urller else None
             post_id = instagram.reels_yayinla(video_url, metin, ayarlar, kapak_url=kapak_url)
