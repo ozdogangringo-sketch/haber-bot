@@ -80,8 +80,8 @@ def _gorseli_indir(url: str, g: dict):
     Haber görselini indirir; CDN thumbnail'lerini otomatik 4K/2K ham basın görseline çözer.
     Eşiğin altındaki kalitesiz/küçük görseller elenir ve akış bir sonraki katmana (Pexels/Commons) aktarılır.
     """
-    asgari = g.get("haber_gorseli_asgari_genislik", 800)
-    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 500)
+    asgari = g.get("haber_gorseli_asgari_genislik", 1000)
+    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 600)
     
     adaylar = fetch_article.hd_gorsel_url_coz(url)
     
@@ -97,10 +97,12 @@ def _gorseli_indir(url: str, g: dict):
             )
             if cevap.status_code != 200:
                 continue
+            ham_boyut_kb = len(cevap.content) / 1024
             foto = Image.open(io.BytesIO(cevap.content))
             foto.load()
             alan = foto.width * foto.height
-            if foto.width >= asgari and foto.height >= asgari_y:
+            # Yüksek kalite filtresi: En az 1000x600 ve aşırı sıkıştırılmamış (>= 75 KB)
+            if foto.width >= asgari and foto.height >= asgari_y and ham_boyut_kb >= 75:
                 if alan > en_buyuk_alan:
                     en_iyi_foto = foto.convert("RGB")
                     en_buyuk_alan = alan
@@ -111,8 +113,7 @@ def _gorseli_indir(url: str, g: dict):
     if en_iyi_foto:
         return en_iyi_foto
         
-    log.info("haber görseli küçük veya indirilemedi (%s, asgari %sx%s), atlanıyor",
-             url, asgari, asgari_y)
+    log.info("haber görseli küçük veya düşük kaliteli (%s), HD stok katmanına geçiliyor", url)
     return None
 
 
@@ -541,6 +542,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
             satirlar=satirlar,
             sayfa=i,
             toplam_sayfa=len(sayfalar),
+            arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
+            arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
         )
         ek = "" if len(sayfalar) == 1 else f"-{i}"
         yol2 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}-detay{ek}.jpg"

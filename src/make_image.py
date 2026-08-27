@@ -668,7 +668,20 @@ def split_portre_arkaplan(
     ciz = ImageDraw.Draw(canvas)
     ciz.line([(yarim, 0), (yarim, yukseklik)], fill=(226, 170, 88), width=3)
 
-    return canvas
+def _kaynak_satiri_ciz(
+    ciz: ImageDraw.Draw, kenar: int, alt_bilgi_y: int, kaynak: str, arsiv_ibaresi: bool = False
+) -> None:
+    """Slaytın sol altına şık bir gazete/belge ikonuyla kaynak atfını yazar."""
+    kucuk = _font(26, EKSEN_KUCUK)
+    ciz.rectangle([kenar, alt_bilgi_y + 4, kenar + 14, alt_bilgi_y + 20], outline=(198, 206, 222), width=2)
+    ciz.line([kenar + 3, alt_bilgi_y + 8, kenar + 11, alt_bilgi_y + 8], fill=(226, 170, 88), width=1)
+    ciz.line([kenar + 3, alt_bilgi_y + 12, kenar + 11, alt_bilgi_y + 12], fill=(198, 206, 222), width=1)
+    ciz.line([kenar + 3, alt_bilgi_y + 16, kenar + 8, alt_bilgi_y + 16], fill=(198, 206, 222), width=1)
+
+    metin = f"KAYNAK: {_buyuk_harf(kaynak)}"
+    if arsiv_ibaresi:
+        metin += "   ·   ARŞİV GÖRSELİ"
+    ciz.text((kenar + 22, alt_bilgi_y), metin, font=kucuk, fill=(198, 206, 222))
 
 
 def yaziyi_bas(
@@ -773,16 +786,8 @@ def yaziyi_bas(
         cta_metin = "📌 Günün özetini kaçırmamak için kaydet & takip et"
         ciz.text((kenar, alt_bilgi_y - 36), cta_metin, font=cta_font, fill=(226, 170, 88))
 
-    # Kaynak adı — telif değil, şeffaflık için: haber nereden geldi
-    kucuk = _font(26, EKSEN_KUCUK)
-    alt_metin = _buyuk_harf(kaynak)
-    if arsiv_ibaresi:
-        # Fotoğraf konuyla ilgili ama o olayın kendisi olmayabiliyor
-        # (Commons'ta "Hakan Fidan" araması Brüksel'deki bir toplantıyı
-        # getirdi, haber ise Mısır ziyaretiydi). Bunu yazmak hem dürüst
-        # hem de "yanlış görsel kullandı" eleştirisine karşı koruma.
-        alt_metin += "   ·   ARŞİV GÖRSELİ"
-    ciz.text((kenar, alt_bilgi_y), alt_metin, font=kucuk, fill=(198, 206, 222))
+    # Kaynak adı — şeffaflık ve gazetecilik atfı
+    _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
 
     # Sosyal kanal ikonları sağ altta: "bu içerik şu kanallarda da var".
     gorsel = kanal_ikonlari_bas(gorsel, ayarlar, alt_bilgi_y + 13)
@@ -1408,23 +1413,29 @@ def detay_slayti(
     satirlar: list[dict] | None = None,
     sayfa: int = 1,
     toplam_sayfa: int = 1,
+    arkaplan: Image.Image | None = None,
+    arsiv_ibaresi: bool = False,
 ) -> Image.Image:
     """
     Son dakika postunun 2. slaytı: haberin ayrıntısı.
-
-    NEDEN FOTOĞRAF YOK: bu slayt metin ağırlıklı, 60-80 kelime taşıyor.
-    Fotoğraf üstüne bu kadar yazı okunmuyor — perde koyulaştıkça fotoğraf
-    zaten görünmez oluyor, yani fotoğrafın bir faydası kalmıyor ama
-    okunabilirlikten götürüyor. Sade gradyan hem okunaklı hem tutarlı.
-
-    1. slayt dikkat çekiyor, bu slayt bilgi veriyor. İşbölümü bilinçli.
+    İkinci bir fotoğraf varsa hafif koyu perdeyle derinlikli zemin olarak kullanılır.
     """
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
     kenar = g["kenar_bosluk"]
     dikey_kenar = max(kenar, g.get("dikey_guvenli_pay", kenar))
 
-    gorsel = arkaplan_uret_yedek(kategori, genislik, yukseklik, g)
+    if arkaplan is not None:
+        oran = max(genislik / arkaplan.width, yukseklik / arkaplan.height)
+        yeni_w, yeni_h = int(arkaplan.width * oran), int(arkaplan.height * oran)
+        foto_buyuk = arkaplan.resize((yeni_w, yeni_h), Image.LANCZOS)
+        x_kirp = (yeni_w - genislik) // 2
+        y_kirp = (yeni_h - yukseklik) // 2
+        gorsel = foto_buyuk.crop((x_kirp, y_kirp, x_kirp + genislik, y_kirp + yukseklik))
+        perde = Image.new("RGBA", (genislik, yukseklik), (4, 16, 26, 230))
+        gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
+    else:
+        gorsel = arkaplan_uret_yedek(kategori, genislik, yukseklik, g)
     ciz = ImageDraw.Draw(gorsel)
     alan_genislik = genislik - 2 * kenar
 
@@ -1540,9 +1551,7 @@ def detay_slayti(
             y += PARAGRAF_ARASI
 
     # --- Alt bilgi ---
-    kucuk = _font(26, EKSEN_KUCUK)
-    ciz.text((kenar, alt_bilgi_y), _buyuk_harf(kaynak),
-             font=kucuk, fill=(198, 206, 222))
+    _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
 
     # Sayfa göstergesi: "2/3". Birden fazla detay sayfası varken
     # takipçinin nerede olduğunu bilmesi gerekiyor.
