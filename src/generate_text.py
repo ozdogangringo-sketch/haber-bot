@@ -126,7 +126,7 @@ CEVAP_SEMASI = {
         "veri_karti_etiket": {"type": "string"},
         "veri_karti_eski": {"type": "string"},
         "veri_karti_yeni": {"type": "string"},
-        "veri_karti_yon": {"type": "string", "enum": ["artis", "azalis", "hedef", "notr", ""]},
+        "veri_karti_yon": {"type": "string"},
         # İkili aktör / Split-Screen için 2 kişinin adı (varsa)
         "gorsel_ikili": {"type": "array", "items": {"type": "string"}},
     },
