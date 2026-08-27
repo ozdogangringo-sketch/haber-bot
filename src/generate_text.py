@@ -119,12 +119,24 @@ CEVAP_SEMASI = {
         "ulke_kodu": {"type": "string"},
         # Bayrağın altına yazılan Türkçe ülke adı
         "ulke_adi": {"type": "string"},
+        # Smart Brevity editoryal alanları
+        "neden_onemli": {"type": "string"},
+        "sirada_ne_var": {"type": "string"},
+        # Slayt içi mini veri rozeti (infografik) alanları
+        "veri_karti_etiket": {"type": "string"},
+        "veri_karti_eski": {"type": "string"},
+        "veri_karti_yeni": {"type": "string"},
+        "veri_karti_yon": {"type": "string", "enum": ["artis", "azalis", "hedef", "notr", ""]},
+        # İkili aktör / Split-Screen için 2 kişinin adı (varsa)
+        "gorsel_ikili": {"type": "array", "items": {"type": "string"}},
     },
     "required": [
         "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
         "slayt_ozet", "detay_metni", "vurgu_sayi", "vurgu_etiket",
         "alinti", "alinti_sahibi", "gorsel_konu", "gorsel_temsili",
-        "kategori", "ulke_kodu", "ulke_adi",
+        "kategori", "ulke_kodu", "ulke_adi", "neden_onemli",
+        "sirada_ne_var", "veri_karti_etiket", "veri_karti_eski",
+        "veri_karti_yeni", "veri_karti_yon", "gorsel_ikili",
     ],
 }
 
@@ -279,21 +291,29 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   bulamazsa alıntıyı ATIYOR.
   Haberde doğrudan alıntı yoksa İKİSİNİ DE BOŞ BIRAK.
 
+- neden_onemli: TEK CÜMLE (en fazla 22 kelime). Haberin ekonomik, sektörel
+  veya vatandaşa doğrudan etkisini açıkla. "Neden bilmeliyiz?" sorusunun
+  net cevabı olsun. Yalnızca kaynakta yer alan verileri baz al.
+
+- sirada_ne_var: TEK CÜMLE (en fazla 18 kelime). Haberde açıkça belirtilen
+  sonraki resmi adım, duruşma tarihi, toplantı veya yürürlük tarihi.
+  ⚠️ KAYNAKTA GELECEĞE DAİR RESMİ BİR BİLGİ/TARİH YOKSA BOŞ STRING ("") BIRAK.
+  Asla kendi kafandan tahmin veya spekülasyon uydurma.
+
+- veri_karti_*: Haberde somut bir karşılaştırma, oran veya değişim varsa doldur,
+  yoksa boş bırak:
+    veri_karti_etiket : "Yıllık Enflasyon", "Hedef Fiyat", "Kâr Artışı", "Faiz Oranı"
+    veri_karti_eski   : "%48,2" veya "80 $" (varsa, yoksa "")
+    veri_karti_yeni   : "%42,0" veya "86 $"
+    veri_karti_yon    : "artis" (artış/yükseliş) | "azalis" (düşüş/gerileme) | "hedef" (hedef/beklenti) | "notr" (sabit) | "" (veri yoksa)
+  ⚠️ SAYILARI KAYNAKTAN AL, UYDURMA.
+
 - gorsel_konu: SADECE GERÇEK BİR İNSANIN ADI VE SOYADI. Başka hiçbir şey.
   (örn: "Hakan Fidan", "Ekrem İmamoğlu")
 
-  KURUM, ÖRGÜT, ŞEHİR, KISALTMA YAZMA — burası en kritik kural.
-  Ölçüldü (15 Ağu 2026): kurum adları fotoğraf arşivinde yanlış eşleşiyor
-  ve haberle ilgisiz görsel geliyor. Gerçek örnekler:
-      "İSKİ"    -> Macar bir sanatçının portresi ("Iski Kocsis Tibor")
-      "Taliban" -> 2021 askeri harekat haritası
-      "Ankara Büyükşehir Belediyesi" -> Ankara Kalesi manzarası
-  Bunlar bir haber hesabında yayınlanamaz. Kurumu tarif etmek istiyorsan
-  gorsel_temsili alanını kullan; orası bu iş için zaten var ve iyi çalışıyor.
-
-  Kişi Wikipedia'da sayfası olacak kadar tanınmış değilse BOŞ BIRAK.
-  Sıradan vatandaş veya yerel yetkili adı yazma — arşivde fotoğrafı yok.
-  Haberin merkezinde tanınmış bir insan yoksa BOŞ BIRAKMAK DOĞRU CEVAPTIR.
+- gorsel_ikili: İki lider, bakan veya aktör arasındaki diplomatik zirve,
+  anlaşma veya temas haberi ise iki kişinin adı: ["Recep Tayyip Erdoğan", "Abdülfettah es-Sisi"].
+  Tek kişi varsa veya kişi yoksa boş dizi [] bırak.
 
 - gorsel_temsili: Konuyu temsil eden İNGİLİZCE stok fotoğraf arama terimi.
 

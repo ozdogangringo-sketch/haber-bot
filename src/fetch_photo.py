@@ -405,3 +405,28 @@ def konu_icin_fotograf(konu: str,
     if gorsel is None:
         return None
     return gorsel, kayit
+
+
+def iki_portre_ara(kisi1: str, kisi2: str) -> tuple[Image.Image, Image.Image, str] | None:
+    """
+    Commons'ta iki kişinin resmi portresini arar ve indirir.
+    İkisi de başarıyla bulunursa (gorsel1, gorsel2, atif_metni) döner.
+    Biri bile bulunamazsa veya çözünürlüğü yetersizse None döner (güvenli fallback).
+    """
+    if not kisi1 or not kisi2 or len(kisi1.strip()) < 3 or len(kisi2.strip()) < 3:
+        return None
+
+    res1 = konu_icin_fotograf(kisi1.strip())
+    res2 = konu_icin_fotograf(kisi2.strip())
+
+    if not res1 or not res2:
+        return None
+
+    img1, k1 = res1
+    img2, k2 = res2
+
+    if img1.width < 400 or img2.width < 400 or img1.height < 400 or img2.height < 400:
+        return None
+
+    atif = f"Foto: {k1.get('sanatci') or kisi1} & {k2.get('sanatci') or kisi2} (Wikimedia Commons)"
+    return img1, img2, atif

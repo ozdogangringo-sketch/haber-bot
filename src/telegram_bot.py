@@ -667,6 +667,43 @@ def onay_iste(caption: str, slayt_adedi: int, uyari: str = "",
     return sonuc["message_id"]
 
 
+def haftalik_bulten_onay_iste(
+    tur_bilgi: dict,
+    piyasa_verileri: dict,
+    onemli_haberler: list,
+    ayarlar: dict,
+) -> int:
+    """
+    Hafta sonu kapanış bilançosu için Telegram albümünü ve onay kartını gönderir.
+    """
+    slayt_urlleri = tur_bilgi.get("slayt_urlleri", [])
+    slayt_yollari = tur_bilgi.get("slayt_yollari", [])
+
+    if slayt_urlleri:
+        try:
+            slaytlari_gonder(slayt_urlleri)
+        except Exception:
+            if slayt_yollari:
+                yerel_albom_gonder(slayt_yollari)
+
+    caption_metin = tur_bilgi.get("caption", "")
+    metin = (
+        "📊 <b>HAFTANIN BİLANÇOSU & KAPANIŞ BÜLTENİ HAZIR!</b>\n\n"
+        f"📅 <b>Tarih:</b> {piyasa_verileri.get('tarih', '')}\n"
+        f"🗞️ <b>Haftalık Manşet Sayısı:</b> {len(onemli_haberler)} seçme haber\n\n"
+        f"📝 <b>Açıklama Metni:</b>\n<code>{caption_metin}</code>"
+    )
+
+    mesaj = _istek(
+        "sendMessage",
+        chat_id=_sohbet_id(),
+        text=metin,
+        parse_mode="HTML",
+        reply_markup=ana_menu(len(slayt_urlleri)),
+    )
+    return mesaj["message_id"]
+
+
 def menuyu_degistir(message_id: int, menu: dict) -> None:
     """Mesajın butonlarını değiştirir (metne dokunmaz)."""
     _istek("editMessageReplyMarkup", chat_id=_sohbet_id(),

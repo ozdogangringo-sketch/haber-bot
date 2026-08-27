@@ -236,8 +236,6 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     # ⚠️ `haber_gorseli_atla`: "başka fotoğraf" düğmesinde bu katman
     # ATLANIYOR. og:image deterministik — her seferinde aynı URL'yi
     # döndürüyor. Kullanıcı "başka" deyince farklı bir sonuç bekliyor;
-    # og:image'ı tekrar denemek aynı görseli getirir. Atlayınca
-    # Commons/Pexels'e düşüyor ve gerçekten farklı bir görsel geliyor.
     if (not haber_gorseli_atla and atlanacak == 0
             and g.get("haber_gorseli_kullan") and haber["link"]):
         try:
@@ -254,7 +252,25 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
         except Exception as e:
             log.warning("haber görseli alınamadı: %s", e)
 
-    # --- 1) Commons: tanınmış kişi/kurum ---
+    # --- 1) Commons: İkili Aktör (Split-Screen) veya Tek Kişi ---
+    ikili = _alan(haber, "gorsel_ikili")
+    if ikili and atlanacak == 0:
+        try:
+            import json
+            if isinstance(ikili, str):
+                ikili = json.loads(ikili)
+            if isinstance(ikili, list) and len(ikili) >= 2:
+                sonuc_ikili = fetch_photo.iki_portre_ara(ikili[0], ikili[1])
+                if sonuc_ikili:
+                    img1, img2, atif_ikili = sonuc_ikili
+                    return (
+                        make_image.split_portre_arkaplan(img1, img2, genislik, yukseklik),
+                        "commons_split",
+                        atif_ikili,
+                    )
+        except Exception as e:
+            log.warning("ikili portre katmanı patladı: %s", e)
+
     konu = _alan(haber, "gorsel_konu")
     if konu:
         try:
@@ -271,25 +287,20 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             log.warning("Commons katmanı patladı (%s): %s", konu, e)
 
     # --- 2) Pexels: temsili fotoğraf ---
-    # ⚠️ Liste her çağrıda temizleniyor: `tur_uret` bu değeri slayt
-    # başına okuyor, eskisi kalırsa yanlış habere yazılır.
     _SON_STOK_ID.clear()
     terim = _alan(haber, "gorsel_temsili")
     if terim:
         try:
             sonuc = fetch_stock.konu_icin_fotograf(
-                terim, atlanacak=atlanacak,
-                kullanilmis=_kullanilmis_stok_idler())
+                terim, g, kullanilmis=_kullanilmis_stok_idler(),
+                atlanacak=atlanacak)
             if sonuc:
-                foto, kayit = sonuc
-                # Bu fotoğrafı bir daha seçmeyelim diye işaretliyoruz.
-                if kayit.get("id"):
-                    _kullanilmis_stok_idler().add(str(kayit["id"]))
-                    _SON_STOK_ID.append(str(kayit["id"]))
+                foto, stok_id = sonuc
+                _SON_STOK_ID.append(stok_id)
                 return (
                     make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
                     "pexels",
-                    fetch_stock.atif_metni(kayit),
+                    "",
                 )
             log.info("Pexels'te bulunamadı: %s", terim)
         except Exception as e:
@@ -311,13 +322,6 @@ def slayt_uret(haber, ayarlar: dict,
                son_slayt: bool = False) -> tuple[Path, str, str]:
     """
     Tek bir haberin slaytını üretip diske yazar.
-
-    (dosya_yolu, katman_adı, atıf_metni) döner. Atıf metni caption'ın
-    sonuna eklenecek — Commons'taki CC BY görselleri için bu hukuken şart,
-    Pexels'te zorunlu değil ama veriyoruz.
-
-    `zorla_ai` / `atlanacak` / `haber_gorseli_atla`: Telegram'daki
-    görsel değiştirme düğmeleri için — bkz. `arkaplan_sec`.
     """
     g = ayarlar["gorsel"]
     make_image.CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
@@ -326,20 +330,32 @@ def slayt_uret(haber, ayarlar: dict,
         haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
         haber_gorseli_atla=haber_gorseli_atla)
 
+    # Veri Kartı / Mini İnfografik Rozeti
+    veri_karti = None
+    v_etiket = _alan(haber, "veri_karti_etiket")
+    v_yeni = _alan(haber, "veri_karti_yeni")
+    if v_etiket and v_yeni:
+        km = _alan(haber, "makale_metni") or _alan(haber, "ozet_orj")
+        if dogrula.veri_karti_dogrula(_alan(haber, "veri_karti_eski"), v_yeni, km):
+            veri_karti = {
+                "etiket": v_etiket,
+                "yeni": v_yeni,
+                "eski": _alan(haber, "veri_karti_eski") or "",
+                "yon": _alan(haber, "veri_karti_yon") or "artis",
+            }
+
     gorsel = make_image.yaziyi_bas(
         arkaplan,
         _slayt_metni(haber, "ig_baslik", ayarlar),
         make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
         ayarlar,
         ozet=_slayt_metni(haber, "slayt_ozet", ayarlar) or None,
-        # Fotoğraf katmanlarında görsel o olayın belgesi değil; gradyanda
-        # ise ortada fotoğraf yok, ibare anlamsız olurdu.
         arsiv_ibaresi=katman in ARSIV_KATMANLARI,
         ulke_kodu=_alan(haber, "ulke_kodu") or None,
         ulke_adi=_alan(haber, "ulke_adi") or None,
-        # Şerit rengi kategoriden geliyor: spor yeşil, ekonomi bronz…
         kategori=haber["kategori"] or "",
         son_slayt=son_slayt,
+        veri_karti=veri_karti,
     )
 
     yol = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
@@ -505,7 +521,11 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     # Metin uzunsa birden fazla sayfaya yayılıyor — punto küçültmek
     # yerine sayfa ekliyoruz, yoksa uzun anlatım okunmaz hâle geliyor.
     sayfalar = make_image.detay_sayfalara_bol(
-        detay, ayarlar, vurgu=vurgu, alinti=alinti
+        detay, ayarlar,
+        vurgu=vurgu,
+        alinti=alinti,
+        neden_onemli=_alan(haber, "neden_onemli"),
+        sirada_ne_var=_alan(haber, "sirada_ne_var"),
     )
     detay_yollari = []
     for i, satirlar in enumerate(sayfalar, start=1):

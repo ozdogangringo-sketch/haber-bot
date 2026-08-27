@@ -578,6 +578,99 @@ def _logoyu_bas(gorsel: Image.Image, x: int, y: int, boy: int = 144) -> Image.Im
     return gorsel
 
 
+def _veri_rozeti_ciz(
+    ciz: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    etiket: str,
+    yeni: str,
+    eski: str = "",
+    yon: str = "artis",
+) -> tuple[int, int]:
+    """
+    Slaytın üstüne mini infografik veri rozeti çizer.
+    Döner: `(kart_genislik, kart_yukseklik)`
+    """
+    renk_map = {
+        "artis": ((16, 185, 129), "▲"),
+        "azalis": ((244, 63, 94), "▼"),
+        "hedef": ((226, 170, 88), "🎯"),
+        "notr": ((148, 163, 184), "●"),
+    }
+    tema_renk, sembol = renk_map.get(yon or "artis", ((226, 170, 88), "●"))
+
+    f_etiket = _font(21, [14.0, 600.0])
+    f_deger = _font(30, [20.0, 800.0])
+    f_eski = _font(21, [14.0, 500.0])
+
+    metin_deger = f"{sembol} {yeni}"
+    gen_deger = ciz.textlength(metin_deger, font=f_deger)
+    gen_etiket = ciz.textlength(etiket.upper(), font=f_etiket)
+    gen_eski = ciz.textlength(f"Önceki: {eski}", font=f_eski) if eski else 0
+
+    kart_g = int(max(gen_deger, gen_etiket, gen_eski) + 36)
+    kart_y = 92 if eski else 74
+
+    # Cam petrol arkaplan ve renkli ince çerçeve
+    ciz.rounded_rectangle(
+        [x, y, x + kart_g, y + kart_y],
+        radius=10,
+        fill=(6, 18, 28),
+        outline=(*tema_renk[:3],),
+        width=2,
+    )
+
+    ciz.text((x + 16, y + 8), etiket.upper(), font=f_etiket, fill=(160, 174, 192))
+    ciz.text((x + 16, y + 32), metin_deger, font=f_deger, fill=tema_renk)
+    if eski:
+        ciz.text((x + 16, y + 64), f"Önceki: {eski}", font=f_eski, fill=(130, 145, 165))
+
+    return kart_g, kart_y
+
+
+def split_portre_arkaplan(
+    img1: Image.Image,
+    img2: Image.Image,
+    genislik: int = 1080,
+    yukseklik: int = 1350,
+) -> Image.Image:
+    """
+    İki resmi portreyi dikeyde altın ayırıcı çizgi ile birleştiren çift portre arka planı üretir.
+    """
+    canvas = Image.new("RGB", (genislik, yukseklik), (10, 15, 25))
+    yarim = genislik // 2
+
+    # 1. Sol yarı (Aktör 1)
+    w1, h1 = img1.size
+    oran1 = max(yarim / w1, yukseklik / h1)
+    nw1, nh1 = int(w1 * oran1), int(h1 * oran1)
+    r1 = img1.resize((nw1, nh1), Image.LANCZOS)
+    x1 = (nw1 - yarim) // 2
+    y1 = int(nh1 * 0.1)
+    if y1 + yukseklik > nh1:
+        y1 = max(0, nh1 - yukseklik)
+    crop1 = r1.crop((x1, y1, x1 + yarim, y1 + yukseklik))
+    canvas.paste(crop1, (0, 0))
+
+    # 2. Sağ yarı (Aktör 2)
+    w2, h2 = img2.size
+    oran2 = max(yarim / w2, yukseklik / h2)
+    nw2, nh2 = int(w2 * oran2), int(h2 * oran2)
+    r2 = img2.resize((nw2, nh2), Image.LANCZOS)
+    x2 = (nw2 - yarim) // 2
+    y2 = int(nh2 * 0.1)
+    if y2 + yukseklik > nh2:
+        y2 = max(0, nh2 - yukseklik)
+    crop2 = r2.crop((x2, y2, x2 + yarim, y2 + yukseklik))
+    canvas.paste(crop2, (yarim, 0))
+
+    # 3. Altın ayırıcı çizgi (Daily Brief kurumsal #E2AA58)
+    ciz = ImageDraw.Draw(canvas)
+    ciz.line([(yarim, 0), (yarim, yukseklik)], fill=(226, 170, 88), width=3)
+
+    return canvas
+
+
 def yaziyi_bas(
     arkaplan: Image.Image, baslik: str, kaynak: str, ayarlar: dict,
     ozet: str | None = None,
@@ -586,6 +679,7 @@ def yaziyi_bas(
     ulke_adi: str = "",
     kategori: str = "",
     son_slayt: bool = False,
+    veri_karti: dict | None = None,
 ) -> Image.Image:
     """
     Arka planın üstüne başlığı, varsa özeti ve alt bilgiyi yazar.
@@ -1178,23 +1272,12 @@ def detay_sayfalara_bol(
     detay: str, ayarlar: dict,
     vurgu: tuple[str, str] | None = None,
     alinti: tuple[str, str] | None = None,
+    neden_onemli: str | None = None,
+    sirada_ne_var: str | None = None,
 ) -> list[list[dict]]:
     """
     Detay metnini paragraflara ayırıp sayfalara dağıtır.
-
-    Dönen yapı: sayfa listesi; her sayfa paragraf bloklarından oluşuyor:
-        [{"satirlar": [...], "spot": bool}, ...]
-
-    NEDEN PARAGRAF: tek blok düz metin slaytta duvar gibi görünüyor ve
-    kaydırılıp geçiliyor. Paragraf araları nefes veriyor, ilk paragraf
-    iri puntoyla basılınca göz oraya takılıyor (gazetedeki "spot").
-
-    Punto sabit; metin uzunsa SAYFA ekleniyor. Tersi (puntoyu küçültmek)
-    denenip bırakıldı — uzun metinde 28 puntoya inip okunmaz oluyordu.
-
-    Paragraf ortasından bölmemeye çalışıyoruz: sığmayan paragraf bir
-    sonraki sayfaya iniyor. Tek başına bir sayfayı aşan paragraf
-    kaçınılmaz olarak bölünüyor.
+    Smart Brevity formatını (Ne oldu / Neden Önemli / Sırada Ne Var) destekler.
     """
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
@@ -1209,15 +1292,13 @@ def detay_sayfalara_bol(
 
     paragraflar = [p.strip() for p in re.split(r"\n\s*\n", detay or "")
                    if p.strip()]
-    if not paragraflar and not vurgu and not alinti:
+    if not paragraflar and not vurgu and not alinti and not neden_onemli:
         return [[]]
 
     bloklar = []
 
     # Vurgu rakamı en başta: sayfanın çapası, ilk göze çarpan şey.
     if vurgu and vurgu[0]:
-        # Rakam uzunsa puntoyu düşür: "828 yıldan 2.352 yıla" gibi uzun
-        # ifadeler 92 puntoda sağa taşıyordu.
         s_punto = VURGU_SAYI_PUNTO
         for aday in (VURGU_SAYI_PUNTO, 76, 64, 54, 46):
             if olcu.textlength(vurgu[0], font=_font(aday, EKSEN_BASLIK)) <= alan:
@@ -1241,7 +1322,35 @@ def detay_sayfalara_bol(
         bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
                         "yukseklik": yukseklik_px})
 
-    # Alıntı en sonda: paragrafları okuduktan sonra gelen kapanış.
+    # Smart Brevity: Neden Önemli Kartı
+    if neden_onemli and neden_onemli.strip():
+        n_punto = DETAY_PUNTO - 4
+        n_font = _font(n_punto, EKSEN_OZET)
+        n_satirlar = _satirlara_bol(neden_onemli.strip(), n_font, alan - 48, olcu)
+        bloklar.append({
+            "tip": "neden_onemli",
+            "baslik": "💡 NEDEN ÖNEMLİ?",
+            "metin": neden_onemli.strip(),
+            "satirlar": n_satirlar,
+            "spot": False,
+            "yukseklik": int(n_punto * 1.5) * len(n_satirlar) + 48,
+        })
+
+    # Smart Brevity: Sırada Ne Var Kartı
+    if sirada_ne_var and sirada_ne_var.strip():
+        s_punto = DETAY_PUNTO - 4
+        s_font = _font(s_punto, EKSEN_OZET)
+        s_satirlar = _satirlara_bol(sirada_ne_var.strip(), s_font, alan - 48, olcu)
+        bloklar.append({
+            "tip": "sirada_ne_var",
+            "baslik": "🔮 SIRADA NE VAR?",
+            "metin": sirada_ne_var.strip(),
+            "satirlar": s_satirlar,
+            "spot": False,
+            "yukseklik": int(s_punto * 1.5) * len(s_satirlar) + 48,
+        })
+
+    # Alıntı en sonda: kapanış
     if alinti and alinti[0]:
         a_font = _font(ALINTI_PUNTO, EKSEN_OZET)
         a_satirlar = _satirlara_bol(f"“{alinti[0]}”", a_font, alan - 40, olcu)
@@ -1401,6 +1510,26 @@ def detay_slayti(
                 ciz.text((kenar + 26, y + 8), f"— {b['sahibi']}",
                          font=_font(28, EKSEN_KUCUK), fill=(198, 206, 222))
             y += 54
+
+        elif tip in ("neden_onemli", "sirada_ne_var"):
+            is_neden = (tip == "neden_onemli")
+            kenar_renk = (226, 170, 88) if is_neden else (6, 182, 212)
+            kart_h = b.get("yukseklik", 120)
+            ciz.rounded_rectangle(
+                [kenar, y, kenar + alan_genislik, y + kart_h],
+                radius=10,
+                fill=(10, 24, 38) if is_neden else (8, 22, 32),
+                outline=kenar_renk,
+                width=2,
+            )
+            ciz.text((kenar + 18, y + 12), b["baslik"], font=_font(21, [14.0, 700.0]), fill=kenar_renk)
+            y_yazi = y + 42
+            punto_kart = DETAY_PUNTO - 4
+            satir_h = int(punto_kart * 1.5)
+            for s in b["satirlar"]:
+                _formatli_satir_ciz(ciz, kenar + 18, y_yazi, s, punto_kart, spot=False, varsayilan_renk=(226, 232, 240) if is_neden else (206, 214, 230))
+                y_yazi += satir_h
+            y += kart_h
 
         else:
             punto = b.get("punto") or (DETAY_SPOT_PUNTO if b["spot"]

@@ -60,7 +60,29 @@ def _kok(kelime: str) -> str:
 def _sayilar(metin: str) -> set[str]:
     """Ayraçları temizlenmiş sayılar. '2.500' ve '2500' aynı sayılıyor."""
     duz = metin.replace(".", "").replace(",", "")
-    return {s for s in re.findall(r"\d+", duz) if len(s) >= 2}
+    return {s for s in re.findall(r"\d+", duz) if len(s) >= 1}
+
+
+def veri_karti_dogrula(eski_deger: str | None, yeni_deger: str | None, kaynak_metin: str | None) -> bool:
+    """
+    Veri kartındaki sayıların kaynak metinde gerçekten geçip geçmediğini doğrular.
+    Uydurma sayıları engeller; kaynakta bulunamazsa False döner.
+    """
+    if not yeni_deger or not kaynak_metin:
+        return False
+
+    kaynak_sayilar = _sayilar(kaynak_metin)
+
+    yeni_sayilar = _sayilar(yeni_deger)
+    if not yeni_sayilar or not yeni_sayilar.issubset(kaynak_sayilar):
+        return False
+
+    if eski_deger:
+        eski_sayilar = _sayilar(eski_deger)
+        if eski_sayilar and not eski_sayilar.issubset(kaynak_sayilar):
+            return False
+
+    return True
 
 
 def _ozel_isimler(metin: str) -> list[str]:

@@ -6,6 +6,7 @@ SQL bildiğin için sorguları olduğu gibi görebilesin diye
 ORM kullanmadım, düz SQL yazdım.
 """
 
+import json
 import logging
 import sqlite3
 from pathlib import Path
@@ -167,6 +168,16 @@ EK_KOLONLAR = {
     # Sağ üstteki bayrak: ISO 3166-1 alpha-2 kodu + Türkçe ülke adı
     "ulke_kodu": "TEXT",
     "ulke_adi": "TEXT",
+    # Smart Brevity editoryal alanları
+    "neden_onemli": "TEXT",
+    "sirada_ne_var": "TEXT",
+    # Slayt içi mini veri rozeti (infografik) alanları
+    "veri_karti_etiket": "TEXT",
+    "veri_karti_eski": "TEXT",
+    "veri_karti_yeni": "TEXT",
+    "veri_karti_yon": "TEXT",
+    # İkili aktör / Split-Screen için JSON listesi
+    "gorsel_ikili": "TEXT",
     # Görselin hangi katmandan geldiği: commons / pexels / gradyan / ai.
     # Onay mesajında göstermek ve sonradan "hangi katman ne sıklıkta
     # tutuyor" diye ölçebilmek için tutuluyor.
@@ -334,30 +345,31 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
     con.execute(
         """
         UPDATE haberler
-           SET ig_baslik      = ?,
-               ig_caption     = ?,
-               ig_hashtag     = ?,
-               onem_puani     = ?,
-               slayt_ozet     = ?,
-               detay_metni    = ?,
-               vurgu_sayi     = ?,
-               vurgu_etiket   = ?,
-               alinti         = ?,
-               alinti_sahibi  = ?,
-               gorsel_konu    = ?,
-               gorsel_temsili = ?,
-               -- ⚠️ KATEGORİ MODELDEN GELİYORSA ÜZERİNE YAZILIYOR.
-               -- `fetch_news` kategoriyi RSS beslemesinden atıyor ve o
-               -- çoğu zaman yanlış (CLAUDE.md 1i): AA'nın ekonomi
-               -- beslemesinden gelen silah satışı haberi "ekonomi"
-               -- görünüyordu. Model haberin tam metnini okuyor.
-               -- Model boş/geçersiz döndürürse eski değer korunuyor.
-               kategori       = COALESCE(?, kategori),
-               ulke_kodu      = ?,
-               ulke_adi       = ?,
-               makale_metni   = COALESCE(?, makale_metni),
-               durum          = 'metin_hazir',
-               hata_mesaji    = NULL
+           SET ig_baslik         = ?,
+               ig_caption        = ?,
+               ig_hashtag        = ?,
+               onem_puani        = ?,
+               slayt_ozet        = ?,
+               detay_metni       = ?,
+               vurgu_sayi        = ?,
+               vurgu_etiket      = ?,
+               alinti            = ?,
+               alinti_sahibi     = ?,
+               gorsel_konu       = ?,
+               gorsel_temsili    = ?,
+               kategori          = COALESCE(?, kategori),
+               ulke_kodu         = ?,
+               ulke_adi          = ?,
+               neden_onemli      = ?,
+               sirada_ne_var     = ?,
+               veri_karti_etiket = ?,
+               veri_karti_eski   = ?,
+               veri_karti_yeni   = ?,
+               veri_karti_yon    = ?,
+               gorsel_ikili      = ?,
+               makale_metni      = COALESCE(?, makale_metni),
+               durum             = 'metin_hazir',
+               hata_mesaji       = NULL
          WHERE id = ?
         """,
         (
@@ -371,13 +383,18 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
             (uretilen.get("vurgu_etiket") or "").strip() or None,
             (uretilen.get("alinti") or "").strip() or None,
             (uretilen.get("alinti_sahibi") or "").strip() or None,
-            # Gemini boş bırakabiliyor (tanınmış kişi yoksa / ülkesiz haber).
-            # Boş string yerine NULL saklamak SQL'de ayırt etmeyi kolaylaştırır.
             (uretilen.get("gorsel_konu") or "").strip() or None,
             (uretilen.get("gorsel_temsili") or "").strip() or None,
             _gecerli_kategori(uretilen.get("kategori")),
             (uretilen.get("ulke_kodu") or "").strip().lower() or None,
             (uretilen.get("ulke_adi") or "").strip() or None,
+            (uretilen.get("neden_onemli") or "").strip() or None,
+            (uretilen.get("sirada_ne_var") or "").strip() or None,
+            (uretilen.get("veri_karti_etiket") or "").strip() or None,
+            (uretilen.get("veri_karti_eski") or "").strip() or None,
+            (uretilen.get("veri_karti_yeni") or "").strip() or None,
+            (uretilen.get("veri_karti_yon") or "").strip() or None,
+            json.dumps(uretilen.get("gorsel_ikili", [])) if isinstance(uretilen.get("gorsel_ikili"), list) else None,
             makale_metni,
             haber_id,
         ),
