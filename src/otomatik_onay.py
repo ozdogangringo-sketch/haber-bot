@@ -293,8 +293,9 @@ def katman0_mukerrer_denetimi(con, haber, ayarlar: dict) -> tuple[bool, str]:
     benzer bir haber var mı denetler. Varsa otomatik yayın DERHAL DURDURULUR.
     """
     from . import secim
+    h_dict = dict(haber) if hasattr(haber, "keys") else haber
     gecmis = secim.yayinlanmis_konular(con, ayarlar)
-    baslik = haber.get("ig_baslik") or haber.get("baslik_orj") or ""
+    baslik = h_dict.get("ig_baslik") or h_dict.get("baslik_orj") or ""
     kelimeler, isimler = secim.konu_imzasi(baslik)
 
     for onceki_k, onceki_i in gecmis:
@@ -314,13 +315,14 @@ def otomatik_yayinlanabilir(con, haber, ayarlar: dict) -> tuple[bool, list[str]]
     HEPSİ geçmek zorunda. Biri bile reddederse otomatik yayın yok;
     haber sabaha bırakılıp insana soruluyor.
     """
+    haber_dict = dict(haber) if hasattr(haber, "keys") else haber
     rapor = []
 
     for ad, fn in (
-        ("0 mükerrer denetimi", lambda: katman0_mukerrer_denetimi(con, haber, ayarlar)),
-        ("1 deterministik", lambda: katman1_deterministik(haber)),
-        ("2 kaynak güveni", lambda: katman2_ikinci_kaynak(con, haber, ayarlar)),
-        ("4 riskli kategori", lambda: katman4_riskli_kategori(haber)),
+        ("0 mükerrer denetimi", lambda: katman0_mukerrer_denetimi(con, haber_dict, ayarlar)),
+        ("1 deterministik", lambda: katman1_deterministik(haber_dict)),
+        ("2 kaynak güveni", lambda: katman2_ikinci_kaynak(con, haber_dict, ayarlar)),
+        ("4 riskli kategori", lambda: katman4_riskli_kategori(haber_dict)),
     ):
         gecti, not_ = fn()
         rapor.append(f"{'✓' if gecti else '✗'} {ad}: {not_}")
