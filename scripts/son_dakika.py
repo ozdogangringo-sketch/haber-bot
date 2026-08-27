@@ -954,18 +954,12 @@ def main(zorla_haber_id: int | None = None) -> int:
             except Exception as e:
                 log.warning("story yüklenemedi: %s", e)
 
-        # Slayt 2 (Detay) için 9:16 Story formatı üret
+        # Slayt 2 (Detay) için 9:16 Story formatı yükle (Native Story motoru)
         story_detay_url = None
-        detay_slayt = next((s for s in sonuclar if s.get("katman") == "detay"), None)
-        if detay_slayt:
+        story_detay_yol = make_image.CIKTI_KLASORU / f"story-{aday['id']}-detay.jpg"
+        if story_detay_yol.exists():
             try:
-                from src import video
-                from PIL import Image
-                detay_img = Image.open(detay_slayt["yol"])
-                detay_9_16 = video._cercevele_9_16(detay_img, baslik_rozet="HABERİN AYRINTILARI")
-                detay_9_16_yol = make_image.CIKTI_KLASORU / f"story-{aday['id']}-detay.jpg"
-                detay_9_16.save(detay_9_16_yol, "JPEG", quality=92, optimize=True)
-                story_detay_url = upload_image.gorsel_yukle(detay_9_16_yol, ayarlar)["url"]
+                story_detay_url = upload_image.gorsel_yukle(story_detay_yol, ayarlar)["url"]
             except Exception as e:
                 log.warning("detay story yüklenemedi: %s", e)
 

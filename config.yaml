@@ -399,9 +399,9 @@ gorsel:
   #   1280x720 (16:9) · 1200x630 (1.91:1)
   # İkisi de 800 yükseklik eşiğine takılıyordu.
   #
-  # 864x486 ve 720x405 haber fotoğraflarını da kabul et:
-  haber_gorseli_asgari_genislik: 640
-  haber_gorseli_asgari_yukseklik: 360
+  # Yalnızca yüksek çözünürlüklü HD haber fotoğraflarını kabul et (16:9 ve 1.91:1 standartları):
+  haber_gorseli_asgari_genislik: 1200
+  haber_gorseli_asgari_yukseklik: 630
   # Düz zeminli sayfalar (detay slaytları) — fotoğraf yok, yüksek
   # kalite dosyayı gereksiz şişiriyor.
   jpeg_kalite: 90

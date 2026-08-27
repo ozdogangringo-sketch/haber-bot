@@ -671,17 +671,14 @@ def split_portre_arkaplan(
 def _kaynak_satiri_ciz(
     ciz: ImageDraw.Draw, kenar: int, alt_bilgi_y: int, kaynak: str, arsiv_ibaresi: bool = False
 ) -> None:
-    """Slaytın sol altına şık bir gazete/belge ikonuyla kaynak atfını yazar."""
+    """Slaytın sol altına şık bir altın nokta ve kaynak adını yazar."""
     kucuk = _font(26, EKSEN_KUCUK)
-    ciz.rectangle([kenar, alt_bilgi_y + 4, kenar + 14, alt_bilgi_y + 20], outline=(198, 206, 222), width=2)
-    ciz.line([kenar + 3, alt_bilgi_y + 8, kenar + 11, alt_bilgi_y + 8], fill=(226, 170, 88), width=1)
-    ciz.line([kenar + 3, alt_bilgi_y + 12, kenar + 11, alt_bilgi_y + 12], fill=(198, 206, 222), width=1)
-    ciz.line([kenar + 3, alt_bilgi_y + 16, kenar + 8, alt_bilgi_y + 16], fill=(198, 206, 222), width=1)
-
-    metin = f"KAYNAK: {_buyuk_harf(kaynak)}"
+    # Zarif altın nokta
+    ciz.ellipse([kenar, alt_bilgi_y + 8, kenar + 8, alt_bilgi_y + 16], fill=(226, 170, 88))
+    metin = _buyuk_harf(kaynak)
     if arsiv_ibaresi:
         metin += "   ·   ARŞİV GÖRSELİ"
-    ciz.text((kenar + 22, alt_bilgi_y), metin, font=kucuk, fill=(198, 206, 222))
+    ciz.text((kenar + 18, alt_bilgi_y), metin, font=kucuk, fill=(198, 206, 222))
 
 
 def yaziyi_bas(
@@ -1243,6 +1240,48 @@ def story_haber(
         ciz.text((x_bas + 14, y_bas + 10), etiket, font=f, fill=(255, 255, 255))
 
     return gorsel
+
+
+def story_detay(
+    baslik: str, detay: str, kaynak: str, ayarlar: dict,
+    arkaplan: Image.Image | None = None,
+    kategori: str = "turkiye",
+    son_dakika: bool = True,
+    ulke_kodu: str | None = None,
+    ulke_adi: str | None = None,
+    satirlar: list[dict] | None = None,
+    sayfa: int = 1,
+    toplam_sayfa: int = 1,
+    arsiv_ibaresi: bool = False,
+) -> Image.Image:
+    """
+    Haber detayının 9:16 (1080x1920) Story formatı.
+    story_haber ile birebir aynı dikey güvenli pay (285px), logo, bayrak ve tipografi hizalamasını kullanır.
+    """
+    story_ayarlar = {
+        **ayarlar,
+        "gorsel": {
+            **ayarlar["gorsel"],
+            "genislik": STORY_GENISLIK,
+            "yukseklik": STORY_YUKSEKLIK,
+            "dikey_guvenli_pay": STORY_GUVENLI_PAY,
+        },
+    }
+    return detay_slayti(
+        baslik=baslik,
+        detay=detay,
+        kaynak=kaynak,
+        ayarlar=story_ayarlar,
+        kategori=kategori,
+        son_dakika=son_dakika,
+        ulke_kodu=ulke_kodu,
+        ulke_adi=ulke_adi,
+        satirlar=satirlar,
+        sayfa=sayfa,
+        toplam_sayfa=toplam_sayfa,
+        arkaplan=arkaplan,
+        arsiv_ibaresi=arsiv_ibaresi,
+    )
 
 
 # ----------------------------------------------------------------------

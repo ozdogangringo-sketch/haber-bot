@@ -80,8 +80,8 @@ def _gorseli_indir(url: str, g: dict):
     Haber görselini indirir; CDN thumbnail'lerini otomatik 4K/2K ham basın görseline çözer.
     Eşiğin altındaki kalitesiz/küçük görseller elenir ve akış bir sonraki katmana (Pexels/Commons) aktarılır.
     """
-    asgari = g.get("haber_gorseli_asgari_genislik", 1000)
-    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 600)
+    asgari_g = g.get("haber_gorseli_asgari_genislik", 1400)
+    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 900)
     
     adaylar = fetch_article.hd_gorsel_url_coz(url)
     
@@ -101,8 +101,8 @@ def _gorseli_indir(url: str, g: dict):
             foto = Image.open(io.BytesIO(cevap.content))
             foto.load()
             alan = foto.width * foto.height
-            # Yüksek kalite filtresi: En az 1000x600 ve aşırı sıkıştırılmamış (>= 75 KB)
-            if foto.width >= asgari and foto.height >= asgari_y and ham_boyut_kb >= 75:
+            # Yüksek çözünürlük ve netlik filtresi (dikey kırpmada piksellenmeyen 1400x900 ve >= 90 KB)
+            if foto.width >= asgari_g and foto.height >= asgari_y and ham_boyut_kb >= 90:
                 if alan > en_buyuk_alan:
                     en_iyi_foto = foto.convert("RGB")
                     en_buyuk_alan = alan
@@ -113,7 +113,7 @@ def _gorseli_indir(url: str, g: dict):
     if en_iyi_foto:
         return en_iyi_foto
         
-    log.info("haber görseli küçük veya düşük kaliteli (%s), HD stok katmanına geçiliyor", url)
+    log.info("haber görseli küçük veya yetersiz çözünürlükte (%s), 4K stok/portre katmanına geçiliyor", url)
     return None
 
 
@@ -293,15 +293,16 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     if terim:
         try:
             sonuc = fetch_stock.konu_icin_fotograf(
-                terim, g, kullanilmis=_kullanilmis_stok_idler(),
-                atlanacak=atlanacak)
+                terim, atlanacak=atlanacak,
+                kullanilmis=_kullanilmis_stok_idler()
+            )
             if sonuc:
-                foto, stok_id = sonuc
-                _SON_STOK_ID.append(stok_id)
+                foto, kayit = sonuc
+                _SON_STOK_ID.append(kayit.get("id"))
                 return (
                     make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
                     "pexels",
-                    "",
+                    fetch_stock.atif_metni(kayit),
                 )
             log.info("Pexels'te bulunamadı: %s", terim)
         except Exception as e:
@@ -570,6 +571,26 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     except Exception as e:
         # Story ikincil; patlarsa post yine çıkmalı.
         log.warning("story görseli üretilemedi: %s", e)
+
+    # --- Slayt 2 Detay Story (9:16) ---
+    try:
+        story_d = make_image.story_detay(
+            _slayt_metni(haber, "ig_baslik", ayarlar),
+            detay,
+            make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
+            ayarlar,
+            arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
+            kategori=haber["kategori"],
+            son_dakika=son_dakika_mi,
+            ulke_kodu=_alan(haber, "ulke_kodu") or None,
+            ulke_adi=_alan(haber, "ulke_adi") or None,
+            satirlar=sayfalar[0] if sayfalar else None,
+            arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
+        )
+        story_detay_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay.jpg"
+        story_d.save(story_detay_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
+    except Exception as e:
+        log.warning("detay story görseli üretilemedi: %s", e)
 
     log.info("son dakika slaytları üretildi #%s [%s + %d detay + story]",
              haber["id"], katman, len(detay_yollari))
