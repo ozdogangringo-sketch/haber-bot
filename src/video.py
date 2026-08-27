@@ -167,15 +167,18 @@ def slaytlardan_reels_uret(
     cikti_yolu: Path | str | None = None,
     fps: int = 30,
     slayt_suresi: float = 3.5,
-    gecis_suresi: float = 0.4,
+    gecis_suresi: float = 0.5,
 ) -> Path:
     """
     Verilen slayt görsellerinden 1080x1920 MP4 Reels videosu üretir.
 
+    * Titremesiz, jilet gibi net ve akıcı S-curve (cosine easing) geçişler uygulanır.
     * `slayt_suresi`: Her slaytın ekranda kalma süresi (saniye).
     * `gecis_suresi`: İki slayt arasındaki yumuşak kararma geçişi (saniye).
     * `fps`: Saniyedeki kare sayısı (30 fps Instagram için en ideal).
     """
+    import math
+
     if not gorsel_yollari:
         raise ValueError("Video üretimi için en az 1 görsel gerekli")
 
@@ -200,9 +203,13 @@ def slaytlardan_reels_uret(
     if not kareler_ham:
         raise RuntimeError("Hiçbir görsel işlenemedi")
 
-    toplam_kare_slayt = int(fps * slayt_suresi)
-    gecis_kare_sayisi = int(fps * gecis_suresi)
+    # Kare sayıları hesabı
+    toplam_kare_slayt = max(1, int(fps * slayt_suresi))
+    gecis_kare_sayisi = max(1, int(fps * gecis_suresi)) if len(kareler_ham) > 1 else 0
     sabit_kare_sayisi = max(1, toplam_kare_slayt - gecis_kare_sayisi)
+
+    # NumPy dizilerine önceden çevirerek bellek ve işlem hızını maksimize et
+    np_kareler = [np.array(img, dtype=np.float32) for img in kareler_ham]
 
     writer = imageio.get_writer(
         str(cikti_yolu),
@@ -211,33 +218,35 @@ def slaytlardan_reels_uret(
         pixelformat="yuv420p",
         macro_block_size=1,
         quality=9,
+        ffmpeg_params=[
+            "-crf", "17",
+            "-preset", "slow",
+            "-tune", "stillimage",
+            "-movflags", "+faststart",
+        ],
     )
 
     try:
-        for idx, img_simdiki in enumerate(kareler_ham):
-            img_sonraki = kareler_ham[(idx + 1) % len(kareler_ham)] if len(kareler_ham) > 1 else None
+        toplam_slayt = len(np_kareler)
+        for idx in range(toplam_slayt):
+            arr_simdiki = np_kareler[idx]
+            arr_sonraki = np_kareler[(idx + 1) % toplam_slayt] if toplam_slayt > 1 else None
 
-            # Ken Burns / Hafif Yakınlaştırma (1.00 -> 1.03)
-            for k in range(sabit_kare_sayisi):
-                t = k / float(toplam_kare_slayt)
-                olcek = 1.0 + (0.03 * t)
-                
-                w = int(HEDEF_GENISLIK * olcek)
-                h = int(HEDEF_YUKSEKLIK * olcek)
-                crop_x = (w - HEDEF_GENISLIK) // 2
-                crop_y = (h - HEDEF_YUKSEKLIK) // 2
+            # 1. Sabit Görsel Aşaması (Jilet gibi net, titreşimsiz)
+            arr_uint8 = np.clip(arr_simdiki, 0, 255).astype(np.uint8)
+            for _ in range(sabit_kare_sayisi):
+                writer.append_data(arr_uint8)
 
-                zoom_img = img_simdiki.resize((w, h), Image.Resampling.BILINEAR)
-                zoom_crop = zoom_img.crop((crop_x, crop_y, crop_x + HEDEF_GENISLIK, crop_y + HEDEF_YUKSEKLIK))
-                
-                writer.append_data(np.array(zoom_crop))
-
-            # Yumuşak Geçiş (Crossfade)
-            if idx < len(kareler_ham) - 1 and img_sonraki:
+            # 2. Buttery Smooth S-Curve Crossfade Aşaması (Sıçramasız, kusursuz geçiş)
+            if gecis_kare_sayisi > 0 and arr_sonraki is not None and idx < toplam_slayt - 1:
                 for k in range(gecis_kare_sayisi):
-                    alpha = (k + 1) / float(gecis_kare_sayisi)
-                    gecis_img = Image.blend(img_simdiki, img_sonraki, alpha)
-                    writer.append_data(np.array(gecis_img))
+                    # Lineer değil, Cosine S-Curve easing (0 -> 1)
+                    t = (k + 1) / float(gecis_kare_sayisi)
+                    alpha = 0.5 * (1.0 - math.cos(math.pi * t))
+
+                    # Renk kanallarında kusursuz yumuşak geçiş
+                    gecis_arr = (1.0 - alpha) * arr_simdiki + alpha * arr_sonraki
+                    writer.append_data(np.clip(gecis_arr, 0, 255).astype(np.uint8))
 
     finally:
         writer.close()
