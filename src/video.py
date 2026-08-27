@@ -186,9 +186,12 @@ def slaytlardan_reels_uret(
             arr_simdiki = np_kareler[idx]
             arr_sonraki = np_kareler[(idx + 1) % toplam_slayt] if toplam_slayt > 1 else None
 
+            # İlk kapak görseli (idx == 0) kanca etkisi ve okunabilirlik için diğerlerinden 1 saniye daha uzun kalır
+            bu_slayt_sabit_kare = sabit_kare_sayisi + (int(fps * 1.0) if idx == 0 else 0)
+
             # 1. Sabit Görsel Aşaması (Jilet gibi net, titreşimsiz)
             arr_uint8 = np.clip(arr_simdiki, 0, 255).astype(np.uint8)
-            for _ in range(sabit_kare_sayisi):
+            for _ in range(bu_slayt_sabit_kare):
                 writer.append_data(arr_uint8)
 
             # 2. Buttery Smooth S-Curve Crossfade Aşaması (Sıçramasız, kusursuz geçiş)

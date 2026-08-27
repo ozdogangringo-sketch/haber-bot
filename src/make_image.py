@@ -535,6 +535,7 @@ def yaziyi_bas(
     ulke_kodu: str = "",
     ulke_adi: str = "",
     kategori: str = "",
+    son_slayt: bool = False,
 ) -> Image.Image:
     """
     Arka planın üstüne başlığı, varsa özeti ve alt bilgiyi yazar.
@@ -574,7 +575,7 @@ def yaziyi_bas(
         baslik, ciz, alan_genislik, baslik_alani
     )
 
-    ozet_ust = alt_bilgi_y - 44 - ozet_yuksekligi
+    ozet_ust = alt_bilgi_y - (66 if son_slayt else 44) - ozet_yuksekligi
     baslik_ust = ozet_ust - (26 if ozet else 0) - satir_yuksekligi * len(satirlar)
 
     # --- 2) Perde: Standart kurumsal kategori renk şeridi (özet ve alt bilgiyi tam opak korur) ---
@@ -621,6 +622,12 @@ def yaziyi_bas(
     for satir in ozet_satirlari:
         ciz.text((kenar, y), satir, font=ozet_font, fill=(226, 232, 240))
         y += ozet_satir_y
+
+    # Son slayt Call-To-Action (CTA) etkileşim rozeti
+    if son_slayt:
+        cta_font = _font(24, EKSEN_KUCUK)
+        cta_metin = "📌 Günün özetini kaçırmamak için kaydet & takip et"
+        ciz.text((kenar, alt_bilgi_y - 36), cta_metin, font=cta_font, fill=(226, 170, 88))
 
     # Kaynak adı — telif değil, şeffaflık için: haber nereden geldi
     kucuk = _font(26, EKSEN_KUCUK)
@@ -1044,13 +1051,10 @@ def story_haber(
     son_dakika: bool = False,
     ulke_kodu: str | None = None,
     ulke_adi: str | None = None,
+    son_slayt: bool = False,
 ) -> Image.Image:
     """
-    Tek haberin story hâli — son dakika için.
-
-    Fotoğraf verilirse kullanılıyor (son dakika slaytının arka planı),
-    yoksa gradyan. Yerleşim `yaziyi_bas` ile aynı mantıkta ama story
-    ölçüsünde ve daha geniş güvenli payla.
+    Tek haberin story hâli — son dakika ve albümler için.
     """
     story_ayarlar = {
         **ayarlar,
@@ -1075,6 +1079,7 @@ def story_haber(
         arsiv_ibaresi=False,
         ulke_kodu=ulke_kodu,
         ulke_adi=ulke_adi,
+        son_slayt=son_slayt,
     )
 
     if son_dakika:

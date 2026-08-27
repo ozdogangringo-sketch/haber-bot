@@ -162,7 +162,12 @@ her durumda bu daha doğru.
 
 DİĞER KURALLAR:
 - Çıktının tamamı Türkçe olacak. Haber İngilizceyse Türkçeye çevir.
-- ig_baslik: en fazla 12 kelime.
+  ★ KANCA ETKİSİ VE DİKKAT ÇEKİCİ MANŞET DİLİ (ASLA MANİPÜLE ETMEDEN) ★
+  Başlık akışta kaydırmayı durduran güçlü bir KANCA (Hook) olmalıdır:
+  1. Haberdeki en can alıcı eylemi, etkiyi veya değişimi doğrudan ilk kelimelere yerleştir.
+  2. Gerçeği zerre manipüle etmeden, abartısız ama vurucu bir fiil veya somut sonuç kullan.
+  3. "Önemli gelişme", "açıklama yapıldı" gibi pasif laflar yerine; doğrudan olayı anlatan dinamik manşet kur ("Fed faizi indirdi", "TCMB rezervleri rekor kırdı", "THY 50 yeni uçak siparişi verdi").
+  4. Başlığı okuyan kişi haberin sonucunu %100 öğrenmeli, fakat detayları okumak için slaytı kaydırma isteği uyandırmalıdır.
 
   ★ EN ÖNEMLİ KURAL — BAŞLIK HABERİN SONUCUNU SÖYLEMELİ ★
   Bu bir haber hesabı, tıklama tuzağı değil. Takipçiye link vermiyoruz,

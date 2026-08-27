@@ -303,9 +303,12 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     )
 
 
-def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
+def slayt_uret(haber, ayarlar: dict,
+               zorla_ai: bool = False,
                atlanacak: int = 0,
-               haber_gorseli_atla: bool = False) -> tuple[Path, str, str]:
+               haber_gorseli_atla: bool = False,
+               sira: int = 1,
+               son_slayt: bool = False) -> tuple[Path, str, str]:
     """
     Tek bir haberin slaytını üretip diske yazar.
 
@@ -336,6 +339,7 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
         ulke_adi=_alan(haber, "ulke_adi") or None,
         # Şerit rengi kategoriden geliyor: spor yeşil, ekonomi bronz…
         kategori=haber["kategori"] or "",
+        son_slayt=son_slayt,
     )
 
     yol = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
@@ -355,6 +359,7 @@ def slayt_uret(haber, ayarlar: dict, zorla_ai: bool = False,
             kategori=haber["kategori"] or "turkiye",
             ulke_kodu=_alan(haber, "ulke_kodu") or None,
             ulke_adi=_alan(haber, "ulke_adi") or None,
+            son_slayt=son_slayt,
         )
         story_gorsel.save(story_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True, exif=exif_meta)
     except Exception as e:
@@ -376,10 +381,12 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
     """
     g = ayarlar["gorsel"]
     sonuclar = []
+    toplam_slayt = min(len(haberler), g["slayt_sayisi"])
 
     for idx, haber in enumerate(haberler[: g["slayt_sayisi"]], start=1):
         try:
-            yol, katman, atif = slayt_uret(haber, ayarlar, sira=idx)
+            is_son = (idx == toplam_slayt)
+            yol, katman, atif = slayt_uret(haber, ayarlar, sira=idx, son_slayt=is_son)
         except Exception as e:
             log.error("slayt üretilemedi #%s: %s", haber["id"], e)
             continue
