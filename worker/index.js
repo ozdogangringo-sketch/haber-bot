@@ -169,9 +169,41 @@ function seciliKanallariCikar(klavye) {
     .map((b) => b.callback_data.slice(6)); // "kanal:ig" -> "ig"
 }
 
+const KANAL_KODLARI = {
+  ig: "i",
+  reels: "r",
+  story: "s",
+  threads: "t",
+  facebook: "f",
+  twitter: "x",
+  youtube: "y",
+  tiktok: "k",
+};
+const KOD_TO_KANAL = {
+  i: "ig",
+  r: "reels",
+  s: "story",
+  t: "threads",
+  f: "facebook",
+  x: "twitter",
+  y: "youtube",
+  k: "tiktok",
+};
+
+function kanallariKodla(kanallar) {
+  if (!kanallar) return "";
+  const arr = Array.isArray(kanallar) ? kanallar : (typeof kanallar === "string" ? kanallar.split(",") : []);
+  return arr.map((k) => KANAL_KODLARI[k.trim().toLowerCase()] || k.trim()).join(",");
+}
+
+function kanallariCoz(str) {
+  if (!str) return [];
+  return str.split(",").map((s) => KOD_TO_KANAL[s.trim().toLowerCase()] || s.trim().toLowerCase()).filter(Boolean);
+}
+
 function kanalButonlariSatirlari(kanallar) {
   const varMi = (k) => {
-    if (Array.isArray(kanallar)) return kanallar.includes(k);
+    if (Array.isArray(kanallar)) return kanallar.includes(k) || kanallar.includes(KANAL_KODLARI[k]);
     if (kanallar && typeof kanallar === "object") return Boolean(kanallar[k]);
     if (k === "reels") return false; // Varsayılan kapalı (Reels, IG post ile çakışmasın)
     return true; // IG, Story, Threads, FB, X, YT, TT varsayılan AKTİF
@@ -203,20 +235,18 @@ function kanalButonlariSatirlari(kanallar) {
 // ---------------------------------------------------------------------
 
 function anaMenu(adet, kanallar) {
-  const kStr = Array.isArray(kanallar) ? kanallar.join(",") : "";
+  const kStr = kanallariKodla(kanallar);
   const yayinCb = kStr ? `yayin_menu:${adet}:${kStr}` : `yayin_menu:${adet}`;
   const slaytCb = kStr ? `slayt_menu:${adet}:${kStr}` : `slayt_menu:${adet}`;
   return {
     inline_keyboard: [
-      ...kanalButonlariSatirlari(kanallar),
+      ...kanalButonlariSatirlari(kanallariCoz(kStr)),
       [{ text: "✅ Yayınla", callback_data: yayinCb },
        { text: "📲 Manuel Paylaşım Paketi", callback_data: "manuel_paket" }],
       [{ text: "🔄 Başka Fotoğraf Bul", callback_data: "foto_degistir" },
        { text: "✍️ Metinleri Yenile", callback_data: "metin_yenile" }],
       [{ text: `🎨 Slayt düzenle (${adet} slayt)`, callback_data: slaytCb }],
       [{ text: "⏰ 1 saat ertele", callback_data: "ertele" }],
-      // ⚠️ Menü İKİ YERDE tanımlı (telegram_bot.py ve burada);
-      // birini değiştirirken diğerini de değiştir.
       [{ text: "📋 Tekil atma, 10'lu tura bırak", callback_data: "tura_birak" }],
       [{ text: "❌ Bu turu atla (Havuza döner)", callback_data: "iptal" },
        { text: "🗑️ Çöpe At (Havuza dönmesin)", callback_data: "cope_at" }],
@@ -225,13 +255,12 @@ function anaMenu(adet, kanallar) {
 }
 
 // ⚠️ src/telegram_bot.py -> yayin_zamani_menusu() ile BİREBİR AYNI olmalı.
-// İki sütun: dar telefon ekranında düğme metinleri kırpılmasın.
 function yayinZamaniMenusu(adet, kanallar) {
-  const kStr = Array.isArray(kanallar) ? kanallar.join(",") : "";
+  const kStr = kanallariKodla(kanallar);
   const geriCb = kStr ? `yayin_geri:${adet}:${kStr}` : `yayin_geri:${adet}`;
   return {
     inline_keyboard: [
-      ...kanalButonlariSatirlari(kanallar),
+      ...kanalButonlariSatirlari(kanallariCoz(kStr)),
       [{ text: "▶️ Şimdi", callback_data: "yayinla" },
        { text: "30 dk", callback_data: "yayinla_sonra:30" }],
       [{ text: "1 saat", callback_data: "yayinla_sonra:60" },
@@ -244,7 +273,7 @@ function yayinZamaniMenusu(adet, kanallar) {
 }
 
 function slaytSecimMenusu(adet, kanallarStr) {
-  const kStr = kanallarStr || "";
+  const kStr = kanallariKodla(kanallarStr);
   const satir1 = [];
   const satir2 = [];
   for (let i = 1; i <= Math.min(adet, 5); i++) {
@@ -264,7 +293,7 @@ function slaytSecimMenusu(adet, kanallarStr) {
 }
 
 function slaytIslemMenusu(sira, adet, kanallarStr) {
-  const kStr = kanallarStr || "";
+  const kStr = kanallariKodla(kanallarStr);
   const tuslar = [];
   if (adet > 1) {
     if (sira > 1) {

@@ -213,19 +213,28 @@ def _butonlar(eylem: str, nerede: str = "", mesaj_id: int | str = "") -> list | 
 
 
 def mesaji_kur(baslik: str, teshis: dict, nerede: str = "") -> str:
-    """Telegram mesaj metni."""
-    p = [f"⚠️ <b>BİR SORUN OLUŞTU:</b> {baslik}"]
+    """Telegram mesaj metni (HTML güvenli)."""
+    import html as html_lib
+
+    b_esc = html_lib.escape(baslik or "")
+    n_esc = html_lib.escape(nerede or "")
+    ne_oldu = html_lib.escape(teshis.get("ne_oldu", "") or "")
+    neden = html_lib.escape(teshis.get("neden", "") or "")
+    ne_yapilir = html_lib.escape(teshis.get("ne_yapilir", "") or "")
+    ham = html_lib.escape(str(teshis.get("ham", ""))[:400] or "")
+
+    p = [f"⚠️ <b>BİR SORUN OLUŞTU:</b> {b_esc}"]
     if nerede:
-        p.append(f"📍 <b>Konum / İşlem:</b> <code>{nerede}</code>")
+        p.append(f"📍 <b>Konum / İşlem:</b> <code>{n_esc}</code>")
     p.append("")
-    p.append(f"🔍 <b>NE OLDU?</b>\n{teshis['ne_oldu']}")
+    p.append(f"🔍 <b>NE OLDU?</b>\n{ne_oldu}")
     p.append("")
-    p.append(f"💡 <b>NEDEN?</b>\n{teshis['neden']}")
+    p.append(f"💡 <b>NEDEN?</b>\n{neden}")
     p.append("")
-    p.append(f"🛠️ <b>EYLEM PLANI / ÇÖZÜM:</b>\n{teshis['ne_yapilir']}")
+    p.append(f"🛠️ <b>EYLEM PLANI / ÇÖZÜM:</b>\n{ne_yapilir}")
     if not teshis.get("tanindi"):
         p.append("")
-        p.append(f"📄 <b>HAM HATA:</b>\n<code>{teshis['ham'][:300]}</code>")
+        p.append(f"📄 <b>HAM HATA:</b>\n<code>{ham}</code>")
     return "\n".join(p)
 
 
@@ -238,7 +247,7 @@ def bildir(baslik: str, hata, nerede: str = "", mesaj_id: int | str = "") -> boo
 
         metin = mesaji_kur(baslik, teshis, nerede)
         telegram_bot.mesaj_gonder(
-            metin, butonlar=_butonlar(teshis["eylem"], nerede, mesaj_id=mesaj_id)
+            metin, butonlar=_butonlar(teshis["eylem"], nerede, mesaj_id=mesaj_id), html=True
         )
         log.info("hata Telegram'a bildirildi ve kaydedildi: %s", teshis["ne_oldu"])
         return True
