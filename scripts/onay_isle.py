@@ -677,6 +677,8 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             else:
                 tw_id = twitter.tekil_yayinla(haberler[0], urller, ayarlar)
             if tw_id:
+                con.execute("UPDATE haberler SET twitter_post_id = ? WHERE telegram_message_id = ?", (tw_id, mesaj_id))
+                con.commit()
                 tw_url = twitter.post_baglantisi(tw_id)
                 sonuclar.append(f"🐦 <b>X (Twitter):</b> Başarıyla paylaşıldı!")
                 if tw_url:
@@ -740,6 +742,8 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
             yt_res = youtube.shorts_yukle(video_yolu, baslik=baslik_yt, aciklama=metin, ayarlar=ayarlar)
             if yt_res.get("durum"):
+                con.execute("UPDATE haberler SET youtube_post_id = ? WHERE telegram_message_id = ?", (yt_res.get("url"), mesaj_id))
+                con.commit()
                 sonuclar.append(f"▶️ <b>YouTube Shorts:</b> Başarıyla yüklendi! ({yt_res.get('url')})")
                 if yt_res.get("url"):
                     canli_linkler.append([{"text": "▶️ Shorts'ta Gör", "url": yt_res.get("url")}])
@@ -759,12 +763,43 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
             tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
             if tt_res.get("durum"):
+                con.execute("UPDATE haberler SET tiktok_post_id = ? WHERE telegram_message_id = ?", (tt_res.get("publish_id"), mesaj_id))
+                con.commit()
                 sonuclar.append("🎵 <b>TikTok Videosu:</b> Başarıyla yüklendi!")
             else:
                 sonuclar.append(f"⚠️ <b>TikTok:</b> Başarısız ({tt_res.get('hata', '')[:80]})")
         except Exception as e:
             log.exception("TikTok telafi hatası: %s", e)
             sonuclar.append(f"⚠️ <b>TikTok:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+    # Kalan eksik platformlar için telafi butonlarını topla — böylece diğer seçenekler ASLA kaybolmaz
+    kalan_haberler = turu_getir(con, mesaj_id) or haberler
+    k_story = next((h["story_post_id"] for h in kalan_haberler if h["story_post_id"]), None)
+    k_fb = next((h["facebook_post_id"] for h in kalan_haberler if h["facebook_post_id"]), None)
+    k_th = next((h["threads_post_id"] for h in kalan_haberler if h["threads_post_id"]), None)
+    k_tw = next((h["twitter_post_id"] for h in kalan_haberler if "twitter_post_id" in h.keys() and h["twitter_post_id"]), None)
+    k_yt = next((h["youtube_post_id"] for h in kalan_haberler if "youtube_post_id" in h.keys() and h["youtube_post_id"]), None)
+    k_tt = next((h["tiktok_post_id"] for h in kalan_haberler if "tiktok_post_id" in h.keys() and h["tiktok_post_id"]), None)
+
+    kalan_telafi_butonlari = []
+    if not k_story:
+        kalan_telafi_butonlari.append([{"text": "🔄 📱 Story'i Yayınla", "callback_data": f"retry_kanal:story:{mesaj_id}"}])
+    if not k_fb and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at")):
+        kalan_telafi_butonlari.append([{"text": "🔄 📘 Facebook'a Gönder", "callback_data": f"retry_kanal:facebook:{mesaj_id}"}])
+    if not k_th and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")):
+        kalan_telafi_butonlari.append([{"text": "🔄 🧵 Threads'e Gönder", "callback_data": f"retry_kanal:threads:{mesaj_id}"}])
+    if not k_tw and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")):
+        kalan_telafi_butonlari.append([{"text": "🔄 🐦 X'e Gönder", "callback_data": f"retry_kanal:twitter:{mesaj_id}"}])
+    if not k_yt and bool((ayarlar.get("sosyal", {}) or {}).get("youtubea_da_at")):
+        kalan_telafi_butonlari.append([{"text": "🔄 ▶️ Shorts'a Yükle", "callback_data": f"retry_kanal:youtube:{mesaj_id}"}])
+    if not k_tt and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at")):
+        kalan_telafi_butonlari.append([{"text": "🔄 🎵 TikTok'a Yükle", "callback_data": f"retry_kanal:tiktok:{mesaj_id}"}])
+
+    if len(kalan_telafi_butonlari) > 1:
+        kalan_telafi_butonlari.insert(0, [{"text": "🔄 Kalan Tüm Kanalları Yayınla", "callback_data": f"retry_kanal:hepsi:{mesaj_id}"}])
+
+    kontrol_butonu = [[{"text": "🔍 Yayın Durumunu Kontrol Et", "callback_data": f"yayin_kontrol:{mesaj_id}"}]]
+    tum_butonlar = (canli_linkler or []) + kalan_telafi_butonlari + kontrol_butonu
 
     rapor = "\n".join(sonuclar)
     telegram_bot.mesaj_gonder(
@@ -773,7 +808,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         f"Hedef Tur: #{mesaj_id}\n\n"
         f"{rapor}",
         html=True,
-        butonlar=canli_linkler if canli_linkler else None
+        butonlar=tum_butonlar if tum_butonlar else None
     )
     return 0
 
@@ -1197,8 +1232,6 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
     # 2. Story
     if story_id:
         satirlar.append(f"📱 <b>Story:</b> ✅ Yayında (ID: {story_id})")
-    elif db_durum == "yayinlandi":
-        satirlar.append("📱 <b>Story:</b> ✅ Yayında")
     else:
         satirlar.append("📱 <b>Story:</b> ⚠️ Yayınlanmadı / Bilgi Yok")
 
@@ -1217,8 +1250,6 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
     # 5. X (Twitter)
     if tw_id:
         satirlar.append(f"🐦 <b>X (Twitter):</b> ✅ Yayında (ID: {tw_id})")
-    elif db_durum == "yayinlandi":
-        satirlar.append("🐦 <b>X (Twitter):</b> ✅ Yayında")
     else:
         satirlar.append("🐦 <b>X (Twitter):</b> ⚠️ Yayınlanmadı / Kayıt Yok")
 
@@ -1234,9 +1265,9 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
     else:
         satirlar.append("🎵 <b>TikTok:</b> ⚠️ Yayınlanmadı / Kayıt Yok")
 
-    # Telafi Butonları
+    # Telafi Butonları — Yalnızca yukarıda eksik (⚠️) görünen kanallar için eklenir
     tuslar = []
-    if not story_id and db_durum != "yayinlandi":
+    if not story_id:
         tuslar.append([{"text": "🔄 📱 Story'i Yayınla / Telafi Et", "callback_data": f"retry_kanal:story:{mesaj_id}"}])
     if not fb_id and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at")):
         tuslar.append([{"text": "🔄 📘 Facebook'a Gönder", "callback_data": f"retry_kanal:facebook:{mesaj_id}"}])
@@ -1248,7 +1279,7 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
         tuslar.append([{"text": "🔄 ▶️ Shorts'a Yükle", "callback_data": f"retry_kanal:youtube:{mesaj_id}"}])
     if not tt_id and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at")):
         tuslar.append([{"text": "🔄 🎵 TikTok'a Yükle", "callback_data": f"retry_kanal:tiktok:{mesaj_id}"}])
-    if not ig_var and db_durum != "yayinlandi":
+    if not ig_var:
         tuslar.append([{"text": "🔄 📸 Instagram Postunu Yayınla", "callback_data": f"retry_kanal:ig:{mesaj_id}"}])
 
     if len(tuslar) > 1:
