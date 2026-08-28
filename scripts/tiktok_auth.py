@@ -1,8 +1,8 @@
 """
 tiktok_auth.py — TikTok Content Posting API v2 OAuth2 + PKCE Yetkilendirme Aracı.
 
-TikTok API v2'nin zorunlu tuttuğu PKCE (code_challenge & code_verifier) standardını
-kullanarak TikTok hesabınızı tek tıkla bağlar ve TIKTOK_ACCESS_TOKEN üretir.
+TikTok API v2'nin zorunlu tuttuğu PKCE standardını kullanarak
+TikTok hesabınızı tek tıkla bağlar ve TIKTOK_ACCESS_TOKEN üretir.
 
 Kullanım:
     python3 scripts/tiktok_auth.py
@@ -10,11 +10,9 @@ Kullanım:
 
 import base64
 import hashlib
-import http.server
 import json
 import os
 import secrets
-import socketserver
 import urllib.parse
 import webbrowser
 from pathlib import Path
@@ -24,49 +22,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-REDIRECT_PORT = 8990
-REDIRECT_URI = f"http://localhost:{REDIRECT_PORT}/callback"
+REDIRECT_URI = "https://haber-bot-onay.ezanplus.workers.dev/tiktok-callback"
 SCOPES = ["user.info.basic", "video.upload", "video.publish"]
 
 
 def generate_pkce_pair():
     """PKCE için code_verifier ve code_challenge (S256) üretir."""
     verifier = secrets.token_urlsafe(64)
-    # SHA-256 hash
     digest = hashlib.sha256(verifier.encode("ascii")).digest()
-    # URL-safe Base64 without padding
     challenge = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
     return verifier, challenge
-
-
-class TikTokCallbackHandler(http.server.SimpleHTTPRequestHandler):
-    auth_code = None
-
-    def do_GET(self):
-        parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/callback":
-            params = urllib.parse.parse_qs(parsed.query)
-            if "code" in params:
-                TikTokCallbackHandler.auth_code = params["code"][0]
-                self.send_response(200)
-                self.send_header("Content-type", "text/html; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(
-                    b"<html><body style='font-family:sans-serif;text-align:center;padding:40px;background:#061A1E;color:#fff;'>"
-                    b"<h1 style='color:#06B6D4;'>&#10004; TikTok Yetkilendirmesi Ba&#351;ar&#305;l&#305;!</h1>"
-                    b"<p>Bu sekmeyi kapatabilir ve terminale d&#246;nebilirsiniz.</p>"
-                    b"</body></html>"
-                )
-            else:
-                self.send_response(400)
-                self.end_headers()
-                self.wfile.write(b"Hata: Kod alinamadi.")
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def log_message(self, format, *args):
-        pass
 
 
 def main():
@@ -74,24 +39,9 @@ def main():
     print("🎵 TIKTOK CONTENT POSTING API PKCE YETKİLENDİRME SİHİRBAZI")
     print("=" * 65)
 
-    client_key = os.getenv("TIKTOK_CLIENT_KEY", "").strip() or "awkfxqrn4j2m603e"
-    client_secret = os.getenv("TIKTOK_CLIENT_SECRET", "").strip()
+    client_key = os.getenv("TIKTOK_CLIENT_KEY", "").strip() or "sbawe0cyh06uct6wt7"
+    client_secret = os.getenv("TIKTOK_CLIENT_SECRET", "").strip() or "md29enTkZzSgGZtFN5ICOaKR28OJsp1F"
 
-    if not client_key:
-        client_key = input("\n🔑 TikTok Client Key: ").strip()
-    else:
-        print(f"\n🔑 Client Key: {client_key}")
-
-    if not client_secret:
-        client_secret = input("🔑 TikTok Client Secret: ").strip()
-    else:
-        print(f"🔑 Client Secret: {client_secret[:6]}...")
-
-    if not client_key or not client_secret:
-        print("\n❌ Client Key ve Client Secret boş bırakılamaz.")
-        return
-
-    # PKCE oluştur
     code_verifier, code_challenge = generate_pkce_pair()
 
     auth_params = {
@@ -114,13 +64,15 @@ def main():
     except Exception:
         pass
 
-    print(f"⏳ Port {REDIRECT_PORT} üzerinde onay bekleniyor...")
-    with socketserver.TCPServer(("localhost", REDIRECT_PORT), TikTokCallbackHandler) as httpd:
-        while not TikTokCallbackHandler.auth_code:
-            httpd.handle_request()
+    print("=" * 65)
+    print("📋 Onay verdikten sonra açılan sayfadaki KODU buraya yapıştırın:")
+    code = input("👉 Kod: ").strip()
 
-    code = TikTokCallbackHandler.auth_code
-    print("✅ Yetki kodu alındı, Access Token talep ediliyor...")
+    if not code:
+        print("❌ Kod girilmedi.")
+        return
+
+    print("✅ Kod alındı, kalıcı Access Token talep ediliyor...")
 
     token_url = "https://open.tiktokapis.com/v2/oauth/token/"
     headers = {"Content-Type": "application/x-www-form-urlencoded"}

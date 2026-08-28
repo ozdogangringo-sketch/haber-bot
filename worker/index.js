@@ -472,6 +472,30 @@ async function githubaIlet(env, komut, mesajId, basanKisi, kanallar, metin) {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === "/tiktok-callback" || url.pathname === "/callback") {
+      const code = url.searchParams.get("code") || "";
+      const error = url.searchParams.get("error") || "";
+      const errorDesc = url.searchParams.get("error_description") || "";
+      if (error) {
+        return new Response(
+          `<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#061A1E;color:#fff;">` +
+          `<h1 style="color:#EF4444;">&#10060; Yetkilendirme Ba&#351;ar&#305;s&#305;z</h1>` +
+          `<p>${error}: ${errorDesc}</p></body></html>`,
+          { headers: { "Content-Type": "text/html; charset=utf-8" } }
+        );
+      }
+      return new Response(
+        `<html><body style="font-family:sans-serif;text-align:center;padding:40px;background:#061A1E;color:#fff;">` +
+        `<h1 style="color:#06B6D4;">&#127881; TikTok Yetkilendirmesi Ba&#351;ar&#305;l&#305;!</h1>` +
+        `<p style="font-size:18px;margin-top:20px;">A&#351;a&#287;&#305;daki kodu kopyalay&#305;p terminale yap&#305;&#351;t&#305;r&#305;n:</p>` +
+        `<div style="background:#0D333A;padding:15px;border-radius:8px;font-family:monospace;font-size:20px;color:#38BDF8;word-break:break-all;margin:20px auto;max-width:600px;border:1px solid #06B6D4;">` +
+        `${code}` +
+        `</div></body></html>`,
+        { headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
+    }
+
     if (request.method !== "POST") {
       return new Response("yalnızca POST", { status: 405 });
     }
