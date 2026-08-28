@@ -1321,6 +1321,80 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id) -> int:
     return 0
 
 
+def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basan: str = "") -> int:
+    """
+    Onay bekleyen haberin fotoğrafını sıradaki alternatif HD görselle yeniler ve slaytları baştan çizer.
+    """
+    if not haberler:
+        telegram_bot.mesaj_gonder("⚠️ Fotoğrafı değiştirilecek haber bulunamadı.")
+        return 1
+
+    # Tekil / Son dakika haberi
+    if len(haberler) == 1 or haberler[0]["son_dakika"]:
+        h = haberler[0]
+        deneme = (h["gorsel_deneme"] or 0) + 1
+        telegram_bot.mesaj_gonder(
+            f"🔄 <b>Fotoğraf Yenileniyor...</b>\n\n{h['ig_baslik'] or h['baslik_orj']}\n"
+            f"(Alternatif #{deneme + 1} taranıyor ve slaytlar baştan çiziliyor)",
+            html=True,
+        )
+
+        sonuclar = slaytlar.son_dakika_uret(h, ayarlar, con=con, atlanacak=deneme)
+        carousel = [s for s in sonuclar if s["katman"] not in ("story", "story_detay")]
+        story_slayt = next((s for s in sonuclar if s["katman"] == "story"), None)
+        story_detay_slaytlar = [s for s in sonuclar if s["katman"] == "story_detay"]
+
+        yuklemeler = upload_image.hepsini_yukle([s["yol"] for s in carousel], ayarlar)
+        urller = [y["url"] for y in yuklemeler]
+
+        story_url = None
+        story_detay_urller = []
+        if story_slayt:
+            try:
+                story_url = upload_image.gorsel_yukle(story_slayt["yol"], ayarlar)["url"]
+            except Exception as e:
+                log.warning("story yüklenemedi: %s", e)
+
+        for sds in story_detay_slaytlar:
+            try:
+                sdu = upload_image.gorsel_yukle(sds["yol"], ayarlar)["url"]
+                story_detay_urller.append(sdu)
+            except Exception as e:
+                log.warning("detay story yüklenemedi: %s", e)
+
+        con.execute(
+            "UPDATE haberler SET gorsel_url = ?, detay_url = ?, story_url = ?, "
+            "gorsel_deneme = ? WHERE id = ?",
+            (urller[0], json.dumps(urller[1:]), story_url, deneme, h["id"]),
+        )
+        con.commit()
+
+        # Telegram albümünü güncelle
+        telegram_urller = [story_url] if story_url else [urller[0]]
+        if story_detay_urller:
+            telegram_urller.extend(story_detay_urller)
+        elif len(urller) > 1:
+            telegram_urller.extend(urller[1:])
+
+        etiketler = []
+        for idx in range(len(telegram_urller)):
+            if idx == 0:
+                etiketler.append("Haber (Yeni Görsel)")
+            elif len(telegram_urller) == 2:
+                etiketler.append("Ayrıntı")
+            else:
+                etiketler.append(f"Ayrıntı {idx}/{len(telegram_urller)-1}")
+
+        telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
+        telegram_bot.sonucu_yaz(mesaj_id, f"✅ <b>Fotoğraf Güncellendi</b> (Alternatif #{deneme + 1} uygulandı)")
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
+    else:
+        # Çoklu tur: Kullanıcıya hangi slaytı değiştirmek istediğini sor
+        telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.slayt_secim_menusu(len(haberler)))
+        return 0
+
+
 def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     """
     Tek bir slayta müdahale eder.
@@ -3314,6 +3388,8 @@ def main() -> int:
             return yayin_planla(con, ayarlar, haberler,
                                 int(komut.split(":")[1]), mesaj_id, basan,
                                 kanallar=kanallar)
+        if komut == "foto_degistir":
+            return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, basan)
         if komut == "metin_yenile":
             return metin_yenile(con, ayarlar, haberler, mesaj_id)
         if komut == "metin_duzenle":

@@ -26,7 +26,7 @@
 
 // GitHub'a iletilecek gerçek eylemler. İş yapan komutlar.
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
-const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "ertele", "durum", "tur",
+const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele", "durum", "tur",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak", "cope_at",
                   "plan_iptal", "havuz_guncelle", "havuzdan_ekle", "android_muzikli",
                   "manuel_paket", "yayinla_diger", "manuel_tamam",
@@ -316,6 +316,7 @@ const KOMUT_ADI = {
   yayinla: "Yayınlanıyor",
   iptal: "Tur atlanıyor",
   metin_yenile: "Metinler yeniden üretiliyor",
+  foto_degistir: "Alternatif fotoğraf aranıyor",
   ertele: "Erteleniyor",
   slayt_carpici: "Başlık daha dikkat çekici yapılıyor",
   slayt_ai: "AI görsel üretiliyor",
