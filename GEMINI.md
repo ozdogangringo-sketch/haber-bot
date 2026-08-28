@@ -97,10 +97,13 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 - **30 Günlük Fiyat Serisi:** Borsa, hisse, döviz, emtia ve kripto haberlerinde Yahoo Finance üzerinden son 30 günün kapanış fiyatları çekilir.
 - **Varyasyon 14 Siber Turkuaz / Mercan Kırmızı Çizgi:** Catmull-Rom/Bezier yumuşak eğrili, degrade yarı saydam dolgulu ve parlak bitiş noktalı 880x240px estetik infografik trend kartı üretilir ve detay slaytına gömülür.
 
-### K. 5. & 6. Yayın Kanalı: YouTube Shorts & TikTok Otomasyonu (`src/youtube.py`, `src/tiktok.py`)
-- **YouTube Data API v3:** 1080x1920 MP4 Reels videolarını doğrudan Shorts formatında etiketler ve kategoriyle yükler.
-- **TikTok Content Posting API v2:** Videoyu doğrudan TikTok hesabına yayınlar veya taslak olarak aktarır.
-- **2 Satırlı Telegram Kanal Paneli:** `[✅ IG] [⬜ Reels] [✅ Story] [✅ Threads]` ve `[✅ FB] [✅ X] [⬜ YT] [⬜ TT]` butonlarıyla tam kontrol.
+### L. Editoryal İçerik ve AI Manşet Motoru Modernizasyonu (`src/generate_text.py` & `src/caption.py`)
+- **3 Alternatifli Düşünce Modeli (Chain-of-Thought):** Gemini arka planda 3 farklı stilde başlık üretir (Dinamik Sonuç, Rakam & Veri Odaklı, Vurucu Karar / Söylem); akışta kaydırmayı en çok durduran ve sonucu en net veren kancayı `ig_baslik` olarak seçer. Pasif ajans dili kalıpları tamamen elendi.
+- **"Sana / Piyasaya Etkisi" (Personal Impact):** Okuyucunun cebine, kredisini, mevduatını, borsadaki hissesini veya günlük hayatını doğrudan nasıl etkilediğini anlatan 1-2 cümlelik analiz boyutu eklendi. Detay slaytlarında Zümrüt Yeşili (`#10B981`) vurgu çizgisiyle çizilir.
+- **Kategoriye Özel Editoryal Üslup:** Ekonomi ve borsada keskin Bloomberg/FT seviyesi finans dili; teknoloji ve bilimde vizyoner ve yalın dil; gündemde Smart Brevity analitik dili uygulandı.
+- **Etkileşim ve Yorum CTA'sı:** Her haberin sonuna takipçilerin fikirlerini yorumlarda belirtmelerini sağlayan zekice 1 soru eklendi.
+- **Zenginleştirilmiş İnfografik Veri Rozetleri:** Slaytlara şık cam (glassmorphism) kutu içinde karşılaştırma rozetleri (`[ 📈 HEDEF FİYAT: 380 ₺ ➔ 450 ₺ ]`) entegre edildi.
+- **Taranabilir Mini Bülten Caption Formatı:** Instagram ve Threads için madde işaretli, emojili ve net taranabilir açıklama şablonu oluşturuldu.
 
 ---
 
