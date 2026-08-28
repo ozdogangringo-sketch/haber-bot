@@ -171,6 +171,8 @@ EK_KOLONLAR = {
     # Smart Brevity editoryal alanları
     "neden_onemli": "TEXT",
     "sirada_ne_var": "TEXT",
+    "sana_etkisi": "TEXT",
+    "etkilesim_sorusu": "TEXT",
     # Slayt içi mini veri rozeti (infografik) alanları
     "veri_karti_etiket": "TEXT",
     "veri_karti_eski": "TEXT",
@@ -362,6 +364,8 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
                ulke_adi          = ?,
                neden_onemli      = ?,
                sirada_ne_var     = ?,
+               sana_etkisi       = ?,
+               etkilesim_sorusu  = ?,
                veri_karti_etiket = ?,
                veri_karti_eski   = ?,
                veri_karti_yeni   = ?,
@@ -390,6 +394,8 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
             (uretilen.get("ulke_adi") or "").strip() or None,
             (uretilen.get("neden_onemli") or "").strip() or None,
             (uretilen.get("sirada_ne_var") or "").strip() or None,
+            (uretilen.get("sana_etkisi") or "").strip() or None,
+            (uretilen.get("etkilesim_sorusu") or "").strip() or None,
             (uretilen.get("veri_karti_etiket") or "").strip() or None,
             (uretilen.get("veri_karti_eski") or "").strip() or None,
             (uretilen.get("veri_karti_yeni") or "").strip() or None,

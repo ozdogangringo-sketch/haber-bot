@@ -239,36 +239,24 @@ def arastir_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
 
         h_veri = yanit
 
-        # Veritabanına kaydet
+        # Veritabanına başlangıç kaydı oluştur ve db.metin_kaydet ile tam kaydet
         cursor = con.execute(
             """INSERT INTO haberler (
                 kaynak, kategori, agirlik, baslik_orj, link, ozet_orj,
-                ig_baslik, ig_caption, slayt_ozet, detay_metni, onem_puani,
-                vurgu_sayi, vurgu_etiket, gorsel_konu, ulke_kodu, ulke_adi,
                 yayin_tarihi, cekilme_zamani, durum
             ) VALUES (
                 'Web Araştırması', ?, 10, ?, ?, ?,
-                ?, ?, ?, ?, 9,
-                ?, ?, ?, ?, ?,
-                datetime('now'), datetime('now'), 'metin_hazir'
+                datetime('now'), datetime('now'), 'yeni'
             )""",
             (
                 h_veri.get("kategori", "teknoloji"),
                 h_veri.get("ig_baslik", konu)[:250],
                 f"https://dailybrief.co/arastirma/{int(time.time())}",
                 h_veri.get("slayt_ozet", "")[:800],
-                h_veri.get("ig_baslik"),
-                h_veri.get("ig_caption"),
-                h_veri.get("slayt_ozet"),
-                h_veri.get("detay_metni"),
-                h_veri.get("vurgu_sayi"),
-                h_veri.get("vurgu_etiket"),
-                h_veri.get("gorsel_konu"),
-                h_veri.get("ulke_kodu"),
-                h_veri.get("ulke_adi"),
             ),
         )
         haber_id = cursor.lastrowid
+        db.metin_kaydet(con, haber_id, h_veri, makale_metni=konu)
         con.commit()
 
         return _post_olustur_ve_onaya_sun(
@@ -314,32 +302,20 @@ def ozel_metin_haber_uret(metin: str, con, ayarlar: dict, basan: str = "") -> in
         cursor = con.execute(
             """INSERT INTO haberler (
                 kaynak, kategori, agirlik, baslik_orj, link, ozet_orj,
-                ig_baslik, ig_caption, slayt_ozet, detay_metni, onem_puani,
-                vurgu_sayi, vurgu_etiket, gorsel_konu, ulke_kodu, ulke_adi,
                 yayin_tarihi, cekilme_zamani, durum
             ) VALUES (
                 'Özel Bülten', ?, 10, ?, ?, ?,
-                ?, ?, ?, ?, 10,
-                ?, ?, ?, ?, ?,
-                datetime('now'), datetime('now'), 'metin_hazir'
+                datetime('now'), datetime('now'), 'yeni'
             )""",
             (
                 h_veri.get("kategori", "turkiye"),
                 h_veri.get("ig_baslik", metin[:60])[:250],
                 f"https://dailybrief.co/ozel/{int(time.time())}",
                 h_veri.get("slayt_ozet", metin[:200])[:800],
-                h_veri.get("ig_baslik"),
-                h_veri.get("ig_caption"),
-                h_veri.get("slayt_ozet"),
-                h_veri.get("detay_metni"),
-                h_veri.get("vurgu_sayi"),
-                h_veri.get("vurgu_etiket"),
-                h_veri.get("gorsel_konu"),
-                h_veri.get("ulke_kodu"),
-                h_veri.get("ulke_adi"),
             ),
         )
         haber_id = cursor.lastrowid
+        db.metin_kaydet(con, haber_id, h_veri, makale_metni=metin)
         con.commit()
 
         return _post_olustur_ve_onaya_sun(

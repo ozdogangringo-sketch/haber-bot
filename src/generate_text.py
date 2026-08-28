@@ -92,6 +92,11 @@ KATEGORILER = ["turkiye", "dunya", "ekonomi", "spor",
 CEVAP_SEMASI = {
     "type": "object",
     "properties": {
+        "baslik_alternatifleri": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "3 farklı stilde kurgulanmış manşet alternatifi: 1) Dinamik Sonuç, 2) Rakam & Veri Odaklı, 3) Vurucu Karar / Söylem",
+        },
         "ig_baslik": {"type": "string"},
         "ig_caption": {"type": "string"},
         "ig_hashtag": {"type": "array", "items": {"type": "string"}},
@@ -108,20 +113,17 @@ CEVAP_SEMASI = {
         "gorsel_konu": {"type": "string"},
         # Pexels araması için İngilizce temsili terim.
         "gorsel_temsili": {"type": "string"},
-        # ⚠️ HABERİN KENDİ KATEGORİSİ — kaynağınki DEĞİL.
-        # `fetch_news` kategoriyi RSS beslemesinden atıyor ve o çoğu
-        # zaman yanlış: "ABD, Katar'a yakıt ikmal uçağı satışını
-        # onayladı" AA'nın ekonomi beslemesinden geldiği için
-        # "ekonomi" damgası yiyordu. Model haberin TAM METNİNİ zaten
-        # okuyor; doğru cevabı verebilecek tek yer burası.
+        # Haberin gerçek kategorisi
         "kategori": {"type": "string", "enum": KATEGORILER},
         # Slaytın sağ üstündeki bayrak için ISO 3166-1 alpha-2 kodu
         "ulke_kodu": {"type": "string"},
         # Bayrağın altına yazılan Türkçe ülke adı
         "ulke_adi": {"type": "string"},
-        # Smart Brevity editoryal alanları
+        # Smart Brevity ve Etki Analizi Alanları
         "neden_onemli": {"type": "string"},
         "sirada_ne_var": {"type": "string"},
+        "sana_etkisi": {"type": "string"},
+        "etkilesim_sorusu": {"type": "string"},
         # Slayt içi mini veri rozeti (infografik) alanları
         "veri_karti_etiket": {"type": "string"},
         "veri_karti_eski": {"type": "string"},
@@ -131,173 +133,75 @@ CEVAP_SEMASI = {
         "gorsel_ikili": {"type": "array", "items": {"type": "string"}},
     },
     "required": [
-        "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
+        "baslik_alternatifleri", "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
         "slayt_ozet", "detay_metni", "vurgu_sayi", "vurgu_etiket",
         "alinti", "alinti_sahibi", "gorsel_konu", "gorsel_temsili",
         "kategori", "ulke_kodu", "ulke_adi", "neden_onemli",
-        "sirada_ne_var", "veri_karti_etiket", "veri_karti_eski",
-        "veri_karti_yeni", "veri_karti_yon", "gorsel_ikili",
+        "sirada_ne_var", "sana_etkisi", "etkilesim_sorusu",
+        "veri_karti_etiket", "veri_karti_eski", "veri_karti_yeni",
+        "veri_karti_yon", "gorsel_ikili",
     ],
 }
 
 
-PROMPT = """Sen bir Türk haber Instagram hesabının editörüsün.
-Aşağıdaki haberi Instagram paylaşımına dönüştür.
+PROMPT = """Sen Türkiye'nin en kaliteli sosyal medya haber yayını Daily Brief'in baş editörüsün.
+Aşağıdaki haberi Instagram, Threads ve sosyal medya için en yüksek kalitede, taranabilir ve etkileşimli bir yayına dönüştür.
 
-EN ÖNEMLİ KURAL — BUNU ASLA ÇİĞNEME:
-Sadece aşağıdaki HABER METNİNDE yazan bilgileri kullan. Metinde geçmeyen
-hiçbir iddiayı, sayıyı, ismi, tepkiyi veya sonucu yazma. Emin değilsen o
-cümleyi hiç kurma. Eksik yazmak, uydurmaktan iyidir.
+EN ÖNEMLİ KURAL — BUNU ASLA ÇİĞNEME (SIFIR HALÜSİNASYON):
+Sadece aşağıdaki HABER METNİNDE yazan bilgileri kullan. Metinde geçmeyen hiçbir iddiayı, sayıyı, ismi, tepkiyi veya sonucu yazma. Emin değilsen o cümleyi hiç kurma. Eksik yazmak, uydurmaktan iyidir.
 
 SAYILAR — KAYNAKTAKİ GİBİ YAZ, YUVARLAMA:
-Kaynakta "2 milyar 841 milyon lira" yazıyorsa aynen öyle yaz.
-"2,8 milyar" diye yuvarlama — matematiksel olarak doğru olsa bile
-okuyucu rakamı senin verdiğin haliyle alıntılıyor ve kaynakla
-karşılaştırıldığında tutmuyor. Otomatik doğrulama da bunu uydurma
-sanıp uyarı üretiyor. Tarih, oran, kişi sayısı için de aynı kural.
+Kaynakta "2 milyar 841 milyon lira" yazıyorsa aynen öyle yaz. "2,8 milyar" diye yuvarlama. Tarih, oran, kişi sayısı ve hedef fiyatlar için de aynı kural geçerlidir.
 
 HUKUKİ DİKKAT:
-Suçlama, soruşturma veya dava içeren haberlerde "iddia edildi",
-"öne sürüldü", "hakkında soruşturma başlatıldı" gibi ifadeler kullan.
-Hiç kimseyi suçlu ilan etme. Mahkeme kararı olmadan kesin dille yazma.
+Suçlama, soruşturma veya dava içeren haberlerde "iddia edildi", "öne sürüldü", "hakkında soruşturma başlatıldı" gibi ifadeler kullan. Kesin mahkeme kararı olmadan kimseyi suçlu ilan etme.
 
-DEĞİŞEN SAYILAR — ÖLÜ/YARALI SAYISINDA "EN AZ" KULLAN:
-Deprem, kaza, saldırı gibi haberlerde can kaybı saatlik güncelleniyor.
-"47 kişi öldü" yarım saat sonra YANLIŞ olur; "en az 47 kişi hayatını
-kaybetti" olmaz — sayı artsa bile ifade doğru kalır.
-  KÖTÜ: "Depremde 47 kişi hayatını kaybetti"
-  İYİ : "Depremde en az 47 kişi hayatını kaybetti"
-  İYİ : "Ölü sayısı 47'ye yükseldi"   (yükseldi = o anki durum)
-Aynı kural yaralı, kayıp, gözaltı, tahliye sayıları için de geçerli.
-Kaynak "en az" demiyorsa bile sen "en az" yaz — sayının artabileceği
-her durumda bu daha doğru.
+DEĞİŞEN SAYILAR — CAN KAYBINDA DİNAMİK DİL:
+Deprem, kaza, saldırı gibi haberlerde can kaybı güncellenir. "47 kişi öldü" yerine "en az 47 kişi hayatını kaybetti" veya "Ölü sayısı 47'ye yükseldi" yaz.
 
-DİĞER KURALLAR:
-- Çıktının tamamı Türkçe olacak. Haber İngilizceyse Türkçeye çevir.
-  ★ KANCA ETKİSİ VE DİKKAT ÇEKİCİ MANŞET DİLİ (ASLA MANİPÜLE ETMEDEN) ★
-  Başlık akışta kaydırmayı durduran güçlü bir KANCA (Hook) olmalıdır:
-  1. Haberdeki en can alıcı eylemi, etkiyi veya değişimi doğrudan ilk kelimelere yerleştir.
-  2. Gerçeği zerre manipüle etmeden, abartısız ama vurucu bir fiil veya somut sonuç kullan.
-  3. "Önemli gelişme", "açıklama yapıldı" gibi pasif laflar yerine; doğrudan olayı anlatan dinamik manşet kur ("Fed faizi indirdi", "TCMB rezervleri rekor kırdı", "THY 50 yeni uçak siparişi verdi").
-  4. Başlığı okuyan kişi haberin sonucunu %100 öğrenmeli, fakat detayları okumak için slaytı kaydırma isteği uyandırmalıdır.
+★ 3 ALTERNATİFLİ MANŞET VE KANCA (HOOK) MOTORU ★
+Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifleri` dizisine ekle:
+  1. [Dinamik Sonuç Başlığı]: Olayın sonucunu doğrudan ilk kelimelerde ve aktif bir fiille veren başlık ("Fed faizi 25 baz puan indirdi", "TCMB faizi %50'de sabit tuttu").
+  2. [Rakam & Veri Odaklı Başlık]: En çarpıcı oranı veya hedefi öne çıkaran başlık ("Yıllık enflasyon 8 ayın dibinde: %42'ye geriledi", "THYAO için hedef fiyat 450 TL'ye yükseltildi").
+  3. [Vurucu Karar / Söylem Başlığı]: Liderin veya kurumun can alıcı kararını/sözünü aktaran başlık ("Bakan Bolat: İhracatta tüm zamanların aylık rekoru kırıldı").
 
-  ★ EN ÖNEMLİ KURAL — BAŞLIK HABERİN SONUCUNU SÖYLEMELİ ★
-  Bu bir haber hesabı, tıklama tuzağı değil. Takipçiye link vermiyoruz,
-  okuyacağı başka bir yer yok. Slaytı kaydırıp geçen kişi haberi
-  ÖĞRENMİŞ olmalı. Konuyu duyurup sonucu saklamak, tam da clickbait
-  sayfalarının yaptığı şey — bizim yapmadığımız şey.
+`ig_baslik` ALANINA BU 3 ALTERNATİF ARASINDAN EN GÜÇLÜ OLANINI SEÇ:
+  * Başlık akışta kaydırmayı durduran bir KANCA olmalı, ancak ASLA gerçeği manipüle etmemeli.
+  * Takipçi başlığı okuduğunda NE OLDUĞUNU %100 öğrenmiş olmalıdır.
+  * YASAK PASİF KALIPLAR: "...'a ilişkin açıklama", "...hakkında konuştu", "...değerlendirdi", "...anlattı", "...mesaj verdi", "...gündeme getirdi", "...dikkat çekti". Bunları KESİNLİKLE KULLANMA.
+  * YASAK TIKLAMA TUZAKLARI: "şok", "bomba", "herkesi şaşırttı", "işte o an" gibi ucuz clickbait ifadeleri KULLANMA.
+  * BÜYÜK HARF KURALI: Cümle düzeni kullan (yalnızca ilk kelime ve özel adlar büyük). Sonuna nokta koyma.
 
-  Kendine şunu sor: "Bu başlığı okuyan biri NE OLDUĞUNU biliyor mu?"
-  Cevap hayırsa başlık yanlıştır.
+★ KATEGORİYE ÖZEL EDİTORYAL TON (TONE OF VOICE) ★
+- ekonomi: Rakamlar, rasyolar, BİST 100 hisse etkileri, kâr marjı, faiz/dolar dengesi ve piyasa analizi odaklı keskin Bloomberg/FT standardı finans dili.
+- teknoloji / bilim: Geleceğe yön veren inovasyonu ve keşfi yalın, vizyoner ve anlaşılır kılan dinamik dil.
+- turkiye / dunya: Smart Brevity ilkelerine dayalı, tarafsız, analitik, jeopolitik derinliği olan net dil.
 
-  ŞU KALIPLARI KULLANMA — hepsi konuyu söyleyip sonucu saklıyor:
-      "...'a ilişkin açıklama"      "...'a dair açıklama"
-      "...hakkında konuştu"          "...değerlendirdi"
-      "...anlattı"                   "...ele aldı"
-      "...mesaj verdi"               "...görüş bildirdi"
-      "...gündeme getirdi"           "...dikkat çekti"
-
-  KÖTÜ  → "Bakan Göktaş'tan taciz iddialarına ilişkin açıklama"
-  İYİ   → "Bakan Göktaş: Taciz iddiaları vahim, süreci takip edeceğiz"
-
-  KÖTÜ  → "Afgan kadınlar Taliban yönetimindeki yılları anlattı"
-  İYİ   → "Afgan kadınlar 6. sınıftan sonra okula gidemiyor"
-
-  KÖTÜ  → "Bakan Fidan Mısır ziyaretini değerlendirdi"
-  İYİ   → "Türkiye ve Mısır ticareti artıracak anlaşmalara imza attı"
-
-  Biri konuşuyorsa NE DEDİĞİNİ yaz. Bir karar alındıysa KARARIN NE
-  OLDUĞUNU yaz. Bir sayı varsa SAYIYI yaz.
-
-  ABARTMA DA YOK: "şok", "bomba", "herkesi şaşırttı", "işte o an" gibi
-  ifadeler kullanma. Sonucu düz ve net söylemek zaten yeterince ilgi
-  çekici — abartı güveni düşürür.
-
-  BÜYÜK HARF KURALI: normal cümle yazımı kullan — yalnızca ilk kelime ve
-  özel adlar büyük harfle başlasın ("Ankara'da toplu ulaşım ücretlerine
-  zam yapıldı"). Her Kelimeyi Büyük Harfle Başlatma. Bu bir tutarlılık
-  kuralı: aynı carousel'de iki üslup yan yana gelince özensiz duruyor.
-  Sonuna nokta koyma.
-- ig_caption: 2-3 cümle, haberin özü. Haberdeki en can alıcı anahtar terimleri, kurumları veya oranları **bold** (çift yıldız) ile vurgula. Kişi söylemlerini çift tırnak "..." içine al. Kaynak adını yazma.
-- ig_hashtag: 5-8 adet, Türkçe ve konuyla ilgili, '#' işareti OLMADAN.
-- Taraf tutma, yorum katma, spekülasyon yapma.
-
-GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
-
-- slayt_ozet: TEK cümle, en fazla 18 kelime. Başlıkta OLMAYAN somut bir
-  bilgi ver (sayı, oran, sonuç, kim söyledi). Başlığı farklı kelimelerle
-  tekrar etme — slaytta ikisi alt alta görünüyor.
-
-  Başlık + özet birlikte okunduğunda takipçi o haberi ÖĞRENMİŞ olmalı.
-  Başka kaynağa gitmesine gerek kalmamalı; zaten link vermiyoruz.
-  Özet, başlıkta yer kalmayan ikinci en önemli bilgiyi taşısın.
-
-- detay_metni: 120-220 kelime, PARAGRAFLAR HÂLİNDE. Haberin ayrıntılı
-  anlatımı — slaytlara yayılıyor.
-
-  VURGULAMA VE SÖYLEMLER (TİPOGRAFİK HİYERARŞİ):
-  * Paragraf içinde ilk bakışta yakalanması gereken kritik rakamları, tarihleri, kişi veya kurum isimlerini **vurgulu** (çift yıldız) yaz.
-  * Cümle içinde geçiyorsa 'vurgulanacak kelime', doğrudan bir alıntı veya söylemse "tam söylem metni" şeklinde aktar.
-  * ⚠️ YAPAY DOLGU VE "EN AZ" SÖZCÜĞÜ YASAKTIR: Kaynakta "389" yazıyorsa doğrudan "389 kişi yaşamını yitirdi" veya "389'a yükseldi" yaz. Kaynakta açıkça geçmiyorsa asla kendi kafandan "en az", "yaklaşık" ekleme.
-  * ⚠️ TEKRAR KESİNLİKLE YASAKTIR: Her paragraf TAMAMEN FARKLI bir bilgi taşımalıdır.
-
-  PARAGRAF DÜZENİ (2 Paragraf):
-    1. Paragraf (Spot): Olayın nerede gerçekleştiği ve doğrudan ana sonucu (20-25 kelime).
-    2. Paragraf (Detay & Gelişme): Olayın nasıl geliştiği, arama kurtarma çalışmaları, etkilenen altyapı/nehirler veya hasarın boyutu. Asla 1. paragraftaki sayıyı veya başlığı tekrar etme!
-
-  Kaynak metinde ne varsa onu anlat; BİLGİ UYDURMA, kaynakta olmayan ayrıntı ekleme.
-
-- vurgu_sayi / vurgu_etiket: haberin EN ÇARPICI rakamı ve ne olduğu.
-  Slaytta iri puntoyla ayrı basılıyor, ilk göze çarpan şey o oluyor.
-    vurgu_sayi   : EN FAZLA 3 KELİME. "2.352 yıl" / "en az 47" / "%14,3"
-                   KÖTÜ: "828 yıldan 2.352 yıla" (çok uzun, slayta sığmıyor)
-                   İYİ : "2.352 yıl"  — en çarpıcı olan tek rakamı seç
-    vurgu_etiket : "istenen hapis cezası" / "hayatını kaybeden" / "zam oranı"
-  Etiket 2-5 kelime, küçük harfle. Rakamı KAYNAKTAKİ GİBİ yaz.
-  ⚠️ BAŞLIKTA GEÇEN SAYIYI VURGU OLARAK VERME. Başlık "32 kişi
-  tutuklandı" diyorsa vurgu_sayi "32" olmamalı — aynı bilgiyi iki kez
-  vermiş olursun. Başlıkta OLMAYAN, ikinci derecede çarpıcı bir rakam
-  seç (tutar, süre, oran, adres sayısı) ya da boş bırak.
-
-  Haberde öne çıkan bir rakam yoksa İKİSİNİ DE BOŞ BIRAK — zorlama
-  rakam bulma, sıradan bir sayıyı büyütmek okuyucuyu yanıltır.
-
-- alinti / alinti_sahibi: haberde geçen çarpıcı bir SÖZ ve kimin söylediği.
-    alinti        : en fazla 18 kelime, tırnak İŞARETİ OLMADAN
-    alinti_sahibi : "Ekrem İmamoğlu" / "Bakan Göktaş" / "BM Sözcüsü"
-
-  ⚠️ ALINTI KAYNAK METİNDE AYNEN GEÇMELİ. Kelimeleri değiştirme,
-  kısaltma, güzelleştirme, birleştirme. Birinin ağzına söylemediği sözü
-  koymak yapabileceğin en ağır hata — sistem bunu kaynakta arıyor ve
-  bulamazsa alıntıyı ATIYOR.
-  Haberde doğrudan alıntı yoksa İKİSİNİ DE BOŞ BIRAK.
-
-- neden_onemli: 1 VEYA 2 CÜMLE (en fazla 25 kelime).
-  ⚠️ KESİNLİKLE YASAK OLANLAR:
-  1. Üst paragraflarda geçen konuları (can kaybı, yaralı, insani yardım, UNICEF/çocuk, felaket/yıkım/kriz oldu vb.) TEKRAR ETMEK VEYA BAŞKA KELİMELERLE ÖZETLEMEK KESİNLİKLE YASAKTIR.
-  2. "İnsani yardım krizini derinleştirdi", "bölgede büyük yıkıma yol açtı" gibi genel geçer soyut cümleler yazmak YASAKTIR.
-
-  NEYİ YAZACAKSIN?
-  Haber metninde HİÇ GEÇMEYEN, tamamen yeni ve somut bir MAKRO / STRATEJİK / TİCARİ / JEOPOLİTİK etki boyutu yazacaksın. Önemli kelimeleri **kalın** yap:
-  * Afet/Kaza: "Çin-Nepal arasındaki en kritik **ticaret koridoru ve sınır kapısı** kapanırken bölgedeki **enerji üretimi** tamamen durdu."
-  * Ekonomi/Finans: "Bu hamle, Asya pazarında şirketin hâkimiyetini güçlendirirken sektörde **tekel denetimi** baskısını artırdı."
-  * Diplomasi/Politika: "Gelişme, yaklaşan kritik seçimler öncesinde **bölgesel ittifak dengelerini** doğrudan etkileme potansiyeline sahip."
-
-- sirada_ne_var: TEK CÜMLE (en fazla 18 kelime). Haberde açıkça belirtilen
-  sonraki resmi adım, duruşma tarihi, toplantı veya yürürlük tarihi.
-  ⚠️ KAYNAKTA GELECEĞE DAİR RESMİ BİR BİLGİ/TARİH YOKSA BOŞ STRING ("") BIRAK.
-  Asla kendi kafandan tahmin veya spekülasyon uydurma.
-
-- veri_karti_*: Haberde somut bir karşılaştırma, oran veya değişim varsa doldur,
-  yoksa boş bırak:
-    veri_karti_etiket : "Yıllık Enflasyon", "Hedef Fiyat", "Kâr Artışı", "Faiz Oranı"
-    veri_karti_eski   : "%48,2" veya "80 $" (varsa, yoksa "")
-    veri_karti_yeni   : "%42,0" veya "86 $"
-    veri_karti_yon    : "artis" (artış/yükseliş) | "azalis" (düşüş/gerileme) | "hedef" (hedef/beklenti) | "notr" (sabit) | "" (veri yoksa)
-  ⚠️ SAYILARI KAYNAKTAN AL, UYDURMA.
-
-- gorsel_konu: SADECE GERÇEK BİR İNSANIN ADI VE SOYADI. Başka hiçbir şey.
-  (örn: "Hakan Fidan", "Ekrem İmamoğlu")
+★ EDİTORYAL ALANLAR VE AÇIKLAMALAR ★
+- slayt_ozet: TEK cümle, en fazla 18 kelime. Başlıkta OLMAYAN ikinci en somut bilgiyi ver (oran, tarih, kim söyledi). Başlığı tekrarlama.
+- detay_metni: 120-220 kelime, 2 PARAGRAF.
+  * 1. Paragraf (Spot): Olayın nerede/nasıl gerçekleştiği ve doğrudan ana sonucu (20-25 kelime).
+  * 2. Paragraf (Gelişme & Arka Plan): Detaylar, etkilenen sektörler, açıklamalar. 1. paragraftaki bilgileri ASLA tekrarlama.
+  * Kritik kişi, kurum, oran ve tarihleri **kalın** (çift yıldız) yap. Doğrudan söylemleri çift tırnak "..." içine al.
+- sana_etkisi: 1-2 CÜMLE (en fazla 25 kelime).
+  * Haberin okuyucunun cebine, kredisini, mevduatını, portföyüne, faturasına veya günlük yaşamına doğrudan yansıması.
+  * Önemli kavramları **kalın** yap. (Örn: "Mevduat getirilerinde **yıllık %47 bandı** korunurken ihtiyaç kredisi faizlerinde **kısa vadede indirim** beklenmiyor.")
+- etkilesim_sorusu: TEK CÜMLE. Okuyucunun fikrini soran, kutuplaştırmayan ama yorum yapma isteği uyandıran zekice soru.
+  (Örn: "Sizce TCMB'nin ilk faiz indirimi hangi ayda gelmeli?", "Bu hedef fiyat sonrası hisseyi takibe alır mısınız?")
+- neden_onemli: 1-2 CÜMLE. Haberin makro, stratejik veya jeopolitik etki boyutu. Genel geçer soyut laflar yerine somut etkiyi **kalın** vurgularla yaz.
+- sirada_ne_var: TEK CÜMLE. Haberde açıkça geçen sonraki resmi adım, duruşma veya yürürlük tarihi. Bilgi yoksa boş string ("") bırak.
+- veri_karti_*: Haberde herhangi bir karşılaştırma veya oran (eski vs yeni, hedef fiyat, kâr artışı, enflasyon vb.) varsa ZORUNLU olarak doldur:
+    veri_karti_etiket : "Hedef Fiyat", "Politika Faizi", "Yıllık TÜFE", "Net Kâr Artışı"
+    veri_karti_eski   : "380 ₺" veya "%50" (varsa, yoksa "")
+    veri_karti_yeni   : "450 ₺" veya "%45"
+    veri_karti_yon    : "artis" | "azalis" | "hedef" | "notr" | ""
+- vurgu_sayi / vurgu_etiket: Başlıkta GEÇMEYEN ikinci en çarpıcı sayı ve etiketi (örn: "2.352 yıl" / "istenen ceza"). Yoksa boş bırak.
+- alinti / alinti_sahibi: Haberde geçen doğrudan söz (en fazla 18 kelime, tırnaksız) ve sahibi. Kaynakta kelimesi kelimesine geçmeli.
+- ig_caption: 2-3 cümle, haberin özü. Kritik kurum ve oranları **kalın** yap. Kaynak adı yazma.
+- ig_hashtag: 5-8 adet konuyla ilgili Türkçe etiket, '#' işareti OLMADAN.
+- gorsel_konu: Sadece tanınmış gerçek bir insanın adı ve soyadı (örn: "Hakan Fidan"). Yoksa boş bırak.
+- gorsel_ikili: Zirve veya ikili diplomatik görüşme ise iki aktörün adı: ["Recep Tayyip Erdoğan", "İlham Aliyev"]. Yoksa boş liste [].
+- gorsel_temsili: Pexels araması için 3-6 kelimelik somut İngilizce terim (örn: "stock market trading chart screen", "commercial passenger jet airplane"). Soyut ve yazılı tabela içeren terim isteme.
 
 - gorsel_ikili: İki lider, bakan veya aktör arasındaki diplomatik zirve,
   anlaşma veya temas haberi ise iki kişinin adı: ["Recep Tayyip Erdoğan", "Abdülfettah es-Sisi"].

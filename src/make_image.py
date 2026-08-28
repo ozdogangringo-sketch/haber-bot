@@ -832,6 +832,39 @@ def yaziyi_bas(
     if ulke_kodu:
         gorsel = _bayragi_bas(gorsel, ulke_kodu, ulke_adi, dikey_kenar)
 
+    # Mini İnfografik Veri Kartı Rozeti (varsa üst sağ/orta bölgeye şık cam kutu)
+    if veri_karti and (veri_karti.get("etiket") or veri_karti.get("yeni")):
+        vk_etiket = (veri_karti.get("etiket") or "").strip().upper()
+        vk_eski = (veri_karti.get("eski") or "").strip()
+        vk_yeni = (veri_karti.get("yeni") or "").strip()
+        vk_yon = (veri_karti.get("yon") or "").strip()
+
+        if vk_yeni:
+            ok = "➔" if vk_eski else ""
+            yon_simge = "📈" if vk_yon == "artis" else ("📉" if vk_yon == "azalis" else "🎯")
+            deger_metin = f"{vk_eski} {ok} {vk_yeni}".strip() if vk_eski else vk_yeni
+            rozet_metin = f"{yon_simge} {vk_etiket}: {deger_metin}" if vk_etiket else f"{yon_simge} {deger_metin}"
+
+            ciz = ImageDraw.Draw(gorsel)
+            vk_font = _font(24, EKSEN_KUCUK)
+            vk_gen = int(ciz.textlength(rozet_metin, font=vk_font)) + 36
+            vk_yuk = 48
+            vk_x = int(genislik - kenar - vk_gen if not ulke_kodu else genislik - kenar - vk_gen - 110)
+            vk_y = int(dikey_kenar + 10)
+
+            vk_overlay = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+            vk_ciz = ImageDraw.Draw(vk_overlay)
+            vk_ciz.rounded_rectangle(
+                [vk_x, vk_y, vk_x + vk_gen, vk_y + vk_yuk],
+                radius=10,
+                fill=(6, 26, 30, 215),
+                outline=(6, 182, 212, 240),
+                width=2,
+            )
+            gorsel = Image.alpha_composite(gorsel.convert("RGBA"), vk_overlay).convert("RGB")
+            ciz = ImageDraw.Draw(gorsel)
+            ciz.text((vk_x + 18, vk_y + 11), rozet_metin, font=vk_font, fill=(246, 243, 236))
+
     return gorsel
 
 
@@ -1365,10 +1398,11 @@ def detay_sayfalara_bol(
     neden_onemli: str | None = None,
     sirada_ne_var: str | None = None,
     trend_karti: Image.Image | None = None,
+    sana_etkisi: str | None = None,
 ) -> list[list[dict]]:
     """
     Detay metnini paragraflara ayırıp sayfalara dağıtır.
-    Smart Brevity formatını (Ne oldu / Neden Önemli / Sırada Ne Var) ve Finans Trend Kartlarını destekler.
+    Smart Brevity formatını (Ne oldu / Sana Etkisi / Neden Önemli / Sırada Ne Var) ve Finans Trend Kartlarını destekler.
     """
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
@@ -1383,7 +1417,7 @@ def detay_sayfalara_bol(
 
     paragraflar = [p.strip() for p in re.split(r"\n\s*\n", detay or "")
                    if p.strip()]
-    if not paragraflar and not vurgu and not alinti and not neden_onemli and not trend_karti:
+    if not paragraflar and not vurgu and not alinti and not neden_onemli and not trend_karti and not sana_etkisi:
         return [[]]
 
     bloklar = []
@@ -1412,6 +1446,19 @@ def detay_sayfalara_bol(
         yukseklik_px = int(punto * 1.5) * len(satirlar)
         bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
                         "yukseklik": yukseklik_px})
+
+    # Sana / Piyasaya Etkisi (Zümrüt Yeşil Vurgulu Doğal Editoryal Blok)
+    if sana_etkisi and sana_etkisi.strip():
+        se_punto = DETAY_PUNTO - 3
+        se_font = _font(se_punto, EKSEN_OZET)
+        se_satirlar = _satirlara_bol(sana_etkisi.strip(), se_font, alan - 32, olcu)
+        bloklar.append({
+            "tip": "sana_etkisi",
+            "metin": sana_etkisi.strip(),
+            "satirlar": se_satirlar,
+            "spot": False,
+            "yukseklik": int(se_punto * 1.5) * len(se_satirlar),
+        })
 
     # Smart Brevity: Neden Önemli (Doğal editoryal blok)
     if neden_onemli and neden_onemli.strip():
@@ -1616,9 +1663,17 @@ def detay_slayti(
                          font=_font(28, EKSEN_KUCUK), fill=(198, 206, 222))
             y += 54
 
-        elif tip in ("neden_onemli", "sirada_ne_var"):
-            is_neden = (tip == "neden_onemli")
-            kenar_renk = (226, 170, 88) if is_neden else (6, 182, 212)
+        elif tip in ("neden_onemli", "sirada_ne_var", "sana_etkisi"):
+            if tip == "sana_etkisi":
+                kenar_renk = (16, 185, 129)  # Parlak Zümrüt Yeşili (Emerald)
+                varsayilan_renk = (220, 252, 231)
+            elif tip == "neden_onemli":
+                kenar_renk = (226, 170, 88)  # Sıcak Kehribar (Amber)
+                varsayilan_renk = (226, 232, 240)
+            else:
+                kenar_renk = (6, 182, 212)   # Siber Turkuaz (Cyan)
+                varsayilan_renk = (206, 214, 230)
+
             punto_kart = DETAY_PUNTO - 3
             satir_h = int(punto_kart * 1.5)
             blok_yuk = satir_h * len(b["satirlar"])
@@ -1626,7 +1681,7 @@ def detay_slayti(
             ciz.rectangle([kenar, y, kenar + 4, y + blok_yuk], fill=kenar_renk)
             y_yazi = y
             for s in b["satirlar"]:
-                _formatli_satir_ciz(ciz, kenar + 22, y_yazi, s, punto_kart, spot=False, varsayilan_renk=(226, 232, 240) if is_neden else (206, 214, 230))
+                _formatli_satir_ciz(ciz, kenar + 22, y_yazi, s, punto_kart, spot=False, varsayilan_renk=varsayilan_renk)
                 y_yazi += satir_h
             y += blok_yuk
 

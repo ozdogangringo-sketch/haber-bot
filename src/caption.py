@@ -100,47 +100,58 @@ def son_dakika_caption(
     ayarlar: dict | None = None,
 ) -> str:
     """
-    Son dakika postunun açıklaması — tek haber, akşam turundan farklı.
-
-    Akşam turunda 10 manşet listeleniyor; burada tek haber var, o yüzden
-    liste yerine haberin kendisi anlatılıyor. Yapı: SON DAKİKA etiketi +
-    başlık + açıklama + kaynak + atıf + hashtag.
+    Son dakika ve tekil post açıklaması — Taranabilir Mini Bülten Formatı.
     """
+    h_dict = dict(haber)
     sonuclar = sonuclar or []
     f = (ayarlar or {}).get("icerik_filtresi", {})
 
-    baslik = (haber["ig_baslik"] or haber["baslik_orj"] or "").strip()
-    govde = (haber["ig_caption"] or haber["slayt_ozet"] or "").strip()
+    baslik = (h_dict.get("ig_baslik") or h_dict.get("baslik_orj") or "").strip()
+    govde = (h_dict.get("ig_caption") or h_dict.get("slayt_ozet") or "").strip()
+    sana_etkisi = (h_dict.get("sana_etkisi") or h_dict.get("neden_onemli") or "").strip()
+    etkilesim = (h_dict.get("etkilesim_sorusu") or "").strip()
+    vurgu_sayi = (h_dict.get("vurgu_sayi") or "").strip()
+    vurgu_etiket = (h_dict.get("vurgu_etiket") or "").strip()
 
     if f.get("aktif") and f.get("captionda", True):
         kelimeler = f.get("yumusatilacak", [])
         baslik = filtre.metni_yumusat(baslik, kelimeler)
         govde = filtre.metni_yumusat(govde, kelimeler)
+        sana_etkisi = filtre.metni_yumusat(sana_etkisi, kelimeler)
 
-    etiketler = _hashtaglari_birlestir([haber])
+    etiketler = _hashtaglari_birlestir([h_dict])
     if f.get("aktif") and f.get("captionda", True):
         etiketler = filtre.hashtaglari_ele(
             etiketler, f.get("yasakli_hashtagler", [])
         )
 
-    # "SON DAKİKA" ibaresi yalnızca gerçekten olağanüstü olaylarda.
-    # Tetikleme eşiği 8 ama etiket eşiği 9: her önemli habere "son
-    # dakika" demek ibareyi değersizleştiriyor.
+    # "SON DAKİKA" ibaresi yalnızca gerçekten olağanüstü olaylarda (9+ puan)
     etiket_esigi = ((ayarlar or {}).get("genel", {})
                     .get("son_dakika_etiket_esigi", 9))
-    son_dakika_mi = (haber["onem_puani"] or 0) >= etiket_esigi
+    son_dakika_mi = (h_dict.get("onem_puani") or 0) >= etiket_esigi
 
-    # ⚠️ SON DAKİKA AÇIKLAMASINDA TARİH YOK.
-    # Instagram gönderinin yaşını zaten gösteriyor ve haber o an oluyor;
-    # üstüne tarih yazmak hem tekrar hem de aciliyeti zayıflatıyor.
-    # Tarih yalnızca AKŞAM TURU açıklamasında var (`caption_kur`), çünkü
-    # orada vaat "şu günün gündemi" — tarih bilginin parçası.
-    parcalar = [
-        "🔴 SON DAKİKA" if son_dakika_mi else "",
-        baslik,
-        govde,
-        f"Kaynak: {haber['kaynak']}",
-    ]
+    parcalar = []
+    if son_dakika_mi:
+        parcalar.append("🔴 SON DAKİKA")
+
+    parcalar.append(f"📌 {baslik}")
+
+    if vurgu_sayi and vurgu_etiket:
+        parcalar.append(f"📊 ÖNE ÇIKAN VERİ: {vurgu_sayi} ({vurgu_etiket})")
+
+    if govde:
+        parcalar.append(govde)
+
+    if sana_etkisi:
+        parcalar.append(f"💡 SANA / PİYASAYA ETKİSİ:\n{sana_etkisi}")
+
+    if etkilesim:
+        parcalar.append(f"💬 SİZCE? {etkilesim}")
+
+    kaynak_adi = kaynak_gosterim_adi(h_dict.get("kaynak", ""), ayarlar or {})
+    if kaynak_adi:
+        parcalar.append(f"Kaynak: {kaynak_adi}")
+
     atif = atif_bloku(sonuclar)
     if atif:
         parcalar.append(atif)

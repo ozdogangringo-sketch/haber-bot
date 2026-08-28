@@ -460,6 +460,19 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     ham_arkaplan, katman, atif = arkaplan_sec(
         haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak)
 
+    veri_karti = None
+    v_etiket = _alan(haber, "veri_karti_etiket")
+    v_yeni = _alan(haber, "veri_karti_yeni")
+    if v_etiket and v_yeni:
+        km = _alan(haber, "makale_metni") or _alan(haber, "ozet_orj")
+        if dogrula.veri_karti_dogrula(_alan(haber, "veri_karti_eski"), v_yeni, km):
+            veri_karti = {
+                "etiket": v_etiket,
+                "yeni": v_yeni,
+                "eski": _alan(haber, "veri_karti_eski") or "",
+                "yon": _alan(haber, "veri_karti_yon") or "artis",
+            }
+
     gorsel1 = make_image.yaziyi_bas(
         ham_arkaplan.copy(),
         _slayt_metni(haber, "ig_baslik", ayarlar),
@@ -471,6 +484,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         ulke_adi=_alan(haber, "ulke_adi") or None,
         # Şerit rengi kategoriden geliyor: spor yeşil, ekonomi bronz…
         kategori=haber["kategori"] or "",
+        veri_karti=veri_karti,
     )
     yol1 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
     gorsel1.save(yol1, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
@@ -533,6 +547,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         neden_onemli=_alan(haber, "neden_onemli"),
         sirada_ne_var=_alan(haber, "sirada_ne_var"),
         trend_karti=trend_karti,
+        sana_etkisi=_alan(haber, "sana_etkisi"),
     )
     detay_yollari = []
     for i, satirlar in enumerate(sayfalar, start=1):
