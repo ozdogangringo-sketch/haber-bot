@@ -269,19 +269,50 @@ def _font(punto: int, eksenler: list[float]) -> ImageFont.FreeTypeFont:
 
 
 def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
-    """Kelime kelime ilerleyip satır genişliğini aşmadan böler."""
-    satirlar, gecerli = [], ""
-    for kelime in metin.split():
-        aday = f"{gecerli} {kelime}".strip()
-        temiz_aday = re.sub(r"\*\*", "", aday)
-        if ciz.textlength(temiz_aday, font=font) <= azami_genislik:
-            gecerli = aday
+    """
+    Kelime kelime ilerleyip satır genişliğini aşmadan böler.
+    Satır bölünmelerinde **bold** etiketlerinin kopmasını önler.
+    """
+    # 1. Kelimeleri ve bold durumlarını çıkar
+    tokens = []
+    is_bold = False
+    for w in metin.split():
+        if w.startswith('**') and w.endswith('**') and len(w) > 4:
+            tokens.append((w[2:-2], True))
+        elif w.startswith('**'):
+            is_bold = True
+            tokens.append((w[2:], True))
+        elif w.endswith('**'):
+            tokens.append((w[:-2], True))
+            is_bold = False
         else:
-            if gecerli:
-                satirlar.append(gecerli)
-            gecerli = kelime
-    if gecerli:
-        satirlar.append(gecerli)
+            tokens.append((w, is_bold))
+
+    # 2. Satırlara böl
+    satirlar = []
+    gecerli_kelimeler = []
+    gecerli_str = ""
+
+    for word, bold in tokens:
+        aday_str = f"{gecerli_str} {word}".strip()
+        if ciz.textlength(aday_str, font=font) <= azami_genislik:
+            gecerli_str = aday_str
+            gecerli_kelimeler.append((word, bold))
+        else:
+            if gecerli_kelimeler:
+                satir_str = ""
+                for w, b in gecerli_kelimeler:
+                    satir_str += f" **{w}**" if b else f" {w}"
+                satirlar.append(satir_str.strip())
+            gecerli_kelimeler = [(word, bold)]
+            gecerli_str = word
+
+    if gecerli_kelimeler:
+        satir_str = ""
+        for w, b in gecerli_kelimeler:
+            satir_str += f" **{w}**" if b else f" {w}"
+        satirlar.append(satir_str.strip())
+
     return satirlar
 
 
@@ -315,12 +346,12 @@ def _formatli_satir_ciz(
     son = 0
     for m in desen.finditer(satir):
         if m.start() > son:
-            t = satir[son:m.start()]
+            t = satir[son:m.start()].replace("**", "")
             ciz.text((cur_x, y), t, font=f_norm, fill=c_norm)
             cur_x += int(ciz.textlength(t, font=f_norm))
         ham = m.group()
         if ham.startswith('**') and ham.endswith('**'):
-            t = ham[2:-2]
+            t = ham[2:-2].replace("**", "")
             ciz.text((cur_x, y), t, font=f_vurgu, fill=c_vurgu)
             cur_x += int(ciz.textlength(t, font=f_vurgu))
         elif (ham.startswith('"') and ham.endswith('"')) or (ham.startswith('“') and ham.endswith('”')):
@@ -329,7 +360,7 @@ def _formatli_satir_ciz(
             cur_x += int(ciz.textlength(t, font=f_vurgu))
         son = m.end()
     if son < len(satir):
-        t = satir[son:]
+        t = satir[son:].replace("**", "")
         ciz.text((cur_x, y), t, font=f_norm, fill=c_norm)
         cur_x += int(ciz.textlength(t, font=f_norm))
 
