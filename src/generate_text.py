@@ -273,9 +273,13 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   Haberde doğrudan alıntı yoksa İKİSİNİ DE BOŞ BIRAK.
 
 - neden_onemli: 1 VEYA 2 CÜMLE (en fazla 25 kelime).
-  Haberin arka planını, kritik önemini, insani/sektörel/küresel etkisini veya olayın büyüklüğünü anlatan net ve vurucu bir cümle yaz.
-  Önemli kelimeleri **kalın** ile vurgula (örn: "**muson yağmurları** ve **altyapı hasarı** kurtarma çalışmalarını aksatıyor").
-  Spot metindeki bilgiyi birebir kopyalama; olayın NEDEN KRİTİK olduğunu ve yarattığı etkiyi açıkla.
+  ⚠️ ASLA ÜSTTEKİ HABER GÖVDESİNİ VEYA SPOTU (can kaybı, yaralı, sel/yıkım/kriz oldu vb.) TEKRARLAMA VEYA ÖZETLEME.
+  Bunun yerine haberin GÖRÜNMEYEN ARKA PLANINI, stratejik/ticari/bölgesel boyutunu veya uzun vadeli kritik etkisini anlatan yepyeni bir analitik boyut ekle.
+  Önemli kelimeleri **kalın** ile vurgula.
+  Örnekler:
+  * Afet/Kaza: "Çin ile Nepal arasındaki en kritik **ticaret koridoru ve sınır kapısı** çökerken bölgedeki **hidroelektrik üretimi** tamamen durdu."
+  * Şirket/Ekonomi: "Satın alma kararı, şirketin Asya pazarındaki payını ikiye katlayarak sektörde **tekel tartışmalarını** alevlendirdi."
+  * Politika: "Yasa değişikliği, yerel seçimler öncesinde **merkez bankası bağımsızlığı** üzerindeki denetim tartışmalarını derinleştirdi."
 
 - sirada_ne_var: TEK CÜMLE (en fazla 18 kelime). Haberde açıkça belirtilen
   sonraki resmi adım, duruşma tarihi, toplantı veya yürürlük tarihi.
