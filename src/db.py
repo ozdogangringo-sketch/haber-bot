@@ -145,6 +145,9 @@ EK_KOLONLAR = {
     # Story id'leri: story 24 saatte kendiliğinden düşüyor, yine de
     # yayından kaldırırken birlikte silinebilsin diye tutuluyor.
     "story_post_id": "TEXT",
+    "twitter_post_id": "TEXT",
+    "youtube_post_id": "TEXT",
+    "tiktok_post_id": "TEXT",
     "onem_puani": "INTEGER",
     "tur": "TEXT",
     "telegram_message_id": "INTEGER",

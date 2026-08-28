@@ -249,10 +249,11 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     # Story postla birlikte gidiyor (kullanıcı kapatmadıysa).
     story_notu = ""
+    story_id = None
     story_url = next((h["story_url"] for h in haberler if h["story_url"]), None)
     if paylas_story and story_url:
         try:
-            instagram.story_yayinla(story_url, ayarlar)
+            story_id = instagram.story_yayinla(story_url, ayarlar)
             story_notu = "\n📱 Story de paylaşıldı"
         except Exception as e:
             log.warning("story yayınlanamadı: %s", e)
@@ -365,6 +366,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     # TikTok video paylaşımı
     tt_notu = ""
+    tt_publish_id = None
     if paylas_tt:
         if not paylasilan_video_yolu:
             tt_notu = "\n⚠️ TikTok videosu oluşturulamadı"
@@ -375,6 +377,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
                 tt_res = tiktok.video_yukle(paylasilan_video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
                 if tt_res.get("durum"):
+                    tt_publish_id = tt_res.get("publish_id")
                     tt_notu = "\n🎵 TikTok videosu yüklendi"
                 else:
                     hata_tt = tt_res.get("hata", "")[:60]
@@ -383,12 +386,13 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 log.warning("TikTok paylaşılamadı: %s", e)
                 tt_notu = f"\n⚠️ TikTok hatası: {type(e).__name__}"
 
-    # ⚠️ ID'LER SAKLANMALI.
+    # ⚠️ TÜM PLATFORM ID'LERİ SAKLANMALI.
     con.execute(
         "UPDATE haberler SET durum = 'yayinlandi', ig_post_id = ?, "
-        "facebook_post_id = ?, threads_post_id = ? "
+        "facebook_post_id = ?, threads_post_id = ?, story_post_id = ?, "
+        "twitter_post_id = ?, youtube_post_id = ?, tiktok_post_id = ? "
         "WHERE telegram_message_id = ?",
-        (post_id, fb_id, th_gonderi_id, mesaj_id),
+        (post_id, fb_id, th_gonderi_id, story_id, tw_gonderi_id, yt_url, tt_publish_id, mesaj_id),
     )
     con.commit()
 
@@ -442,7 +446,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     telegram_bot.sonucu_yaz(
         mesaj_id,
-        f"✅ YAYINLANDI — {len(urller)} slayt{ig_notu}{story_notu}{fb_notu}{th_notu}{tw_notu}\n"
+        f"✅ YAYINLANDI — {len(urller)} slayt{ig_notu}{story_notu}{fb_notu}{th_notu}{tw_notu}{yt_notu}{tt_notu}\n"
         f"\n{_yayin_ozeti(haberler)}\n"
         f"\nOnaylayan: {basan or 'bilinmiyor'}\n"
         f"{baglanti or post_id}",
@@ -453,7 +457,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             + ([[{"text": "🔗 Threads zincirini tamamla",
                   "callback_data": "tamamla"}]] if th_yarim else [])
             + [[{"text": "🔍 Yayın durumunu kontrol et",
-                 "callback_data": f"yayin_kontrol:{mesaj_id}"}]]
+                  "callback_data": f"yayin_kontrol:{mesaj_id}"}]]
         ),
     )
     return 0
@@ -1158,6 +1162,9 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
     story_id = next((h["story_post_id"] for h in haberler if h["story_post_id"]), None)
     fb_id = next((h["facebook_post_id"] for h in haberler if h["facebook_post_id"]), None)
     th_id = next((h["threads_post_id"] for h in haberler if h["threads_post_id"]), None)
+    tw_id = next((h["twitter_post_id"] for h in haberler if "twitter_post_id" in h.keys() and h["twitter_post_id"]), None)
+    yt_id = next((h["youtube_post_id"] for h in haberler if "youtube_post_id" in h.keys() and h["youtube_post_id"]), None)
+    tt_id = next((h["tiktok_post_id"] for h in haberler if "tiktok_post_id" in h.keys() and h["tiktok_post_id"]), None)
     basliklar = [(h["ig_baslik"] or h["baslik_orj"] or "") for h in haberler]
 
     satirlar = [f"🔍 <b>TÜM PLATFORMLAR YAYIN DURUMU</b> (#{mesaj_id} - {len(haberler)} haber)", ""]
@@ -1190,6 +1197,8 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
     # 2. Story
     if story_id:
         satirlar.append(f"📱 <b>Story:</b> ✅ Yayında (ID: {story_id})")
+    elif db_durum == "yayinlandi":
+        satirlar.append("📱 <b>Story:</b> ✅ Yayında")
     else:
         satirlar.append("📱 <b>Story:</b> ⚠️ Yayınlanmadı / Bilgi Yok")
 
@@ -1205,14 +1214,40 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
     else:
         satirlar.append("🧵 <b>Threads:</b> ⚠️ Yayınlanmadı / Kayıt Yok")
 
+    # 5. X (Twitter)
+    if tw_id:
+        satirlar.append(f"🐦 <b>X (Twitter):</b> ✅ Yayında (ID: {tw_id})")
+    elif db_durum == "yayinlandi":
+        satirlar.append("🐦 <b>X (Twitter):</b> ✅ Yayında")
+    else:
+        satirlar.append("🐦 <b>X (Twitter):</b> ⚠️ Yayınlanmadı / Kayıt Yok")
+
+    # 6. YouTube Shorts
+    if yt_id:
+        satirlar.append(f"▶️ <b>YouTube Shorts:</b> ✅ Yayında ({yt_id})")
+    else:
+        satirlar.append("▶️ <b>YouTube Shorts:</b> ⚠️ Yayınlanmadı / Kayıt Yok")
+
+    # 7. TikTok
+    if tt_id:
+        satirlar.append(f"🎵 <b>TikTok:</b> ✅ Yüklendi (ID: {tt_id})")
+    else:
+        satirlar.append("🎵 <b>TikTok:</b> ⚠️ Yayınlanmadı / Kayıt Yok")
+
     # Telafi Butonları
     tuslar = []
-    if not story_id:
+    if not story_id and db_durum != "yayinlandi":
         tuslar.append([{"text": "🔄 📱 Story'i Yayınla / Telafi Et", "callback_data": f"retry_kanal:story:{mesaj_id}"}])
     if not fb_id and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at")):
         tuslar.append([{"text": "🔄 📘 Facebook'a Gönder", "callback_data": f"retry_kanal:facebook:{mesaj_id}"}])
     if not th_id and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")):
         tuslar.append([{"text": "🔄 🧵 Threads'e Gönder", "callback_data": f"retry_kanal:threads:{mesaj_id}"}])
+    if not tw_id and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")):
+        tuslar.append([{"text": "🔄 🐦 X'e Gönder", "callback_data": f"retry_kanal:twitter:{mesaj_id}"}])
+    if not yt_id and bool((ayarlar.get("sosyal", {}) or {}).get("youtubea_da_at")):
+        tuslar.append([{"text": "🔄 ▶️ Shorts'a Yükle", "callback_data": f"retry_kanal:youtube:{mesaj_id}"}])
+    if not tt_id and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at")):
+        tuslar.append([{"text": "🔄 🎵 TikTok'a Yükle", "callback_data": f"retry_kanal:tiktok:{mesaj_id}"}])
     if not ig_var and db_durum != "yayinlandi":
         tuslar.append([{"text": "🔄 📸 Instagram Postunu Yayınla", "callback_data": f"retry_kanal:ig:{mesaj_id}"}])
 
