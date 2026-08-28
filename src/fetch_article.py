@@ -377,13 +377,38 @@ def makale_metni_cek(
     metin = html_temizle(metin)
     metin = re.sub(r"\s+", " ", metin).strip()
 
-    if len(metin) < ASGARI_UZUNLUK:
-        log.info("makale metni çok kısa (%s, %d karakter): %s",
-                 yontem, len(metin), link)
-        return None
-
     if baslik and not _baslikla_ilgili_mi(metin, baslik):
         log.warning("çekilen metin başlıkla ilgisiz görünüyor, atlanıyor: %s", link)
         return None
 
     return metin[:AZAMI_UZUNLUK]
+
+
+def olay_baglami_cek(baslik: str, zaman_asimi: int = 10) -> str | None:
+    """
+    Kısa haberlerde olayın arka planını, kurtarma detaylarını ve bağlamını
+    webden araştırarak zenginleştirir.
+    """
+    if not baslik or len(baslik) < 10:
+        return None
+    try:
+        res = requests.get(
+            "https://duckduckgo.com/html/",
+            params={"q": f"{baslik} news"},
+            headers=BASLIKLAR,
+            timeout=zaman_asimi
+        )
+        if res.status_code != 200:
+            return None
+        corba = BeautifulSoup(res.text, "html.parser")
+        parcalar = [
+            s.get_text(" ", strip=True)
+            for s in corba.select(".result__snippet")[:5]
+            if len(s.get_text(strip=True)) > 40
+        ]
+        if parcalar:
+            toplam = " ".join(parcalar)
+            return re.sub(r"\s+", " ", toplam).strip()[:1500]
+    except Exception as e:
+        log.warning("olay bağlamı çekilemedi (%s): %s", baslik, e)
+    return None

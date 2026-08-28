@@ -36,7 +36,7 @@ import requests
 from dotenv import load_dotenv
 
 from . import db
-from .fetch_article import makale_metni_cek
+from .fetch_article import makale_metni_cek, olay_baglami_cek
 from .fetch_news import ayarlari_oku
 
 log = logging.getLogger(__name__)
@@ -237,34 +237,15 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
 
   VURGULAMA VE SÖYLEMLER (TİPOGRAFİK HİYERARŞİ):
   * Paragraf içinde ilk bakışta yakalanması gereken kritik rakamları, tarihleri, kişi veya kurum isimlerini **vurgulu** (çift yıldız) yaz.
-  * Kişilerin doğrudan ağzından çıkan söylemleri, demeçleri ve resmi açıklamaları mutlaka çift tırnak içine al: "..." veya “...”.
+  * Cümle içinde geçiyorsa 'vurgulanacak kelime', doğrudan bir alıntı veya söylemse "tam söylem metni" şeklinde aktar.
+  * ⚠️ YAPAY DOLGU VE "EN AZ" SÖZCÜĞÜ YASAKTIR: Kaynakta "389" yazıyorsa doğrudan "389 kişi yaşamını yitirdi" veya "389'a yükseldi" yaz. Kaynakta açıkça geçmiyorsa asla kendi kafandan "en az", "yaklaşık" ekleme.
+  * ⚠️ TEKRAR KESİNLİKLE YASAKTIR: Her paragraf TAMAMEN FARKLI bir bilgi taşımalıdır.
 
-  BİÇİM: 3-5 paragraf, her biri 20-32 kelime. KISA TUT — uzun paragraf
-  slaytta tek başına sayfayı dolduruyor ve düzen yine tekdüze oluyor.
-  Paragrafları BOŞ SATIRLA
-  ayır (\n\n). Tek blok hâlinde yazma — slaytta duvar gibi görünüyor
-  ve kimse okumuyor.
+  PARAGRAF DÜZENİ (2 Paragraf):
+    1. Paragraf (Spot): Olayın nerede gerçekleştiği ve doğrudan ana sonucu (20-25 kelime).
+    2. Paragraf (Detay & Gelişme): Olayın nasıl geliştiği, arama kurtarma çalışmaları, etkilenen altyapı/nehirler veya hasarın boyutu. Asla 1. paragraftaki sayıyı veya başlığı tekrar etme!
 
-  İLK PARAGRAF EN ÇARPICI BİLGİYİ TAŞISIN. Slaytta iri puntoyla
-  basılıyor, okuyan ilk onu görüyor. Gazetecilikteki "spot" mantığı:
-  en önemli sonuç, en büyük sayı, en dikkat çekici ayrıntı önce gelir.
-  Kronolojik anlatma — "önce şu oldu, sonra bu oldu" diye başlama.
-
-  Sonraki paragraflar bağlamı açar: nasıl oldu, kim ne dedi, bundan
-  sonra ne olacak. Her paragraf TEK bir konuyu anlatsın.
-
-  ÖRNEK BİÇİM:
-    Depremde en az 47 kişi hayatını kaybetti, 200'den fazla kişi yaralandı.
-
-    Sarsıntı yerel saatle 03.20'de meydana geldi ve merkez üssü kıyıya
-    12 kilometre uzaklıktaydı.
-
-    Bölgeye 14 arama kurtarma ekibi sevk edildi; yetkililer enkaz
-    altında kalan olabileceğini bildirdi.
-
-  Kaynak metinde ne varsa onu anlat; BİLGİ UYDURMA, kaynakta olmayan
-  ayrıntı ekleme. Kaynak kısaysa 2 paragraf yeter — doldurmak için
-  cümle üretme.
+  Kaynak metinde ne varsa onu anlat; BİLGİ UYDURMA, kaynakta olmayan ayrıntı ekleme.
 
 - vurgu_sayi / vurgu_etiket: haberin EN ÇARPICI rakamı ve ne olduğu.
   Slaytta iri puntoyla ayrı basılıyor, ilk göze çarpan şey o oluyor.
@@ -696,6 +677,11 @@ def tek_haber_uret(haber, ayarlar: dict) -> tuple[dict, str | None]:
 
     # Önce makalenin gövdesini çekmeyi dene
     govde = makale_metni_cek(haber["link"], haber["baslik_orj"])
+    if not govde or len(govde) < 150:
+        ek_baglam = olay_baglami_cek(haber["baslik_orj"])
+        if ek_baglam:
+            govde = f"{govde or ''}\n\n[GÜNCEL BASIN DETAYLARI & OLAY BAĞLAMI]:\n{ek_baglam}"
+
     tam_metin_var = bool(govde)
 
     if govde:

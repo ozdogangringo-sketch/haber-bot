@@ -929,8 +929,23 @@ def kanal_ikonlari_bas(gorsel, ayarlar, y_merkez: int, renk=(150, 160, 180)):
     g = ayarlar["gorsel"]
     boy = g.get("kanal_ikon_boyu", 26)
     ara = boy + 14
-    x = g["genislik"] - g["kenar_bosluk"] - boy
+    sag_x = g["genislik"] - g["kenar_bosluk"]
+    toplam_genislik = len(kanallar) * boy + (len(kanallar) - 1) * 14
+    sol_x = sag_x - toplam_genislik
 
+    # 1. Sosyal Medya İkonlarının hemen üstüne tam ikon genişliğinde "dailybrief.co"
+    web_txt = "dailybrief.co"
+    f_web = _font(16, [14.0, 700.0])
+    raw_w = ciz.textlength(web_txt, font=f_web)
+    extra_space = (toplam_genislik - raw_w) / max(1, (len(web_txt) - 1))
+    cur_x = sol_x
+    web_y = y_merkez - boy - 10
+    for ch in web_txt:
+        ciz.text((cur_x, web_y), ch, font=f_web, fill=(160, 175, 195))
+        cur_x += ciz.textlength(ch, font=f_web) + extra_space
+
+    # 2. İkonları bas
+    x = sag_x - boy
     for ad in reversed(kanallar):
         maske = _logo_maskesi(ad, boy)
         if maske is not None:
