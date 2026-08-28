@@ -24,8 +24,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-REDIRECT_PORT = 8990
-REDIRECT_URI = f"https://127.0.0.1:{REDIRECT_PORT}/callback"
+REDIRECT_URI = "https://haber-bot-onay.ezanplus.workers.dev/tiktok-callback"
 SCOPES = ["user.info.basic", "video.upload", "video.publish"]
 
 
@@ -104,44 +103,20 @@ def main():
     print("\n🌐 Tarayıcıda yetkilendirme sayfası açılıyor...")
     print(f"🔗 Link:\n{auth_url}\n")
 
-    # Yerel sunucuyu arka planda dinlet
-    server_started = False
-    httpd = None
-    try:
-        httpd = ReusableTCPServer(("127.0.0.1", REDIRECT_PORT), TikTokCallbackHandler)
-        server_started = True
-        threading.Thread(target=httpd.handle_request, daemon=True).start()
-    except Exception as e:
-        print(f"⚠️ Otomatik port dinleme açılamadı ({e}), manuel kod girişi kullanılacak.")
-
     try:
         webbrowser.open(auth_url)
     except Exception:
         pass
 
     print("=" * 65)
-    print("💡 Onay verdikten sonra:")
-    print("  - Ya tarayıcı otomatik onaylanacaktır,")
-    print("  - Ya da adres çubuğundaki 'code=XXXX' kısmındaki kodu buraya yapıştırabilirsiniz.")
-    print("=" * 65)
+    print("📋 Onay verdikten sonra açılan ekranda mavi kutuda görünen KODU yapıştırın:")
+    code_raw = input("👉 Kod veya Yönlenen URL: ").strip()
 
-    code = None
-    if server_started:
-        import time
-        # 10 saniye bekle otomatik yakalama için
-        for _ in range(30):
-            if TikTokCallbackHandler.auth_code:
-                code = TikTokCallbackHandler.auth_code
-                print("\n✅ Kod otomatik olarak yakalandı!")
-                break
-            time.sleep(1)
-
-    if not code:
-        code = input("👉 Kod veya Yönlenen URL: ").strip()
-        if "code=" in code:
-            parsed = urllib.parse.urlparse(code)
-            params = urllib.parse.parse_qs(parsed.query)
-            code = params.get("code", [code])[0]
+    code = code_raw
+    if "code=" in code_raw:
+        parsed = urllib.parse.urlparse(code_raw)
+        params = urllib.parse.parse_qs(parsed.query)
+        code = params.get("code", [code_raw])[0]
 
     if not code:
         print("❌ Kod girilmedi.")
