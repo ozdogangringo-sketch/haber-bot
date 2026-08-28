@@ -155,6 +155,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_fb = "facebook" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
         paylas_th = "threads" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
         paylas_tw = ("twitter" in k_set or "x" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
+        paylas_yt = ("youtube" in k_set or "yt" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("youtube_a_da_at"))
+        paylas_tt = ("tiktok" in k_set or "tt" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
     else:
         paylas_reels = False
         paylas_ig = True
@@ -162,6 +164,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_fb = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
         paylas_th = bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
         paylas_tw = bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
+        paylas_yt = bool((ayarlar.get("sosyal", {}) or {}).get("youtube_a_da_at"))
+        paylas_tt = bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
 
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
@@ -326,6 +330,44 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             log.warning("Twitter paylaşılamadı: %s", e)
             tw_notu = f"\n⚠️ X'e (Twitter) gitmedi: {type(e).__name__}"
 
+    # YouTube Shorts paylaşımı
+    yt_notu = ""
+    yt_url = None
+    if paylas_yt:
+        try:
+            from src import youtube, video
+            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+            baslik_yt = haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"]
+            yt_res = youtube.shorts_yukle(video_yolu, baslik=baslik_yt, aciklama=metin, ayarlar=ayarlar)
+            if yt_res.get("durum"):
+                yt_url = yt_res.get("url")
+                yt_notu = "\n▶️ YouTube Shorts yayınlandı"
+            else:
+                hata_yt = yt_res.get("hata", "")[:60]
+                yt_notu = f"\n⚠️ YouTube Shorts gitmedi: {hata_yt}"
+        except Exception as e:
+            log.warning("YouTube Shorts paylaşılamadı: %s", e)
+            yt_notu = f"\n⚠️ YouTube Shorts hatası: {type(e).__name__}"
+
+    # TikTok video paylaşımı
+    tt_notu = ""
+    if paylas_tt:
+        try:
+            from src import tiktok, video
+            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+            baslik_tt = haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"]
+            tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
+            if tt_res.get("durum"):
+                tt_notu = "\n🎵 TikTok videosu yüklendi"
+            else:
+                hata_tt = tt_res.get("hata", "")[:60]
+                tt_notu = f"\n⚠️ TikTok gitmedi: {hata_tt}"
+        except Exception as e:
+            log.warning("TikTok paylaşılamadı: %s", e)
+            tt_notu = f"\n⚠️ TikTok hatası: {type(e).__name__}"
+
     # ⚠️ ID'LER SAKLANMALI.
     con.execute(
         "UPDATE haberler SET durum = 'yayinlandi', ig_post_id = ?, "
@@ -356,6 +398,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         tw_url = twitter.post_baglantisi(tw_gonderi_id)
         if tw_url:
             satir_2.append({"text": "🐦 X'te Gör", "url": tw_url})
+    if yt_url:
+        satir_2.append({"text": "▶️ Shorts'ta Gör", "url": yt_url})
     if satir_2:
         canli_link_dugmeleri.append(satir_2)
 
@@ -368,7 +412,11 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     if paylas_th and (not th_gonderi_id or "⚠️" in th_notu or th_yarim):
         telafi_dugmeleri.append([{"text": "🔄 🧵 Threads'e Tekrar Gönder", "callback_data": f"retry_kanal:threads:{mesaj_id}"}])
     if paylas_tw and (not tw_gonderi_id or "⚠️" in tw_notu):
-        telafi_dugmeleri.append([{"text": "🔄 🐦 X'e (Twitter) Tekrar Gönder", "callback_data": f"retry_kanal:twitter:{mesaj_id}"}])
+        telafi_dugmeleri.append([{"text": "🔄 🐦 X'e Tekrar Gönder", "callback_data": f"retry_kanal:twitter:{mesaj_id}"}])
+    if paylas_yt and (not yt_url or "⚠️" in yt_notu):
+        telafi_dugmeleri.append([{"text": "🔄 ▶️ Shorts'a Tekrar Yükle", "callback_data": f"retry_kanal:youtube:{mesaj_id}"}])
+    if paylas_tt and "⚠️" in tt_notu:
+        telafi_dugmeleri.append([{"text": "🔄 🎵 TikTok'a Tekrar Yükle", "callback_data": f"retry_kanal:tiktok:{mesaj_id}"}])
     if paylas_reels and (not post_id or "⚠️" in ig_notu):
         telafi_dugmeleri.append([{"text": "🔄 🎬 Reels'i Tekrar Gönder", "callback_data": f"retry_kanal:reels:{mesaj_id}"}])
     elif paylas_ig and not post_id:
@@ -662,6 +710,40 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         except Exception as e:
             log.exception("Reels telafi hatası: %s", e)
             sonuclar.append(f"⚠️ <b>Instagram Reels:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+    # 7. YOUTUBE SHORTS TELAFİSİ
+    if kanal in ("youtube", "hepsi"):
+        try:
+            from src import youtube, video
+            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+            baslik_yt = haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"]
+            yt_res = youtube.shorts_yukle(video_yolu, baslik=baslik_yt, aciklama=metin, ayarlar=ayarlar)
+            if yt_res.get("durum"):
+                sonuclar.append(f"▶️ <b>YouTube Shorts:</b> Başarıyla yüklendi! ({yt_res.get('url')})")
+                if yt_res.get("url"):
+                    canli_linkler.append([{"text": "▶️ Shorts'ta Gör", "url": yt_res.get("url")}])
+            else:
+                sonuclar.append(f"⚠️ <b>YouTube Shorts:</b> Başarısız ({yt_res.get('hata', '')[:80]})")
+        except Exception as e:
+            log.exception("YouTube Shorts telafi hatası: %s", e)
+            sonuclar.append(f"⚠️ <b>YouTube Shorts:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+    # 8. TIKTOK TELAFİSİ
+    if kanal in ("tiktok", "hepsi"):
+        try:
+            from src import tiktok, video
+            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+            baslik_tt = haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"]
+            tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
+            if tt_res.get("durum"):
+                sonuclar.append("🎵 <b>TikTok Videosu:</b> Başarıyla yüklendi!")
+            else:
+                sonuclar.append(f"⚠️ <b>TikTok:</b> Başarısız ({tt_res.get('hata', '')[:80]})")
+        except Exception as e:
+            log.exception("TikTok telafi hatası: %s", e)
+            sonuclar.append(f"⚠️ <b>TikTok:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
 
     rapor = "\n".join(sonuclar)
     telegram_bot.mesaj_gonder(

@@ -812,6 +812,14 @@ sosyal:
   # TWITTER_ACCESS_TOKEN_SECRET anahtarları tanımlı olmalıdır.
   twittera_da_at: true
 
+  # YouTube Shorts (Data API v3) üzerinden video paylaşılsın mı?
+  # ⚠️ .env'de YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN gerekiyor.
+  youtube_a_da_at: false
+
+  # TikTok Content Posting API v2 üzerinden video paylaşılsın mı?
+  # ⚠️ .env'de TIKTOK_ACCESS_TOKEN gerekiyor.
+  tiktoka_da_at: false
+
   # Slaytların alt bilgisinde gösterilen kanal ikonları
   kanallar:
     - instagram

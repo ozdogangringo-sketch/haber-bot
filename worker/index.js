@@ -75,7 +75,7 @@ const HABER_VAZGEC = /^haber_vazgec:\d{1,12}$/;
 //   yeniden_yayinla:{turMesajId} -> önce kontrol, yayınlanmamışsa yayınlar
 const YAYIN_KONTROL = /^yayin_kontrol:\d{1,12}$/;
 const YENIDEN_YAYINLA = /^yeniden_yayinla:\d{1,12}$/;
-const RETRY_KANAL = /^retry_kanal:(story|facebook|threads|twitter|ig|reels|hepsi):\d{1,12}$/;
+const RETRY_KANAL = /^retry_kanal:(story|facebook|threads|twitter|youtube|tiktok|ig|reels|hepsi):\d{1,12}$/;
 const KURTAR = /^kurtar:\d{1,12}$/;
 
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
@@ -157,8 +157,8 @@ function ayarAltMenu(yol, kodlar) {
   return { inline_keyboard: [satir, [{ text: "← Ayarlara dön", callback_data: "ayar" }]] };
 }
 
-// Kanal seçimi toggle komutu ("kanal:ig", "kanal:reels", "kanal:story", "kanal:threads", "kanal:facebook", "kanal:twitter")
-const KANAL_TOGGLE = /^kanal:(ig|reels|story|threads|facebook|twitter)$/;
+// Kanal seçimi toggle komutu ("kanal:ig", "kanal:reels", "kanal:story", "kanal:threads", "kanal:facebook", "kanal:twitter", "kanal:youtube", "kanal:tiktok")
+const KANAL_TOGGLE = /^kanal:(ig|reels|story|threads|facebook|twitter|youtube|tiktok)$/;
 
 function seciliKanallariCikar(klavye) {
   if (!klavye || !klavye.length) return null;
@@ -169,20 +169,26 @@ function seciliKanallariCikar(klavye) {
     .map((b) => b.callback_data.slice(6)); // "kanal:ig" -> "ig"
 }
 
-function kanalButonlariSatiri(kanallar) {
+function kanalButonlariSatirlari(kanallar) {
   const varMi = (k) => {
     if (Array.isArray(kanallar)) return kanallar.includes(k);
     if (kanallar && typeof kanallar === "object") return Boolean(kanallar[k]);
-    if (k === "reels") return false; // Varsayılan kapalı
+    if (k === "reels" || k === "youtube" || k === "tiktok") return false; // Varsayılan kapalı
     return true;
   };
   return [
-    { text: `${varMi('ig') ? '✅' : '⬜'} IG`, callback_data: "kanal:ig" },
-    { text: `${varMi('reels') ? '✅' : '⬜'} Reels`, callback_data: "kanal:reels" },
-    { text: `${varMi('story') ? '✅' : '⬜'} Story`, callback_data: "kanal:story" },
-    { text: `${varMi('threads') ? '✅' : '⬜'} Threads`, callback_data: "kanal:threads" },
-    { text: `${varMi('facebook') ? '✅' : '⬜'} FB`, callback_data: "kanal:facebook" },
-    { text: `${varMi('twitter') ? '✅' : '⬜'} X`, callback_data: "kanal:twitter" },
+    [
+      { text: `${varMi('ig') ? '✅' : '⬜'} IG`, callback_data: "kanal:ig" },
+      { text: `${varMi('reels') ? '✅' : '⬜'} Reels`, callback_data: "kanal:reels" },
+      { text: `${varMi('story') ? '✅' : '⬜'} Story`, callback_data: "kanal:story" },
+      { text: `${varMi('threads') ? '✅' : '⬜'} Threads`, callback_data: "kanal:threads" },
+    ],
+    [
+      { text: `${varMi('facebook') ? '✅' : '⬜'} FB`, callback_data: "kanal:facebook" },
+      { text: `${varMi('twitter') ? '✅' : '⬜'} X`, callback_data: "kanal:twitter" },
+      { text: `${varMi('youtube') ? '✅' : '⬜'} YT`, callback_data: "kanal:youtube" },
+      { text: `${varMi('tiktok') ? '✅' : '⬜'} TT`, callback_data: "kanal:tiktok" },
+    ],
   ];
 }
 
@@ -199,9 +205,11 @@ function kanalButonlariSatiri(kanallar) {
 function anaMenu(adet, kanallar) {
   return {
     inline_keyboard: [
-      kanalButonlariSatiri(kanallar),
-      [{ text: "✅ Yayınla", callback_data: `yayin_menu:${adet}` }],
-      [{ text: "🔄 Tüm metinleri yeniden üret", callback_data: "metin_yenile" }],
+      ...kanalButonlariSatirlari(kanallar),
+      [{ text: "✅ Yayınla", callback_data: `yayin_menu:${adet}` },
+       { text: "📲 Manuel Paylaşım Paketi", callback_data: "manuel_paket" }],
+      [{ text: "🔄 Başka Fotoğraf Bul", callback_data: "foto_degistir" },
+       { text: "✍️ Metinleri Yenile", callback_data: "metin_yenile" }],
       [{ text: `🎨 Slayt düzenle (${adet} slayt)`, callback_data: `slayt_menu:${adet}` }],
       [{ text: "⏰ 1 saat ertele", callback_data: "ertele" }],
       // ⚠️ Menü İKİ YERDE tanımlı (telegram_bot.py ve burada);
@@ -218,7 +226,7 @@ function anaMenu(adet, kanallar) {
 function yayinZamaniMenusu(adet, kanallar) {
   return {
     inline_keyboard: [
-      kanalButonlariSatiri(kanallar),
+      ...kanalButonlariSatirlari(kanallar),
       [{ text: "▶️ Şimdi", callback_data: "yayinla" },
        { text: "30 dk", callback_data: "yayinla_sonra:30" }],
       [{ text: "1 saat", callback_data: "yayinla_sonra:60" },

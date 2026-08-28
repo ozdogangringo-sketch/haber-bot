@@ -90,6 +90,18 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 - **Flood / Zincirleme Modu:** Çoklu haber turları birbirine yanıt veren Flood (Thread) olarak paylaşılır.
 - **Telegram `[✅ X]` Toggle Butonu:** Onay menüsünde tek tıkla açılıp kapatılabilir.
 
+### I. Telegram Tek Tıkla Alternatif Fotoğraf Motoru (`[🔄 Başka Fotoğraf Bul]`)
+- **İşleyiş:** Onay mesajındaki butona basıldığında webden sıradaki en kaliteli HD basın fotoğrafını (DuckDuckGo HD) seçer, Carousel ve Native 9:16 Story slaytlarını baştan çizer ve Telegram albümünü anında günceller.
+
+### J. Otomatik Mini Finans Grafikleri (Sparkline & Trend Kartı, `src/sparkline.py`)
+- **30 Günlük Fiyat Serisi:** Borsa, hisse, döviz, emtia ve kripto haberlerinde Yahoo Finance üzerinden son 30 günün kapanış fiyatları çekilir.
+- **Varyasyon 14 Siber Turkuaz / Mercan Kırmızı Çizgi:** Catmull-Rom/Bezier yumuşak eğrili, degrade yarı saydam dolgulu ve parlak bitiş noktalı 880x240px estetik infografik trend kartı üretilir ve detay slaytına gömülür.
+
+### K. 5. & 6. Yayın Kanalı: YouTube Shorts & TikTok Otomasyonu (`src/youtube.py`, `src/tiktok.py`)
+- **YouTube Data API v3:** 1080x1920 MP4 Reels videolarını doğrudan Shorts formatında etiketler ve kategoriyle yükler.
+- **TikTok Content Posting API v2:** Videoyu doğrudan TikTok hesabına yayınlar veya taslak olarak aktarır.
+- **2 Satırlı Telegram Kanal Paneli:** `[✅ IG] [⬜ Reels] [✅ Story] [✅ Threads]` ve `[✅ FB] [✅ X] [⬜ YT] [⬜ TT]` butonlarıyla tam kontrol.
+
 ---
 
 ## 4. Dosya ve Dizin Yapısı
@@ -97,6 +109,9 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 | Dizin / Dosya | Görevi |
 |---|---|
 | `config.yaml` | Tüm bot ayarları, RSS kaynakları, ağırlıklar, eşikler ve sosyal medya anahtarları. |
+| `src/sparkline.py` | Borsa/finans haberleri için 30 günlük geçmiş fiyat çekimi ve estetik trend grafiği çizimi. |
+| `src/youtube.py` | YouTube Data API v3 üzerinden 9:16 Shorts video yükleme ve OAuth yetkilendirmesi. |
+| `src/tiktok.py` | TikTok Content Posting API v2 üzerinden dikey video yükleme ve durum sorgulama. |
 | `src/ozel_haber.py` | Telegram üzerinden `/link`, `/arastir` ve `/ozel` komutlarıyla havuz dışı özel haber üretimi. |
 | `src/twitter.py` | X (Twitter) API v2 üzerinden 4 fotoğraflı tekil post, Flood (zincir) paylaşımı ve sağlık testi. |
 | `src/piyasa.py` | Yahoo Finance üzerinden BİST, döviz, emtia, kripto ve ABD hisselerinin canlı çekimi & Gram TL hesabı. |

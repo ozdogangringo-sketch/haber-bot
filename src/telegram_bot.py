@@ -183,32 +183,42 @@ def _istek(metot: str, **parametreler) -> dict:
 # Slayt sayısı callback_data'ya gömülü ("slayt_menu:10"): Worker'ın turda
 # kaç slayt olduğunu öğrenebileceği başka bir yol yok.
 
-def kanal_butonlari(kanallar: dict | None = None) -> list[dict]:
+def kanal_butonlari(kanallar: dict | None = None) -> list[list[dict]]:
     """
-    Yayın kanallarını açıp kapamak için toggle buton satırı üretir.
-
-    Örnek: [✅ IG] [⬜ Reels] [✅ Story] [✅ Threads] [✅ FB] [✅ X]
+    Yayın kanallarını açıp kapamak için 2 satırlı kompakt toggle butonları üretir.
+    Satır 1: [✅ IG] [⬜ Reels] [✅ Story] [✅ Threads]
+    Satır 2: [✅ FB] [✅ X] [⬜ YT] [⬜ TT]
     """
     if kanallar is None:
-        kanallar = {"ig": True, "reels": False, "story": True, "threads": True, "facebook": True, "twitter": True}
+        kanallar = {
+            "ig": True, "reels": False, "story": True, "threads": True,
+            "facebook": True, "twitter": True, "youtube": False, "tiktok": False,
+        }
 
     def _simge(k):
-        return "✅" if kanallar.get(k, False if k == "reels" else True) else "⬜"
+        varsayilan_kapali = k in ("reels", "youtube", "tiktok")
+        return "✅" if kanallar.get(k, False if varsayilan_kapali else True) else "⬜"
 
     return [
-        {"text": f"{_simge('ig')} IG", "callback_data": "kanal:ig"},
-        {"text": f"{_simge('reels')} Reels", "callback_data": "kanal:reels"},
-        {"text": f"{_simge('story')} Story", "callback_data": "kanal:story"},
-        {"text": f"{_simge('threads')} Threads", "callback_data": "kanal:threads"},
-        {"text": f"{_simge('facebook')} FB", "callback_data": "kanal:facebook"},
-        {"text": f"{_simge('twitter')} X", "callback_data": "kanal:twitter"},
+        [
+            {"text": f"{_simge('ig')} IG", "callback_data": "kanal:ig"},
+            {"text": f"{_simge('reels')} Reels", "callback_data": "kanal:reels"},
+            {"text": f"{_simge('story')} Story", "callback_data": "kanal:story"},
+            {"text": f"{_simge('threads')} Threads", "callback_data": "kanal:threads"},
+        ],
+        [
+            {"text": f"{_simge('facebook')} FB", "callback_data": "kanal:facebook"},
+            {"text": f"{_simge('twitter')} X", "callback_data": "kanal:twitter"},
+            {"text": f"{_simge('youtube')} YT", "callback_data": "kanal:youtube"},
+            {"text": f"{_simge('tiktok')} TT", "callback_data": "kanal:tiktok"},
+        ],
     ]
 
 
 def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
     """Onay mesajının ilk buton seti."""
     return {"inline_keyboard": [
-        kanal_butonlari(kanallar),
+        *kanal_butonlari(kanallar),
         [{"text": "✅ Yayınla", "callback_data": f"yayin_menu:{adet}"},
          {"text": "📲 Manuel Paylaşım Paketi", "callback_data": "manuel_paket"}],
         [{"text": "🔄 Başka Fotoğraf Bul", "callback_data": "foto_degistir"},
@@ -350,7 +360,7 @@ def yayin_zamani_menusu(adet: int, kanallar: dict | None = None) -> dict:
     İki sütun: dar ekranda okunur kalsın.
     """
     return {"inline_keyboard": [
-        kanal_butonlari(kanallar),
+        *kanal_butonlari(kanallar),
         [{"text": "▶️ Şimdi", "callback_data": "yayinla"},
          {"text": "30 dk", "callback_data": "yayinla_sonra:30"}],
         [{"text": "1 saat", "callback_data": "yayinla_sonra:60"},

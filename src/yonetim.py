@@ -286,6 +286,28 @@ def api_saglik_testi(ayarlar: dict) -> list[dict]:
         from src import twitter
         sonuclar.append(twitter.api_saglik_testi())
 
+    # 7. YouTube Shorts API Testi
+    try:
+        from src import youtube
+        sonuclar.append(youtube.saglik_testi(ayarlar))
+    except Exception as e:
+        sonuclar.append({
+            "ad": "YouTube Shorts API",
+            "durum": False,
+            "mesaj": f"Modül hatası: {e}",
+        })
+
+    # 8. TikTok API Testi
+    try:
+        from src import tiktok
+        sonuclar.append(tiktok.saglik_testi(ayarlar))
+    except Exception as e:
+        sonuclar.append({
+            "ad": "TikTok API",
+            "durum": False,
+            "mesaj": f"Modül hatası: {e}",
+        })
+
     return sonuclar
 
 
