@@ -31,17 +31,12 @@ from pathlib import Path
 import requests
 from PIL import Image
 
-from . import filtre, dogrula, fetch_article, fetch_photo, fetch_stock, make_image
+from . import filtre, dogrula, fetch_article, fetch_photo, fetch_stock, fetch_web_image, make_image
 
 log = logging.getLogger(__name__)
 
 # Arka planında GERÇEK FOTOĞRAF olan katmanlar.
-#
-# ⚠️ YENİ FOTOĞRAF KATMANI EKLERKEN BURAYA DA EKLE. Katman adları koda
-# birden çok yerde gömülüydü ve "haber" (og:image) katmanı eklenince
-# story'nin listesi güncellenmedi: haber fotoğrafı kullanılan postlarda
-# story fotoğrafsız çıktı. Tek liste tutmak bunu tekrarlanmaz kılıyor.
-FOTOGRAFLI_KATMANLAR = ("haber", "commons", "pexels")
+FOTOGRAFLI_KATMANLAR = ("haber", "web_haber", "commons", "commons_split", "pexels", "ai")
 
 
 def _kalite(g: dict, katman: str) -> int:
@@ -223,20 +218,21 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
         except Exception as e:                        # noqa: BLE001
             log.warning("AI görsel hatası (%s), normal zincire düşülüyor", e)
 
-    # --- 0) Haberin kendi görseli (og:image) ---
-    #
-    # ⚠️ TELİF RİSKİ TAŞIYOR, BİLİNÇLİ TERCİH (18 Ağu 2026). Bu görseller
-    # çoğu zaman ajans fotoğrafı ve telifi ajansa ait; "kaynak belirtmek"
-    # izin yerine geçmiyor. Kullanıcı riski bilerek kullanmayı seçti.
-    # Kapatmak için: `gorsel.haber_gorseli_kullan: false`.
-    #
-    # NEDEN İLK SIRADA: haberin KENDİ olayını gösteren tek görsel bu.
-    # Commons kişi portresi, Pexels temsili fotoğraf veriyor; ikisi de
-    # "o an" değil. Görsel gücü en yüksek katman burası.
-    #
-    # ⚠️ `haber_gorseli_atla`: "başka fotoğraf" düğmesinde bu katman
-    # ATLANIYOR. og:image deterministik — her seferinde aynı URL'yi
-    # döndürüyor. Kullanıcı "başka" deyince farklı bir sonuç bekliyor;
+    # --- 0) Web HD Haber Fotoğrafı (Canlı Basın & Olay Fotoğrafı Arama) ---
+    if not haber_gorseli_atla:
+        try:
+            web_sonuc = fetch_web_image.haber_icin_fotograf(haber, atlanacak=atlanacak)
+            if web_sonuc:
+                foto, web_kayit = web_sonuc
+                return (
+                    make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                    "web_haber",
+                    "",
+                )
+        except Exception as e:
+            log.warning("Web haber görseli katmanı patladı: %s", e)
+
+    # --- 0.5) Haberin kendi görseli (og:image) ---
     if (not haber_gorseli_atla and atlanacak == 0
             and g.get("haber_gorseli_kullan") and haber["link"]):
         try:

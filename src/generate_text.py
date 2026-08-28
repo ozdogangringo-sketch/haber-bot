@@ -291,10 +291,10 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   bulamazsa alıntıyı ATIYOR.
   Haberde doğrudan alıntı yoksa İKİSİNİ DE BOŞ BIRAK.
 
-- neden_onemli: TEK CÜMLE (en fazla 22 kelime).
-  ⚠️ TEKRAR YASAKTIR: İlk paragrafta (spot) veya başlıkta geçen sayıları/olayları farklı kelimelerle TEKRAR ETME.
-  "Neden önemli?" bölümü sadece ve sadece haberin DOLAYLI ETKİSİNİ, SEKTÖREL / MAKRO SONUCUNU veya
-  VATANDAŞA YANSIMASINI taşısın. Eğer haberin spot metninden farklı ayrı bir sonucu/etkisi yoksa BOŞ STRING ("") BIRAK.
+- neden_onemli: 1 VEYA 2 CÜMLE (en fazla 25 kelime).
+  Haberin arka planını, kritik önemini, insani/sektörel/küresel etkisini veya olayın büyüklüğünü anlatan net ve vurucu bir cümle yaz.
+  Önemli kelimeleri **kalın** ile vurgula (örn: "**muson yağmurları** ve **altyapı hasarı** kurtarma çalışmalarını aksatıyor").
+  Spot metindeki bilgiyi birebir kopyalama; olayın NEDEN KRİTİK olduğunu ve yarattığı etkiyi açıkla.
 
 - sirada_ne_var: TEK CÜMLE (en fazla 18 kelime). Haberde açıkça belirtilen
   sonraki resmi adım, duruşma tarihi, toplantı veya yürürlük tarihi.
