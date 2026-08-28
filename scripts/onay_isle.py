@@ -330,43 +330,58 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             log.warning("Twitter paylaşılamadı: %s", e)
             tw_notu = f"\n⚠️ X'e (Twitter) gitmedi: {type(e).__name__}"
 
+    # Ortak Video Üretimi (YouTube Shorts & TikTok için)
+    paylasilan_video_yolu = None
+    if (paylas_yt or paylas_tt) and urller:
+        try:
+            from src import video
+            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+            if dikey_gorseller:
+                paylasilan_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+        except Exception as e:
+            log.exception("YouTube/TikTok için ortak video üretilemedi: %s", e)
+
     # YouTube Shorts paylaşımı
     yt_notu = ""
     yt_url = None
     if paylas_yt:
-        try:
-            from src import youtube, video
-            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
-            baslik_yt = haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"]
-            yt_res = youtube.shorts_yukle(video_yolu, baslik=baslik_yt, aciklama=metin, ayarlar=ayarlar)
-            if yt_res.get("durum"):
-                yt_url = yt_res.get("url")
-                yt_notu = "\n▶️ YouTube Shorts yayınlandı"
-            else:
-                hata_yt = yt_res.get("hata", "")[:60]
-                yt_notu = f"\n⚠️ YouTube Shorts gitmedi: {hata_yt}"
-        except Exception as e:
-            log.warning("YouTube Shorts paylaşılamadı: %s", e)
-            yt_notu = f"\n⚠️ YouTube Shorts hatası: {type(e).__name__}"
+        if not paylasilan_video_yolu:
+            yt_notu = "\n⚠️ YouTube Shorts videosu oluşturulamadı"
+        else:
+            try:
+                from src import youtube
+                h0 = dict(haberler[0]) if haberler else {}
+                baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
+                yt_res = youtube.shorts_yukle(paylasilan_video_yolu, baslik=baslik_yt, aciklama=metin, ayarlar=ayarlar)
+                if yt_res.get("durum"):
+                    yt_url = yt_res.get("url")
+                    yt_notu = "\n▶️ YouTube Shorts yayınlandı"
+                else:
+                    hata_yt = yt_res.get("hata", "")[:60]
+                    yt_notu = f"\n⚠️ YouTube Shorts gitmedi: {hata_yt}"
+            except Exception as e:
+                log.warning("YouTube Shorts paylaşılamadı: %s", e)
+                yt_notu = f"\n⚠️ YouTube Shorts hatası: {type(e).__name__}"
 
     # TikTok video paylaşımı
     tt_notu = ""
     if paylas_tt:
-        try:
-            from src import tiktok, video
-            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
-            baslik_tt = haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"]
-            tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
-            if tt_res.get("durum"):
-                tt_notu = "\n🎵 TikTok videosu yüklendi"
-            else:
-                hata_tt = tt_res.get("hata", "")[:60]
-                tt_notu = f"\n⚠️ TikTok gitmedi: {hata_tt}"
-        except Exception as e:
-            log.warning("TikTok paylaşılamadı: %s", e)
-            tt_notu = f"\n⚠️ TikTok hatası: {type(e).__name__}"
+        if not paylasilan_video_yolu:
+            tt_notu = "\n⚠️ TikTok videosu oluşturulamadı"
+        else:
+            try:
+                from src import tiktok
+                h0 = dict(haberler[0]) if haberler else {}
+                baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
+                tt_res = tiktok.video_yukle(paylasilan_video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
+                if tt_res.get("durum"):
+                    tt_notu = "\n🎵 TikTok videosu yüklendi"
+                else:
+                    hata_tt = tt_res.get("hata", "")[:60]
+                    tt_notu = f"\n⚠️ TikTok gitmedi: {hata_tt}"
+            except Exception as e:
+                log.warning("TikTok paylaşılamadı: %s", e)
+                tt_notu = f"\n⚠️ TikTok hatası: {type(e).__name__}"
 
     # ⚠️ ID'LER SAKLANMALI.
     con.execute(
@@ -717,7 +732,8 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             from src import youtube, video
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
             video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
-            baslik_yt = haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"]
+            h0 = dict(haberler[0]) if haberler else {}
+            baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
             yt_res = youtube.shorts_yukle(video_yolu, baslik=baslik_yt, aciklama=metin, ayarlar=ayarlar)
             if yt_res.get("durum"):
                 sonuclar.append(f"▶️ <b>YouTube Shorts:</b> Başarıyla yüklendi! ({yt_res.get('url')})")
@@ -735,7 +751,8 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             from src import tiktok, video
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
             video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
-            baslik_tt = haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"]
+            h0 = dict(haberler[0]) if haberler else {}
+            baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
             tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
             if tt_res.get("durum"):
                 sonuclar.append("🎵 <b>TikTok Videosu:</b> Başarıyla yüklendi!")

@@ -93,8 +93,8 @@ def reels_dikey_gorselleri_uret(
     uretilen_yollar: list[Path] = []
 
     # 1. Son dakika tekil haberinde diskteki kusursuz native 1080x1920 story dosyalarını kullan
-    if haberler and len(haberler) == 1 and haberler[0].get("son_dakika"):
-        h_id = haberler[0]["id"]
+    if haberler and len(haberler) == 1 and bool(dict(haberler[0]).get("son_dakika")):
+        h_id = dict(haberler[0]).get("id")
         kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
         detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
 
