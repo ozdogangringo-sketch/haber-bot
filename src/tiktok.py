@@ -17,6 +17,7 @@ import requests
 log = logging.getLogger(__name__)
 
 TIKTOK_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/"
+TIKTOK_INBOX_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
 TIKTOK_CREATOR_INFO_URL = "https://open.tiktokapis.com/v2/post/publish/creator_info/query/"
 
 
@@ -36,6 +37,7 @@ def video_yukle(
 ) -> dict[str, Any]:
     """
     1080x1920 MP4 videosunu TikTok Content Posting API v2 ile yükler.
+    Direct Publish (video.publish) ve Inbox/Drafts (video.upload) modlarını otomatik destekler.
     """
     yol = Path(video_yolu)
     if not yol.exists() or yol.stat().st_size == 0:
@@ -53,39 +55,57 @@ def video_yukle(
         if len(temiz_baslik) <= 120:
             temiz_baslik = f"{temiz_baslik} #DailyBrief #Haber #SonDakika"
 
-    payload = {
-        "post_info": {
-            "title": temiz_baslik[:150],
-            "privacy_level": gizlilik,
-            "disable_duet": False,
-            "disable_stitch": False,
-            "disable_comment": False,
-            "video_cover_timestamp_ms": 1000,
-        },
-        "source_info": {
-            "source": "FILE_UPLOAD",
-            "video_size": dosya_boyutu,
-            "chunk_size": dosya_boyutu,
-            "total_chunk_count": 1,
-        },
-    }
-
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json; charset=UTF-8",
     }
 
     try:
-        # 1. Video Upload Oturumu Başlat
-        r_init = requests.post(TIKTOK_INIT_URL, headers=headers, data=json.dumps(payload), timeout=15)
-        veri_init = r_init.json()
+        # 1. Önce Doğrudan Yayınlama (Direct Publish - video.publish) Dene
+        payload_publish = {
+            "post_info": {
+                "title": temiz_baslik[:150],
+                "privacy_level": gizlilik,
+                "disable_duet": False,
+                "disable_stitch": False,
+                "disable_comment": False,
+                "video_cover_timestamp_ms": 1000,
+            },
+            "source_info": {
+                "source": "FILE_UPLOAD",
+                "video_size": dosya_boyutu,
+                "chunk_size": dosya_boyutu,
+                "total_chunk_count": 1,
+            },
+        }
 
+        r_init = requests.post(TIKTOK_INIT_URL, headers=headers, json=payload_publish, timeout=15)
+        veri_init = r_init.json()
+        mod = "direct_publish"
+
+        # Eğer scope hatası alınırsa (video.publish izni yoksa video.upload ile Inbox/Taslak moduna geç)
         if r_init.status_code != 200 or veri_init.get("error", {}).get("code") != "ok":
-            hata_mesaji = veri_init.get("error", {}).get("message", r_init.text[:150])
-            return {
-                "durum": False,
-                "hata": f"TikTok video başlatma hatası: {hata_mesaji}",
+            hata_mesaji = veri_init.get("error", {}).get("message", "")
+            log.info("Direct publish scope kısıtlı (%s), Inbox/Taslak moduna geçiliyor...", hata_mesaji)
+
+            payload_inbox = {
+                "source_info": {
+                    "source": "FILE_UPLOAD",
+                    "video_size": dosya_boyutu,
+                    "chunk_size": dosya_boyutu,
+                    "total_chunk_count": 1,
+                },
             }
+            r_init = requests.post(TIKTOK_INBOX_INIT_URL, headers=headers, json=payload_inbox, timeout=15)
+            veri_init = r_init.json()
+            mod = "inbox_draft"
+
+            if r_init.status_code != 200 or veri_init.get("error", {}).get("code") != "ok":
+                hata_inbox = veri_init.get("error", {}).get("message", r_init.text[:150])
+                return {
+                    "durum": False,
+                    "hata": f"TikTok video başlatma hatası: {hata_inbox}",
+                }
 
         data_block = veri_init.get("data", {})
         publish_id = data_block.get("publish_id")
@@ -103,9 +123,10 @@ def video_yukle(
             r_up = requests.put(upload_url, headers=headers_upload, data=f, timeout=120)
 
         if r_up.status_code in (200, 201):
-            log.info("TikTok video başarıyla yüklendi (publish_id: %s)", publish_id)
+            log.info("TikTok video başarıyla yüklendi (%s, publish_id: %s)", mod, publish_id)
             return {
                 "durum": True,
+                "mod": mod,
                 "publish_id": publish_id,
                 "yanit": veri_init,
             }
