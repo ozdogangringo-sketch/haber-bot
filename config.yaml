@@ -814,7 +814,7 @@ sosyal:
 
   # YouTube Shorts (Data API v3) üzerinden video paylaşılsın mı?
   # ⚠️ .env'de YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN gerekiyor.
-  youtube_a_da_at: false
+  youtube_a_da_at: true
 
   # TikTok Content Posting API v2 üzerinden video paylaşılsın mı?
   # ⚠️ .env'de TIKTOK_ACCESS_TOKEN gerekiyor.
