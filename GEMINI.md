@@ -105,6 +105,14 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 - **Zenginleştirilmiş İnfografik Veri Rozetleri:** Slaytlara şık cam (glassmorphism) kutu içinde karşılaştırma rozetleri (`[ 📈 HEDEF FİYAT: 380 ₺ ➔ 450 ₺ ]`) entegre edildi.
 - **Taranabilir Mini Bülten Caption Formatı:** Instagram ve Threads için madde işaretli, emojili ve net taranabilir açıklama şablonu oluşturuldu.
 
+### M. 6 Platformlu Kurumsal Sosyal Footer İkonları (`src/make_image.py` & `config.yaml`)
+- Slaytların sağ alt köşesindeki `dailybrief.co` alt bilgi bloğuna **YouTube** ve **TikTok** resmi marka ikonları entegre edildi.
+- 6 kanal (`Instagram`, `Threads`, `Facebook`, `X`, `YouTube`, `TikTok`) kusursuz yatay hizalama ve eşit aralıklarla çizilir.
+
+### N. %100 Saf Native 9:16 Full-Bleed Video Motoru (`src/video.py`)
+- **4:5 Kırpma / Bulanık Kenar Kaldırıldı:** YouTube Shorts ve TikTok videoları artık 4:5 postların yapay bulanıklaştırılmış kopyası değil; her biri doğrudan **1080x1920 native Story şablonu**, tam ekran fotoğraf yerleşimi, 144px 3D logo, Zümrüt Yeşili vurgu blokları ve editoryal tipografiyle baştan çizilir.
+- **Kesintisiz Geçiş & Ken Burns:** 30 FPS hızında pürüzsüz geçişlerle profesyonel dikey bülten formatı oluşturulur.
+
 ---
 
 ## 4. Dosya ve Dizin Yapısı
