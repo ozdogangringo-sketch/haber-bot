@@ -273,13 +273,15 @@ GÖRSEL ALANLARI — slaytın arka planını bunlar belirliyor:
   Haberde doğrudan alıntı yoksa İKİSİNİ DE BOŞ BIRAK.
 
 - neden_onemli: 1 VEYA 2 CÜMLE (en fazla 25 kelime).
-  ⚠️ ASLA ÜSTTEKİ HABER GÖVDESİNİ VEYA SPOTU (can kaybı, yaralı, sel/yıkım/kriz oldu vb.) TEKRARLAMA VEYA ÖZETLEME.
-  Bunun yerine haberin GÖRÜNMEYEN ARKA PLANINI, stratejik/ticari/bölgesel boyutunu veya uzun vadeli kritik etkisini anlatan yepyeni bir analitik boyut ekle.
-  Önemli kelimeleri **kalın** ile vurgula.
-  Örnekler:
-  * Afet/Kaza: "Çin ile Nepal arasındaki en kritik **ticaret koridoru ve sınır kapısı** çökerken bölgedeki **hidroelektrik üretimi** tamamen durdu."
-  * Şirket/Ekonomi: "Satın alma kararı, şirketin Asya pazarındaki payını ikiye katlayarak sektörde **tekel tartışmalarını** alevlendirdi."
-  * Politika: "Yasa değişikliği, yerel seçimler öncesinde **merkez bankası bağımsızlığı** üzerindeki denetim tartışmalarını derinleştirdi."
+  ⚠️ KESİNLİKLE YASAK OLANLAR:
+  1. Üst paragraflarda geçen konuları (can kaybı, yaralı, insani yardım, UNICEF/çocuk, felaket/yıkım/kriz oldu vb.) TEKRAR ETMEK VEYA BAŞKA KELİMELERLE ÖZETLEMEK KESİNLİKLE YASAKTIR.
+  2. "İnsani yardım krizini derinleştirdi", "bölgede büyük yıkıma yol açtı" gibi genel geçer soyut cümleler yazmak YASAKTIR.
+
+  NEYİ YAZACAKSIN?
+  Haber metninde HİÇ GEÇMEYEN, tamamen yeni ve somut bir MAKRO / STRATEJİK / TİCARİ / JEOPOLİTİK etki boyutu yazacaksın. Önemli kelimeleri **kalın** yap:
+  * Afet/Kaza: "Çin-Nepal arasındaki en kritik **ticaret koridoru ve sınır kapısı** kapanırken bölgedeki **enerji üretimi** tamamen durdu."
+  * Ekonomi/Finans: "Bu hamle, Asya pazarında şirketin hâkimiyetini güçlendirirken sektörde **tekel denetimi** baskısını artırdı."
+  * Diplomasi/Politika: "Gelişme, yaklaşan kritik seçimler öncesinde **bölgesel ittifak dengelerini** doğrudan etkileme potansiyeline sahip."
 
 - sirada_ne_var: TEK CÜMLE (en fazla 18 kelime). Haberde açıkça belirtilen
   sonraki resmi adım, duruşma tarihi, toplantı veya yürürlük tarihi.
