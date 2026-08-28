@@ -143,14 +143,15 @@ def saglik_testi(ayarlar: dict) -> dict[str, Any]:
 
     headers = {"Authorization": f"Bearer {token}"}
     try:
-        r = requests.post(TIKTOK_CREATOR_INFO_URL, headers=headers, json={}, timeout=10)
+        url = "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url"
+        r = requests.get(url, headers=headers, timeout=10)
         veri = r.json()
         if r.status_code == 200 and veri.get("error", {}).get("code") == "ok":
-            creator_nickname = veri.get("data", {}).get("creator_nickname", "TikTok Creator")
+            display_name = veri.get("data", {}).get("user", {}).get("display_name", "TikTok Creator")
             return {
                 "ad": "TikTok API",
                 "durum": True,
-                "mesaj": f"Bağlantı başarılı ({creator_nickname})",
+                "mesaj": f"Bağlantı başarılı (@{display_name})",
             }
         else:
             hata = veri.get("error", {}).get("message", r.text[:80])

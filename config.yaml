@@ -818,7 +818,7 @@ sosyal:
 
   # TikTok Content Posting API v2 üzerinden video paylaşılsın mı?
   # ⚠️ .env'de TIKTOK_ACCESS_TOKEN gerekiyor.
-  tiktoka_da_at: false
+  tiktoka_da_at: true
 
   # Slaytların alt bilgisinde gösterilen kanal ikonları
   kanallar:
