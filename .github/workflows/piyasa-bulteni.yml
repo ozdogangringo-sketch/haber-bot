@@ -1,0 +1,89 @@
+# =========================================================
+#  PİYASA AÇILIŞ VE KAPANIŞ BÜLTENİ (TAM OTOMATİK)
+#
+#  Hafta içi:
+#    * Sabah Borsa Açılışı: TR 10:08 (UTC 07:08)
+#    * Akşam Borsa Kapanışı: TR 18:20 (UTC 15:20)
+#
+#  2 Slaytlık Canlı Piyasa Isı Haritası + 30 Varlık BİST Tablosu
+#  Onay sorulmadan doğrudan Instagram, Story, Facebook, Threads ve X'te yayınlanır.
+# =========================================================
+
+name: Piyasa Bulteni
+
+on:
+  schedule:
+    - cron: "8 7 * * 1-5"        # Hafta içi TR 10:08 (BIST 10:00 açılış verileri oturduktan sonra)
+    - cron: "20 15 * * 1-5"      # Hafta içi TR 18:20 (BIST 18:00 seans kapanışı ve karanlık oda sonrası)
+  workflow_dispatch:
+    inputs:
+      mod:
+        description: "Yayın modu (oto, acilis, kapanis)"
+        required: true
+        default: "oto"
+        type: choice
+        options:
+          - oto
+          - acilis
+          - kapanis
+      kuru:
+        description: "Kuru çalışma (API'lere paylaşım yapma)"
+        type: boolean
+        default: false
+  repository_dispatch:
+    types: [piyasa_bulteni]
+
+concurrency:
+  group: veritabani
+  cancel-in-progress: false
+
+jobs:
+  piyasa_bulteni:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Piyasa bültenini otomatik yayınla
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_IMAGE_API_KEY: ${{ secrets.GEMINI_IMAGE_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_TOKEN_SECRET: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+        run: |
+          MOD_ARG=""
+          if [ "${{ inputs.mod }}" != "" ]; then
+            MOD_ARG="--mod ${{ inputs.mod }}"
+          fi
+          KURU_ARG=""
+          if [ "${{ inputs.kuru }}" = "true" ]; then
+            KURU_ARG="--kuru"
+          fi
+          python scripts/piyasa_otomatik.py $MOD_ARG $KURU_ARG
+
+      - name: Veritabanını kaydet
+        if: always()
+        run: python scripts/db_kaydet.py "Piyasa bülteni otomatik yayınlandı"

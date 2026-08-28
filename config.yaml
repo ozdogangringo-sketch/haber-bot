@@ -59,17 +59,11 @@ genel:
   # kaybeder — her önemli haber son dakika değildir.
   son_dakika_puan_esigi: 8
 
-  # ⚠️ SON DAKİKA KONTROLÜ YALNIZCA BU AĞIRLIKTAN İTİBAREN TARAR.
-  #
-  # Kontrol saat başı çalışıyor ve 22 kaynağı taramak job süresinin
-  # 171 saniyesini yiyordu. Ölçüldü: bu tempoyla aylık Actions kullanımı
-  # 2040 dk'ya çıkıyor ve 2000 dk'lık ücretsiz limit AŞILIYOR.
-  #
-  # 9: TRT, BBC Türkçe, AA ve TRT kategori beslemeleri. Son dakika haberi
-  # zaten bu kaynaklardan geliyor; kültür/yaşam/motor sporları
-  # beslemelerini saat başı taramanın karşılığı yok — akşam turu
-  # hepsini tarıyor.
-  son_dakika_asgari_agirlik: 9
+  # ⚠️ SON DAKİKA KONTROLÜ VE GÜN İÇİ ÖNERİLER İÇİN ASGARİ AĞIRLIK.
+  # 7: TRT, BBC, AA'nın yanı sıra Webrazzi, ShiftDelete, Donanım Haber,
+  # Habertürk ve NTV gibi kaliteli teknoloji, ekonomi ve gündem kaynakları
+  # gün içi öneri havuzuna dahil edilir.
+  son_dakika_asgari_agirlik: 7
 
   # Günde en fazla kaç son dakika postu. Akşam turuyla birlikte günde
   # 3 post eder; Instagram için sağlıklı aralık, takipçi yorulmuyor.
@@ -82,7 +76,7 @@ genel:
   # Actions kotasının en büyük kalemi bu; 5'ten 3'e indirildi.
   # Tekil post önerisinde kaç başlık TEK Gemini isteğiyle puanlanacak.
   # Bunların en iyi 5'i Telegram'a öneri olarak gidiyor.
-  oneri_aday_adedi: 10
+  oneri_aday_adedi: 12
   # ⚠️ ÖNERİ EŞİKLERİ, TAM METİN EŞİKLERİNDEN 2 PUAN DÜŞÜK.
   # Sebep ölçüldü (19 Ağu 2026): toplu başlık puanlaması aynı habere
   # tam metin puanlamasından ortalama 1.5-1.8 puan DÜŞÜK veriyor.
@@ -109,9 +103,9 @@ genel:
     teknoloji: 5
     kultur: 5
     yasam: 5
-  # Tekil post adayı bu kadar saatten taze olmalı. 3 saat çok dardı:
-  # ölçüldü, hazır metinlerin %98'i bu filtreye takılıyordu.
-  son_dakika_tazelik_saat: 5
+  # Tekil post adayı bu kadar saatten taze olmalı. 8 saat:
+  # sabah düşen kaliteli haberler öğleden sonra da öneri havuzunda değerlendirilir.
+  son_dakika_tazelik_saat: 8
   # ⚠️ KATEGORİ BAZLI EŞİK. Tek eşik (8) spor ve ekonomiyi tamamen
   # dışlıyordu: ölçüldü, o kategorilerde 8+ puan alan haber SIFIR,
   # en yükseği 7. Önem puanı kategoriye göre farklı dağılıyor, bu

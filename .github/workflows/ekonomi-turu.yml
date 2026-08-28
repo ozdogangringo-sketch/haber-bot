@@ -1,14 +1,14 @@
 # =========================================================
-#  EKONOMİ VE PİYASA TURU (Hafta içi TR 10:05 / UTC 07:05)
+#  EKONOMİ VE FİNANS TURU (Hafta içi TR 11:15 / UTC 08:15)
 #
-#  Piyasa Açılış İnfografiği + Günün Seçme Ekonomi Haberleri
+#  Borsa açılışından 1 saat sonra Günün Seçme Ekonomi Haberleri
 # =========================================================
 
 name: Ekonomi Turu
 
 on:
   schedule:
-    - cron: "12 7 * * 1-5"       # Hafta içi TR 10:12 (BIST 10:00 açılışı sonrası canlı verilerle)
+    - cron: "15 8 * * 1-5"       # Hafta içi TR 11:15 (Borsa açılışından 1 saat sonra)
   workflow_dispatch:          # Actions ekranından elle çalıştırma
   repository_dispatch:
     types: [ekonomi_turu]

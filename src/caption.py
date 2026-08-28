@@ -411,6 +411,75 @@ def ekonomi_caption(
     return "\n\n".join(p for p in parcalar if p).strip()
 
 
+def piyasa_bulteni_caption(piyasa_verileri: dict | None, ayarlar: dict | None = None, mod: str = "acilis") -> str:
+    """
+    Sabah (açılış) ve akşam (kapanış) canlı 2 slaytlık piyasa bülteni için Instagram & Threads caption'ı üretir.
+    """
+    tarih = tarih_metni()
+    if mod == "acilis":
+        bas = f"🔔 {tarih} — GÜNE BAŞLARKEN PİYASALAR & BORSA AÇILIŞI"
+        alt_mesaj = "📊 Borsa İstanbul seans açılışı, döviz kurları, altın ve küresel piyasalarda günün ilk rakamları."
+    else:
+        bas = f"🔔 {tarih} — PİYASALARDA GÜN SONU & BORSA KAPANIŞI"
+        alt_mesaj = "📊 Borsa İstanbul seans kapanışı, günün kazandıranları, döviz, altın ve küresel piyasalarda gün sonu karnesi."
+
+    piyasa_satirlari = ["📈 Anlık Piyasa Göstergeleri:"]
+    if piyasa_verileri:
+        if "bist100" in piyasa_verileri:
+            b = piyasa_verileri["bist100"]
+            piyasa_satirlari.append(f"• BIST 100: {b['fiyat']:,.2f} (%{b['degisim']:+.2f})")
+        if "dolar" in piyasa_verileri:
+            d = piyasa_verileri["dolar"]
+            piyasa_satirlari.append(f"• Dolar/TL: {d['fiyat']:.4f} (%{d['degisim']:+.2f})")
+        if "euro" in piyasa_verileri:
+            e = piyasa_verileri["euro"]
+            piyasa_satirlari.append(f"• Euro/TL: {e['fiyat']:.4f} (%{e['degisim']:+.2f})")
+        if "gram_altin" in piyasa_verileri:
+            g = piyasa_verileri["gram_altin"]
+            piyasa_satirlari.append(f"• Gram Altın: {g['fiyat']:,.2f} ₺ (%{g['degisim']:+.2f})")
+        if "bitcoin" in piyasa_verileri:
+            btc = piyasa_verileri["bitcoin"]
+            piyasa_satirlari.append(f"• Bitcoin: ${btc['fiyat']:,.0f} (%{btc['degisim']:+.2f})")
+        if "brent" in piyasa_verileri:
+            br = piyasa_verileri["brent"]
+            piyasa_satirlari.append(f"• Brent Petrol: ${br['fiyat']:.2f} (%{br['degisim']:+.2f})")
+
+    piyasa_bloku = "\n".join(piyasa_satirlari)
+    detay_bloku = "📌 Detaylı BİST 30 hisseleri, ABD teknoloji devleri ve kripto karnesi için kaydırın. 👉"
+    etiketler = " ".join(f"#{e}" for e in EKONOMI_HASHTAGLER[:AZAMI_HASHTAG])
+
+    return f"{bas}\n\n{alt_mesaj}\n\n{piyasa_bloku}\n\n{detay_bloku}\n\n{etiketler}".strip()
+
+
+def piyasa_twitter_metni(piyasa_verileri: dict | None, ayarlar: dict | None = None, mod: str = "acilis") -> str:
+    """
+    X (Twitter) için 280 karakterlik açılış/kapanış piyasa bülteni metni üretir.
+    """
+    tarih = tarih_metni()
+    baslik = "🔔 Borsa Açılış Raporu" if mod == "acilis" else "🔔 Borsa Kapanış Raporu"
+    
+    satirlar = [f"{baslik} ({tarih})"]
+    if piyasa_verileri:
+        if "bist100" in piyasa_verileri:
+            b = piyasa_verileri["bist100"]
+            satirlar.append(f"📈 BIST 100: {b['fiyat']:,.0f} (%{b['degisim']:+.2f})")
+        if "dolar" in piyasa_verileri:
+            d = piyasa_verileri["dolar"]
+            satirlar.append(f"💵 Dolar: {d['fiyat']:.2f} ₺")
+        if "gram_altin" in piyasa_verileri:
+            g = piyasa_verileri["gram_altin"]
+            satirlar.append(f"🟡 Gram Altın: {g['fiyat']:,.0f} ₺")
+        if "bitcoin" in piyasa_verileri:
+            btc = piyasa_verileri["bitcoin"]
+            satirlar.append(f"₿ BTC: ${btc['fiyat']:,.0f}")
+
+    satirlar.append("#BIST100 #Borsa #Dolar #Altın #DailyBrief")
+    metin = "\n".join(satirlar)
+    if len(metin) > 280:
+        metin = metin[:277] + "…"
+    return metin
+
+
 def twitter_metni_kur(haber: dict, ayarlar: dict | None = None) -> str:
     """
     X (Twitter) için 280 karakter sınırına tam uyumlu tekil post metni üretir.
