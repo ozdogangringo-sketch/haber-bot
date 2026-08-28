@@ -249,12 +249,13 @@ def trend_karti_ciz(
     return kart
 
 
-def haber_icin_trend_karti(haber: dict[str, Any]) -> Image.Image | None:
+def haber_icin_trend_karti(haber: dict[str, Any] | Any) -> Image.Image | None:
     """
     Verilen haber için borsa/finans sembolü varsa otomatik olarak trend kartını üretir.
     """
-    baslik = haber.get("ig_baslik") or haber.get("baslik_orj") or ""
-    ozet = haber.get("slayt_ozet") or haber.get("detay_metni") or ""
+    h = dict(haber) if haber else {}
+    baslik = h.get("ig_baslik") or h.get("baslik_orj") or ""
+    ozet = h.get("slayt_ozet") or h.get("detay_metni") or ""
     metin = f"{baslik} {ozet}"
 
     sonuc = sembol_tespit_et(metin)

@@ -92,9 +92,12 @@ def reels_dikey_gorselleri_uret(
 
     uretilen_yollar: list[Path] = []
 
-    # 1. Son dakika tekil haberinde diskteki kusursuz native 1080x1920 story dosyalarını kullan
+    from src import slaytlar
+
+    # 1. Son dakika tekil haberi için native 1080x1920 Story slaytları
     if haberler and len(haberler) == 1 and bool(dict(haberler[0]).get("son_dakika")):
-        h_id = dict(haberler[0]).get("id")
+        h0 = dict(haberler[0])
+        h_id = h0.get("id")
         kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
         detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
 
@@ -103,8 +106,20 @@ def reels_dikey_gorselleri_uret(
             story_adaylari.append(kapak_story)
         story_adaylari.extend(detay_storyler)
 
+        # Eğer diskte hazır yoksa, anında native 9:16 slaytları baştan üret
+        if not story_adaylari:
+            try:
+                log.info("Disk üzerinde story dosyaları bulunamadı, native 9:16 slaytlar üretiliyor (Haber #%s)", h_id)
+                slaytlar.son_dakika_uret(h0, ayarlar or {})
+                if kapak_story.exists():
+                    story_adaylari.append(kapak_story)
+                detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
+                story_adaylari.extend(detay_storyler)
+            except Exception as e:
+                log.warning("Native story üretilemedi: %s", e)
+
         if story_adaylari:
-            log.info("Reels için %d adet native 9:16 story görseli kullanılıyor (Haber #%s)", len(story_adaylari), h_id)
+            log.info("Video için %d adet native 9:16 story görseli kullanılıyor (Haber #%s)", len(story_adaylari), h_id)
             for idx, sp in enumerate(story_adaylari):
                 hedef = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
                 with Image.open(sp) as s_img:
@@ -112,7 +127,32 @@ def reels_dikey_gorselleri_uret(
                 uretilen_yollar.append(hedef)
             return uretilen_yollar
 
-    # 2. Standart liste veya URL üzerinden gelen görseller
+    # 2. Çoklu haber turu (Carousel / Akşam Turu / Ekonomi Turu) için native Story slaytları
+    elif haberler and len(haberler) > 1:
+        story_listesi: list[Path] = []
+        for idx, h_raw in enumerate(haberler, start=1):
+            h_d = dict(h_raw)
+            hid = h_d.get("id")
+            s_yol = CIKTI_KLASORU / f"story-{hid}.jpg"
+            if not s_yol.exists():
+                try:
+                    slaytlar.slayt_uret(h_d, ayarlar or {}, sira=idx)
+                except Exception as e:
+                    log.warning("Tur slaytı #%s üretilemedi: %s", hid, e)
+            if s_yol.exists():
+                story_listesi.append(s_yol)
+
+        if story_listesi:
+            log.info("Tur videosu için %d adet native 9:16 story görseli kullanılıyor", len(story_listesi))
+            # İlk slayt piyasa kartı ise onu da ekle
+            for idx, sp in enumerate(story_listesi):
+                hedef = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
+                with Image.open(sp) as s_img:
+                    s_img.convert("RGB").save(hedef, "JPEG", quality=95, subsampling=0, optimize=True)
+                uretilen_yollar.append(hedef)
+            return uretilen_yollar
+
+    # 3. Standart liste veya URL üzerinden gelen görseller (Yedek mod)
     for idx, kaynak in enumerate(gorsel_kaynaklari):
         hedef_yol = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
 

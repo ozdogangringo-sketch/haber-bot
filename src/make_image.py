@@ -933,8 +933,34 @@ def _ikon_threads(ciz, x, y, boy, renk):
              fill=renk, width=k)
 
 
-IKONLAR = {"instagram": _ikon_instagram, "x": _ikon_x,
-           "facebook": _ikon_facebook, "threads": _ikon_threads}
+def _ikon_youtube(ciz, x, y, boy, renk):
+    """YouTube: Yuvarlak köşeli dikdörtgen + sağa bakan üçgen play ikonu."""
+    r = boy // 4
+    ciz.rounded_rectangle([x, y + boy * 0.12, x + boy, y + boy * 0.88], radius=r,
+                          outline=renk, width=max(2, boy // 11))
+    p1 = (x + boy * 0.40, y + boy * 0.32)
+    p2 = (x + boy * 0.40, y + boy * 0.68)
+    p3 = (x + boy * 0.70, y + boy * 0.50)
+    ciz.polygon([p1, p2, p3], fill=renk)
+
+
+def _ikon_tiktok(ciz, x, y, boy, renk):
+    """TikTok: Müzik notası (nota başı, gövde ve üst bayrak)."""
+    k = max(2, boy // 10)
+    ciz.ellipse([x + boy * 0.18, y + boy * 0.55, x + boy * 0.58, y + boy * 0.90], fill=renk)
+    ciz.line([(x + boy * 0.52, y + boy * 0.15), (x + boy * 0.52, y + boy * 0.72)], fill=renk, width=k)
+    ciz.arc([x + boy * 0.52, y + boy * 0.12, x + boy * 0.90, y + boy * 0.50],
+            start=270, end=90, fill=renk, width=k)
+
+
+IKONLAR = {
+    "instagram": _ikon_instagram,
+    "threads": _ikon_threads,
+    "facebook": _ikon_facebook,
+    "x": _ikon_x,
+    "youtube": _ikon_youtube,
+    "tiktok": _ikon_tiktok,
+}
 
 # İndirilmiş gerçek logolar (scripts/logo_indir.py). Elle çizim yalnızca
 # dosya yoksa devreye giriyor.
