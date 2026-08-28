@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 REDIRECT_PORT = 8990
-REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORT}/callback"
+REDIRECT_URI = f"https://127.0.0.1:{REDIRECT_PORT}/callback"
 SCOPES = ["user.info.basic", "video.upload", "video.publish"]
 
 
