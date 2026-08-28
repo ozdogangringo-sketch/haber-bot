@@ -37,10 +37,9 @@ def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
 
 def _cercevele_9_16(img: Image.Image, baslik_rozet: str = "") -> Image.Image:
     """
-    1080x1350 formatındaki slayt, detay veya piyasa kartını,
-    hiçbir yapay kutu, çerçeve veya renk ayrımı OLMADAN,
-    üstünü görselin/gradyanın doğal devamı, altını ise taban renginin devamı
-    olarak dikişsiz 1080x1920 (9:16) Reels/Story zeminine uzatır.
+    1080x1350 formatındaki slaytı, pikselleri yapay uzatmadan
+    sinematik bulanıklaştırılmış (Gaussian Blur) arka plan ve yumuşak derinlik gölgesiyle
+    kusursuz 1080x1920 (9:16) Reels/Story zeminine yerleştirir.
     """
     genislik, yukseklik = HEDEF_GENISLIK, HEDEF_YUKSEKLIK
     w, h = img.size
@@ -48,22 +47,31 @@ def _cercevele_9_16(img: Image.Image, baslik_rozet: str = "") -> Image.Image:
         return img.convert("RGB")
 
     card_y = (yukseklik - h) // 2  # 285
-    tuval = Image.new("RGB", (genislik, yukseklik))
 
-    # 1. Üst Bölgeyi Dikişsiz Uzat (y = 0..285)
-    # Görselin en üst satırını yukarı doğru pürüzsüzce uzat
-    ust_cizgi = img.crop((0, 0, w, 2)).resize((w, card_y), Image.LANCZOS)
-    tuval.paste(ust_cizgi, (0, 0))
+    # 1. Arka plan: Görüntüyü tüm 1080x1920 alana orantılı büyütüp sinematik blur ve karartma uygula
+    oran = max(genislik / w, yukseklik / h)
+    bg_w, bg_h = int(w * oran), int(h * oran)
+    bg = img.resize((bg_w, bg_h), Image.LANCZOS)
+    sol = (bg_w - genislik) // 2
+    ust = (bg_h - yukseklik) // 2
+    bg = bg.crop((sol, ust, sol + genislik, ust + yukseklik))
+    bg = bg.filter(ImageFilter.GaussianBlur(35))
 
-    # 2. Alt Bölgeyi Dikişsiz Uzat (y = 1635..1920)
-    # Görselin en alt satırını aşağı doğru pürüzsüzce uzat
-    alt_cizgi = img.crop((0, h - 2, w, h)).resize((w, yukseklik - (card_y + h)), Image.LANCZOS)
-    tuval.paste(alt_cizgi, (0, card_y + h))
+    # Koyu perde
+    perde = Image.new("RGBA", (genislik, yukseklik), (4, 16, 26, 140))
+    bg = Image.alpha_composite(bg.convert("RGBA"), perde)
 
-    # 3. 4:5 Görseli merkez dikişsiz alana yerleştir
-    tuval.paste(img, (0, card_y))
+    # 2. Ana 4:5 kartın arkasına yumuşak derinlik gölgesi
+    golge = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    gdraw = ImageDraw.Draw(golge)
+    gdraw.rectangle([10, card_y - 5, genislik - 10, card_y + h + 5], fill=(0, 0, 0, 180))
+    golge = golge.filter(ImageFilter.GaussianBlur(25))
+    bg = Image.alpha_composite(bg, golge)
 
-    return tuval
+    # 3. Ana 4:5 kartı merkeze yapıştır
+    bg.paste(img.convert("RGBA"), (0, card_y))
+
+    return bg.convert("RGB")
 
 
 def reels_dikey_gorselleri_uret(
@@ -84,6 +92,27 @@ def reels_dikey_gorselleri_uret(
 
     uretilen_yollar: list[Path] = []
 
+    # 1. Son dakika tekil haberinde diskteki kusursuz native 1080x1920 story dosyalarını kullan
+    if haberler and len(haberler) == 1 and haberler[0].get("son_dakika"):
+        h_id = haberler[0]["id"]
+        kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
+        detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
+
+        story_adaylari = []
+        if kapak_story.exists():
+            story_adaylari.append(kapak_story)
+        story_adaylari.extend(detay_storyler)
+
+        if story_adaylari:
+            log.info("Reels için %d adet native 9:16 story görseli kullanılıyor (Haber #%s)", len(story_adaylari), h_id)
+            for idx, sp in enumerate(story_adaylari):
+                hedef = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
+                with Image.open(sp) as s_img:
+                    s_img.convert("RGB").save(hedef, "JPEG", quality=95, subsampling=0, optimize=True)
+                uretilen_yollar.append(hedef)
+            return uretilen_yollar
+
+    # 2. Standart liste veya URL üzerinden gelen görseller
     for idx, kaynak in enumerate(gorsel_kaynaklari):
         hedef_yol = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
 
@@ -101,8 +130,11 @@ def reels_dikey_gorselleri_uret(
                     continue
                 img = Image.open(p)
 
-            # Görseli 1080x1920 dikişsiz zeminine dönüştür
-            dikey_img = _cercevele_9_16(img)
+            # Görsel zaten 1080x1920 ise doğrudan kaydet, değilse sinematik zeminle yerleştir
+            if img.size == (HEDEF_GENISLIK, HEDEF_YUKSEKLIK):
+                dikey_img = img.convert("RGB")
+            else:
+                dikey_img = _cercevele_9_16(img)
             dikey_img.save(hedef_yol, "JPEG", quality=95, subsampling=0, optimize=True)
             uretilen_yollar.append(hedef_yol)
         except Exception as e:

@@ -1605,6 +1605,7 @@ def detay_slayti(
             y += PARAGRAF_ARASI
 
     # --- Alt bilgi ---
+    kucuk = _font(26, EKSEN_KUCUK)
     _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
 
     # Sayfa göstergesi: "2/3". Birden fazla detay sayfası varken

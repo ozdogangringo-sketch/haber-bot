@@ -568,28 +568,32 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         # Story ikincil; patlarsa post yine çıkmalı.
         log.warning("story görseli üretilemedi: %s", e)
 
-    # --- Slayt 2 Detay Story (9:16) ---
-    try:
-        story_d = make_image.story_detay(
-            _slayt_metni(haber, "ig_baslik", ayarlar),
-            detay,
-            make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
-            ayarlar,
-            arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
-            kategori=haber["kategori"],
-            son_dakika=son_dakika_mi,
-            ulke_kodu=_alan(haber, "ulke_kodu") or None,
-            ulke_adi=_alan(haber, "ulke_adi") or None,
-            satirlar=sayfalar[0] if sayfalar else None,
-            arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
-        )
-        story_detay_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay.jpg"
-        story_d.save(story_detay_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
-    except Exception as e:
-        log.warning("detay story görseli üretilemedi: %s", e)
+    # --- Detay Story'leri (9:16) ---
+    story_detay_yollari = []
+    for i, satirlar in enumerate(sayfalar, start=1):
+        try:
+            story_d = make_image.story_detay(
+                _slayt_metni(haber, "ig_baslik", ayarlar),
+                detay,
+                make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
+                ayarlar,
+                arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
+                kategori=haber["kategori"],
+                son_dakika=son_dakika_mi,
+                ulke_kodu=_alan(haber, "ulke_kodu") or None,
+                ulke_adi=_alan(haber, "ulke_adi") or None,
+                satirlar=satirlar,
+                arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
+            )
+            ek = "" if len(sayfalar) == 1 else f"-{i}"
+            s_detay_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay{ek}.jpg"
+            story_d.save(s_detay_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
+            story_detay_yollari.append(s_detay_yol)
+        except Exception as e:
+            log.warning("detay story görseli üretilemedi (%d): %s", i, e)
 
-    log.info("son dakika slaytları üretildi #%s [%s + %d detay + story]",
-             haber["id"], katman, len(detay_yollari))
+    log.info("son dakika slaytları üretildi #%s [%s + %d detay + %d story]",
+             haber["id"], katman, len(detay_yollari), len(story_detay_yollari) + (1 if yol3 else 0))
 
     if con is not None:
         con.execute(
@@ -603,9 +607,12 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     sonuc += [{"id": haber["id"], "yol": y, "katman": "detay", "atif": ""}
               for y in detay_yollari]
     if yol3:
-        # Story carousel'e GİRMİYOR; ayrı işaretli, çağıran taraf ayırıyor.
         sonuc.append(
             {"id": haber["id"], "yol": yol3, "katman": "story", "atif": ""}
+        )
+    for sdy in story_detay_yollari:
+        sonuc.append(
+            {"id": haber["id"], "yol": sdy, "katman": "story_detay", "atif": ""}
         )
     return sonuc
 
