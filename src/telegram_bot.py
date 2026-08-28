@@ -192,11 +192,11 @@ def kanal_butonlari(kanallar: dict | None = None) -> list[list[dict]]:
     if kanallar is None:
         kanallar = {
             "ig": True, "reels": False, "story": True, "threads": True,
-            "facebook": True, "twitter": True, "youtube": False, "tiktok": False,
+            "facebook": True, "twitter": True, "youtube": True, "tiktok": True,
         }
 
     def _simge(k):
-        varsayilan_kapali = k in ("reels", "youtube", "tiktok")
+        varsayilan_kapali = k in ("reels",)
         return "✅" if kanallar.get(k, False if varsayilan_kapali else True) else "⬜"
 
     return [

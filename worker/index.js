@@ -97,7 +97,7 @@ const SECILENLERI_HAZIRLA = "hazirla_secilenler";
 // 30+ saniye sürüyor ve menü açmak anında olmalı. Worker mesajın
 // butonlarını doğrudan düzenliyor.
 const MENU_GEZINME =
-  /^(slayt_menu:(\d{1,2})|geri:(\d{1,2})|slayt:([1-9]|10):(\d{1,2})|yayin_menu:(\d{1,2})|yayin_geri:(\d{1,2}))$/;
+  /^(slayt_menu:(\d{1,2})(?::([a-z0-9_,]+))?|geri:(\d{1,2})(?::([a-z0-9_,]+))?|slayt:([1-9]|10):(\d{1,2})(?::([a-z0-9_,]+))?|yayin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|yayin_geri:(\d{1,2})(?::([a-z0-9_,]+))?)$/;
 
 // Yayından kaldırma. Tur id'si komuta GÖMÜLÜ ("kaldir:144") çünkü bu
 // düğme yayın sonucu mesajında duruyor ve o mesajın kendi message_id'si
@@ -173,8 +173,8 @@ function kanalButonlariSatirlari(kanallar) {
   const varMi = (k) => {
     if (Array.isArray(kanallar)) return kanallar.includes(k);
     if (kanallar && typeof kanallar === "object") return Boolean(kanallar[k]);
-    if (k === "reels" || k === "youtube" || k === "tiktok") return false; // Varsayılan kapalı
-    return true;
+    if (k === "reels") return false; // Varsayılan kapalı (Reels, IG post ile çakışmasın)
+    return true; // IG, Story, Threads, FB, X, YT, TT varsayılan AKTİF
   };
   return [
     [
@@ -203,14 +203,17 @@ function kanalButonlariSatirlari(kanallar) {
 // ---------------------------------------------------------------------
 
 function anaMenu(adet, kanallar) {
+  const kStr = Array.isArray(kanallar) ? kanallar.join(",") : "";
+  const yayinCb = kStr ? `yayin_menu:${adet}:${kStr}` : `yayin_menu:${adet}`;
+  const slaytCb = kStr ? `slayt_menu:${adet}:${kStr}` : `slayt_menu:${adet}`;
   return {
     inline_keyboard: [
       ...kanalButonlariSatirlari(kanallar),
-      [{ text: "✅ Yayınla", callback_data: `yayin_menu:${adet}` },
+      [{ text: "✅ Yayınla", callback_data: yayinCb },
        { text: "📲 Manuel Paylaşım Paketi", callback_data: "manuel_paket" }],
       [{ text: "🔄 Başka Fotoğraf Bul", callback_data: "foto_degistir" },
        { text: "✍️ Metinleri Yenile", callback_data: "metin_yenile" }],
-      [{ text: `🎨 Slayt düzenle (${adet} slayt)`, callback_data: `slayt_menu:${adet}` }],
+      [{ text: `🎨 Slayt düzenle (${adet} slayt)`, callback_data: slaytCb }],
       [{ text: "⏰ 1 saat ertele", callback_data: "ertele" }],
       // ⚠️ Menü İKİ YERDE tanımlı (telegram_bot.py ve burada);
       // birini değiştirirken diğerini de değiştir.
@@ -224,6 +227,8 @@ function anaMenu(adet, kanallar) {
 // ⚠️ src/telegram_bot.py -> yayin_zamani_menusu() ile BİREBİR AYNI olmalı.
 // İki sütun: dar telefon ekranında düğme metinleri kırpılmasın.
 function yayinZamaniMenusu(adet, kanallar) {
+  const kStr = Array.isArray(kanallar) ? kanallar.join(",") : "";
+  const geriCb = kStr ? `yayin_geri:${adet}:${kStr}` : `yayin_geri:${adet}`;
   return {
     inline_keyboard: [
       ...kanalButonlariSatirlari(kanallar),
@@ -233,30 +238,33 @@ function yayinZamaniMenusu(adet, kanallar) {
        { text: "2 saat", callback_data: "yayinla_sonra:120" }],
       [{ text: "3 saat", callback_data: "yayinla_sonra:180" },
        { text: "4 saat", callback_data: "yayinla_sonra:240" }],
-      [{ text: "← Geri", callback_data: `yayin_geri:${adet}` }],
+      [{ text: "← Geri", callback_data: geriCb }],
     ],
   };
 }
 
-function slaytSecimMenusu(adet) {
+function slaytSecimMenusu(adet, kanallarStr) {
+  const kStr = kanallarStr || "";
   const satir1 = [];
   const satir2 = [];
   for (let i = 1; i <= Math.min(adet, 5); i++) {
-    satir1.push({ text: String(i), callback_data: `slayt:${i}:${adet}` });
+    satir1.push({ text: String(i), callback_data: kStr ? `slayt:${i}:${adet}:${kStr}` : `slayt:${i}:${adet}` });
   }
   for (let i = 6; i <= adet; i++) {
-    satir2.push({ text: String(i), callback_data: `slayt:${i}:${adet}` });
+    satir2.push({ text: String(i), callback_data: kStr ? `slayt:${i}:${adet}:${kStr}` : `slayt:${i}:${adet}` });
   }
   const tuslar = [satir1];
   if (satir2.length) tuslar.push(satir2);
   if (adet < 10) {
     tuslar.push([{ text: `➕ Havuzdan Haber Ekle (${adet}/10)`, callback_data: "havuzdan_ekle" }]);
   }
-  tuslar.push([{ text: "← Geri", callback_data: `geri:${adet}` }]);
+  const geriCb = kStr ? `geri:${adet}:${kStr}` : `geri:${adet}`;
+  tuslar.push([{ text: "← Geri", callback_data: geriCb }]);
   return { inline_keyboard: tuslar };
 }
 
-function slaytIslemMenusu(sira, adet) {
+function slaytIslemMenusu(sira, adet, kanallarStr) {
+  const kStr = kanallarStr || "";
   const tuslar = [];
   if (adet > 1) {
     if (sira > 1) {
@@ -274,6 +282,7 @@ function slaytIslemMenusu(sira, adet) {
     }
   }
 
+  const geriCb = kStr ? `slayt_menu:${adet}:${kStr}` : `slayt_menu:${adet}`;
   tuslar.push(
     [{ text: `🔥 ${sira}. slayt: Başlığı Daha Dikkat Çekici Yap`, callback_data: `slayt_carpici:${sira}` }],
     [{ text: `✏️ ${sira}. slayt: Metni & Başlığı Yeniden Yaz`, callback_data: `slayt_metin:${sira}` }],
@@ -288,7 +297,7 @@ function slaytIslemMenusu(sira, adet) {
     [{ text: `🔄 Havuzdan Farklı Bir Habere Geç`, callback_data: `haber_degistir:${sira}` }],
     [{ text: `🗑 ${sira}. slaytı çıkar`, callback_data: `slayt_sil:${sira}` },
      { text: `🗑️ Haberi Çöpe At`, callback_data: `cope_at_tekil:${sira}` }],
-    [{ text: "← Geri", callback_data: `slayt_menu:${adet}` }],
+    [{ text: "← Geri", callback_data: geriCb }],
   );
   return { inline_keyboard: tuslar };
 }
@@ -956,21 +965,36 @@ export default {
     }
 
     // --- Menü gezinme: Worker anında hallediyor, GitHub'a gitmiyor ---
-    const gezinme = MENU_GEZINME.exec(komut);
-    if (gezinme) {
+    if (MENU_GEZINME.test(komut)) {
       let menu;
-      const seciliKanallar = seciliKanallariCikar(cb.message?.reply_markup?.inline_keyboard);
-      if (komut.startsWith("slayt_menu:")) {
-        menu = slaytSecimMenusu(Number(gezinme[2]));
-      } else if (komut.startsWith("geri:")) {
-        menu = anaMenu(Number(gezinme[3]), seciliKanallar);
-      } else if (komut.startsWith("yayin_menu:")) {
-        menu = yayinZamaniMenusu(Number(gezinme[6]), seciliKanallar);
-      } else if (komut.startsWith("yayin_geri:")) {
-        menu = anaMenu(Number(gezinme[7]), seciliKanallar);
-      } else {
-        // "slayt:3:10" -> 3. slayt seçildi, turda 10 slayt var
-        menu = slaytIslemMenusu(Number(gezinme[4]), Number(gezinme[5]));
+      const klavyedenKanallar = seciliKanallariCikar(cb.message?.reply_markup?.inline_keyboard);
+      const parcalar = komut.split(":");
+      const kok = parcalar[0];
+
+      if (kok === "slayt_menu") {
+        const adet = Number(parcalar[1]);
+        const kanallarStr = parcalar[2] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
+        menu = slaytSecimMenusu(adet, kanallarStr);
+      } else if (kok === "geri") {
+        const adet = Number(parcalar[1]);
+        const kanallarStr = parcalar[2];
+        const kanallar = kanallarStr ? kanallarStr.split(",") : klavyedenKanallar;
+        menu = anaMenu(adet, kanallar);
+      } else if (kok === "yayin_menu") {
+        const adet = Number(parcalar[1]);
+        const kanallarStr = parcalar[2] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
+        const kanallar = kanallarStr ? kanallarStr.split(",") : klavyedenKanallar;
+        menu = yayinZamaniMenusu(adet, kanallar);
+      } else if (kok === "yayin_geri") {
+        const adet = Number(parcalar[1]);
+        const kanallarStr = parcalar[2];
+        const kanallar = kanallarStr ? kanallarStr.split(",") : klavyedenKanallar;
+        menu = anaMenu(adet, kanallar);
+      } else if (kok === "slayt") {
+        const sira = Number(parcalar[1]);
+        const adet = Number(parcalar[2]);
+        const kanallarStr = parcalar[3] || "";
+        menu = slaytIslemMenusu(sira, adet, kanallarStr);
       }
       await menuyuDegistir(env, sohbetId, mesajId, menu);
       await butonuDurdur(env, cb.id, "");

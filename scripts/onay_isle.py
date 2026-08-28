@@ -3506,9 +3506,10 @@ def main() -> int:
             adet = int(komut.split(":")[1])
             telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.slayt_secim_menusu(adet))
             return 0
-        if komut.startswith("slayt:") and komut.count(":") == 2:
-            _, sira, adet = komut.split(":")
-            telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.slayt_islem_menusu(int(sira), int(adet)))
+        if komut.startswith("slayt:") and komut.count(":") >= 2:
+            parcalar = komut.split(":")
+            sira, adet = int(parcalar[1]), int(parcalar[2])
+            telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.slayt_islem_menusu(sira, adet))
             return 0
         if komut.startswith("yayin_menu:"):
             adet = int(komut.split(":")[1])
