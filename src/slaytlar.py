@@ -516,6 +516,14 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
             log.warning("alıntı kaynakta doğrulanamadı, atlandı #%s",
                         haber["id"])
 
+    # Finans & Borsa: Varsa 30 günlük trend grafiği kartı üret
+    trend_karti = None
+    try:
+        from src import sparkline
+        trend_karti = sparkline.haber_icin_trend_karti(haber)
+    except Exception as e:
+        log.warning("trend kartı üretilemedi: %s", e)
+
     # Metin uzunsa birden fazla sayfaya yayılıyor — punto küçültmek
     # yerine sayfa ekliyoruz, yoksa uzun anlatım okunmaz hâle geliyor.
     sayfalar = make_image.detay_sayfalara_bol(
@@ -524,6 +532,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         alinti=alinti,
         neden_onemli=_alan(haber, "neden_onemli"),
         sirada_ne_var=_alan(haber, "sirada_ne_var"),
+        trend_karti=trend_karti,
     )
     detay_yollari = []
     for i, satirlar in enumerate(sayfalar, start=1):

@@ -1364,10 +1364,11 @@ def detay_sayfalara_bol(
     alinti: tuple[str, str] | None = None,
     neden_onemli: str | None = None,
     sirada_ne_var: str | None = None,
+    trend_karti: Image.Image | None = None,
 ) -> list[list[dict]]:
     """
     Detay metnini paragraflara ayırıp sayfalara dağıtır.
-    Smart Brevity formatını (Ne oldu / Neden Önemli / Sırada Ne Var) destekler.
+    Smart Brevity formatını (Ne oldu / Neden Önemli / Sırada Ne Var) ve Finans Trend Kartlarını destekler.
     """
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
@@ -1382,7 +1383,7 @@ def detay_sayfalara_bol(
 
     paragraflar = [p.strip() for p in re.split(r"\n\s*\n", detay or "")
                    if p.strip()]
-    if not paragraflar and not vurgu and not alinti and not neden_onemli:
+    if not paragraflar and not vurgu and not alinti and not neden_onemli and not trend_karti:
         return [[]]
 
     bloklar = []
@@ -1412,11 +1413,6 @@ def detay_sayfalara_bol(
         bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
                         "yukseklik": yukseklik_px})
 
-    # Smart Brevity: Neden Önemli Kartı
-    if neden_onemli and neden_onemli.strip():
-        n_punto = DETAY_PUNTO - 4
-        n_font = _font(n_punto, EKSEN_OZET)
-        n_satirlar = _satirlara_bol(neden_onemli.strip(), n_font, alan - 48, olcu)
     # Smart Brevity: Neden Önemli (Doğal editoryal blok)
     if neden_onemli and neden_onemli.strip():
         n_punto = DETAY_PUNTO - 3
@@ -1441,6 +1437,16 @@ def detay_sayfalara_bol(
             "satirlar": s_satirlar,
             "spot": False,
             "yukseklik": int(s_punto * 1.5) * len(s_satirlar),
+        })
+
+    # Finans & Borsa: Otomatik Mini Trend Kartı (Sparkline)
+    if trend_karti:
+        bloklar.append({
+            "tip": "trend_karti",
+            "gorsel": trend_karti,
+            "satirlar": [],
+            "spot": False,
+            "yukseklik": trend_karti.height + 24,
         })
 
     # Alıntı en sonda: kapanış
@@ -1623,6 +1629,11 @@ def detay_slayti(
                 _formatli_satir_ciz(ciz, kenar + 22, y_yazi, s, punto_kart, spot=False, varsayilan_renk=(226, 232, 240) if is_neden else (206, 214, 230))
                 y_yazi += satir_h
             y += blok_yuk
+
+        elif tip == "trend_karti":
+            img_tk = b["gorsel"]
+            gorsel.paste(img_tk, (kenar, y), img_tk)
+            y += b["yukseklik"]
 
         else:
             punto = b.get("punto") or (DETAY_SPOT_PUNTO if b["spot"]
