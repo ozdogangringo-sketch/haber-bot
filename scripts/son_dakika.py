@@ -721,19 +721,30 @@ def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
 
 
 def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
-              uyari, katman_raporu, story_detay_url: str | None = None) -> int:
+              uyari, katman_raporu, story_detay_url: str | None = None,
+              story_detay_urller: list[str] | None = None) -> int:
     """
     Hazırlanan tekil postu Telegram'da onaya sunar.
     """
     # --- 6b) Onaya sun ---
-    # Telegram'a gönderilen albüm 9:16 Story formatında sunulur (Haber + Ayrıntı)
+    # Telegram'a gönderilen albüm 9:16 Story formatında sunulur (Kapak + Detay 1 + Detay 2...)
     telegram_urller = [story_url] if story_url else [urller[0]]
-    if story_detay_url:
+    if story_detay_urller:
+        telegram_urller.extend(story_detay_urller)
+    elif story_detay_url:
         telegram_urller.append(story_detay_url)
     elif len(urller) > 1:
-        telegram_urller.append(urller[1])
+        telegram_urller.extend(urller[1:])
 
-    etiketler = ["Haber", "Ayrıntı"][:len(telegram_urller)]
+    etiketler = []
+    for idx in range(len(telegram_urller)):
+        if idx == 0:
+            etiketler.append("Haber")
+        elif len(telegram_urller) == 2:
+            etiketler.append("Ayrıntı")
+        else:
+            etiketler.append(f"Ayrıntı {idx}/{len(telegram_urller)-1}")
+
     albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
     mesaj_id = telegram_bot.onay_iste(
         metin, len(telegram_urller),
@@ -946,6 +957,7 @@ def main(zorla_haber_id: int | None = None) -> int:
         urller = [y["url"] for y in yuklemeler]
 
         story_url = None
+        story_detay_urller = []
         if story_slayt:
             try:
                 story_url = upload_image.gorsel_yukle(
@@ -954,14 +966,13 @@ def main(zorla_haber_id: int | None = None) -> int:
             except Exception as e:
                 log.warning("story yüklenemedi: %s", e)
 
-        # Slayt 2 (Detay) için 9:16 Story formatı yükle (Native Story motoru)
-        story_detay_url = None
-        story_detay_yol = make_image.CIKTI_KLASORU / f"story-{aday['id']}-detay.jpg"
-        if story_detay_yol.exists():
+        story_detay_slaytlar = [s for s in sonuclar if s["katman"] == "story_detay"]
+        for sds in story_detay_slaytlar:
             try:
-                story_detay_url = upload_image.gorsel_yukle(story_detay_yol, ayarlar)["url"]
+                sdu = upload_image.gorsel_yukle(sds["yol"], ayarlar)["url"]
+                story_detay_urller.append(sdu)
             except Exception as e:
-                log.warning("detay story yüklenemedi: %s", e)
+                log.warning("detay story yüklenemedi (%s): %s", sds["yol"], e)
 
         metin = caption.son_dakika_caption(taze, sonuclar, ayarlar)
         uyari, isaretli = dogrula.turu_dogrula([taze])
@@ -985,7 +996,7 @@ def main(zorla_haber_id: int | None = None) -> int:
 
         return onaya_sun(con, ayarlar, aday, taze, urller,
                         story_url, metin, uyari, katman_raporu,
-                        story_detay_url=story_detay_url)
+                        story_detay_urller=story_detay_urller)
 
     except Exception as e:
         log.exception("son dakika turu hazırlanamadı")
