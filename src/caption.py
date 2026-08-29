@@ -143,7 +143,7 @@ def son_dakika_caption(
         parcalar.append(govde)
 
     if sana_etkisi:
-        parcalar.append(f"💡 SANA / PİYASAYA ETKİSİ:\n{sana_etkisi}")
+        parcalar.append(f"💡 {sana_etkisi}")
 
     if etkilesim:
         parcalar.append(f"💬 SİZCE? {etkilesim}")
