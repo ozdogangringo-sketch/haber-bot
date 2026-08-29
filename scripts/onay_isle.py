@@ -186,29 +186,76 @@ def _slayti_tazele_ve_yukle(h: dict | sqlite3.Row, ayarlar: dict) -> str | None:
 def _urlleri_dogrula_ve_onar(con, ayarlar: dict, haberler: list[dict | sqlite3.Row], urller: list[str]) -> list[str]:
     """
     Tüm görsel URL'lerini denetler; süresi dolmuş veya uguu.se gibi riskli URL'leri
-    yerel dosyalardan anında taze barındırıcıya (ImgBB / Litterbox) yükleyerek onarır.
+    yerel dosyalardan veya anında yeniden çizerek taze barındırıcıya (ImgBB / Litterbox) yükler.
     """
-    taze_urller = []
-    for idx, u in enumerate(urller):
-        if _url_canli_ve_uygun_mu(u):
-            taze_urller.append(u)
-            continue
+    if not urller or not haberler:
+        return urller
 
-        log.warning("Görsel URL riskli veya erişilemez (%s), yerelden tazeleniyor...", u)
-        ilgili_h = haberler[idx] if idx < len(haberler) else (haberler[0] if haberler else None)
-        yeni_url = None
-        if ilgili_h:
-            yeni_url = _slayti_tazele_ve_yukle(ilgili_h, ayarlar)
-            if yeni_url:
+    # 1. URL'lerin hepsi canlı ve güvenli mi?
+    hepsi_canli = all(_url_canli_ve_uygun_mu(u) for u in urller)
+    if hepsi_canli:
+        return urller
+
+    log.warning("Bazı görsel URL'leri süresi dolmuş veya geçersiz, otomatik onarma başlatılıyor...")
+
+    ilk_h = dict(haberler[0])
+    son_dakika_mi = bool(ilk_h.get("son_dakika"))
+
+    # A) Son Dakika Tekil Haberi İse: Slaytları ve detayları baştan üretip yükle
+    if son_dakika_mi:
+        try:
+            from src import slaytlar
+            sonuclar = slaytlar.son_dakika_uret(ilk_h, ayarlar, con)
+            carousel = [s for s in sonuclar if not s["katman"].startswith("story")]
+            story_slayt = next((s for s in sonuclar if s["katman"] == "story"), None)
+
+            yuklemeler = upload_image.hepsini_yukle([s["yol"] for s in carousel], ayarlar)
+            taze_urller = [y["url"] for y in yuklemeler]
+
+            story_url = None
+            if story_slayt:
                 try:
-                    con.execute("UPDATE haberler SET gorsel_url = ? WHERE id = ?", (yeni_url, dict(ilgili_h)["id"]))
-                    con.commit()
+                    story_url = upload_image.gorsel_yukle(story_slayt["yol"], ayarlar)["url"]
                 except Exception:
                     pass
 
-        taze_urller.append(yeni_url if yeni_url else u)
+            # Veritabanını güncelle
+            con.execute(
+                "UPDATE haberler SET gorsel_url = ?, detay_url = ?, story_url = ? WHERE id = ?",
+                (taze_urller[0], json.dumps(taze_urller[1:]), story_url, ilk_h["id"])
+            )
+            con.commit()
+            log.info("Son dakika haberi #%s için %d taze görsel URL'si başarıyla onarıldı.", ilk_h["id"], len(taze_urller))
+            return taze_urller
+        except Exception as e:
+            log.exception("Son dakika görsel onarma hatası: %s", e)
 
-    return taze_urller
+    # B) Çoklu Tur İse: Her bir haberi tek tek tazele
+    taze_urller = []
+    for idx, h_raw in enumerate(haberler):
+        h_d = dict(h_raw)
+        mevcut_url = h_d.get("gorsel_url")
+        if _url_canli_ve_uygun_mu(mevcut_url):
+            taze_urller.append(mevcut_url)
+            continue
+
+        try:
+            from src import slaytlar
+            slayt_sonuc = slaytlar.slayt_uret(h_d, ayarlar, sira=idx + 1)
+            yol = slayt_sonuc.get("yol") if isinstance(slayt_sonuc, dict) else Path(h_d.get("gorsel_yolu", ""))
+            if yol and Path(yol).exists():
+                yeni_yukleme = upload_image.gorsel_yukle(Path(yol), ayarlar)
+                yeni_url = yeni_yukleme["url"]
+                con.execute("UPDATE haberler SET gorsel_url = ? WHERE id = ?", (yeni_url, h_d["id"]))
+                con.commit()
+                taze_urller.append(yeni_url)
+            else:
+                taze_urller.append(mevcut_url)
+        except Exception as e:
+            log.warning("Tur haber #%s görseli tazelenemedi: %s", h_d.get("id"), e)
+            taze_urller.append(mevcut_url)
+
+    return taze_urller if len(taze_urller) >= len(urller) else urller
 
 
 def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None) -> int:
