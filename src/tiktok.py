@@ -181,6 +181,9 @@ def video_yukle(
             log.info("Direct publish scope kısıtlı (%s), Inbox/Taslak moduna geçiliyor...", hata_mesaji)
 
             payload_inbox = {
+                "post_info": {
+                    "title": temiz_baslik[:150],
+                },
                 "source_info": {
                     "source": "FILE_UPLOAD",
                     "video_size": dosya_boyutu,
