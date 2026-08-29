@@ -56,29 +56,33 @@ GECICI_MESAJLAR = (
 )
 
 
-def _anahtar() -> str:
-    a = os.getenv("IMGBB_API_KEY", "").strip()
-    if not a:
+def _anahtarlar() -> list[str]:
+    """Tüm tanımlı ImgBB anahtarlarını döner (virgülle ayrılmış veya _2, _3 ekli)."""
+    anahtarlar = []
+    ana = os.getenv("IMGBB_API_KEY", "").strip()
+    if ana:
+        for k in ana.split(","):
+            k_temiz = k.strip()
+            if k_temiz and k_temiz not in anahtarlar:
+                anahtarlar.append(k_temiz)
+
+    for ek in ("IMGBB_API_KEY_2", "IMGBB_API_KEY_3", "IMGBB_API_KEY_YEDEK"):
+        k = os.getenv(ek, "").strip()
+        if k and k not in anahtarlar:
+            anahtarlar.append(k)
+
+    if not anahtarlar:
         raise RuntimeError(
             "IMGBB_API_KEY bulunamadı. imgbb.com/api adresinden alıp "
             ".env dosyasına ekle."
         )
-    return a
+    return anahtarlar
 
 
 def _litterboxa_yukle(yol: Path, zaman_asimi: int) -> dict:
     """
     Yedek barındırıcı #1 — catbox'ın GEÇİCİ dosya servisi.
-
-    ⚠️ ANA CATBOX ÇALIŞMIYOR, litterbox ÇALIŞIYOR. GitHub runner'dan
-    ölçüldü (21 Ağu 2026): `catbox.moe` veri merkezi IP'lerine
-    `HTTP 412 Invalid uploader` veriyor, `litterbox.catbox.moe` aynı
-    IP'den sorunsuz kabul ediyor.
-
-    72 saat saklıyor — imgbb ömrümüz (48 saat) ile uyumlu. Instagram
-    görseli bir kez indirip kendi CDN'ine kopyaladığı için uzun
-    saklama zaten şart değil; süre Telegram önizlemesi ve onay
-    penceresi için gerekiyor.
+    72 saat saklar — Meta (Instagram, Facebook, Threads) sunucuları doğrudan indirebilir.
     """
     with open(yol, "rb") as f:
         cevap = requests.post(
@@ -88,20 +92,13 @@ def _litterboxa_yukle(yol: Path, zaman_asimi: int) -> dict:
             timeout=zaman_asimi,
         )
     if cevap.status_code != 200 or not cevap.text.startswith("http"):
-        raise RuntimeError(f"litterbox: HTTP {cevap.status_code}: "
-                           f"{cevap.text[:120]}")
+        raise RuntimeError(f"litterbox: HTTP {cevap.status_code}: {cevap.text[:120]}")
     return {"url": cevap.text.strip(), "silme_url": None,
             "boyut_kb": round(yol.stat().st_size / 1024, 1)}
 
 
 def _uguya_yukle(yol: Path, zaman_asimi: int) -> dict:
-    """
-    Yedek barındırıcı #2 — litterbox da düşerse.
-
-    Runner'dan doğrulandı: yükleme 0.5 sn, dönen URL Instagram'ın
-    User-Agent'ıyla indirilebiliyor. Saklama süresi kısa (saatler),
-    o yüzden ikinci sırada.
-    """
+    """Yedek barındırıcı #2 — litterbox da düşerse."""
     with open(yol, "rb") as f:
         cevap = requests.post(
             "https://uguu.se/upload",
@@ -116,13 +113,10 @@ def _uguya_yukle(yol: Path, zaman_asimi: int) -> dict:
             "boyut_kb": round(yol.stat().st_size / 1024, 1)}
 
 
-# ⚠️ SIRA ÖNEMLİ ve YEREL TESTE GÜVENME. Bu liste GitHub runner'dan
-# ölçülerek kuruldu (`scripts/test_barindirici.py`): catbox ve
-# tmpfiles ev bağlantısından çalışıyor ama veri merkezi IP'sinden
-# reddediliyor. Yeni aday eklemeden önce o scripti Actions'ta çalıştır.
+# ⚠️ SIRA ÖNEMLİ: Litterbox 72 saat saklar ve Meta Graph API doğrudan erişebilir.
 YEDEK_BARINDIRICILAR = (
-    ("uguu", _uguya_yukle),
     ("litterbox", _litterboxa_yukle),
+    ("uguu", _uguya_yukle),
 )
 
 
@@ -138,51 +132,55 @@ def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
     ham = yol.read_bytes()
 
     son_hata = None
-    for deneme in range(1, g["deneme_sayisi"] + 1):
-        try:
-            cevap = requests.post(
-                UC_NOKTA,
-                data={
-                    "key": _anahtar(),
-                    "image": base64.b64encode(ham).decode("ascii"),
-                    "name": yol.stem,
-                    # Saniye cinsinden ömür. Yayından sonra Instagram kendi
-                    # kopyasını tuttuğu için kısa tutmak güvenli.
-                    "expiration": g["omur_saniye"],
-                },
-                timeout=g["zaman_asimi"],
-            )
-        except requests.RequestException as e:
-            son_hata = f"{type(e).__name__}: {e}"
-            log.warning("imgbb ağ hatası (deneme %d): %s", deneme, e)
-            time.sleep(2 * deneme)
-            continue
+    tum_anahtarlar = _anahtarlar()
 
-        if cevap.status_code == 200:
-            veri = cevap.json()
-            if not veri.get("success"):
-                raise RuntimeError(f"imgbb reddetti: {str(veri)[:200]}")
-            d = veri["data"]
-            return {
-                "url": d["url"],
-                "silme_url": d.get("delete_url"),
-                "boyut_kb": round(len(ham) / 1024, 1),
-            }
+    # Önce tüm ImgBB anahtarlarını sırayla dene
+    for anahtar_idx, anahtar in enumerate(tum_anahtarlar, 1):
+        for deneme in range(1, g["deneme_sayisi"] + 1):
+            try:
+                cevap = requests.post(
+                    UC_NOKTA,
+                    data={
+                        "key": anahtar,
+                        "image": base64.b64encode(ham).decode("ascii"),
+                        "name": yol.stem,
+                        "expiration": g["omur_saniye"],
+                    },
+                    timeout=g["zaman_asimi"],
+                )
+            except requests.RequestException as e:
+                son_hata = f"{type(e).__name__}: {e}"
+                log.warning("imgbb ağ hatası (anahtar %d, deneme %d): %s", anahtar_idx, deneme, e)
+                time.sleep(2 * deneme)
+                continue
 
-        son_hata = f"HTTP {cevap.status_code}: {cevap.text[:200]}"
-        if cevap.status_code in GECICI_HATALAR:
-            time.sleep(2 * deneme)
-            continue
+            if cevap.status_code == 200:
+                veri = cevap.json()
+                if not veri.get("success"):
+                    raise RuntimeError(f"imgbb reddetti: {str(veri)[:200]}")
+                d = veri["data"]
+                return {
+                    "url": d["url"],
+                    "silme_url": d.get("delete_url"),
+                    "boyut_kb": round(len(ham) / 1024, 1),
+                }
 
-        # 400 ama imgbb'nin kendi iç hatası: tekrar denemeye değer.
-        govde = (cevap.text or "").lower()
-        if any(k in govde for k in GECICI_MESAJLAR):
-            log.warning("imgbb iç hatası, %s sn sonra tekrar (%s/%s): %s",
-                        GECICI_BEKLEME, deneme, g["deneme_sayisi"],
-                        cevap.text[:100])
-            time.sleep(GECICI_BEKLEME)
-            continue
-        break
+            son_hata = f"HTTP {cevap.status_code}: {cevap.text[:200]}"
+            if cevap.status_code in GECICI_HATALAR:
+                time.sleep(2 * deneme)
+                continue
+
+            govde = (cevap.text or "").lower()
+            if any(k in govde for k in GECICI_MESAJLAR):
+                log.warning("imgbb iç hatası, %s sn sonra tekrar: %s", GECICI_BEKLEME, cevap.text[:100])
+                time.sleep(GECICI_BEKLEME)
+                continue
+
+            # Kota veya rate limit ise sonraki anahtara geç
+            if "rate limit" in govde or "limit reached" in govde:
+                log.warning("imgbb anahtar %d kota doldu (%s), sonraki anahtar/yedeğe geçiliyor", anahtar_idx, son_hata)
+                break
+            break
 
     # ⚠️ İMGBB TAMAMEN KAPALIYSA TEKRAR DENEMEK ANLAMSIZ — yedeğe geç.
     # Bakım hatası (code 100) geçici bir dalgalanma değil; 3 deneme de

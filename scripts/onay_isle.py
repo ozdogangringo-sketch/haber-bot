@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import re
+import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -137,6 +138,79 @@ def _yayin_ozeti(haberler: list) -> str:
     return "\n".join(satirlar)
 
 
+def _url_canli_ve_uygun_mu(url: str) -> bool:
+    """URL'nin erişilebilir ve Meta/Instagram için uygun olup olmadığını denetler."""
+    if not url or not isinstance(url, str) or not url.startswith("http"):
+        return False
+    # uguu.se bağlantıları Meta Graph API tarafından reddedilir veya süresi 3 saatte biter
+    if "uguu.se" in url:
+        return False
+    try:
+        r = requests.head(
+            url,
+            headers={"User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"},
+            timeout=5,
+            allow_redirects=True,
+        )
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+def _slayti_tazele_ve_yukle(h: dict | sqlite3.Row, ayarlar: dict) -> str | None:
+    """Haberin yerel slayt dosyasını bulup taze güvenli barındırıcıya yükler."""
+    h_dict = dict(h)
+    h_id = h_dict.get("id")
+    cikis = make_image.CIKTI_KLASORU
+
+    # 1. Haberin kayıtlı gorsel_yolu
+    yol = h_dict.get("gorsel_yolu")
+    if yol and Path(yol).exists():
+        try:
+            return upload_image.gorsel_yukle(Path(yol), ayarlar)["url"]
+        except Exception as e:
+            log.warning("Görsel yolu tazelenemedi (%s): %s", yol, e)
+
+    # 2. Cikti klasorunde ara
+    if h_id:
+        for dosya_adi in (f"slayt-{h_id}.jpg", f"slayt-{h_id}-kapak.jpg", f"slayt-{h_id}-1.jpg"):
+            p = cikis / dosya_adi
+            if p.exists():
+                try:
+                    return upload_image.gorsel_yukle(p, ayarlar)["url"]
+                except Exception as e:
+                    log.warning("Çıktı slaytı %s yüklenemedi: %s", p, e)
+    return None
+
+
+def _urlleri_dogrula_ve_onar(con, ayarlar: dict, haberler: list[dict | sqlite3.Row], urller: list[str]) -> list[str]:
+    """
+    Tüm görsel URL'lerini denetler; süresi dolmuş veya uguu.se gibi riskli URL'leri
+    yerel dosyalardan anında taze barındırıcıya (ImgBB / Litterbox) yükleyerek onarır.
+    """
+    taze_urller = []
+    for idx, u in enumerate(urller):
+        if _url_canli_ve_uygun_mu(u):
+            taze_urller.append(u)
+            continue
+
+        log.warning("Görsel URL riskli veya erişilemez (%s), yerelden tazeleniyor...", u)
+        ilgili_h = haberler[idx] if idx < len(haberler) else (haberler[0] if haberler else None)
+        yeni_url = None
+        if ilgili_h:
+            yeni_url = _slayti_tazele_ve_yukle(ilgili_h, ayarlar)
+            if yeni_url:
+                try:
+                    con.execute("UPDATE haberler SET gorsel_url = ? WHERE id = ?", (yeni_url, dict(ilgili_h)["id"]))
+                    con.commit()
+                except Exception:
+                    pass
+
+        taze_urller.append(yeni_url if yeni_url else u)
+
+    return taze_urller
+
+
 def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None) -> int:
     if any(h["durum"] == "yayinlandi" for h in haberler):
         telegram_bot.mesaj_gonder("⚠️ Bu tur zaten yayınlanmış, tekrar gönderilmedi.")
@@ -193,6 +267,9 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     for h in haberler:
         if h["son_dakika"]:
             urller.extend(_detay_urlleri(h["detay_url"]))
+
+    # Görsellerin canlılığını ve Meta uyumluluğunu doğrula, süresi geçmiş/uguu olanları onar
+    urller = _urlleri_dogrula_ve_onar(con, ayarlar, haberler, urller)
 
     if len(urller) < 2 and not paylas_reels:
         raise RuntimeError(
@@ -567,6 +644,9 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
     for h in haberler:
         if h["son_dakika"]:
             urller.extend(_detay_urlleri(h["detay_url"]))
+
+    # Görsellerin canlılığını ve Meta uyumluluğunu doğrula, süresi geçmiş/uguu olanları onar
+    urller = _urlleri_dogrula_ve_onar(con, ayarlar, haberler, urller)
 
     # Caption metni
     if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
