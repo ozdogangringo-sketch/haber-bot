@@ -13,19 +13,102 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 log = logging.getLogger(__name__)
 
+TIKTOK_OAUTH_TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
 TIKTOK_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/"
 TIKTOK_INBOX_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
 TIKTOK_CREATOR_INFO_URL = "https://open.tiktokapis.com/v2/post/publish/creator_info/query/"
 
 
-def access_token_al() -> str | None:
+def token_yenile(con=None) -> str | None:
     """
-    Ortam değişkeninden TIKTOK_ACCESS_TOKEN değerini alır.
+    TIKTOK_REFRESH_TOKEN kullanarak TikTok API'sinden 24 saat geçerli taze bir Access Token alır.
+    Yeni jetonu ortam değişkenlerine, veritabanına ve .env dosyasına kalıcı olarak kaydeder.
+    """
+    client_key = os.getenv("TIKTOK_CLIENT_KEY", "").strip()
+    client_secret = os.getenv("TIKTOK_CLIENT_SECRET", "").strip()
+    refresh_token = os.getenv("TIKTOK_REFRESH_TOKEN", "").strip()
+
+    if not client_key or not client_secret or not refresh_token:
+        log.warning("TikTok OAuth bilgileri eksik (CLIENT_KEY, CLIENT_SECRET veya REFRESH_TOKEN).")
+        return None
+
+    try:
+        r = requests.post(
+            TIKTOK_OAUTH_TOKEN_URL,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data={
+                "client_key": client_key,
+                "client_secret": client_secret,
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+            },
+            timeout=15,
+        )
+        veri = r.json()
+        if r.status_code == 200 and "access_token" in veri:
+            yeni_token = veri["access_token"]
+            yeni_refresh = veri.get("refresh_token")
+
+            # 1. Ortam değişkenlerini güncelle
+            os.environ["TIKTOK_ACCESS_TOKEN"] = yeni_token
+            if yeni_refresh:
+                os.environ["TIKTOK_REFRESH_TOKEN"] = yeni_refresh
+
+            # 2. SQLite ayarlar tablosuna yaz
+            if con:
+                try:
+                    con.execute(
+                        "INSERT INTO ayarlar (anahtar, deger) VALUES ('tiktok_access_token', ?) "
+                        "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+                        (yeni_token,),
+                    )
+                    if yeni_refresh:
+                        con.execute(
+                            "INSERT INTO ayarlar (anahtar, deger) VALUES ('tiktok_refresh_token', ?) "
+                            "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+                            (yeni_refresh,),
+                        )
+                    con.commit()
+                except Exception as e:
+                    log.warning("TikTok jetonları DB'ye yazılamadı: %s", e)
+
+            # 3. .env dosyası varsa güncelle
+            env_yolu = Path(".env")
+            if env_yolu.exists():
+                try:
+                    metin = env_yolu.read_text(encoding="utf-8")
+                    if "TIKTOK_ACCESS_TOKEN=" in metin:
+                        import re
+                        metin = re.sub(r"TIKTOK_ACCESS_TOKEN=.*", f"TIKTOK_ACCESS_TOKEN={yeni_token}", metin)
+                        if yeni_refresh and "TIKTOK_REFRESH_TOKEN=" in metin:
+                            metin = re.sub(r"TIKTOK_REFRESH_TOKEN=.*", f"TIKTOK_REFRESH_TOKEN={yeni_refresh}", metin)
+                        env_yolu.write_text(metin, encoding="utf-8")
+                except Exception as e:
+                    log.warning(".env TikTok jetonu güncellenemedi: %s", e)
+
+            log.info("TikTok erişim jetonu başarıyla yenilendi.")
+            return yeni_token
+        else:
+            log.warning("TikTok jeton yenileme başarısız (%s): %s", r.status_code, veri)
+    except Exception as e:
+        log.warning("TikTok token yenileme isteğinde hata: %s", e)
+
+    return None
+
+
+def access_token_al(con=None) -> str | None:
+    """
+    TikTok erişim jetonunu döner. Jeton yoksa veya geçersizse otomatik yeniler.
     """
     token = os.getenv("TIKTOK_ACCESS_TOKEN", "").strip()
+    if not token:
+        token = token_yenile(con)
     return token or None
 
 
@@ -82,6 +165,15 @@ def video_yukle(
         r_init = requests.post(TIKTOK_INIT_URL, headers=headers, json=payload_publish, timeout=15)
         veri_init = r_init.json()
         mod = "direct_publish"
+
+        # 401 / Token süresi dolduysa anında yenile ve tekrar dene
+        if r_init.status_code == 401 or veri_init.get("error", {}).get("code") in ("access_token_invalid", "token_expired"):
+            log.info("TikTok jetonu süresi dolmuş, yenilenip tekrar deneniyor...")
+            token = token_yenile()
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                r_init = requests.post(TIKTOK_INIT_URL, headers=headers, json=payload_publish, timeout=15)
+                veri_init = r_init.json()
 
         # Eğer scope hatası alınırsa (video.publish izni yoksa video.upload ile Inbox/Taslak moduna geç)
         if r_init.status_code != 200 or veri_init.get("error", {}).get("code") != "ok":
@@ -167,6 +259,13 @@ def saglik_testi(ayarlar: dict) -> dict[str, Any]:
         url = "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url"
         r = requests.get(url, headers=headers, timeout=10)
         veri = r.json()
+        if r.status_code == 401 or veri.get("error", {}).get("code") in ("access_token_invalid", "token_expired"):
+            token = token_yenile()
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                r = requests.get(url, headers=headers, timeout=10)
+                veri = r.json()
+
         if r.status_code == 200 and veri.get("error", {}).get("code") == "ok":
             display_name = veri.get("data", {}).get("user", {}).get("display_name", "TikTok Creator")
             return {

@@ -16,6 +16,9 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 log = logging.getLogger(__name__)
 
