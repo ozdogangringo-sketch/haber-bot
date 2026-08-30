@@ -61,10 +61,12 @@ _ayarlar_onbellek: dict = {}
 # gönderdiği mesaj_id alternatif mesajına ait ve işe yaramıyor.
 MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
                      "havuz_guncelle", "sondakika", "son_dakika", "haftalik", "video", "reels",
-                     "yonetim", "yonetim_panel", "duraklat", "devam_et",
-                     "saglik_testi", "kota_raporu", "tur_temizle",
+                     "yonetim", "yonetim_panel", "duraklat", "devam_et", "durdur", "devam",
+                     "saglik_testi", "saglik", "kota_raporu", "tur_temizle", "temizle",
                      "haber_sec", "haber_vazgec", "kurtar",
-                     "link", "arastir", "ozel", "faiz", "enflasyon", "fed", "makro",
+                     "dosya", "kronoloji", "perdearkasi",
+                     "link", "arastir", "ozel", "bulten", "kahve",
+                     "faiz", "enflasyon", "fed", "makro",
                      "hisse", "kripto", "piyasa", "sonpostlar", "son_postlar",
                      # Tur id'sini KOMUTTA taşıyorlar (ayrı mesajın düğmesi)
                      "yayin_kontrol", "yeniden_yayinla", "retry_kanal",
@@ -3287,15 +3289,20 @@ def main() -> int:
     if komut.startswith("duraklat:"):
         saat = int(komut.split(":")[1])
         return yonetim_duraklat_uygula(con, ayarlar, saat, mesaj_id, basan)
-    if komut == "devam_et":
+    if komut in ("devam_et", "devam"):
         return yonetim_devam_et_uygula(con, ayarlar, mesaj_id, basan)
-    if komut == "saglik_testi":
+    if komut in ("saglik_testi", "saglik"):
         return yonetim_saglik_testi_uygula(ayarlar, mesaj_id)
-    if komut == "kota_raporu":
+    if komut in ("kota_raporu", "kota"):
         return yonetim_kota_raporu_uygula(con, ayarlar, mesaj_id)
-    if komut == "tur_temizle":
+    if komut in ("tur_temizle", "temizle"):
         return yonetim_tur_temizle_uygula(con, ayarlar, mesaj_id)
-    if komut == "duraklat_menu":
+    if komut in ("durdur", "duraklat", "duraklat_menu"):
+        if not mesaj_id:
+            from src import yonetim
+            bitis = yonetim.duraklat(con, saat=6, basan=basan or "Doğukan")
+            telegram_bot.mesaj_gonder(f"⏸️ <b>Bot 6 Saat Duraklatıldı.</b>\nOtomatik turlar ve bildirimler durduruldu.\n\nTekrar başlatmak için: /devam", html=True)
+            return 0
         menu = telegram_bot.duraklatma_secenekleri_menusu()
         telegram_bot.paneli_tazele(
             mesaj_id,

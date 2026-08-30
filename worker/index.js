@@ -786,15 +786,16 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar"].includes(komutMetni)) {
+        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
             if (komut === "panel") komut = "yonetim";
             if (komut === "hazirla") komut = "tur";
             if (komut === "temizle") komut = "tur_temizle";
+            if (komut === "guncelle") komut = "havuz_guncelle";
             if (komut === "pazar") komut = "haftalik";
             if (komut === "reels") komut = "video";
             if (komut === "saglik") komut = "saglik_testi";
-            if (komut === "durdur") komut = "yonetim";
+            if (komut === "durdur") komut = "durdur";
             if (komut === "devam") komut = "devam_et";
             if (komut === "kahve") komut = "bulten";
             const iletildi = await githubaIlet(env, komut, null,
