@@ -32,6 +32,8 @@ from urllib.parse import quote, urlencode
 import requests
 from dotenv import load_dotenv
 
+from . import filtre
+
 log = logging.getLogger("twitter")
 load_dotenv()
 
@@ -192,7 +194,8 @@ def tweet_olustur(
 
     auth_header = _oauth1_header("POST", TWEET_API_URL, anahtarlar)
 
-    payload: dict = {"text": metin[:280]}
+    temiz_metin = filtre.markdown_temizle(metin)[:280]
+    payload: dict = {"text": temiz_metin}
     if medya_idler:
         # En fazla 4 görsel
         payload["media"] = {"media_ids": [str(m) for m in medya_idler[:4]]}

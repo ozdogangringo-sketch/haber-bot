@@ -159,7 +159,7 @@ def son_dakika_caption(
         parcalar.append(" ".join(f"#{e}" for e in etiketler))
 
     metin = "\n\n".join(p for p in parcalar if p).strip()
-    return metin[:AZAMI_KARAKTER]
+    return filtre.markdown_temizle(metin)[:AZAMI_KARAKTER]
 
 
 # Threads'in gönderi sınırı. Instagram'ın 2200'ü buraya SIĞMIYOR.
@@ -235,7 +235,8 @@ def kisa_metin_kur(
         if len(bas + "\n".join(satirlar) + ek + kuyruk) <= sinir:
             satirlar.append(ek.strip())
 
-    return bas + "\n".join(satirlar) + kuyruk
+    sonuc = bas + "\n".join(satirlar) + kuyruk
+    return filtre.markdown_temizle(sonuc)
 
 
 def threads_halkalari(
@@ -335,7 +336,7 @@ def caption_kur(
         maddeler.pop()
         metin = birlestir(maddeler, "", "")
 
-    return metin
+    return filtre.markdown_temizle(metin)
 
 
 EKONOMI_HASHTAGLER = [
@@ -408,7 +409,8 @@ def ekonomi_caption(
     if etiketler:
         parcalar.append(etiketler)
 
-    return "\n\n".join(p for p in parcalar if p).strip()
+    metin = "\n\n".join(p for p in parcalar if p).strip()
+    return filtre.markdown_temizle(metin)
 
 
 def piyasa_bulteni_caption(piyasa_verileri: dict | None, ayarlar: dict | None = None, mod: str = "acilis") -> str:
@@ -448,7 +450,8 @@ def piyasa_bulteni_caption(piyasa_verileri: dict | None, ayarlar: dict | None = 
     detay_bloku = "📌 Detaylı BİST 30 hisseleri, ABD teknoloji devleri ve kripto karnesi için kaydırın. 👉"
     etiketler = " ".join(f"#{e}" for e in EKONOMI_HASHTAGLER[:AZAMI_HASHTAG])
 
-    return f"{bas}\n\n{alt_mesaj}\n\n{piyasa_bloku}\n\n{detay_bloku}\n\n{etiketler}".strip()
+    sonuc = f"{bas}\n\n{alt_mesaj}\n\n{piyasa_bloku}\n\n{detay_bloku}\n\n{etiketler}".strip()
+    return filtre.markdown_temizle(sonuc)
 
 
 def piyasa_twitter_metni(piyasa_verileri: dict | None, ayarlar: dict | None = None, mod: str = "acilis") -> str:
@@ -477,7 +480,7 @@ def piyasa_twitter_metni(piyasa_verileri: dict | None, ayarlar: dict | None = No
     metin = "\n".join(satirlar)
     if len(metin) > 280:
         metin = metin[:277] + "…"
-    return metin
+    return filtre.markdown_temizle(metin)
 
 
 def twitter_metni_kur(haber: dict, ayarlar: dict | None = None) -> str:
@@ -517,7 +520,7 @@ def twitter_metni_kur(haber: dict, ayarlar: dict | None = None) -> str:
     sonuc = "\n\n".join(metin_parcalari).strip()
     if len(sonuc) > 280:
         sonuc = sonuc[:277] + "…"
-    return sonuc
+    return filtre.markdown_temizle(sonuc)
 
 
 def twitter_zincir_metinleri(
@@ -562,7 +565,7 @@ def twitter_zincir_metinleri(
                     tw_detay = tw_detay[:277] + "…"
                 halkalar.append(tw_detay)
 
-        return halkalar
+        return [filtre.markdown_temizle(h) for h in halkalar]
 
     # 2. Durum: Ekonomi Turu Flood'u (1. Isı Haritası, 2. Piyasa Tablosu, 3..7 Finans Haberleri)
     if tur_turu == "ekonomi":
@@ -601,7 +604,7 @@ def twitter_zincir_metinleri(
                 metin = metin[:277] + "…"
             halkalar.append(metin)
 
-        return halkalar
+        return [filtre.markdown_temizle(h) for h in halkalar]
 
     # 3. Durum: Genel Gündem Turu (10 Haber)
     # Her tweet tam 1 habere ve onun slayt görseline (1..10) 1-e-1 karşılık gelir.
@@ -633,4 +636,4 @@ def twitter_zincir_metinleri(
             metin = metin[:277] + "…"
         halkalar.append(metin)
 
-    return halkalar
+    return [filtre.markdown_temizle(h) for h in halkalar]

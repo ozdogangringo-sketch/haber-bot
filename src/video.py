@@ -95,38 +95,45 @@ def reels_dikey_gorselleri_uret(
 
     from src import slaytlar
 
-    # 1. Kaynak URL ve dosya listesini topla
-    kaynak_listesi: list[str | Path] = []
-
+    # 1. Son dakika / Tekil haber için 1080x1920 Native Story slaytları (Kapak + Detay 1 + Detay 2...)
     if haberler and len(haberler) == 1 and bool(dict(haberler[0]).get("son_dakika")):
         h0 = dict(haberler[0])
         h_id = h0.get("id")
 
-        # A) Öncelik: Kullanıcının onayladığı story_url varsa doğrudan onu kullan
-        if h0.get("story_url") and str(h0["story_url"]).startswith("http"):
-            kaynak_listesi.append(h0["story_url"])
-        else:
-            # Diskteki yerel story dosyasını kontrol et
-            kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
-            if kapak_story.exists():
-                kaynak_listesi.append(kapak_story)
-            elif gorsel_kaynaklari:
-                kaynak_listesi.append(gorsel_kaynaklari[0])
+        kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
+        detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
 
-        # Detay slaytlarını ekle
-        if len(gorsel_kaynaklari) > 1:
-            kaynak_listesi.extend(gorsel_kaynaklari[1:])
-        elif h0.get("detay_url"):
+        if not kapak_story.exists() or not detay_storyler:
             try:
-                detaylar = json.loads(h0["detay_url"]) if isinstance(h0["detay_url"], str) else h0["detay_url"]
-                if isinstance(detaylar, list):
-                    kaynak_listesi.extend(detaylar)
-            except Exception:
-                pass
-    elif gorsel_kaynaklari:
+                log.info("Native 9:16 story dosyaları diskte yok, tam ekran üretiliyor (Haber #%s)", h_id)
+                slaytlar.son_dakika_uret(h0, ayarlar or {})
+                detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
+            except Exception as e:
+                log.warning("Native story üretimi hatası: %s", e)
+
+        if kapak_story.exists():
+            kaynak_listesi.append(kapak_story)
+        kaynak_listesi.extend(detay_storyler)
+
+    # 2. Çoklu haber turu için her haberin 1080x1920 Native Story slaytı
+    elif haberler and len(haberler) > 1:
+        for idx, h_raw in enumerate(haberler, start=1):
+            h_d = dict(h_raw)
+            hid = h_d.get("id")
+            s_yol = CIKTI_KLASORU / f"story-{hid}.jpg"
+            if not s_yol.exists():
+                try:
+                    slaytlar.slayt_uret(h_d, ayarlar or {}, sira=idx)
+                except Exception as e:
+                    log.warning("Tur story slaytı #%s üretilemedi: %s", hid, e)
+            if s_yol.exists():
+                kaynak_listesi.append(s_yol)
+
+    # 3. Eğer yukarıdakiler boşsa gorsel_kaynaklari üzerinden devam et
+    if not kaynak_listesi and gorsel_kaynaklari:
         kaynak_listesi = list(gorsel_kaynaklari)
 
-    # 2. Toplanan tüm kaynakları sırayla 1080x1920 dikey video karelerine dönüştür
+    # 4. Toplanan tüm kaynakları sırayla 1080x1920 dikey video karelerine dönüştür
     for idx, kaynak in enumerate(kaynak_listesi, start=1):
         hedef_yol = cikti_dizini / f"slayt_9_16_{idx:02d}.jpg"
 

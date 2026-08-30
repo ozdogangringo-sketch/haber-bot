@@ -35,6 +35,8 @@ import time
 import requests
 from dotenv import load_dotenv
 
+from . import filtre
+
 log = logging.getLogger(__name__)
 load_dotenv()
 
@@ -218,9 +220,10 @@ def yayinla(gorsel_urlleri: list[str], metin: str) -> str:
 
     # --- Tek görsel ---
     if len(gorsel_urlleri) == 1:
+        temiz_metin = filtre.markdown_temizle(metin)[:500]
         d = _istek("POST", f"/{kullanici}/threads",
                    media_type="IMAGE", image_url=gorsel_urlleri[0],
-                   text=metin[:500])
+                   text=temiz_metin)
         _container_bekle(d["id"])
         d = _istek("POST", f"/{kullanici}/threads_publish",
                    creation_id=d["id"])
@@ -365,7 +368,8 @@ def zincir_yayinla(halkalar: list[dict]) -> str:
         if sira > 1:
             time.sleep(CONTAINER_ARASI_SANIYE)
 
-        parametreler = {"text": halka["metin"][:500]}
+        temiz_halka_metni = filtre.markdown_temizle(halka["metin"])[:500]
+        parametreler = {"text": temiz_halka_metni}
         if halka.get("gorsel_url"):
             parametreler["media_type"] = "IMAGE"
             parametreler["image_url"] = halka["gorsel_url"]
@@ -428,7 +432,8 @@ def zinciri_tamamla(ana_id: str, halkalar: list[dict]) -> tuple[int, int]:
         halka = halkalar[sira]
         time.sleep(CONTAINER_ARASI_SANIYE)
 
-        parametreler = {"text": halka["metin"][:500], "reply_to_id": onceki_id}
+        temiz_halka_metni = filtre.markdown_temizle(halka["metin"])[:500]
+        parametreler = {"text": temiz_halka_metni, "reply_to_id": onceki_id}
         if halka.get("gorsel_url"):
             parametreler["media_type"] = "IMAGE"
             parametreler["image_url"] = halka["gorsel_url"]

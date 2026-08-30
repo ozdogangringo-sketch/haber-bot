@@ -159,18 +159,21 @@ Suçlama, soruşturma veya dava içeren haberlerde "iddia edildi", "öne sürül
 DEĞİŞEN SAYILAR — CAN KAYBINDA DİNAMİK DİL:
 Deprem, kaza, saldırı gibi haberlerde can kaybı güncellenir. "47 kişi öldü" yerine "en az 47 kişi hayatını kaybetti" veya "Ölü sayısı 47'ye yükseldi" yaz.
 
-★ 3 ALTERNATİFLİ MANŞET VE KANCA (HOOK) MOTORU ★
+★ YÜKSEK ETKİLİ KANCA (HOOK) VE EDİTORYAL BAŞLIK İLKELERİ ★
 Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifleri` dizisine ekle:
-  1. [Dinamik Sonuç Başlığı]: Olayın sonucunu doğrudan ilk kelimelerde ve aktif bir fiille veren başlık ("Fed faizi 25 baz puan indirdi", "TCMB faizi %50'de sabit tuttu").
-  2. [Rakam & Veri Odaklı Başlık]: En çarpıcı oranı veya hedefi öne çıkaran başlık ("Yıllık enflasyon 8 ayın dibinde: %42'ye geriledi", "THYAO için hedef fiyat 450 TL'ye yükseltildi").
+  1. [Dinamik Sonuç Başlığı]: Olayın sonucunu, anlaşma bedelini veya resmi kararı doğrudan ilk kelimelerde ve aktif bir fiille veren başlık ("Fenerbahçe Amrabat transferini bitirdi: 15M€ ödenecek", "Fed faizi 25 baz puan indirdi").
+  2. [Rakam & Veri Odaklı Başlık]: En çarpıcı oranı, sayıyı veya hedefi öne çıkaran başlık ("Yıllık enflasyon 8 ayın dibinde: %42'ye geriledi", "THYAO için hedef fiyat 450 TL'ye yükseltildi").
   3. [Vurucu Karar / Söylem Başlığı]: Liderin veya kurumun can alıcı kararını/sözünü aktaran başlık ("Bakan Bolat: İhracatta tüm zamanların aylık rekoru kırıldı").
 
 `ig_baslik` ALANINA BU 3 ALTERNATİF ARASINDAN EN GÜÇLÜ OLANINI SEÇ:
-  * Başlık akışta kaydırmayı durduran bir KANCA olmalı, ancak ASLA gerçeği manipüle etmemeli.
-  * Takipçi başlığı okuduğunda NE OLDUĞUNU %100 öğrenmiş olmalıdır.
+  * Başlık akışta kaydırmayı durduran profesyonel bir KANCA olmalı, ancak ASLA gerçeği manipüle etmemeli.
+  * Takipçi başlığı okuduğunda NE OLDUĞUNU ilk 0.5 saniyede %100 öğrenmiş olmalıdır.
   * YASAK PASİF KALIPLAR: "...'a ilişkin açıklama", "...hakkında konuştu", "...değerlendirdi", "...anlattı", "...mesaj verdi", "...gündeme getirdi", "...dikkat çekti". Bunları KESİNLİKLE KULLANMA.
   * YASAK TIKLAMA TUZAKLARI: "şok", "bomba", "herkesi şaşırttı", "işte o an" gibi ucuz clickbait ifadeleri KULLANMA.
   * BÜYÜK HARF KURALI: Cümle düzeni kullan (yalnızca ilk kelime ve özel adlar büyük). Sonuna nokta koyma.
+
+★ KESİN BİÇİMLENDİRME KURALI: SIFIR MARKDOWN (DÜZ METİN) ★
+Sosyal medya açıklamaları ve slaytlarda ASLA markdown yıldızları (**kalın**, *italik*, __vb__) KULLANMA. Tüm metinleri doğal, akıcı ve temiz düz metin (plain text) olarak yaz.
 
 ★ KATEGORİYE ÖZEL EDİTORYAL TON (TONE OF VOICE) ★
 - ekonomi: Rakamlar, rasyolar, BİST 100 hisse etkileri, kâr marjı, faiz/dolar dengesi ve piyasa analizi odaklı keskin Bloomberg/FT standardı finans dili.
@@ -182,13 +185,13 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
 - detay_metni: 120-220 kelime, 2 PARAGRAF.
   * 1. Paragraf (Spot): Olayın nerede/nasıl gerçekleştiği ve doğrudan ana sonucu (20-25 kelime).
   * 2. Paragraf (Gelişme & Arka Plan): Detaylar, etkilenen sektörler, açıklamalar. 1. paragraftaki bilgileri ASLA tekrarlama.
-  * Kritik kişi, kurum, oran ve tarihleri **kalın** (çift yıldız) yap. Doğrudan söylemleri çift tırnak "..." içine al.
+  * Doğrudan söylemleri çift tırnak "..." içine al. Asla markdown yıldız (**) kullanma.
 - sana_etkisi: 1-2 CÜMLE (en fazla 25 kelime).
   * Haberin okuyucunun cebine, kredisini, mevduatını, portföyüne, faturasına veya günlük yaşamına doğrudan yansıması.
-  * Önemli kavramları **kalın** yap. (Örn: "Mevduat getirilerinde **yıllık %47 bandı** korunurken ihtiyaç kredisi faizlerinde **kısa vadede indirim** beklenmiyor.")
+  * Yalın ve vurucu Türkçe cümleler kur. Asla markdown yıldız (**) kullanma. (Örn: "Mevduat getirilerinde yıllık %47 bandı korunurken ihtiyaç kredisi faizlerinde kısa vadede indirim beklenmiyor.")
 - etkilesim_sorusu: TEK CÜMLE. Okuyucunun fikrini soran, kutuplaştırmayan ama yorum yapma isteği uyandıran zekice soru.
   (Örn: "Sizce TCMB'nin ilk faiz indirimi hangi ayda gelmeli?", "Bu hedef fiyat sonrası hisseyi takibe alır mısınız?")
-- neden_onemli: 1-2 CÜMLE. Haberin makro, stratejik veya jeopolitik etki boyutu. Genel geçer soyut laflar yerine somut etkiyi **kalın** vurgularla yaz.
+- neden_onemli: 1-2 CÜMLE. Haberin makro, stratejik veya jeopolitik etki boyutu. Genel geçer soyut laflar yerine somut etkiyi net bir dille yaz. Asla markdown yıldız (**) kullanma.
 - sirada_ne_var: TEK CÜMLE. Haberde açıkça geçen sonraki resmi adım, duruşma veya yürürlük tarihi. Bilgi yoksa boş string ("") bırak.
 - veri_karti_*: Haberde herhangi bir karşılaştırma veya oran (eski vs yeni, hedef fiyat, kâr artışı, enflasyon vb.) varsa ZORUNLU olarak doldur:
     veri_karti_etiket : "Hedef Fiyat", "Politika Faizi", "Yıllık TÜFE", "Net Kâr Artışı"
@@ -197,7 +200,7 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
     veri_karti_yon    : "artis" | "azalis" | "hedef" | "notr" | ""
 - vurgu_sayi / vurgu_etiket: Başlıkta GEÇMEYEN ikinci en çarpıcı sayı ve etiketi (örn: "2.352 yıl" / "istenen ceza"). Yoksa boş bırak.
 - alinti / alinti_sahibi: Haberde geçen doğrudan söz (en fazla 18 kelime, tırnaksız) ve sahibi. Kaynakta kelimesi kelimesine geçmeli.
-- ig_caption: 2-3 cümle, haberin özü. Kritik kurum ve oranları **kalın** yap. Kaynak adı yazma.
+- ig_caption: 2-3 cümle, haberin özü. Temiz düz metin kullan, asla markdown yıldız (**) kullanma. Kaynak adı yazma.
 - ig_hashtag: 5-8 adet konuyla ilgili Türkçe etiket, '#' işareti OLMADAN.
 - gorsel_konu: Sadece tanınmış gerçek bir insanın adı ve soyadı (örn: "Hakan Fidan"). Yoksa boş bırak.
 - gorsel_ikili: Zirve veya ikili diplomatik görüşme ise iki aktörün adı: ["Recep Tayyip Erdoğan", "İlham Aliyev"]. Yoksa boş liste [].
@@ -565,6 +568,14 @@ def _cevabi_coz(veri: dict) -> dict:
         raise RuntimeError(f"Cevap beklenen yapıda değil (finishReason={sebep}): {e}")
 
     sonuc = json.loads(ham)
+
+    # Markdown formatlama işaretlerini (**bold**, __italik__ vb.) temizle
+    from src import filtre
+    for k, v in list(sonuc.items()):
+        if isinstance(v, str):
+            sonuc[k] = filtre.markdown_temizle(v)
+        elif isinstance(v, list):
+            sonuc[k] = [filtre.markdown_temizle(x) if isinstance(x, str) else x for x in v]
 
     # Şema zorlamasına rağmen puanın aralıkta olduğunu doğrula
     puan = sonuc.get("onem_puani")

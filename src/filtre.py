@@ -92,3 +92,24 @@ def hashtaglari_ele(etiketler: list[str], yasakli: list[str]) -> list[str]:
         e for e in etiketler
         if e.casefold().lstrip("#") not in yasakli_kume
     ]
+
+
+def markdown_temizle(metin: str) -> str:
+    """
+    Metindeki markdown kalın (**metin**) veya italik (*metin* / _metin_) işaretlerini temizler.
+    Instagram, Threads, Twitter gibi düz metin platformları markdown desteklemediği için
+    ** işaretlerinin çıplak görünmesini engeller.
+    """
+    if not metin or not isinstance(metin, str):
+        return ""
+    # **kalın** -> kalın
+    metin = re.sub(r"\*\*(.*?)\*\*", r"\1", metin)
+    # __kalın__ -> kalın
+    metin = re.sub(r"__(.*?)__", r"\1", metin)
+    # Markdown başlık işaretleri ### -> ''
+    metin = re.sub(r"^#{1,6}\s*", "", metin, flags=re.MULTILINE)
+    # `kod` -> kod
+    metin = re.sub(r"`(.*?)`", r"\1", metin)
+    # Kalan tekil çift yıldızları temizle
+    metin = metin.replace("**", "")
+    return metin.strip()
