@@ -8,6 +8,7 @@ Instagram Reels, Stories ve Shorts için optimize edilmiş MP4 videosu üretir.
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 import numpy as np
@@ -94,67 +95,40 @@ def reels_dikey_gorselleri_uret(
 
     from src import slaytlar
 
-    # 1. Son dakika tekil haberi için native 1080x1920 Story slaytları
+    # 1. Kaynak URL ve dosya listesini topla
+    kaynak_listesi: list[str | Path] = []
+
     if haberler and len(haberler) == 1 and bool(dict(haberler[0]).get("son_dakika")):
         h0 = dict(haberler[0])
         h_id = h0.get("id")
-        kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
-        detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
 
-        story_adaylari = []
-        if kapak_story.exists():
-            story_adaylari.append(kapak_story)
-        story_adaylari.extend(detay_storyler)
+        # A) Öncelik: Kullanıcının onayladığı story_url varsa doğrudan onu kullan
+        if h0.get("story_url") and str(h0["story_url"]).startswith("http"):
+            kaynak_listesi.append(h0["story_url"])
+        else:
+            # Diskteki yerel story dosyasını kontrol et
+            kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
+            if kapak_story.exists():
+                kaynak_listesi.append(kapak_story)
+            elif gorsel_kaynaklari:
+                kaynak_listesi.append(gorsel_kaynaklari[0])
 
-        # Eğer diskte hazır yoksa, anında native 9:16 slaytları baştan üret
-        if not story_adaylari:
+        # Detay slaytlarını ekle
+        if len(gorsel_kaynaklari) > 1:
+            kaynak_listesi.extend(gorsel_kaynaklari[1:])
+        elif h0.get("detay_url"):
             try:
-                log.info("Disk üzerinde story dosyaları bulunamadı, native 9:16 slaytlar üretiliyor (Haber #%s)", h_id)
-                slaytlar.son_dakika_uret(h0, ayarlar or {})
-                if kapak_story.exists():
-                    story_adaylari.append(kapak_story)
-                detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
-                story_adaylari.extend(detay_storyler)
-            except Exception as e:
-                log.warning("Native story üretilemedi: %s", e)
+                detaylar = json.loads(h0["detay_url"]) if isinstance(h0["detay_url"], str) else h0["detay_url"]
+                if isinstance(detaylar, list):
+                    kaynak_listesi.extend(detaylar)
+            except Exception:
+                pass
+    elif gorsel_kaynaklari:
+        kaynak_listesi = list(gorsel_kaynaklari)
 
-        if story_adaylari:
-            log.info("Video için %d adet native 9:16 story görseli kullanılıyor (Haber #%s)", len(story_adaylari), h_id)
-            for idx, sp in enumerate(story_adaylari):
-                hedef = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
-                with Image.open(sp) as s_img:
-                    s_img.convert("RGB").save(hedef, "JPEG", quality=95, subsampling=0, optimize=True)
-                uretilen_yollar.append(hedef)
-            return uretilen_yollar
-
-    # 2. Çoklu haber turu (Carousel / Akşam Turu / Ekonomi Turu) için native Story slaytları
-    elif haberler and len(haberler) > 1:
-        story_listesi: list[Path] = []
-        for idx, h_raw in enumerate(haberler, start=1):
-            h_d = dict(h_raw)
-            hid = h_d.get("id")
-            s_yol = CIKTI_KLASORU / f"story-{hid}.jpg"
-            if not s_yol.exists():
-                try:
-                    slaytlar.slayt_uret(h_d, ayarlar or {}, sira=idx)
-                except Exception as e:
-                    log.warning("Tur slaytı #%s üretilemedi: %s", hid, e)
-            if s_yol.exists():
-                story_listesi.append(s_yol)
-
-        if story_listesi:
-            log.info("Tur videosu için %d adet native 9:16 story görseli kullanılıyor", len(story_listesi))
-            # İlk slayt piyasa kartı ise onu da ekle
-            for idx, sp in enumerate(story_listesi):
-                hedef = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
-                with Image.open(sp) as s_img:
-                    s_img.convert("RGB").save(hedef, "JPEG", quality=95, subsampling=0, optimize=True)
-                uretilen_yollar.append(hedef)
-            return uretilen_yollar
-
-    # 3. Standart liste veya URL üzerinden gelen görseller (Yedek mod)
-    for idx, kaynak in enumerate(gorsel_kaynaklari):
-        hedef_yol = cikti_dizini / f"slayt_9_16_{idx + 1:02d}.jpg"
+    # 2. Toplanan tüm kaynakları sırayla 1080x1920 dikey video karelerine dönüştür
+    for idx, kaynak in enumerate(kaynak_listesi, start=1):
+        hedef_yol = cikti_dizini / f"slayt_9_16_{idx:02d}.jpg"
 
         try:
             if str(kaynak).startswith("http://") or str(kaynak).startswith("https://"):
@@ -178,7 +152,7 @@ def reels_dikey_gorselleri_uret(
             dikey_img.save(hedef_yol, "JPEG", quality=95, subsampling=0, optimize=True)
             uretilen_yollar.append(hedef_yol)
         except Exception as e:
-            log.warning("9:16 çerçeveleme hatası (%s): %s", kaynak, e)
+            log.warning("9:16 video karesi çerçeveleme hatası (%s): %s", kaynak, e)
 
     return uretilen_yollar
 

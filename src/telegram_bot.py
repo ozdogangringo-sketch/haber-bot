@@ -639,6 +639,11 @@ def mesajlari_sil(mesaj_idleri: list[int]) -> int:
     return silinen
 
 
+def mesaj_sil(mid: int) -> bool:
+    """Tek bir mesajı siler."""
+    return bool(mesajlari_sil([mid]))
+
+
 def onay_iste(caption: str, slayt_adedi: int, uyari: str = "",
               ozet: str = "") -> int:
     """

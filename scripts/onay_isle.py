@@ -1661,25 +1661,22 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
         )
         con.commit()
 
-        # Telegram albümünü güncelle
-        telegram_urller = [story_url] if story_url else [urller[0]]
-        if story_detay_urller:
-            telegram_urller.extend(story_detay_urller)
-        elif len(urller) > 1:
-            telegram_urller.extend(urller[1:])
+        # Telegram albümünü güncelle: Eski albümü silip yenisini gönder
+        eski_albom = db.ayar_oku(con, f"albom_{mesaj_id}", "")
+        if eski_albom:
+            try:
+                telegram_bot.mesajlari_sil(json.loads(eski_albom))
+            except Exception as e:
+                log.warning("eski albüm silinemedi: %s", e)
 
-        etiketler = []
-        for idx in range(len(telegram_urller)):
-            if idx == 0:
-                etiketler.append("Haber (Yeni Görsel)")
-            elif len(telegram_urller) == 2:
-                etiketler.append("Ayrıntı")
-            else:
-                etiketler.append(f"Ayrıntı {idx}/{len(telegram_urller)-1}")
+        yeni_albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
+        if yeni_albom_idler:
+            db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(yeni_albom_idler))
 
-        telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
-        telegram_bot.sonucu_yaz(mesaj_id, f"✅ <b>Fotoğraf Güncellendi</b> (Alternatif #{deneme + 1} uygulandı)")
-        menuyu_geri_koy(con, mesaj_id)
+        # Onay kartını ve butonları albümün hemen altına taşı
+        yeni_mid = menuyu_geri_koy(con, mesaj_id, en_alta_tasi=True)
+        if yeni_albom_idler and yeni_mid != mesaj_id:
+            db.ayar_yaz(con, f"albom_{yeni_mid}", json.dumps(yeni_albom_idler))
         return 0
     else:
         # Çoklu tur: Kullanıcıya hangi slaytı değiştirmek istediğini sor
@@ -2154,7 +2151,12 @@ def _albumu_yenile(con, mesaj_id: int) -> None:
     try:
         basliklar = [f"Slayt {i}" for i in range(1, len(urller) + 1)]
         yeni_idler = telegram_bot.slaytlari_gonder(urller, basliklar)
-        db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(yeni_idler or []))
+        if yeni_idler:
+            db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(yeni_idler))
+        # Onay menüsünü de albümün hemen altına taşı
+        yeni_mid = menuyu_geri_koy(con, mesaj_id, en_alta_tasi=True)
+        if yeni_idler and yeni_mid != mesaj_id:
+            db.ayar_yaz(con, f"albom_{yeni_mid}", json.dumps(yeni_idler))
     except Exception as e:                            # noqa: BLE001
         log.warning("albüm yenilenemedi: %s", e)
 
@@ -2623,20 +2625,15 @@ def gorseli_kabul_et(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
     return 0
 
 
-def menuyu_geri_koy(con, mesaj_id: int) -> None:
+def menuyu_geri_koy(con, mesaj_id: int, en_alta_tasi: bool = False) -> int:
     """
-    Onay mesajını yeniden düzenleyip butonları geri koyar.
-
-    Worker, butona basıldığı anda butonları kaldırıp "⏳ İşleniyor"
-    yazıyor (çift basmayı engellemek için). İş bitince menüyü geri
-    koymazsak tur kilitleniyor — ne yayınlanabiliyor ne atlanabiliyor.
-
-    Metin de tazeleniyor: slayt görseli değişmiş olabilir, özet
-    tablodaki katman simgesi güncel olmalı.
+    Onay mesajını günceller. en_alta_tasi=True ise eski onay mesajını silip
+    sohbetin EN ALTINA yeni bir onay mesajı gönderir ve veritabanını günceller.
+    Böylece yeni görsel/albüm geldiğinde butonlar yukarıda kalmaz.
     """
     haberler = turu_getir(con, mesaj_id)
     if not haberler:
-        return
+        return mesaj_id
     try:
         uyari, isaretli = dogrula.turu_dogrula(haberler)
         ilk_h = dict(haberler[0]) if haberler else {}
@@ -2664,12 +2661,36 @@ def menuyu_geri_koy(con, mesaj_id: int) -> None:
 
         parcalar = [p for p in (uyari, ozet) if p]
         parcalar.append("— Instagram açıklaması —\n" + metin)
-        telegram_bot.mesaji_guncelle(
-            mesaj_id, "\n\n".join(parcalar),
-            telegram_bot.ana_menu(adet),
-        )
+        govde = "\n\n".join(parcalar)
+
+        if en_alta_tasi:
+            try:
+                telegram_bot.mesaj_sil(mesaj_id)
+            except Exception as e:
+                log.debug("Eski onay mesajı silinemedi: %s", e)
+
+            yeni_mid = telegram_bot.mesaj_gonder(
+                govde,
+                html=True,
+                butonlar=telegram_bot.ana_menu(adet)["inline_keyboard"],
+            )
+
+            con.execute(
+                "UPDATE haberler SET telegram_message_id = ? WHERE telegram_message_id = ?",
+                (yeni_mid, mesaj_id),
+            )
+            con.commit()
+            log.info("Onay mesajı en alta taşındı: #%s -> #%s", mesaj_id, yeni_mid)
+            return yeni_mid
+        else:
+            telegram_bot.mesaji_guncelle(
+                mesaj_id, govde,
+                telegram_bot.ana_menu(adet),
+            )
+            return mesaj_id
     except Exception as e:
         log.warning("menü geri konamadı: %s", e)
+        return mesaj_id
 
 
 def durum_bildir(con, ayarlar) -> int:
