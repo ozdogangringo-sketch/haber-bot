@@ -17,14 +17,9 @@
 name: Turu Hazırla
 
 on:
-  schedule:
-    # İKİ TUR (19 Ağu 2026). Tek turda günde 10 haber yayınlanıyordu ve
-    # havuzdaki haberlerin çoğu (gece/sabah saatlerinde çıkanlar dahil)
-    # akşama kadar bekleyip bayat halde yarışa giriyordu. Instagram
-    # carousel sınırı 10 olduğu için tek turda daha fazla haber vermek
-    # mümkün değil — kapasiteyi artırmanın tek yolu tur sayısı.
-    - cron: "7 5 * * *"       # TR 08:07 — gece biriken haberler
-    - cron: "7 17 * * *"      # TR 20:07 — günün geri kalanı
+  # Akşam çoklu haber turları kaldırıldı — gün içi 1'er saatlik tekil haber akışına geçildi.
+  # schedule:
+  #   - cron: "7 17 * * *"
   # Telegram'daki hata mesajından "🔄 Turu yeniden hazırla" /
   # "🧯 Metinsiz tur kur" düğmesine basıldığında Worker bunu tetikliyor.
   repository_dispatch:

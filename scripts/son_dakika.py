@@ -296,8 +296,8 @@ def suresi_gecmisi_iptal_et(con, ayarlar: dict) -> None:
         try:
             telegram_bot.sonucu_yaz(
                 mesaj_id,
-                "⌛️ Son dakika postu onaylanmadı, iptal edildi.\n"
-                "Haber elenmedi — akşam turunda yeniden değerlendirilecek.",
+                "⌛️ Post onaylanmadı, iptal edildi.\n"
+                "Haber elenmedi — taze havuzda yeniden değerlendirilebilir.",
             )
         except Exception as e:
             log.warning("iptal mesajı yazılamadı: %s", e)

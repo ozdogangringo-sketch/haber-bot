@@ -30,28 +30,11 @@ name: Son Dakika Kontrolü
 
 on:
   schedule:
-    # GÜNDÜZ: TR 07:05-22:05, 90 DAKİKADA BİR (11 çalışma).
-    #
-    # ⚠️ 90 dakika tek cron satırıyla yazılamıyor — dakika her turda
-    # kayıyor (05, 35, 05...), bu yüzden iki satır: tam saatler ve
-    # buçuklar ayrı. Birini değiştirirsen diğerini de değiştir.
-    #
-    # 20 Ağu 2026'da yarım saatten 90 dakikaya ÇEKİLDİ. Sebep ölçüm:
-    # Actions kullanımı 2636/3000 dk/ay (%88) çıktı ve en büyük kalem
-    # bu kontroldü (~986 dk/ay). Ayrıca faturalamanın %35'i YUVARLAMA
-    # KAYBIYDI — GitHub her job'ı yukarı yuvarlıyor, 25 çalışmanın
-    # 27.4 dakikalık gerçek işi 42 dakika faturalanıyordu.
-    #
-    # ⚠️ Kayıp göründüğünden az: GitHub zamanlanmış çalıştırmaların bir
-    # kısmını zaten atlıyor. Ölçüldü — 30 dakikalık cron gerçekte
-    # ortalama 56 dakika aralıkla çalışıyordu (9-98 dk arası).
-    - cron: "5 4,7,10,13,16,19 * * *"
-    - cron: "35 5,8,11,14,17 * * *"
-    # UTC 20:05,22:05,00:05,02:05 = TR 23:05,01:05,03:05,05:05 (gece)
-    # GECE: TR 23:05 / 02:05 / 05:05 — 3 SAATTE BİR (2 saatten
-    # çekildi). Gece eşiği zaten 9 ve o saatte onaylayacak kimse
-    # uyanık değil; sık bakmanın karşılığı yok.
-    - cron: "5 20,23,2 * * *"
+    # GÜNDÜZ: TR 08:05 - 23:05 arası HER SAAT BAŞI (16 kontrol)
+    # UTC 05:05, 06:05, ..., 20:05 = TR 08:05 - 23:05
+    - cron: "5 5-20 * * *"
+    # GECE: TR 02:05 ve TR 05:05 (UTC 23:05, 02:05)
+    - cron: "5 23,2 * * *"
   # Telegram'daki "🔄 Son dakika kontrolünü tekrar çalıştır" düğmesi
   # buraya geliyor. Önce böyle bir yol yoktu ve son dakika hatasındaki
   # düğme akşam turunu tetikliyordu.

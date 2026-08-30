@@ -902,38 +902,10 @@ def _kacir(metin: str) -> str:
     return html.escape(metin or "", quote=False)
 
 
-def oneri_gonder(adaylar: list) -> int:
+def oneri_gonder(adaylar: list[dict], azami: int = 5) -> int:
     """
-    Tekil post için BAŞLIK ÖNERİSİ — çoklu seçim.
-
-    ⚠️ NEDEN İKİ AŞAMALI ONAY (19 Ağu 2026):
-        Eskiden kontrol job'ı taze haberlere TAM metin üretiyor
-        (~4400 token), sonra puanına bakıp eşiği geçmiyorsa
-        ATIYORDU. Üretilen metnin çoğu çöpe gidiyordu. Şimdi önce
-        yalnızca başlıklar puanlanıp buraya geliyor; tam metin ve
-        görsel yalnızca seçilenler için üretiliyor.
-
-    ⚠️ ÇOKLU SEÇİM WORKER'DA, GITHUB'DA DEĞİL. Numaralara basmak
-        yalnızca butonun metnine ✓ ekleyip çıkarıyor — Worker mesajı
-        anında düzenliyor, Actions hiç uyanmıyor. Tek bir "Hazırla"
-        basışında seçili olanların hepsi tek dispatch ile gidiyor.
-        Her seçimde Actions çalıştırmak 3 haber için 3 ayrı job
-        (~5 dk) demek olurdu.
-
-    `adaylar`: [{id, puan, baslik, kaynak, kategori}] — puana göre sıralı.
-    """
-    if not adaylar:
-        return 0
-
-    # ⚠️ 3 İLE SINIRLI. Kontrol yarım saatte bir çalışıyor; 8 öneri
-    # gün boyunca okunamayacak kadar mesaj üretiyordu. Kullanıcı
-    # tercihi (20 Ağu 2026): "yarım saatte bir çalışacağı için 3
-    # öneriyle sınırlayalım".
-def oneri_gonder(adaylar: list[dict], azami: int = 6) -> int:
-    """
-    Kullanıcıya tekil post için seçebileceği başlıkları önerir.
-
-    `azami`: Kaç adede kadar gösterileceği (arama için 6, otomatik için 3-6).
+    Kullanıcıya saatlik tekil post için seçebileceği 5 taze başlığı önerir.
+    `[1️⃣] [2️⃣] [3️⃣] [4️⃣] [5️⃣]` butonları ile çoklu seçim yapılır.
     """
     if not adaylar:
         return 0
@@ -941,7 +913,7 @@ def oneri_gonder(adaylar: list[dict], azami: int = 6) -> int:
     rakamlar = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
     gosterilecek = adaylar[:min(len(adaylar), len(rakamlar), azami)]
 
-    satirlar = ["📰 <b>Haber / Post Adayları</b>", ""]
+    satirlar = ["📰 <b>Günün Öne Çıkan Haber Adayları</b>", ""]
     secim_butonlari = []
     for i, a in enumerate(gosterilecek):
         r_simge = rakamlar[i]
@@ -960,11 +932,8 @@ def oneri_gonder(adaylar: list[dict], azami: int = 6) -> int:
                     "sonra Hazırla'ya bas. Seçilenler sırayla üretilip "
                     "onayına sunulur.</i>")
 
-    # Butonlar dörderli satırlara bölünüyor — Telegram dar ekranda
-    # yan yana en fazla bu kadarını okunur gösteriyor.
-    satir_butonlar = [secim_butonlari[i:i + 4]
-                      for i in range(0, len(secim_butonlari), 4)]
-    menu = satir_butonlar + [
+    menu = [
+        secim_butonlari,
         [{"text": "▶️ Hazırla (0)", "callback_data": "hazirla_secilenler"}],
         [{"text": "❌ Hiçbiri", "callback_data": "oneri_gec"}],
     ]

@@ -200,7 +200,7 @@ Sosyal medya açıklamaları ve slaytlarda ASLA markdown yıldızları (**kalın
     veri_karti_yon    : "artis" | "azalis" | "hedef" | "notr" | ""
 - vurgu_sayi / vurgu_etiket: Başlıkta GEÇMEYEN ikinci en çarpıcı sayı ve etiketi (örn: "2.352 yıl" / "istenen ceza"). Yoksa boş bırak.
 - alinti / alinti_sahibi: Haberde geçen doğrudan söz (en fazla 18 kelime, tırnaksız) ve sahibi. Kaynakta kelimesi kelimesine geçmeli.
-- ig_caption: 2-3 cümle, haberin özü. Temiz düz metin kullan, asla markdown yıldız (**) kullanma. Kaynak adı yazma.
+- ig_caption: Haberin tüm detaylarını, arka planını ve nedenlerini anlatan 3-5 cümlelik ferah, akıcı ve bilgilendirici bülten açıklaması. Paragrafları ferah tut, okuyucunun konuyu tam anlamasını sağla. Asla markdown yıldız (**) kullanma. Kaynak adı yazma.
 - ig_hashtag: 5-8 adet konuyla ilgili Türkçe etiket, '#' işareti OLMADAN.
 - gorsel_konu: Sadece tanınmış gerçek bir insanın adı ve soyadı (örn: "Hakan Fidan"). Yoksa boş bırak.
 - gorsel_ikili: Zirve veya ikili diplomatik görüşme ise iki aktörün adı: ["Recep Tayyip Erdoğan", "İlham Aliyev"]. Yoksa boş liste [].
