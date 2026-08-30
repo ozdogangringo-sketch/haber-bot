@@ -28,6 +28,8 @@ import time
 import requests
 from dotenv import load_dotenv
 
+from . import filtre
+
 log = logging.getLogger(__name__)
 load_dotenv()
 
@@ -94,11 +96,12 @@ def albüm_yayinla(gorsel_urlleri: list[str], metin: str,
         raise ValueError("paylaşılacak görsel yok")
 
     sayfa = sayfa_bilgisi(ayarlar)
+    temiz_metin = filtre.markdown_temizle(metin)
 
     # --- Tek görsel: albüme gerek yok ---
     if len(gorsel_urlleri) == 1:
         d = _istek("POST", "/me/photos", ayarlar,
-                   url=gorsel_urlleri[0], caption=metin)
+                   url=gorsel_urlleri[0], caption=temiz_metin)
         log.info("Facebook tek görsel yayınlandı (%s)", sayfa.get("name"))
         return d.get("post_id") or d["id"]
 
@@ -112,7 +115,7 @@ def albüm_yayinla(gorsel_urlleri: list[str], metin: str,
 
     ekler = {f"attached_media[{i}]": json.dumps({"media_fbid": fid})
              for i, fid in enumerate(fotograflar)}
-    d = _istek("POST", "/me/feed", ayarlar, message=metin, **ekler)
+    d = _istek("POST", "/me/feed", ayarlar, message=temiz_metin, **ekler)
 
     log.info("Facebook albümü yayınlandı (%s): %s",
              sayfa.get("name"), d.get("id"))

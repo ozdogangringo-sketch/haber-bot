@@ -333,6 +333,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     else:
         metin = caption.caption_kur(
             haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
+    metin = filtre.markdown_temizle(metin)
 
     post_id = None
     baglanti = None
@@ -702,6 +703,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         metin = caption.son_dakika_caption(haberler[0], _sonuclari_kur(haberler), ayarlar)
     else:
         metin = caption.caption_kur(haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
+    metin = filtre.markdown_temizle(metin)
 
     sonuclar = []
     canli_linkler = []

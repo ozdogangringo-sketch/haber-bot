@@ -39,6 +39,8 @@ import time
 import requests
 from dotenv import load_dotenv
 
+from . import filtre
+
 log = logging.getLogger(__name__)
 load_dotenv()
 
@@ -248,11 +250,13 @@ def carousel_yayinla(
     for cocuk in cocuklar:
         _container_bekle(cocuk, ayarlar)
 
+    temiz_caption = filtre.markdown_temizle(caption)
+
     # --- 2) Carousel container ---
     d = _istek("POST", f"/{_kullanici_id()}/media", ayarlar,
                media_type="CAROUSEL",
                children=",".join(cocuklar),
-               caption=caption)
+               caption=temiz_caption)
     carousel_id = d["id"]
     _container_bekle(carousel_id, ayarlar)
 
@@ -314,10 +318,11 @@ def reels_yayinla(
     log.info("hedef @%s | Reels yayınlanıyor | kota %s/%s",
              hesap["username"], kota["kullanilan"], kota["azami"])
 
+    temiz_caption = filtre.markdown_temizle(caption)
     parametreler = {
         "media_type": "REELS",
         "video_url": video_url,
-        "caption": caption,
+        "caption": temiz_caption,
         "share_to_feed": "true",
     }
     if kapak_url:
