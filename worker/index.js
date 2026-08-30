@@ -129,6 +129,7 @@ const HATA_AYRINTI = "hata:ayrinti";
 const MAKRO_EYLEM = /^(makro|faiz|enflasyon|fed):.+$/;
 const LINK_EYLEM = /^link:.+$/;
 const VARLIK_EYLEM = /^(hisse|kripto):.+$/;
+const DOSYA_EYLEM = /^(dosya|kronoloji):.+$/;
 
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 500) return false;
@@ -142,7 +143,7 @@ function eylemMi(veri) {
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
     || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
-    || VARLIK_EYLEM.test(veri);
+    || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -597,12 +598,15 @@ export default {
             // saniye sürüyor, sabit bir metin için buna değmez.
             await mesajGonder(env, sohbet,
                 "🤖 Daily Brief Bot Komutları\n\n" +
-                "📋 ÖZEL HABER ÜRETİMİ (Havuz Dışı):\n" +
+                "📋 ÖZEL HABER & DOSYA ÜRETİMİ (Havuz Dışı):\n" +
+                "• /dosya <konu> — Olayın başından sonuna kronolojik dosya haberi üretir\n" +
+                "• /kronoloji <konu> — Dava, teftiş veya olay sürecini özetler\n" +
                 "• /link <url> — Herhangi bir haber linkinden tam post üretir\n" +
                 "• /arastir <konu> — Konuyu webde araştırıp doğrulanmış haber yapar\n" +
                 "• /ozel <metin> — Kendi bülten veya duyuru metninden post üretir\n\n" +
                 "⚙️ YÖNETİM & TUR KONTROLÜ:\n" +
-                "• /tur — Sabah/Akşam turunu hemen hazırla\n" +
+                "• /sondakika — Saatlik taze haber taramasını başlat\n" +
+                "• /piyasa — Canlı borsa & emtia tablosunu çek\n" +
                 "• /durum — Canlı kota, havuz ve bekleyen tur durumu\n" +
                 "• /yonetim — Botu duraklatma, API sağlık testleri\n" +
                 "• /haber <kelime> — Havuzdaki taze haberlerde ara\n" +
@@ -628,6 +632,23 @@ export default {
             await mesajGonder(env, sohbet,
                 iletildi
                     ? `🌐 Link taranıyor ve özel haber hazırlanıyor…\n${url.slice(0, 70)}`
+                    : "⚠️ Komut iletilemedi, tekrar dene.");
+            return new Response("ok");
+        }
+
+        // /dosya <KONU> veya /kronoloji <KONU> — Bir konunun başından sonuna kronolojik perde arkası dosya haberini üretir
+        if (komutMetni === "/dosya" || komutMetni === "/kronoloji" || komutMetni === "/perdearkasi") {
+            const konu = msj.text.trim().slice(komutMetni.length).trim();
+            if (konu.length < 4) {
+                await mesajGonder(env, sohbet,
+                    "⚠️ Dosya haberi yapmak istediğin konuyu yaz:\n/dosya Haluk Levent ve Ahbap derneği davası son gelişmeler\n/kronoloji Dilan Polat davası");
+                return new Response("ok");
+            }
+            const iletildi = await githubaIlet(env, `dosya:${konu.slice(0, 400)}`,
+                null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? `📁 "${konu.slice(0, 70)}" dosya haberi hazırlanıyor:\nBaşından sonuna tüm kronoloji, dava/teftiş süreçleri ve perde arkası detaylar toplanıyor…`
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }

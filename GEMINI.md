@@ -80,10 +80,11 @@ Sistem sabahları fiks Canlı Piyasa & Borsa Bülteni (Piyasa Turu) ve gün boyu
 - **12 Saat Azami Tur Ömrü:** Cevap verilmeyen turlar 24 saat yerine 12 saat sonra otomatik kapanıp havuza döner.
 - **3 Günlük Kati Havuz Temizliği (`config.yaml` & `src/db.py`):** `kayit_saklama_gun: 3` yapıldı; 3 günden eski hiçbir yayınlanmamış haber veritabanında ve havuzda tutulmaz, her gece otomatik purge edilir. (Tek seferde 2.622 eski kayıt temizlendi).
 
-### G. Havuz Dışı Özel Haber Üretim Motoru (`src/ozel_haber.py`)
-- **`1. /link <URL>` (Linkten Tam Post):** İstenen web sayfasının makale gövdesini ve orijinal basın fotoğraflarını çeker; Gemini ile Türkçe manşet, spot özet, vurgu rakamı ve Instagram caption'ını üretip onay kartı sunar.
-- **`2. /arastir <KONU>` (Canlı Web Araştırması):** Verilen konuyu Gemini ile webde derinlemesine araştırıp doğrulanmış gerçek bilgileri 4:5 slaytlara dönüştürür.
-- **`3. /ozel <METİN>` (Özel Bülten & Duyuru):** Kullanıcının doğrudan yazdığı duyuru/bülten metnini kurumsal Daily Brief şablonuna döker.
+### G. Havuz Dışı Özel Haber & Derinlemesine Dosya Motoru (`src/ozel_haber.py`)
+- **`1. /dosya <KONU>` veya `/kronoloji <KONU>` (A'dan Z'ye Perde Arkası Dosya Haberi):** Verilen konunun başından günümüze kadarki tüm kronolojisini, dava/resmi teftiş süreçlerini, gözden kaçan ara detaylarını ve bugün gelinen son noktayı 3 ferah paragraflı, kilit verili derinlemesine bir bültene dönüştürür.
+- **`2. /link <URL>` (Linkten Tam Post):** İstenen web sayfasının makale gövdesini ve orijinal basın fotoğraflarını çeker; Gemini ile Türkçe manşet, spot özet, vurgu rakamı ve Instagram caption'ını üretip onay kartı sunar.
+- **`3. /arastir <KONU>` (Canlı Web Araştırması):** Verilen konuyu Gemini ile webde derinlemesine araştırıp doğrulanmış gerçek bilgileri 4:5 slaytlara dönüştürür.
+- **`4. /ozel <METİN>` (Özel Bülten & Duyuru):** Kullanıcının doğrudan yazdığı duyuru/bülten metnini kurumsal Daily Brief şablonuna döker.
 
 ### H. 4. Yayın Kanalı: X (Twitter) API v2 Entegrasyonu (`src/twitter.py`)
 - **OAuth 1.0a Saf Python Motoru:** Harici bağımlılığa gerek duymadan RFC 5849 standartlarında kalıcı yetkilendirme sağlar.

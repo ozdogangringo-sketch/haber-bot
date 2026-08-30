@@ -269,6 +269,97 @@ def arastir_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
         return 1
 
 
+def dosya_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
+    """
+    /dosya <KONU> veya /kronoloji <KONU> komutu:
+    Verilen konunun başından sonuna kronolojisini, dava/resmi süreçlerini,
+    gözden kaçan ara detaylarını ve en son durumunu derleyen
+    A'dan Z'ye derinlemesine dosya haberi üretir.
+    """
+    konu = konu.strip()
+    if len(konu) < 4:
+        telegram_bot.mesaj_gonder(
+            "⚠️ Dosya haberi yapmak istediğin konuyu detaylı yaz:\n"
+            "<code>/dosya Haluk Levent ve Ahbap derneği davası son gelişmeler</code>\n"
+            "<code>/kronoloji Dilan Polat davası ve ara kararlar</code>",
+            html=True,
+        )
+        return 1
+
+    telegram_bot.mesaj_gonder(
+        f"📁 <b>A'dan Z'ye Dosya Haberi Hazırlanıyor:</b>\n"
+        f"<i>\"{html.escape(konu)}\"</i>\n\n"
+        f"Başından sonuna tüm kronoloji, dava/teftiş süreçleri ve perde arkası detaylar toplanıyor…",
+        html=True,
+    )
+
+    try:
+        prompt = (
+            f"Aşağıdaki konuyu bir araştırmacı gazeteci titizliğiyle ele al. Olayın başından günümüze kadarki "
+            f"tüm kronolojisini, gözden kaçan ara detaylarını, açılan davaları, teftiş/bilirkişi raporlarını ve "
+            f"bugün gelinen en son durumu özetleyen A'dan Z'ye derinlemesine bir dosya haberi hazırla:\n\n"
+            f"DOSYA KONUSU: {konu}\n\n"
+            f"EDİTORYAL KURALLAR:\n"
+            f"1. ASLA uydurma veya spekülatif bilgi verme. Doğrulanmış gerçekleri, resmi kurum raporlarını ve dava kararlarını aktar.\n"
+            f"2. ig_baslik: Merak uyandıran, sonucu ve süreci net veren çarpıcı dosya manşeti (örn: 'Haluk Levent ve Ahbap Olayında Ne Oldu? Başından Sonuna Tüm Süreç').\n"
+            f"3. slayt_ozet: TEK cümlelik (en fazla 20 kelime) dosya özeti.\n"
+            f"4. detay_metni: Tam 3 FERAH PARAGRAF:\n"
+            f"   * 1. Paragraf (Olayın Çıkışı & İddialar): Olayın ne zaman, nasıl başladığı ve temel suçlama/iddia (30-40 kelime).\n"
+            f"   * 2. Paragraf (Teftişler, Ara Kararlar & Perde Arkası): Medyada çok öne çıkmayan teftiş raporları, bilirkişi kararları, mali incelemeler ve ara süreçler (40-50 kelime).\n"
+            f"   * 3. Paragraf (Bugün Gelinen Son Nokta): En güncel resmi karar, aklanma/ceza veya mevcut hukuki durum (30-40 kelime).\n"
+            f"5. sana_etkisi: 1-2 cümlelik analiz (topluma, sivil topluma veya vatandaşa yansıması).\n"
+            f"6. neden_onemli: 1-2 cümlelik kurumsal/hukuki önem boyutu.\n"
+            f"7. sirada_ne_var: Varsa sonraki duruşma, rapor veya yürürlük tarihi (yoksa '').\n"
+            f"8. vurgu_sayi / vurgu_etiket: Kilit bir rakam veya süre (örn: '850 Milyon ₺' / 'DENETLENEN YARDIM' veya '18 Ay' / 'SÜREN TEFTİŞ').\n"
+            f"9. alinti / alinti_sahibi: Konunun ana aktörünün doğrulanmış net bir sözü ve sahibi.\n"
+            f"10. ig_caption: 4-6 cümlelik, ferah paragraflı, etkileşim sorulu, tam kapsamlı mini dosya bülteni. Asla markdown yıldız (**) kullanma.\n"
+            f"11. gorsel_konu: Konuyla doğrudan ilgili gerçek kişinin adı-soyadı (örn: 'Haluk Levent', 'Dilan Polat'). Varsa Wikimedia Commons'tan portresi çekilecek.\n"
+            f"12. gorsel_temsili: Somut İngilizce stok arama terimi (örn: 'courtroom gavel justice trial', 'charity donation aid boxes').\n"
+            f"13. kategori: 'turkiye', 'dunya', 'ekonomi', 'teknoloji', 'bilim', 'spor'.\n"
+        )
+
+        yanit = generate_text.gemini_cagir(prompt, ayarlar)
+        if not yanit or not isinstance(yanit, dict):
+            raise RuntimeError("Gemini dosya haberi analizini üretemedi.")
+
+        h_veri = yanit
+
+        cursor = con.execute(
+            """INSERT INTO haberler (
+                kaynak, kategori, agirlik, baslik_orj, link, ozet_orj,
+                yayin_tarihi, cekilme_zamani, durum
+            ) VALUES (
+                'A\\'dan Z\\'ye Dosya', ?, 10, ?, ?, ?,
+                datetime('now'), datetime('now'), 'yeni'
+            )""",
+            (
+                h_veri.get("kategori", "turkiye"),
+                h_veri.get("ig_baslik", konu)[:250],
+                f"https://dailybrief.co/dosya/{int(time.time())}",
+                h_veri.get("slayt_ozet", "")[:800],
+            ),
+        )
+        haber_id = cursor.lastrowid
+        db.metin_kaydet(con, haber_id, h_veri, makale_metni=konu)
+        con.commit()
+
+        return _post_olustur_ve_onaya_sun(
+            con,
+            ayarlar,
+            haber_id,
+            kaynak="A'dan Z'ye Dosya",
+            ozet_not="📁 A'DAN Z'YE DOSYA HABERİ & KRONOLOJİ",
+        )
+
+    except Exception as e:
+        log.exception("Dosya haberi üretilemedi: %s", e)
+        telegram_bot.mesaj_gonder(
+            f"⚠️ Dosya haberi hazırlanırken bir hata oluştu:\n<code>{html.escape(str(e)[:300])}</code>",
+            html=True,
+        )
+        return 1
+
+
 def ozel_metin_haber_uret(metin: str, con, ayarlar: dict, basan: str = "") -> int:
     """
     /ozel <METİN> komutu: Kullanıcının girdiği bülten/duyuru metninden Daily Brief postu üretir.

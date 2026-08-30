@@ -3330,7 +3330,11 @@ def main() -> int:
     if komut == "oneri_gec":
         telegram_bot.sonucu_yaz(mesaj_id, "⏭ Öneri geçildi.")
         log.info("öneri geçildi")
-    # ── Özel Haber Komutları (/link, /arastir, /ozel) ──────────
+    # ── Özel Haber Komutları (/link, /arastir, /dosya, /kronoloji, /ozel) ──────────
+    if komut.startswith("dosya:") or komut.startswith("kronoloji:"):
+        from src import ozel_haber
+        return ozel_haber.dosya_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan)
+
     if komut.startswith("link:"):
         from src import ozel_haber
         return ozel_haber.linkten_haber_uret(komut.split(":", 1)[1], con, ayarlar, basan)
