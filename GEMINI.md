@@ -17,7 +17,7 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 
 ## 2. Sistem Mimarisi & İşleyiş Akışı
 
-Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini Instagram, Facebook ve Threads'te otomatik/yarı-otomatik paylaşan bir yayın otomasyonudur:
+Sistem sabahları fiks Canlı Piyasa & Borsa Bülteni (Piyasa Turu) ve gün boyu 1'er saatlik aralıklarla tekli derinlemesine analiz carousel'lerini Instagram, Facebook, Threads ve X'te otomatik/yarı-otomatik paylaşan bir yayın otomasyonudur:
 
 ```
 [RSS & Finans Beslemeleri] 
@@ -26,20 +26,21 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 [fetch_news.py] ──> SQLite (data/haber.db) [durum='yeni']
        │
        ▼
-[Seçim & Puanlama] (secim.py / ekonomi_turu.py / sondakika.py)
-       │ (Gemini Flash ile başlık & özet üretimi)
+[Saatlik Öneri & Seçim] (son_dakika.py / ekonomi_turu.py)
+       │ (Her saat başı en iyi 5 taze haber önerisi)
        ▼
-[Görsel & Slayt Üretimi] (slaytlar.py / piyasa_kart.py / upload_image.py)
-       │ (4 Katmanlı Görsel + 144px 3D Kurumsal Logo + ImgBB / Catbox)
+[Tekil 3+ Slayt Carousel Üretimi] (slaytlar.py / make_image.py)
+       │ (1 Kapak + 2-4 Detay/Analiz Slaytı + 144px 3D Logo)
        ▼
 [Telegram Onay Grubu] (telegram_bot.py ──> Daily Brief Grubu)
-       │ (İnteraktif butonlar: ✅ Yayınla, ⏰ Ertele, 🎨 Slayt Düzenle...)
+       │ (İnteraktif butonlar: 1️⃣..5️⃣ Seç, ✅ Yayınla, 🔄 Başka Fotoğraf...)
        ▼
 [Cloudflare Worker ──> GitHub Actions] (onay_isle.py)
        │
-       ├─► Instagram Graph API (1080x1350 Carousel & Story)
+       ├─► Instagram Graph API (1080x1350 Carousel, Reels & Story)
        ├─► Facebook Graph API (Sayfa Albümü & Story)
-       └─► Threads API (6 Halkalı Bilgi Zinciri)
+       ├─► Threads API (6 Halkalı Bilgi Zinciri)
+       └─► X (Twitter) API v2 (4 Fotoğraflı Tweet)
 ```
 
 ---
