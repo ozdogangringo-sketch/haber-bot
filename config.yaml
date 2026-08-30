@@ -65,13 +65,10 @@ genel:
   # gün içi öneri havuzuna dahil edilir.
   son_dakika_asgari_agirlik: 7
 
-  # Günde en fazla kaç son dakika postu. Akşam turuyla birlikte günde
-  # 3 post eder; Instagram için sağlıklı aralık, takipçi yorulmuyor.
-  # Gün içi tekil post sayısı. 19 Ağu 2026'da 2'den 10'a çıkarıldı:
-  # havuzda yayınlanmayı bekleyen 100+ haber birikiyordu.
-  son_dakika_gunluk_azami: 10
+  # Günde en fazla kaç tekil haber postu yayınlanabilir (saatlik ritme uygun: 18).
+  son_dakika_gunluk_azami: 18
   # Tek kategori günü domine etmesin — kategori başına günlük sınır
-  son_dakika_kategori_azami: 3
+  son_dakika_kategori_azami: 6
   # Kontrol job'ı aday bulamazsa kaç habere metin üretsin.
   # Actions kotasının en büyük kalemi bu; 5'ten 3'e indirildi.
   # Tekil post önerisinde kaç başlık TEK Gemini isteğiyle puanlanacak.
