@@ -110,8 +110,15 @@ Sistem günde 2 ana tur (Sabah/Akşam) ve gün içi tekil son dakika haberlerini
 - 6 kanal (`Instagram`, `Threads`, `Facebook`, `X`, `YouTube`, `TikTok`) kusursuz yatay hizalama ve eşit aralıklarla çizilir.
 
 ### N. %100 Saf Native 9:16 Full-Bleed Video Motoru (`src/video.py`)
-- **4:5 Kırpma / Bulanık Kenar Kaldırıldı:** YouTube Shorts ve TikTok videoları artık 4:5 postların yapay bulanıklaştırılmış kopyası değil; her biri doğrudan **1080x1920 native Story şablonu**, tam ekran fotoğraf yerleşimi, 144px 3D logo, Zümrüt Yeşili vurgu blokları ve editoryal tipografiyle baştan çizilir.
-- **Kesintisiz Geçiş & Ken Burns:** 30 FPS hızında pürüzsüz geçişlerle profesyonel dikey bülten formatı oluşturulur.
+- **4:5 Kırpma / Bulanık Kenar Kaldırıldı:** YouTube Shorts ve TikTok videoları artık 4:5 postların yapay bulanıklaştırılmış kopyası değil; her biri doğrudan **1080x1920 native Story şablonu** (`story_haber` ve `story_detay`), tam ekran fotoğraf yerleşimi, 144px 3D logo, Zümrüt Yeşili vurgu blokları ve editoryal tipografiyle baştan çizilir.
+- **Kullanıcının Seçtiği Taze Görsel Garantisi:** Videolar artık varsayılan RSS aramasından değil, kullanıcının Telegram'da seçtiği/onayladığı en güncel `story_url` ve görsel linklerinden derlenir.
+
+### O. Global Markdown Sanitasyonu ve Temiz Sosyal Metinler (`src/filtre.py` & `src/caption.py`)
+- **Sıfır `**` (Markdown Bold) Kuralı:** Instagram, Threads ve Twitter düz metin platformları markdown bold (`**`) desteklemediği için çiğ yıldızların görünmesi engellendi.
+- `filtre.markdown_temizle()` filtresi sayesinde Gemini çıktısı, Telegram onay kartı ve tüm sosyal medya açıklamaları otomatik olarak temiz ve akıcı düz metne dönüştürülür.
+
+### P. Telegram Yüzen Onay Menüsü (Her Düzenlemede En Alta Taşıma, `scripts/onay_isle.py`)
+- Slayt fotoğrafı değiştirildiğinde (`[🔄 Başka Fotoğraf Bul]`), metin düzenlendiğinde veya slayt silindiğinde eski buton mesajı otomatik silinir; yeni önizleme albümü gönderildikten sonra **onay kartı ve butonlar sohbetin EN ALTINA** yeni bir mesaj olarak bırakılır. Kullanıcının yukarı kaydırmasına gerek kalmaz.
 
 ---
 
