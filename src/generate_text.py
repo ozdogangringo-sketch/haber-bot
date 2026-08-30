@@ -172,8 +172,9 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
   * YASAK TIKLAMA TUZAKLARI: "şok", "bomba", "herkesi şaşırttı", "işte o an" gibi ucuz clickbait ifadeleri KULLANMA.
   * BÜYÜK HARF KURALI: Cümle düzeni kullan (yalnızca ilk kelime ve özel adlar büyük). Sonuna nokta koyma.
 
-★ KESİN BİÇİMLENDİRME KURALI: SIFIR MARKDOWN (DÜZ METİN) ★
-Sosyal medya açıklamaları ve slaytlarda ASLA markdown yıldızları (**kalın**, *italik*, __vb__) KULLANMA. Tüm metinleri doğal, akıcı ve temiz düz metin (plain text) olarak yaz.
+★ BİÇİMLENDİRME VE TİPOGRAFİ KURALLARI ★
+- Slayt Metinleri (detay_metni, slayt_ozet): Slayt üzerinde dikkat çekmesi gereken en kritik sayıları, kurum/şirket adını veya en can alıcı 1-2 kelimeyi görselde kalın (bold) vurgulanması için **kelime** içine al (örn: **500 milyon dolar**, **TCMB**, **rekor yükseliş**). Her slaytta en fazla 2-3 kilit vurgu olsun.
+- Sosyal Medya Açıklaması (ig_caption): Instagram ve Threads düz metin olduğu için ig_caption içinde ASLA markdown yıldız (**) KULLANMA. Temiz, akıcı düz metin yaz.
 
 ★ KATEGORİYE ÖZEL EDİTORYAL TON (TONE OF VOICE) ★
 - ekonomi: Rakamlar, rasyolar, BİST 100 hisse etkileri, kâr marjı, faiz/dolar dengesi ve piyasa analizi odaklı keskin Bloomberg/FT standardı finans dili.
@@ -185,7 +186,7 @@ Sosyal medya açıklamaları ve slaytlarda ASLA markdown yıldızları (**kalın
 - detay_metni: 120-220 kelime, 2 PARAGRAF.
   * 1. Paragraf (Spot): Olayın nerede/nasıl gerçekleştiği ve doğrudan ana sonucu (20-25 kelime).
   * 2. Paragraf (Gelişme & Arka Plan): Detaylar, etkilenen sektörler, açıklamalar. 1. paragraftaki bilgileri ASLA tekrarlama.
-  * Doğrudan söylemleri çift tırnak "..." içine al. Asla markdown yıldız (**) kullanma.
+  * Doğrudan söylemleri çift tırnak "..." içine al. Slaytta vurgulanacak kilit verileri **kalın** yaz.
 - sana_etkisi: 1-2 CÜMLE (en fazla 25 kelime).
   * Haberin okuyucunun cebine, kredisini, mevduatını, portföyüne, faturasına veya günlük yaşamına doğrudan yansıması.
   * Yalın ve vurucu Türkçe cümleler kur. Asla markdown yıldız (**) kullanma. (Örn: "Mevduat getirilerinde yıllık %47 bandı korunurken ihtiyaç kredisi faizlerinde kısa vadede indirim beklenmiyor.")
@@ -569,13 +570,13 @@ def _cevabi_coz(veri: dict) -> dict:
 
     sonuc = json.loads(ham)
 
-    # Markdown formatlama işaretlerini (**bold**, __italik__ vb.) temizle
+    # Sosyal medya caption ve başlık alanlarında markdown işaretlerini temizle.
+    # Görsel slayt metinlerinde (detay_metni, slayt_ozet) Pillow render motorunun
+    # tipografik bold (800.0 ağırlık) vurgusu için ** işaretleri korunur.
     from src import filtre
-    for k, v in list(sonuc.items()):
-        if isinstance(v, str):
-            sonuc[k] = filtre.markdown_temizle(v)
-        elif isinstance(v, list):
-            sonuc[k] = [filtre.markdown_temizle(x) if isinstance(x, str) else x for x in v]
+    for k in ("ig_caption", "ig_baslik"):
+        if k in sonuc and isinstance(sonuc[k], str):
+            sonuc[k] = filtre.markdown_temizle(sonuc[k])
 
     # Şema zorlamasına rağmen puanın aralıkta olduğunu doğrula
     puan = sonuc.get("onem_puani")

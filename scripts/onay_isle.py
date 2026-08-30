@@ -59,18 +59,7 @@ _ayarlar_onbellek: dict = {}
 #  bu script'e hiç uğramıyor.)
 # ⚠️ `haber_sec`/`haber_vazgec` tur id'sini KOMUTTA taşıyor; Worker'ın
 # gönderdiği mesaj_id alternatif mesajına ait ve işe yaramıyor.
-MESAJSIZ_KOMUTLAR = {"durum", "ayar", "tamamla", "arsiv", "ara",
-                     "havuz_guncelle", "sondakika", "son_dakika", "haftalik", "video", "reels",
-                     "yonetim", "yonetim_panel", "duraklat", "devam_et", "durdur", "devam",
-                     "saglik_testi", "saglik", "kota_raporu", "tur_temizle", "temizle",
-                     "haber_sec", "haber_vazgec", "kurtar",
-                     "dosya", "kronoloji", "perdearkasi",
-                     "link", "arastir", "ozel", "bulten", "kahve",
-                     "faiz", "enflasyon", "fed", "makro",
-                     "hisse", "kripto", "piyasa", "sonpostlar", "son_postlar",
-                     # Tur id'sini KOMUTTA taşıyorlar (ayrı mesajın düğmesi)
-                     "yayin_kontrol", "yeniden_yayinla", "retry_kanal",
-                     "gorsel_kabul", "gorsel_yeni"}
+from src.komutlar import MESAJSIZ_KOMUTLAR, mesajsiz_komut_mu
 
 
 def turu_getir(con, mesaj_id: int) -> list:
@@ -3207,8 +3196,7 @@ def main() -> int:
     # buraya `ara:istanbulda hava` olarak geliyor; düz üyelik testi
     # ("ara" listede mi) tutmuyordu ve komut "MESAJ_ID eksik" ile
     # ölüyordu. 20 Ağu 2026'da `/haber` denendiğinde tam olarak bu oldu.
-    if (komut.split(":", 1)[0] not in MESAJSIZ_KOMUTLAR
-            and komut not in MESAJSIZ_KOMUTLAR and not mesaj_id):
+    if not mesajsiz_komut_mu(komut) and not mesaj_id:
         log.error("MESAJ_ID eksik (komut=%s)", komut)
         return 1
 

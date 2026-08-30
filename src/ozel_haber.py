@@ -303,7 +303,7 @@ def dosya_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
             f"1. ASLA uydurma veya spekülatif bilgi verme. Doğrulanmış gerçekleri, resmi kurum raporlarını ve dava kararlarını aktar.\n"
             f"2. ig_baslik: Merak uyandıran, sonucu ve süreci net veren çarpıcı dosya manşeti (örn: 'Haluk Levent ve Ahbap Olayında Ne Oldu? Başından Sonuna Tüm Süreç').\n"
             f"3. slayt_ozet: TEK cümlelik (en fazla 20 kelime) dosya özeti.\n"
-            f"4. detay_metni: Tam 3 FERAH PARAGRAF:\n"
+            f"4. detay_metni: Tam 3 FERAH PARAGRAF (Slaytta kalın vurgulanmasını istediğin 2-3 kilit veriyi **kalın** içine al):\n"
             f"   * 1. Paragraf (Olayın Çıkışı & İddialar): Olayın ne zaman, nasıl başladığı ve temel suçlama/iddia (30-40 kelime).\n"
             f"   * 2. Paragraf (Teftişler, Ara Kararlar & Perde Arkası): Medyada çok öne çıkmayan teftiş raporları, bilirkişi kararları, mali incelemeler ve ara süreçler (40-50 kelime).\n"
             f"   * 3. Paragraf (Bugün Gelinen Son Nokta): En güncel resmi karar, aklanma/ceza veya mevcut hukuki durum (30-40 kelime).\n"

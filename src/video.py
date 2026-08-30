@@ -92,6 +92,7 @@ def reels_dikey_gorselleri_uret(
     cikti_dizini.mkdir(parents=True, exist_ok=True)
 
     uretilen_yollar: list[Path] = []
+    kaynak_listesi: list[Path | str] = []
 
     from src import slaytlar
 

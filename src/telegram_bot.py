@@ -1012,29 +1012,8 @@ def komut_menusu_kaydet() -> bool:
     Telegram Botunun resmi komut açılır menüsünü (setMyCommands) kaydeder.
     Kullanıcı Telegram'da '/' yazdığında Türkçe ve emojili komut listesi açılır.
     """
-    komutlar = [
-        {"command": "dosya", "description": "📁 A'dan Z'ye Kronolojik Dosya Haberi Üret"},
-        {"command": "kronoloji", "description": "⏳ Olay, Dava veya Teftiş Sürecini Özetle"},
-        {"command": "link", "description": "🌐 Web Sitesi / Haber Linkinden Tam Post Üret"},
-        {"command": "arastir", "description": "🔍 Konuyu Webde Araştırıp Posta Dönüştür"},
-        {"command": "ozel", "description": "📢 Kendi Duyuru veya Bülten Metninden Post Üret"},
-        {"command": "sondakika", "description": "⚡ Saatlik Taze Haber Önerileri & Son Dakika Tara"},
-        {"command": "piyasa", "description": "📈 Canlı Borsa, Isı Haritası, Döviz & Altın Tablosu"},
-        {"command": "ekonomi", "description": "📊 Sabah Ekonomi & Finans Bülteni Başlat"},
-        {"command": "faiz", "description": "🏦 Faiz Kararı İnfografik Kartı Üret"},
-        {"command": "enflasyon", "description": "📉 TÜİK / Küresel Enflasyon İnfografiği"},
-        {"command": "hisse", "description": "🏢 Canlı BİST Hisse Senedi Sorgula (/hisse THYAO)"},
-        {"command": "kripto", "description": "🪙 Canlı Kripto Para Sorgula (/kripto BTC)"},
-        {"command": "bulten", "description": "☕ Taze Haberlerle Anlık Kahve Bülteni Derle"},
-        {"command": "yonetim", "description": "🎛️ Ana Yönetim Paneli ve API Sağlık Testleri"},
-        {"command": "durum", "description": "📊 Canlı Havuz, Kota ve Sistem Raporu"},
-        {"command": "temizle", "description": "🧹 Askıda Kalan Onay Turlarını Sıfırla"},
-        {"command": "guncelle", "description": "🔄 20+ RSS ve Finans Kaynağını Şimdi Tara"},
-        {"command": "sonpostlar", "description": "📰 Son Yayınlanan Postlar ve Sosyal Linkler"},
-        {"command": "durdur", "description": "⏸️ Botu Geçici Süreyle Duraklat"},
-        {"command": "devam", "description": "▶️ Duraklatılmış Botu Tekrar Başlat"},
-        {"command": "yardim", "description": "❓ Tüm Komutlar ve Kullanım Rehberi"},
-    ]
+    from src.komutlar import KOMUT_MENUSU
+    komutlar = KOMUT_MENUSU
     try:
         url = TABAN.format(jeton=_jeton(), metot="setMyCommands")
         r = requests.post(url, json={"commands": komutlar}, timeout=15)
