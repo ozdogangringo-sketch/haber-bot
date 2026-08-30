@@ -119,8 +119,13 @@ Sistem sabahları fiks Canlı Piyasa & Borsa Bülteni (Piyasa Turu) ve gün boyu
 - **Sıfır `**` (Markdown Bold) Kuralı:** Instagram, Threads ve Twitter düz metin platformları markdown bold (`**`) desteklemediği için çiğ yıldızların görünmesi engellendi.
 - `filtre.markdown_temizle()` filtresi sayesinde Gemini çıktısı, Telegram onay kartı ve tüm sosyal medya açıklamaları otomatik olarak temiz ve akıcı düz metne dönüştürülür.
 
-### P. Telegram Yüzen Onay Menüsü (Her Düzenlemede En Alta Taşıma, `scripts/onay_isle.py`)
-- Slayt fotoğrafı değiştirildiğinde (`[🔄 Başka Fotoğraf Bul]`), metin düzenlendiğinde veya slayt silindiğinde eski buton mesajı otomatik silinir; yeni önizleme albümü gönderildikten sonra **onay kartı ve butonlar sohbetin EN ALTINA** yeni bir mesaj olarak bırakılır. Kullanıcının yukarı kaydırmasına gerek kalmaz.
+### Q. Tek Merkezli Komut Sözlüğü & Modüler Handler Katmanı (`src/komutlar.py` & `src/handlers/`)
+- **Single Source of Truth (`src/komutlar.py`):** `MESAJSIZ_KOMUTLAR`, `KOMUT_MENUSU` ve yetki yönetimi tek merkezde toplandı. Çift bakım riski ortadan kaldırıldı.
+- **Modüler Handler Katmanı (`src/handlers/`):**
+  * `yayin_yonetimi.py`: Çoklu platform yayını, telafi, URL doğrulama ve zamanlanmış yayınlar.
+  * `slayt_yonetimi.py`: Fotoğraf değiştirme, AI ile görsel üretme, metin düzenleme ve slayt taşıma/silme.
+  * `tur_yonetimi.py`: Tur yaşam döngüsü, aday seçimi, başlık onayı, arama ve erteleme/iptal.
+- **Telegram Slash Menüsü:** `setMyCommands` ile `/dosya`, `/kronoloji`, `/link`, `/arastir`, `/sondakika`, `/piyasa`, `/yonetim`, `/temizle` doğrudan Telegram açılır menüsüne kaydedildi.
 
 ---
 
@@ -129,22 +134,24 @@ Sistem sabahları fiks Canlı Piyasa & Borsa Bülteni (Piyasa Turu) ve gün boyu
 | Dizin / Dosya | Görevi |
 |---|---|
 | `config.yaml` | Tüm bot ayarları, RSS kaynakları, ağırlıklar, eşikler ve sosyal medya anahtarları. |
+| `src/komutlar.py` | Tek merkezli komut listesi, alias'lar, mesajsız serbest komutlar ve slash menü sözlüğü. |
+| `src/handlers/` | Modüler Telegram onay ve yayın işleme handler modülleri (`yayin`, `slayt`, `tur`). |
 | `src/sparkline.py` | Borsa/finans haberleri için 30 günlük geçmiş fiyat çekimi ve estetik trend grafiği çizimi. |
 | `src/youtube.py` | YouTube Data API v3 üzerinden 9:16 Shorts video yükleme ve OAuth yetkilendirmesi. |
 | `src/tiktok.py` | TikTok Content Posting API v2 üzerinden dikey video yükleme ve durum sorgulama. |
-| `src/ozel_haber.py` | Telegram üzerinden `/link`, `/arastir` ve `/ozel` komutlarıyla havuz dışı özel haber üretimi. |
+| `src/ozel_haber.py` | Telegram üzerinden `/dosya`, `/kronoloji`, `/link`, `/arastir` ve `/ozel` ile özel haber üretimi. |
 | `src/twitter.py` | X (Twitter) API v2 üzerinden 4 fotoğraflı tekil post, Flood (zincir) paylaşımı ve sağlık testi. |
 | `src/piyasa.py` | Yahoo Finance üzerinden BİST, döviz, emtia, kripto ve ABD hisselerinin canlı çekimi & Gram TL hesabı. |
 | `src/piyasa_kart.py` | 1080x1350 dikey formatta Varyasyon 14 piyasa ısı haritası ve infografik kartı üretim motoru. |
 | `src/slaytlar.py` | 4:5 haber slaytlarının çizimi, tipografi, 144px 3D gölgeli logo, güvenli paylar ve fotoğraf yerleşimi. |
 | `src/hata_bildir.py` | Kalıcı hata loglama (`data/hata_kayitlari.jsonl`), insan diliyle teşhis ve interaktif çözüm butonları. |
 | `src/fetch_news.py` | 20+ RSS kaynağından haberleri çekme, parse etme ve SQLite veritabanına aktarma. |
-| `src/generate_text.py` | Gemini Flash modelleri ile başlık, özet, detay metni ve önem puanı üretimi (yedek faturalı anahtar destekli). |
+| `src/generate_text.py` | Gemini Flash modelleri ile başlık, özet, detay metni ve önem puanı üretimi. |
 | `src/instagram.py` | Instagram Graph API carousel container oluşturma, durum sorgulama ve yayınlama. |
 | `src/facebook.py` | Facebook Sayfa API üzerinden çoklu görsel albüm ve story paylaşımı. |
 | `src/threads.py` | Threads API üzerinden 6 halkalı birbirine bağlı bilgi zinciri paylaşımı. |
 | `scripts/ekonomi_turu.py` | Canlı piyasa kartı + 5 saf finans haberinden oluşan sabah/akşam ekonomi turunu oluşturan ana script. |
-| `scripts/onay_isle.py` | Telegram butonlarına basıldığında Cloudflare Worker / GitHub Actions üzerinden yayını başlatan işleyici. |
+| `scripts/onay_isle.py` | Telegram butonlarına basıldığında Cloudflare Worker / GitHub Actions üzerinden yayını başlatan işleyici facade. |
 | `scripts/varyasyon_uret.py` | Farklı renk, zemin ve gradyan temalarını toplu üreten yardımcı script. |
 
 ---
