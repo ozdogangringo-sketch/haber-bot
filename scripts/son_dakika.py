@@ -873,12 +873,26 @@ def main(zorla_haber_id: int | None = None) -> int:
             if zorla_haber_id:
                 log.info("günlük sınır dolu (%s/%s) ama haber elle "
                          "seçilmiş, devam ediliyor", bugun, azami)
-                telegram_bot.mesaj_gonder(
-                    f"ℹ️ Bugünkü tekil post sınırı dolu ({bugun}/{azami}) "
-                    "ama sen seçtiğin için hazırlanıyor.")
             else:
-                log.info("günlük son dakika sınırı dolu (%s/%s)",
-                         bugun, azami)
+                log.info("günlük son dakika sınırı dolu (%s/%s)", bugun, azami)
+                return 0
+
+        # --- 3.5) Hafta içi Piyasa Bülteni Zaman Dilimi Kontrolü ---
+        # Hafta içi 10:00 ve 18:00 saat dilimleri Canlı Piyasa Bültenine tahsis edilmiştir.
+        # Bu dakikalarda otomatik öneri gönderilmez; 10:08 ve 18:20 bültenlerine öncelik tanınır.
+        if not zorla_haber_id:
+            tr_simdi = datetime.now(timezone.utc) + timedelta(hours=3)
+            hafta_ici = tr_simdi.weekday() < 5
+            saat = tr_simdi.hour
+            dakika = tr_simdi.minute
+            if hafta_ici and (
+                (saat == 10 and dakika < 20) or
+                (saat == 18 and dakika < 30)
+            ):
+                log.info(
+                    "Hafta içi Piyasa Bülteni saat dilimi (%02d:%02d TR) — saatlik öneri piyasa bültenine öncelik tanımak için atlanıyor.",
+                    saat, dakika
+                )
                 return 0
 
         # --- 4) Taze haber çek, sonra aday ara ---
