@@ -86,16 +86,9 @@ def main() -> int:
     tablo_url = tablo_yukleme["url"]
     slayt_urlleri = [kart_url, tablo_url]
 
-    # 5. 9:16 Full-bleed Story slaytları üret
-    rozet_kart = "CANLI PİYASA ISI HARİTASI" if mod == "acilis" else "GÜN SONU PİYASA ISI HARİTASI"
-    rozet_tablo = "30 VARLIK PİYASA KARNESİ"
-    reels_kart = video._cercevele_9_16(Image.open(kart_yolu), baslik_rozet=rozet_kart)
-    reels_tablo = video._cercevele_9_16(Image.open(tablo_yolu), baslik_rozet=rozet_tablo)
-
-    reels_kart_yolu = make_image.CIKTI_KLASORU / f"story-piyasa-kart-{mod}.jpg"
-    reels_tablo_yolu = make_image.CIKTI_KLASORU / f"story-piyasa-tablo-{mod}.jpg"
-    reels_kart.save(reels_kart_yolu, "JPEG", quality=95)
-    reels_tablo.save(reels_tablo_yolu, "JPEG", quality=95)
+    # 5. %100 Saf Native 9:16 Full-bleed Story slaytları üret (Asla blur/çerçeveleme yok)
+    reels_kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(piyasa_verileri)
+    reels_tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16()
 
     kart_story_url = upload_image.gorsel_yukle(reels_kart_yolu, ayarlar)["url"]
     tablo_story_url = upload_image.gorsel_yukle(reels_tablo_yolu, ayarlar)["url"]

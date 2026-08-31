@@ -350,3 +350,190 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
     img.save(cikti_yolu, "JPEG", quality=95)
     log.info("Yeni düzenli piyasa tablosu üretildi: %s", cikti_yolu)
     return cikti_yolu
+
+
+def piyasa_tablosu_uret_9_16(canli_fiyatlar: dict[str, dict] | None = None) -> Path:
+    """
+    1080x1920 tam ekran (9:16 Full-bleed Native Story) 30 Varlık Piyasa Karnesi üretir.
+    Asla 4:5 kartı çerçevelemez veya blur kenar kullanmaz; 3 sütunu 1920px dikey tuvalin
+    tümüne ferah ve büyük puntolarla yayarak çizer.
+    """
+    if canli_fiyatlar is None:
+        canli_fiyatlar = _tum_fiyatlari_cek()
+
+    simdi = datetime.now(timezone.utc)
+    aksam_mi = simdi.hour >= 15
+    oturum_adi = "Kapanış" if aksam_mi else "Açılış"
+
+    W_STORY = 1080
+    H_STORY = 1920
+    CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
+
+    img = Image.new("RGB", (W_STORY, H_STORY), RENK_ARKA_UST)
+    draw = ImageDraw.Draw(img)
+
+    # 1. Derin Okyanus Degrade Zemin
+    for y in range(H_STORY):
+        t = y / H_STORY
+        if t < 0.5:
+            r = _lerp_renk(RENK_ARKA_UST, RENK_ARKA_ORTA, t * 2.0)
+        else:
+            r = _lerp_renk(RENK_ARKA_ORTA, RENK_ARKA_ALT, (t - 0.5) * 2.0)
+        draw.line([(0, y), (W_STORY, y)], fill=r)
+
+    # Turkuaz Arka Plan Işıltısı (Glow)
+    glow = Image.new("RGBA", (W_STORY, H_STORY), (0, 0, 0, 0))
+    g_draw = ImageDraw.Draw(glow)
+    g_draw.ellipse([W_STORY // 2 - 380, 200, W_STORY // 2 + 380, 750], fill=RENK_GLOW)
+    glow = glow.filter(ImageFilter.GaussianBlur(120))
+    img.paste(Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB"), (0, 0))
+    draw = ImageDraw.Draw(img)
+
+    f_etiket = _font(15, 800.0)
+    f_baslik = _font(34, 900.0)
+    f_alt_baslik = _font(20, 600.0)
+    f_tarih_buyuk = _font(21, 800.0)
+    f_tarih_kucuk = _font(17, 700.0)
+    f_sutun_baslik = _font(18, 800.0)
+
+    f_sym_normal = _font(26, 900.0)
+    f_sym_uzun = _font(21, 900.0)
+    f_price = _font(22, 800.0)
+    f_badge = _font(17, 900.0)
+
+    # 2. Header (Üst Alan — 80px Güvenli Pay)
+    logo_boyut = 120
+    logo_x = 45
+    logo_y = 65
+
+    if LOGO_YOLU.exists():
+        try:
+            golge = Image.new("RGBA", (W_STORY, H_STORY), (0, 0, 0, 0))
+            ImageDraw.Draw(golge).ellipse(
+                [logo_x - 4, logo_y - 2, logo_x + logo_boyut + 6, logo_y + logo_boyut + 8],
+                fill=(0, 0, 0, 140),
+            )
+            golge = golge.filter(ImageFilter.GaussianBlur(14))
+            img.paste(Image.alpha_composite(img.convert("RGBA"), golge).convert("RGB"), (0, 0))
+
+            logo = Image.open(LOGO_YOLU).convert("RGBA")
+            logo = logo.resize((logo_boyut, logo_boyut), Image.Resampling.LANCZOS)
+            img.paste(logo, (logo_x, logo_y), mask=logo)
+        except Exception as e:
+            log.warning("Logo yüklenemedi: %s", e)
+
+    draw = ImageDraw.Draw(img)
+    header_x = 182
+    rozet_txt = "DAILYBRIEF · PİYASA KARNESİ"
+    rw = draw.textlength(rozet_txt, font=f_etiket)
+    draw.rounded_rectangle(
+        [(header_x, 68), (header_x + rw + 24, 102)],
+        radius=8,
+        fill=(18, 62, 72),
+        outline=RENK_CYAN,
+        width=2,
+    )
+    draw.text((header_x + 12, 74), rozet_txt, font=f_etiket, fill=RENK_CYAN)
+
+    draw.text((header_x, 110), "Piyasa Fiyat Listesi", font=f_baslik, fill=RENK_BASLIK_KOYU)
+    draw.text((header_x, 154), "Borsa İstanbul, Wall Street ve Kripto Piyasaları", font=f_alt_baslik, fill=RENK_GRI_METIN)
+
+    # Tarih Alanı
+    aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+             "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+    gunler = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+    tarih_satir1 = f"{simdi.day} {aylar[simdi.month - 1]} {simdi.year}"
+    tarih_satir2 = f"{gunler[simdi.weekday()]} · {oturum_adi}"
+
+    w_t1 = draw.textlength(tarih_satir1, font=f_tarih_buyuk)
+    w_t2 = draw.textlength(tarih_satir2, font=f_tarih_kucuk)
+    sag_kenar = 1035
+
+    draw.text((sag_kenar - w_t1, 108), tarih_satir1, font=f_tarih_buyuk, fill=RENK_BASLIK_KOYU)
+    draw.text((sag_kenar - w_t2, 138), tarih_satir2, font=f_tarih_kucuk, fill=RENK_GRI_METIN)
+
+    # 3. 3 Sütunlu Piyasa Tablosu (1540px Boyunda)
+    col_w = 318
+    col_gap = 18
+    start_x = 45
+    start_y = 205
+    col_h = 1535
+    ribbon_h = 48
+
+    sutun_anahtarlari = ["bist", "global", "kripto"]
+
+    for col_idx, s_key in enumerate(sutun_anahtarlari):
+        col_x = start_x + col_idx * (col_w + col_gap)
+        s_data = SUTUNLAR[s_key]
+
+        draw.rounded_rectangle(
+            [(col_x, start_y), (col_x + col_w, start_y + col_h)],
+            radius=15,
+            fill=RENK_KART_CONTAINER,
+            outline=RENK_KART_BORDER,
+            width=2,
+        )
+
+        draw.rounded_rectangle(
+            [(col_x, start_y), (col_x + col_w, start_y + ribbon_h)],
+            radius=12,
+            fill=(18, 62, 74),
+        )
+        draw.text((col_x + 18, start_y + 12), s_data["baslik"], font=f_sutun_baslik, fill=(246, 243, 236))
+
+        ogeler = s_data["ogeler"]
+        row_start_y = start_y + ribbon_h + 8
+        row_avail_h = col_h - ribbon_h - 16
+        row_h = row_avail_h / len(ogeler)
+
+        for row_idx, oge in enumerate(ogeler):
+            cur_y = row_start_y + row_idx * row_h
+            bg_color = RENK_SATIR_EVEN if row_idx % 2 == 0 else RENK_SATIR_ODD
+
+            sym = oge["sym"]
+            canli = canli_fiyatlar.get(sym)
+            degisim = canli["chg"] if canli else oge["varsayilan"]
+            fiyat = canli["price"] if canli else 0.0
+
+            draw.rounded_rectangle(
+                [(col_x + 6, cur_y + 3), (col_x + col_w - 6, cur_y + row_h - 3)],
+                radius=10,
+                fill=bg_color,
+            )
+
+            # Sol Varlık İsmi
+            sembol_txt = oge["etiket"]
+            f_font_sym = f_sym_uzun if len(sembol_txt) >= 9 else f_sym_normal
+            draw.text((col_x + 16, cur_y + int(row_h * 0.33)), sembol_txt, font=f_font_sym, fill=RENK_BEYAZ)
+
+            # Sağ Üst Fiyat
+            fiyat_txt = _temiz_fiyat_yazisi(sym, fiyat)
+            pw = draw.textlength(fiyat_txt, font=f_price)
+            draw.text((col_x + col_w - pw - 16, cur_y + int(row_h * 0.16)), fiyat_txt, font=f_price, fill=RENK_FIYAT_ACIK)
+
+            # Sağ Alt Değişim Rozeti
+            chg_str = f"{'▲ %' if degisim >= 0 else '▼ %'}{abs(degisim):.2f}".replace(".", ",")
+            c_bg, c_bd = _renk_hesapla_canli(degisim)
+
+            bw = draw.textlength(chg_str, font=f_badge) + 18
+            bx = col_x + col_w - bw - 16
+            by = cur_y + int(row_h * 0.54)
+            bh = int(row_h * 0.35)
+
+            draw.rounded_rectangle([(bx, by), (bx + bw, by + bh)], radius=6, fill=c_bg, outline=c_bd, width=1)
+            draw.text((bx + 9, by + int(bh * 0.18)), chg_str, font=f_badge, fill=RENK_BEYAZ)
+
+    # 4. Footer
+    draw.line([(45, 1765), (1035, 1765)], fill=(24, 75, 85), width=1)
+    skala_y = 1785
+    not_txt1 = "DailyBrief · 30 Enstrümanlı Canlı Piyasa Karnesi"
+    not_txt2 = "Yatırım tavsiyesi değildir · Kaynak: Matriks, TradingView"
+
+    draw.text((45, skala_y), not_txt1, font=_font(16, 700.0), fill=RENK_BEYAZ)
+    w_t2 = draw.textlength(not_txt2, font=_font(15, 500.0))
+    draw.text((sag_kenar - w_t2, skala_y), not_txt2, font=_font(15, 500.0), fill=RENK_GRI_METIN)
+
+    cikti_yolu = CIKTI_KLASORU / f"story_piyasa_tablosu_{simdi.strftime('%Y%m%d')}.jpg"
+    img.save(cikti_yolu, "JPEG", quality=95)
+    log.info("Native 1080x1920 9:16 Story Piyasa Tablosu üretildi: %s", cikti_yolu)
+    return cikti_yolu
