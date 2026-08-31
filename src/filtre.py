@@ -106,8 +106,8 @@ def markdown_temizle(metin: str) -> str:
     metin = re.sub(r"\*\*(.*?)\*\*", r"\1", metin)
     # __kalın__ -> kalın
     metin = re.sub(r"__(.*?)__", r"\1", metin)
-    # Markdown başlık işaretleri ### -> ''
-    metin = re.sub(r"^#{1,6}\s*", "", metin, flags=re.MULTILINE)
+    # Markdown başlık işaretleri (örn: '### Başlık' -> 'Başlık', hashtag'leri bozmaz)
+    metin = re.sub(r"^#{1,6}\s+", "", metin, flags=re.MULTILINE)
     # `kod` -> kod
     metin = re.sub(r"`(.*?)`", r"\1", metin)
     # Kalan tekil çift yıldızları temizle

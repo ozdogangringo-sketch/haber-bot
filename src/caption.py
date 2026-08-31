@@ -136,9 +136,6 @@ def son_dakika_caption(
 
     parcalar.append(f"📌 {baslik}")
 
-    if vurgu_sayi and vurgu_etiket:
-        parcalar.append(f"📊 ÖNE ÇIKAN VERİ: {vurgu_sayi} ({vurgu_etiket})")
-
     if govde:
         parcalar.append(govde)
 
@@ -498,9 +495,6 @@ def twitter_metni_kur(haber: dict, ayarlar: dict | None = None) -> str:
     vurgu_etiket = h_dict.get("vurgu_etiket")
 
     metin_parcalari = [f"{simge} {baslik}"]
-
-    if vurgu_sayi and vurgu_etiket:
-        metin_parcalari.append(f"📊 {vurgu_sayi} ({vurgu_etiket})")
 
     if ozet and len(ozet) > 10:
         # Özetin ilk 1-2 cümlesi
