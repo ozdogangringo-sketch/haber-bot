@@ -666,8 +666,8 @@ def onay_iste(caption: str, slayt_adedi: int, uyari: str = "",
 
     temiz_caption = html_lib.escape(caption.strip())
     parcalar.append(
-        "📝 <b>Instagram Açıklaması (Kopyalamak için Dokun):</b>\n"
-        f"<code>{temiz_caption}</code>"
+        "📝 <b>Açıklama Metni (Kopyalamak için dokunun):</b>\n"
+        f"<pre>{temiz_caption}</pre>"
     )
 
     metin = "\n\n".join(parcalar)
@@ -707,7 +707,7 @@ def haftalik_bulten_onay_iste(
         "📊 <b>HAFTANIN BİLANÇOSU & KAPANIŞ BÜLTENİ HAZIR!</b>\n\n"
         f"📅 <b>Tarih:</b> {piyasa_verileri.get('tarih', '')}\n"
         f"🗞️ <b>Haftalık Manşet Sayısı:</b> {len(onemli_haberler)} seçme haber\n\n"
-        f"📝 <b>Açıklama Metni:</b>\n<code>{caption_metin}</code>"
+        f"📝 <b>Açıklama Metni (Kopyalamak için dokunun):</b>\n<pre>{caption_metin}</pre>"
     )
 
     mesaj = _istek(
@@ -747,7 +747,8 @@ def mesaji_guncelle(message_id: int, metin: str, menu: dict) -> None:
 
 def sonucu_yaz(message_id: int, metin: str, bildir: bool = False,
                butonlar: dict | None = None,
-               ek_dugmeler: list | None = None) -> None:
+               ek_dugmeler: list | None = None,
+               html: bool = False) -> None:
     """
     Onay mesajını sonuçla günceller ve butonları kaldırır.
 
@@ -772,10 +773,12 @@ def sonucu_yaz(message_id: int, metin: str, bildir: bool = False,
 
     Düzenleme yine de yapılıyor — butonları kaldırmanın başka yolu yok.
     """
+    ek = {"parse_mode": "HTML"} if html else {}
     _istek("editMessageText", chat_id=_sohbet_id(), message_id=message_id,
            text=metin[:4096],
            reply_markup=butonlar or {"inline_keyboard": []},
-           disable_web_page_preview=True)
+           disable_web_page_preview=True,
+           **ek)
 
     if bildir:
         # Bildirim gönderilemese bile yayın başarılı; sonucu düşürmeyelim.
@@ -788,7 +791,7 @@ def sonucu_yaz(message_id: int, metin: str, bildir: bool = False,
                         "callback_data": f"kaldir:{message_id}"}]]
             if ek_dugmeler:
                 tuslar = list(ek_dugmeler) + tuslar
-            mesaj_gonder(metin, butonlar=tuslar)
+            mesaj_gonder(metin, butonlar=tuslar, html=html)
         except Exception as e:
             log.warning("sonuç bildirimi gönderilemedi: %s", e)
 

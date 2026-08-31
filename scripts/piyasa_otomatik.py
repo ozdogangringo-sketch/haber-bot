@@ -193,13 +193,16 @@ def main() -> int:
             sonuclar.append(f"⚠️ X hatası: {type(e).__name__}")
 
     # 8. Telegram Grubuna Canlı Bilgi Mesajı İlet
+    import html as html_lib
     baslik_etiket = "AÇILIŞ" if mod == "acilis" else "KAPANIŞ"
     rapor_metni = "\n".join(f"• {s}" for s in sonuclar)
+    temiz_caption = html_lib.escape(ig_caption.strip())
     
     telegram_bot.mesaj_gonder(
         f"📊 <b>GÜNLÜK PİYASA {baslik_etiket} BÜLTENİ OTOMATİK YAYINLANDI</b>\n\n"
         f"{rapor_metni}\n\n"
-        f"🔔 <i>Bu bülten borsa saatlerinde doğrudan yayınlanır, video kanalları (Reels/Shorts/TikTok) hariç tutulur.</i>",
+        f"📝 <b>Açıklama Metni (Kopyalamak için dokunun):</b>\n"
+        f"<pre>{temiz_caption}</pre>",
         html=True,
         butonlar=canli_link_dugmeleri if canli_link_dugmeleri else None
     )
