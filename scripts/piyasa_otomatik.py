@@ -20,7 +20,7 @@ import argparse
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from PIL import Image
 
@@ -64,16 +64,46 @@ def main() -> int:
         con.close()
         return 0
 
-    # 2. Mod belirle
-    tr_saat = (datetime.now(timezone.utc).hour + 3) % 24
+    # 2. Mod ve Saat Penceresi Denetimi
+    tr_simdi = datetime.now(timezone.utc) + timedelta(hours=3)
+    hafta_ici = tr_simdi.weekday() < 5
+    tr_saat = tr_simdi.hour
+    tr_dakika = tr_simdi.minute
+    bugun_str = tr_simdi.date().isoformat()
+
     if args.mod == "oto":
-        mod = "kapanis" if tr_saat >= 14 else "acilis"
+        if not hafta_ici:
+            log.info("Hafta sonu — Piyasa Bülteni yayınlanmaz.")
+            con.close()
+            return 0
+        if 9 <= tr_saat <= 12:
+            mod = "acilis"
+        elif 17 <= tr_saat <= 20:
+            mod = "kapanis"
+        else:
+            log.info(
+                "Piyasa bülteni saat penceresi dışında (%02d:%02d TR) — atlanıyor.",
+                tr_saat, tr_dakika
+            )
+            con.close()
+            return 0
     else:
         mod = args.mod
 
+    # 3. Mükerrer Bülten Kilidi (Günde 1 kez açılış, 1 kez kapanış)
+    anahtar_bulten = f"piyasa_bulteni_{mod}_{bugun_str}"
+    zaten_var = con.execute(
+        "SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_bulten,)
+    ).fetchone()
+    if zaten_var and not args.kuru:
+        log.info("Bugün %s bülteni zaten yayınlanmış (%s), mükerrer yayın engellendi.",
+                 mod.upper(), bugun_str)
+        con.close()
+        return 0
+
     log.info("--- PİYASA BÜLTENİ OTOMATİK YAYIN (%s) BAŞLATILDI ---", mod.upper())
 
-    # 3. Canlı piyasa verilerini çek
+    # 4. Canlı piyasa verilerini çek
     piyasa_verileri = piyasa.piyasa_verileri_getir()
 
     # 4. 1. ve 2. Slaytları üret (1080x1350)
@@ -204,9 +234,18 @@ def main() -> int:
         f"📝 <b>Açıklama Metni (Kopyalamak için dokunun):</b>\n"
         f"<pre>{temiz_caption}</pre>",
         html=True,
-        butonlar=canli_link_dugmeleri if canli_link_dugmeleri else None
+        butonlar=canli_link_dugmeleri if canli_link_dugmeleri else None,
     )
 
+    if not args.kuru:
+        con.execute(
+            "INSERT INTO ayarlar (anahtar, deger) VALUES (?, ?) "
+            "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+            (anahtar_bulten, datetime.now(timezone.utc).isoformat()),
+        )
+        con.commit()
+
+    con.close()
     log.info("Piyasa bülteni otomatik yayını tamamlandı.")
     return 0
 
