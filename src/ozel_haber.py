@@ -79,41 +79,15 @@ def _post_olustur_ve_onaya_sun(
     if not sonuclar:
         raise RuntimeError("Slayt görselleri üretilemedi.")
 
-    # 2. Slaytları ImgBB'ye yükle
-    urller = []
-    katman_raporu = []
-    story_url = None
-    story_detay_url = None
+    # 2. %100 SAF NATIVE 9:16 Slaytları ImgBB'ye yükle
+    yuklemeler = upload_image.hepsini_yukle([s["yol"] for s in sonuclar], ayarlar)
+    urller = [y["url"] for y in yuklemeler]
+    story_url = urller[0] if urller else None
+    story_detay_urller = urller[1:] if len(urller) > 1 else []
 
-    for s in sonuclar:
-        if s.get("katman") == "story":
-            if s.get("yol"):
-                try:
-                    yukleme = upload_image.gorsel_yukle(s["yol"], ayarlar)
-                    story_url = yukleme["url"]
-                except Exception as e:
-                    log.warning("story yüklenemedi: %s", e)
-            continue
-
-        yukleme = upload_image.gorsel_yukle(s["yol"], ayarlar)
-        urller.append(yukleme["url"])
-
-        # Detay slaytı varsa 9:16 Story formatı üret
-        if s.get("katman") == "detay":
-            try:
-                from src import video
-                from PIL import Image
-                detay_img = Image.open(s["yol"])
-                detay_9_16 = video._cercevele_9_16(detay_img, baslik_rozet="HABERİN AYRINTILARI")
-                detay_9_16_yol = make_image.CIKTI_KLASORU / f"story-{haber_id}-detay.jpg"
-                detay_9_16.save(detay_9_16_yol, "JPEG", quality=92, optimize=True)
-                story_detay_yukleme = upload_image.gorsel_yukle(detay_9_16_yol, ayarlar)
-                story_detay_url = story_detay_yukleme["url"]
-            except Exception as e:
-                log.warning("detay story yüklenemedi: %s", e)
-        else:
-            simge = telegram_bot.KATMAN_SIMGE.get(s.get("katman", "gradyan"), "▫️")
-            katman_raporu.append(f"{simge} Görsel: {s.get('katman', 'gradyan')}")
+    katman = sonuclar[0].get("katman", "gradyan")
+    simge = telegram_bot.KATMAN_SIMGE.get(katman, "▫️")
+    katman_raporu = [f"{simge} Görsel: {katman}"]
 
     if not urller:
         raise RuntimeError("Görseller ImgBB'ye yüklenemedi.")
@@ -121,14 +95,17 @@ def _post_olustur_ve_onaya_sun(
     # 3. Caption hazırla
     metin = caption.son_dakika_caption(taze, sonuclar, ayarlar)
 
-    # 4. Telegram'a albüm ve onay mesajı gönder (9:16 Story formatında, Haber + Ayrıntı)
-    telegram_urller = [story_url] if story_url else [urller[0]]
-    if story_detay_url:
-        telegram_urller.append(story_detay_url)
-    elif len(urller) > 1:
-        telegram_urller.append(urller[1])
+    # 4. Telegram'a %100 Native 9:16 albüm ve onay mesajı gönder
+    telegram_urller = urller
+    etiketler = []
+    for idx in range(len(telegram_urller)):
+        if idx == 0:
+            etiketler.append("Haber")
+        elif len(telegram_urller) == 2:
+            etiketler.append("Ayrıntı")
+        else:
+            etiketler.append(f"Ayrıntı {idx}/{len(telegram_urller)-1}")
 
-    etiketler = ["Haber", "Ayrıntı"][:len(telegram_urller)]
     telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
     mesaj_id = telegram_bot.onay_iste(
         metin,

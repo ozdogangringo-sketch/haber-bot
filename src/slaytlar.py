@@ -488,41 +488,15 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
                 "yon": _alan(haber, "veri_karti_yon") or "artis",
             }
 
-    gorsel1 = make_image.yaziyi_bas(
-        ham_arkaplan.copy(),
-        _slayt_metni(haber, "ig_baslik", ayarlar),
-        make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
-        ayarlar,
-        ozet=_slayt_metni(haber, "slayt_ozet", ayarlar) or None,
-        arsiv_ibaresi=katman in ARSIV_KATMANLARI,
-        ulke_kodu=_alan(haber, "ulke_kodu") or None,
-        ulke_adi=_alan(haber, "ulke_adi") or None,
-        # Şerit rengi kategoriden geliyor: spor yeşil, ekonomi bronz…
-        kategori=haber["kategori"] or "",
-        veri_karti=veri_karti,
-    )
-    yol1 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}.jpg"
-    gorsel1.save(yol1, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
-
-    # --- Slayt 2: detay ---
-    # ig_caption zaten haberin 2-3 cümlelik özü; ayrı bir alan üretmek
-    # yerine onu kullanıyoruz (ek Gemini çağrısı = ek kota).
-    # Uzun anlatım varsa onu kullan; yoksa caption'a düş.
+    # ig_caption ve detay metinleri
     detay = (_alan(haber, "detay_metni")
              or _alan(haber, "ig_caption")
              or _alan(haber, "slayt_ozet")
              or _alan(haber, "ozet_orj"))
 
-    # Kırmızı "SON DAKİKA" ibaresi yalnızca olağanüstü olaylarda.
     etiket_esigi = ayarlar["genel"].get("son_dakika_etiket_esigi", 9)
     son_dakika_mi = (haber["onem_puani"] or 0) >= etiket_esigi
 
-    # Vurgu rakamı — varsa iri puntoyla basılıyor.
-    #
-    # TEKRAR ENGELİ: rakam başlıkta zaten geçiyorsa vurgu bloğu aynı
-    # bilgiyi ikinci kez veriyor ve sayfayı boş yere işgal ediyor.
-    # Gerçek örnek: başlık "…32 kişi tutuklandı" + altında
-    # "32 / TUTUKLANAN ŞÜPHELİ SAYISI".
     vurgu = None
     ham_vurgu = _alan(haber, "vurgu_sayi")
     if ham_vurgu:
@@ -532,9 +506,6 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         else:
             vurgu = (ham_vurgu, _alan(haber, "vurgu_etiket"))
 
-    # ALINTI KAYNAKTA DOĞRULANMADAN KULLANILMIYOR.
-    # Birinin ağzına söylemediği sözü koymak, yanlış sayı yazmaktan çok
-    # daha ağır bir hata. Doğrulanamayan alıntı sessizce atılıyor.
     alinti = None
     ham_alinti = _alan(haber, "alinti")
     if ham_alinti:
@@ -542,10 +513,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         if dogrula.alintiyi_denetle(ham_alinti, kaynak):
             alinti = (ham_alinti, _alan(haber, "alinti_sahibi"))
         else:
-            log.warning("alıntı kaynakta doğrulanamadı, atlandı #%s",
-                        haber["id"])
+            log.warning("alıntı kaynakta doğrulanamadı, atlandı #%s", haber["id"])
 
-    # Finans & Borsa: Varsa 30 günlük trend grafiği kartı üret
     trend_karti = None
     try:
         from src import sparkline
@@ -553,8 +522,6 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     except Exception as e:
         log.warning("trend kartı üretilemedi: %s", e)
 
-    # Metin uzunsa birden fazla sayfaya yayılıyor — punto küçültmek
-    # yerine sayfa ekliyoruz, yoksa uzun anlatım okunmaz hâle geliyor.
     sayfalar = make_image.detay_sayfalara_bol(
         detay, ayarlar,
         vurgu=vurgu,
@@ -564,95 +531,62 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         trend_karti=trend_karti,
         sana_etkisi=_alan(haber, "sana_etkisi"),
     )
-    detay_yollari = []
+
+    # --- %100 SAF NATIVE 9:16 (1080x1920) ÜRETİM (4:5 tamamen kaldırıldı) ---
+    # Slayt 1: 1080x1920 Native Kapak Slaytı
+    gorsel_kapak = make_image.story_haber(
+        _slayt_metni(haber, "ig_baslik", ayarlar),
+        _slayt_metni(haber, "slayt_ozet", ayarlar),
+        make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
+        ayarlar,
+        arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
+        kategori=haber["kategori"] or "turkiye",
+        son_dakika=son_dakika_mi,
+        ulke_kodu=_alan(haber, "ulke_kodu") or None,
+        ulke_adi=_alan(haber, "ulke_adi") or None,
+        veri_karti=veri_karti,
+        arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
+    )
+    yol_kapak = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+    gorsel_kapak.save(yol_kapak, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
+
+    # Slayt 2 & 3: 1080x1920 Native Detay & Analiz Slaytları
+    story_detay_yollari = []
     for i, satirlar in enumerate(sayfalar, start=1):
-        gorsel2 = make_image.detay_slayti(
+        story_d = make_image.story_detay(
             _slayt_metni(haber, "ig_baslik", ayarlar),
             detay,
             make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
             ayarlar,
-            kategori=haber["kategori"],
+            arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
+            kategori=haber["kategori"] or "turkiye",
             son_dakika=son_dakika_mi and i == 1,
             ulke_kodu=_alan(haber, "ulke_kodu") or None,
             ulke_adi=_alan(haber, "ulke_adi") or None,
             satirlar=satirlar,
             sayfa=i,
             toplam_sayfa=len(sayfalar),
-            arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
             arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
         )
         ek = "" if len(sayfalar) == 1 else f"-{i}"
-        yol2 = make_image.CIKTI_KLASORU / f"slayt-{haber['id']}-detay{ek}.jpg"
-        gorsel2.save(yol2, "JPEG", quality=g["jpeg_kalite"], subsampling=0, optimize=True)
-        detay_yollari.append(yol2)
+        s_detay_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay{ek}.jpg"
+        story_d.save(s_detay_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
+        story_detay_yollari.append(s_detay_yol)
 
-    # --- Story (9:16): HAM arka planla, slaytla değil ---
-    yol3 = None
-    try:
-        story = make_image.story_haber(
-            _slayt_metni(haber, "ig_baslik", ayarlar),
-            _slayt_metni(haber, "slayt_ozet", ayarlar),
-            make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
-            ayarlar,
-            arkaplan=(ham_arkaplan.copy()
-                      if katman in FOTOGRAFLI_KATMANLAR else None),
-            kategori=haber["kategori"],
-            son_dakika=son_dakika_mi,
-            ulke_kodu=_alan(haber, "ulke_kodu") or None,
-            ulke_adi=_alan(haber, "ulke_adi") or None,
-        )
-        yol3 = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
-        story.save(yol3, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
-    except Exception as e:
-        # Story ikincil; patlarsa post yine çıkmalı.
-        log.warning("story görseli üretilemedi: %s", e)
-
-    # --- Detay Story'leri (9:16) ---
-    story_detay_yollari = []
-    for i, satirlar in enumerate(sayfalar, start=1):
-        try:
-            story_d = make_image.story_detay(
-                _slayt_metni(haber, "ig_baslik", ayarlar),
-                detay,
-                make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
-                ayarlar,
-                arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
-                kategori=haber["kategori"],
-                son_dakika=son_dakika_mi,
-                ulke_kodu=_alan(haber, "ulke_kodu") or None,
-                ulke_adi=_alan(haber, "ulke_adi") or None,
-                satirlar=satirlar,
-                arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
-            )
-            ek = "" if len(sayfalar) == 1 else f"-{i}"
-            s_detay_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay{ek}.jpg"
-            story_d.save(s_detay_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
-            story_detay_yollari.append(s_detay_yol)
-        except Exception as e:
-            log.warning("detay story görseli üretilemedi (%d): %s", i, e)
-
-    log.info("son dakika slaytları üretildi #%s [%s + %d detay + %d story]",
-             haber["id"], katman, len(detay_yollari), len(story_detay_yollari) + (1 if yol3 else 0))
+    log.info("son dakika %100 native 9:16 slaytları üretildi #%s [%s + %d detay]",
+             haber["id"], katman, len(story_detay_yollari))
 
     if con is not None:
         con.execute(
             "UPDATE haberler SET gorsel_yolu = ?, gorsel_kaynagi = ?, "
             "gorsel_atif = ? WHERE id = ?",
-            (str(yol1), katman, atif, haber["id"]),
+            (str(yol_kapak), katman, atif, haber["id"]),
         )
         con.commit()
 
-    sonuc = [{"id": haber["id"], "yol": yol1, "katman": katman, "atif": atif}]
+    sonuc = [{"id": haber["id"], "yol": yol_kapak, "katman": katman, "atif": atif}]
     sonuc += [{"id": haber["id"], "yol": y, "katman": "detay", "atif": ""}
-              for y in detay_yollari]
-    if yol3:
-        sonuc.append(
-            {"id": haber["id"], "yol": yol3, "katman": "story", "atif": ""}
-        )
-    for sdy in story_detay_yollari:
-        sonuc.append(
-            {"id": haber["id"], "yol": sdy, "katman": "story_detay", "atif": ""}
-        )
+              for y in story_detay_yollari]
     return sonuc
 
 

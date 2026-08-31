@@ -117,18 +117,9 @@ def urlleri_dogrula_ve_onar(con, ayarlar: dict, haberler: list[dict | sqlite3.Ro
         try:
             from src import slaytlar
             sonuclar = slaytlar.son_dakika_uret(ilk_h, ayarlar, con)
-            carousel = [s for s in sonuclar if not s["katman"].startswith("story")]
-            story_slayt = next((s for s in sonuclar if s["katman"] == "story"), None)
-
-            yuklemeler = upload_image.hepsini_yukle([s["yol"] for s in carousel], ayarlar)
+            yuklemeler = upload_image.hepsini_yukle([s["yol"] for s in sonuclar], ayarlar)
             taze_urller = [y["url"] for y in yuklemeler]
-
-            story_url = None
-            if story_slayt:
-                try:
-                    story_url = upload_image.gorsel_yukle(story_slayt["yol"], ayarlar)["url"]
-                except Exception:
-                    pass
+            story_url = taze_urller[0] if taze_urller else None
 
             con.execute(
                 "UPDATE haberler SET gorsel_url = ?, detay_url = ?, story_url = ? WHERE id = ?",

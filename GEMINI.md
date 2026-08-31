@@ -8,16 +8,18 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 
 - **Kullanıcı:** Doğukan. Türkçe konuşur, kararlı, yüksek kaliteli ve net çıktılar bekler.
 - **Teknik Yaklaşım:** SQL ve veritabanı mantığına hakimdir. Kodların doğrudan asistan tarafından profesyonelce yazılıp test edilmesini tercih eder.
-- **KATI VE DEĞİŞMEZ KURAL (ZERO BLUR BORDER & 100% NATIVE 9:16):**
-  * **ASLA VE ASLA** 4:5 gönderi kartları üstten/alttan blur arka plan veya yapay çerçeve eklenerek (`_cercevele_9_16`) 9:16 Story/Reels'e dönüştürülmeyecektir!
-  * Tüm dikey formatlar (Instagram Story, Facebook Story, Reels, YouTube Shorts, TikTok, Piyasa Kartı Story, BİST Tablosu Story) **doğrudan 1080x1920 piksel tuvalde %100 SAF NATIVE FULL-BLEED infografik ve slayt olarak sıfırdan çizilir**.
+- **KATI VE DEĞİŞMEZ KURAL (ZERO 4:5 & 100% NATIVE 1080x1920 9:16):**
+  * **4:5 (1080x1350) görsel üretimi TAMAMEN KALDIRILMIŞTIR!**
+  * Hiçbir slayt 4:5 çizilmez; tüm slaytlar (Tekil Haber 1. Kapak, 2. Detay, 3. Detay/Etki, Canlı Piyasa Bülteni 1. Isı Haritası, 2. BİST Tablosu, Özel Dosya Haberleri vb.) **doğrudan 1080x1920 piksel tuvalde %100 SAF NATIVE FULL-BLEED infografik ve slayt olarak sıfırdan çizilir**.
+  * Instagram, Facebook, Threads, X, YouTube Shorts ve TikTok paylaşımları doğrudan bu 1080x1920 native dikey slaytlar üzerinden yürütülür.
+  * **ASLA VE ASLA** yapay çerçeve veya blur kenarlık eklenmeyecektir.
 - **KATI TİPOGRAFİ VE ÇİĞ YILDIZ ENGELİ:**
   * Slayt görsellerinde kilit veriler, oranlar ve aktörler Pillow render motoru tarafından **800.0 Extra Bold** kalın ve parlak çizilir.
   * Sosyal medya açıklamalarında (`ig_caption`, Threads, Twitter) ise **SIFIR MARKDOWN (`**`) KURALI** geçerlidir; tüm açıklamalar temiz düz metindir.
 - **YAYIN MODELİ (SAATLİK TEKLİ HABERLER):**
   * Akşam çoklu haber turları kaldırılmıştır.
-  * Gün boyu 1'er saat aralıklarla Telegram'a **en taze 5 haber önerisi** düşer; seçilen haber varsayılan olarak **3 ferah sayfa (1 Kapak + 2 Detay/Analiz Slaytı)** olarak üretilir.
-  * Sabahları fiks **Canlı Borsa & Piyasa Bülteni** (4:5 Akış Carousel + 1080x1920 Native Story) otomatik paylaşılır.
+  * Gün boyu 1'er saat aralıklarla Telegram'a **en taze 5 haber önerisi** düşer; seçilen haber varsayılan olarak **3 ferah sayfa (1 Kapak + 2 Detay/Analiz Slaytı - 1080x1920)** olarak üretilir.
+  * Sabahları fiks **Canlı Borsa & Piyasa Bülteni** (%100 Native 1080x1920 Story ve Akış) otomatik paylaşılır.
 
 ---
 
@@ -33,7 +35,7 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 [Saatlik Öneri & Seçim] (son_dakika.py)
        │ (Her saat başı en iyi 5 taze haber önerisi)
        ▼
-[Tekil 3 Slayt Carousel + 1080x1920 Native Story Üretimi] (slaytlar.py / make_image.py)
+[Tekil 3 Slayt %100 Native 1080x1920 Üretimi] (slaytlar.py / make_image.py)
        │ (1 Kapak + 2 Detay Slaytı + 144px 3D Logo + Zümrüt Yeşili "Sana Etkisi")
        ▼
 [Telegram Onay Grubu] (telegram_bot.py ──> Daily Brief Grubu)
@@ -41,10 +43,10 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
        ▼
 [Cloudflare Worker ──> GitHub Actions] (onay_isle.py)
        │
-       ├─► Instagram Graph API (1080x1350 Carousel & 1080x1920 Native Story)
-       ├─► Facebook Graph API (Sayfa Albümü & 1080x1920 Story)
+       ├─► Instagram Graph API (1080x1920 Carousel & 1080x1920 Story)
+       ├─► Facebook Graph API (1080x1920 Albüm & 1080x1920 Story)
        ├─► Threads API (6 Halkalı Bilgi Zinciri)
-       ├─► X (Twitter) API v2 (4 Fotoğraflı Tweet)
+       ├─► X (Twitter) API v2 (1080x1920 Fotoğraflı Tweet)
        ├─► YouTube Data API v3 (9:16 Shorts Video)
        └─► TikTok Content Posting API (9:16 Dikey Video)
 ```
@@ -54,8 +56,7 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 ## 3. Yapılan Başlıca Geliştirmeler & Modüller
 
 ### A. %100 Saf Native 1080x1920 Canlı Piyasa Bülteni (`src/piyasa_kart.py` & `src/piyasa_tablo.py`)
-- **4:5 Carousel Akış:** 1080x1350 formatında 1. Slayt (Piyasa Isı Haritası) + 2. Slayt (30 Varlık BİST/Küresel/Kripto Tablosu).
-- **%100 Native 9:16 Story:** `piyasa_karti_uret_9_16()` ve `piyasa_tablosu_uret_9_16()` ile hiçbir blur/çerçeve olmadan doğrudan 1920px dikey ekranda tam ekran infografik olarak çizilir.
+- **%100 Native 9:16 (1080x1920):** `piyasa_karti_uret_9_16()` ve `piyasa_tablosu_uret_9_16()` ile 1. Slayt (Piyasa Isı Haritası) + 2. Slayt (30 Varlık BİST/Küresel/Kripto Tablosu) hiçbir blur/çerçeve olmadan doğrudan 1920px dikey ekranda tam ekran infografik olarak çizilir.
 - **Tasarım:** *Derin Okyanus Petrolü* zemin (`#04181C`), *Siber Turkuaz* parıltılı rozet (`#06B6D4`), canlı Gram Altın/Gümüş TL çevrimi ve 30 günlük Yahoo Finance sparkline trend çizgileri.
 
 ### B. Tek Merkezli Komut Sözlüğü (`src/komutlar.py`) & Modüler Handler Katmanı (`src/handlers/`)

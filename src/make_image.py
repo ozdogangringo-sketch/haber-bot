@@ -1337,9 +1337,11 @@ def story_haber(
     ulke_kodu: str | None = None,
     ulke_adi: str | None = None,
     son_slayt: bool = False,
+    veri_karti: dict | None = None,
+    arsiv_ibaresi: bool = False,
 ) -> Image.Image:
     """
-    Tek haberin story hâli — son dakika ve albümler için.
+    Tek haberin %100 Native 9:16 (1080x1920) Kapak Slaytı.
     """
     story_ayarlar = {
         **ayarlar,
@@ -1361,10 +1363,12 @@ def story_haber(
     gorsel = yaziyi_bas(
         arkaplan, baslik, kaynak, story_ayarlar,
         ozet=ozet or None,
-        arsiv_ibaresi=False,
+        arsiv_ibaresi=arsiv_ibaresi,
         ulke_kodu=ulke_kodu,
         ulke_adi=ulke_adi,
         son_slayt=son_slayt,
+        kategori=kategori,
+        veri_karti=veri_karti,
     )
 
     if son_dakika:

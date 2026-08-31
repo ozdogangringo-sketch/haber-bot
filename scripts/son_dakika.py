@@ -961,32 +961,13 @@ def main(zorla_haber_id: int | None = None) -> int:
         taze = con.execute("SELECT * FROM haberler WHERE id = ?",
                            (aday["id"],)).fetchone()
 
-        # Story slaytları (9:16) akış carousel'ine (4:5) ASLA girmez, ayrı yüklenir.
-        carousel = [s for s in sonuclar if not s["katman"].startswith("story")]
-        story_slayt = next((s for s in sonuclar if s["katman"] == "story"), None)
-
+        # %100 SAF NATIVE 9:16 (1080x1920) slaytların tümünü yükle (Kapak + Detay 1 + Detay 2)
         yuklemeler = upload_image.hepsini_yukle(
-            [s["yol"] for s in carousel], ayarlar
+            [s["yol"] for s in sonuclar], ayarlar
         )
         urller = [y["url"] for y in yuklemeler]
-
-        story_url = None
-        story_detay_urller = []
-        if story_slayt:
-            try:
-                story_url = upload_image.gorsel_yukle(
-                    story_slayt["yol"], ayarlar
-                )["url"]
-            except Exception as e:
-                log.warning("story yüklenemedi: %s", e)
-
-        story_detay_slaytlar = [s for s in sonuclar if s["katman"] == "story_detay"]
-        for sds in story_detay_slaytlar:
-            try:
-                sdu = upload_image.gorsel_yukle(sds["yol"], ayarlar)["url"]
-                story_detay_urller.append(sdu)
-            except Exception as e:
-                log.warning("detay story yüklenemedi (%s): %s", sds["yol"], e)
+        story_url = urller[0] if urller else None
+        story_detay_urller = urller[1:] if len(urller) > 1 else []
 
         metin = caption.son_dakika_caption(taze, sonuclar, ayarlar)
         uyari, isaretli = dogrula.turu_dogrula([taze])
