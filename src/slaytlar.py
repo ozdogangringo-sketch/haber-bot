@@ -31,7 +31,7 @@ from pathlib import Path
 import requests
 from PIL import Image
 
-from . import filtre, dogrula, fetch_article, fetch_photo, fetch_stock, fetch_web_image, make_image
+from . import filtre, dogrula, fetch_article, fetch_photo, fetch_stock, fetch_web_image, gorsel_kalite, make_image
 
 log = logging.getLogger(__name__)
 
@@ -43,14 +43,16 @@ def _kalite(g: dict, katman: str) -> int:
     """
     JPEG kalitesi katmana göre seçiliyor.
 
-    ⚠️ Fotoğraf arka planlı slaytlarda yüksek kalite gözle görülür fark
-    yaratıyor; düz zeminli sayfalarda (detay slaytları) yaratmıyor —
-    orada yalnızca dosyayı şişiriyor. Instagram sınırı 8 MB, bizim
-    slaytlar ~200 KB, yani fotoğraflı tarafta bol alan var.
+    Fotoğraflı arka planlarda 88 JPEG kalitesi yetersiz; yapay
+    artefaktlar ve banding (renk basamaklanması) yaratıyor. Bu yüzden
+    fotoğraflı olanlara 95 veriyoruz (ölçüldü: dosya boyutu ~240 KB -> ~360 KB,
+    ama görsel farkı çok belirgin).
+
+    Fotoğrafsız (gradyan/soyut) arka planlarda 88 yeterli.
     """
     if katman in FOTOGRAFLI_KATMANLAR:
-        return g.get("jpeg_kalite_foto", g["jpeg_kalite"])
-    return g["jpeg_kalite"]
+        return g.get("jpeg_kalite_foto", 95)
+    return g.get("jpeg_kalite", 88)
 
 # Bunlardan hangilerinde "ARŞİV GÖRSELİ" ibaresi basılsın?
 # `haber` katmanı HARİÇ: o görsel olayın kendi fotoğrafı, arşiv değil.
@@ -73,11 +75,8 @@ def _alan(haber, ad: str) -> str:
 def _gorseli_indir(url: str, g: dict):
     """
     Haber görselini indirir; CDN thumbnail'lerini otomatik 4K/2K ham basın görseline çözer.
-    Eşiğin altındaki kalitesiz/küçük görseller elenir ve akış bir sonraki katmana (Pexels/Commons) aktarılır.
+    Eşiğin altındaki kalitesiz/küçük/bulanık görseller elenir ve akış sonraki katmana aktarılır.
     """
-    asgari_g = g.get("haber_gorseli_asgari_genislik", 1400)
-    asgari_y = g.get("haber_gorseli_asgari_yukseklik", 900)
-    
     adaylar = fetch_article.hd_gorsel_url_coz(url)
     
     en_iyi_foto = None
@@ -95,12 +94,17 @@ def _gorseli_indir(url: str, g: dict):
             ham_boyut_kb = len(cevap.content) / 1024
             foto = Image.open(io.BytesIO(cevap.content))
             foto.load()
+
+            # gorsel_kalite denetimi: piksel yoğunluğu, dikey kırpma ölçeği ve netlik
+            kaliteli, sebep = gorsel_kalite.gorsel_kalite_denetle(foto, dosya_boyutu_kb=ham_boyut_kb)
+            if not kaliteli:
+                log.info("Haber görseli adayı elendi (%s): %s", u, sebep)
+                continue
+
             alan = foto.width * foto.height
-            # Yüksek çözünürlük ve netlik filtresi (dikey kırpmada piksellenmeyen 1400x900 ve >= 90 KB)
-            if foto.width >= asgari_g and foto.height >= asgari_y and ham_boyut_kb >= 90:
-                if alan > en_buyuk_alan:
-                    en_iyi_foto = foto.convert("RGB")
-                    en_buyuk_alan = alan
+            if alan > en_buyuk_alan:
+                en_iyi_foto = gorsel_kalite.kristal_netlestir(foto.convert("RGB"))
+                en_buyuk_alan = alan
         except Exception as e:
             log.debug("görsel adayı indirilemedi %s: %s", u, e)
             continue
@@ -108,7 +112,7 @@ def _gorseli_indir(url: str, g: dict):
     if en_iyi_foto:
         return en_iyi_foto
         
-    log.info("haber görseli küçük veya yetersiz çözünürlükte (%s), 4K stok/portre katmanına geçiliyor", url)
+    log.info("haber görseli kalite kriterlerini karşılamadı (%s), 4K basın/stok katmanına geçiliyor", url)
     return None
 
 

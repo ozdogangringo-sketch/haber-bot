@@ -73,22 +73,20 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 - Slaytlardaki marka logosu 144x144 px boyutundadır. Arka planında çok katmanlı 14px Gaussian Blur gölge ile 3D kabartma derinliği bulunur.
 - Slaytların sağ alt köşesinde 6 platformun (`Instagram`, `Threads`, `Facebook`, `X`, `YouTube`, `TikTok`) resmi kurumsal vektör ikonları yer alır.
 
-### E. Native 9:16 Video Motoru (`src/video.py`)
-- YouTube Shorts ve TikTok videoları doğrudan **1080x1920 native Story slaytlarından** derlenir. `kaynak_listesi` üzerinden taze kullanıcı onaylı görsellerle video üretilir.
+### F. Kristal Netlik ve Piksel Yoğunluğu Motoru (`src/gorsel_kalite.py`)
+- **Dikey Kırpma Piksel Yoğunluğu Denetimi:** 16:9 yatay görsellerin 4:5 veya 9:16'ya kırpılırken piksellenmesi engellenir. Dikey kırpma ölçeği $< 0.88x$ olan veya büyütme (upscale) gerektiren fotoğraflar elenir.
+- **Laplacian Netlik Varyansı:** Yapay büyütülmüş, düşük bitrate'li TV ekran yakalamaları ve bulanık fotoğraflar elenir (Asgari netlik varyansı $\ge 90.0$).
+- **Kristal Keskinleştirme (`kristal_netlestir`):** Seçilen kaliteli fotoğraflar UnsharpMask ile pürüzsüz ve kristal netlikte editoryal stile kavuşturulur.
 
 ---
 
 ## 4. Görsel Seçim Standartları ve İyileştirme Yol Haritası
 
 ### 4 Katmanlı Akıllı Görsel Hiyerarşisi:
-1. **1. Katman — Akıllı Makale Basın & Ürün Görseli Çekici (`src/fetch_article.py`):** `og:image`, `twitter:image`, JSON-LD `NewsArticle` ve makale gövdesindeki orijinal lansman fotoğrafları taranır.
-2. **2. Katman — DuckDuckGo HD Basın Fotoğrafları Motoru (Geliştirme 1):** Sıcak olaylarda Pexels yerine doğrudan haber ajanslarının (AA, Reuters, AP, AFP) webde yayınlanan yüksek çözünürlüklü editoryal basın fotoğrafları çekilir.
-3. **3. Katman — Kategoriye Özel Gemini Görsel Prompt Motoru (Geliştirme 2):**
-   * *Sıcak Olay & Jeopolitik:* Olay yeri / üs / liman / donanma coğrafi araması.
-   * *Kişi & Lider:* Yüksek kontrastlı resmi basın portresi.
-   * *Borsa & Şirket:* Şirket genel merkezi, fabrika veya üretim tesisi.
-   * *Teknoloji & Ürün:* Temiz stüdyo lansman / press kit görseli.
-4. **4. Katman — Wikimedia Commons & Pexels HD Stok:** Kişi portreleri ve genel stok yedekleri.
+1. **1. Katman — Web HD / 4K Basın Fotoğrafları Motoru (`src/fetch_web_image.py`):** Doğrudan haber ajanslarının (AA, Reuters, AP, AFP) webde yayınlanan yüksek çözünürlüklü editoryal basın fotoğrafları çekilir.
+2. **2. Katman — Akıllı Makale Basın & Ürün Görseli Çekici (`src/fetch_article.py`):** `og:image`, `twitter:image`, JSON-LD `NewsArticle` ve makale gövdesindeki orijinal lansman fotoğrafları taranır ve `gorsel_kalite` denetiminden geçirilir.
+3. **3. Katman — Wikimedia Commons & Pexels HD Stok (`src/fetch_photo.py`, `src/fetch_stock.py`):** Kişi portreleri ($\ge 1200\text{px}$) ve 4K dikey temsili stoklar.
+4. **4. Katman — Kategoriye Özel Gemini Görsel Motoru (`src/make_image.py`):** Hiçbir katmandan yüksek çözünürlüklü kaliteli fotoğraf bulunamazsa Gemini AI ile özel görsel üretimi.
 
 ---
 
@@ -97,6 +95,8 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 | Dizin / Dosya | Görevi |
 |---|---|
 | `config.yaml` | Tüm bot ayarları, RSS kaynakları, ağırlıklar, eşikler ve sosyal medya anahtarları. |
+| `src/gorsel_kalite.py` | Çözünürlük, dikey kırpma piksel yoğunluğu, Laplacian netlik varyansı ve keskinleştirme motoru. |
+| `src/fetch_web_image.py` | DuckDuckGo üzerinden HD/4K editoryal basın ve olay fotoğrafları arama motoru. |
 | `src/komutlar.py` | Tek merkezli komut listesi, alias'lar, mesajsız serbest komutlar ve slash menü sözlüğü. |
 | `src/handlers/` | Modüler Telegram onay ve yayın işleme handler modülleri (`yayin`, `slayt`, `tur`). |
 | `src/piyasa.py` | Yahoo Finance canlı veri çekimi, BİST, döviz, emtia, kripto ve Gram TL hesabı. |

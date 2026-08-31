@@ -87,7 +87,8 @@ def _istek(url: str, parametreler: dict | None = None, deneme: int = 3):
 UYGUN_LISANSLAR = ("public domain", "cc0", "cc by", "cc-by", "pd-", "attribution")
 YASAK_PARCALAR = ("nc", "non-commercial", "noncommercial", "nd", "no derivative")
 
-ASGARI_GENISLIK = 500        # bundan küçük görsel 1080'e büyütülünce bozuluyor
+ASGARI_GENISLIK = 1200        # Dikey kırpmada piksellenmemesi için en az 1200 px
+ASGARI_YUKSEKLIK = 900
 
 # Dosya adında bunlar geçiyorsa haber görseli olmaz — ele.
 # ("Donald Trump" araması ilk denemede lise yıllığı fotoğrafı getirdi;
@@ -312,10 +313,10 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict |
 
         genislik = bilgi.get("width") or 0
         yukseklik = bilgi.get("height") or 0
-        if genislik < ASGARI_GENISLIK:
+        if genislik < ASGARI_GENISLIK or yukseklik < ASGARI_YUKSEKLIK:
             continue
 
-        url = bilgi.get("thumburl") or bilgi.get("url")
+        url = bilgi.get("url") or bilgi.get("thumburl")
         if not url:
             continue
 
@@ -340,22 +341,6 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict |
 
     adaylar.sort(key=lambda a: a["puan"], reverse=True)
 
-    # ⚠️ ADAYLAR TÜKENDİYSE BAŞA DÖNME — sonraki katmana geç.
-    #
-    # 21 Ağu 2026: kullanıcı "resmi değiştir" dedi ve hep aynı şeyi
-    # gördü. Ölçüldü — "Melissa Vargas" aramasının Commons'taki BÜTÜN
-    # adayları aynı maçtan geliyordu (Fenerbahçe forması, dosya
-    # 1-2-3-4). Milli takım haberinde kulüp forması tutarsız duruyor
-    # ve "başka dene" yalnızca aynı serinin sonraki karesini veriyordu.
-    #
-    # None dönünce `slaytlar.arkaplan_sec` Pexels katmanına düşüyor;
-    # kullanıcı gerçekten FARKLI bir görsel görüyor. Commons'ta bir
-    # kişinin fotoğrafları genelde tek bir etkinlikten olduğu için
-    # modulo ile dönmek çeşitlilik sağlamıyor.
-    #
-    # ⚠️ SINIR ADAY SAYISI DEĞİL, `AZAMI_AYNI_KISI`. Ölçüldü: Melissa
-    # Vargas'ın 6+ adayı vardı ve altısı da aynı maçtan; aday sayısını
-    # beklemek "başka dene"yi altı kez basmak demekti.
     if atlanacak >= min(len(adaylar), AZAMI_AYNI_KISI):
         log.info("Commons adayları tükendi (%s aday), sonraki katmana "
                  "geçiliyor: %s", len(adaylar), konu)
@@ -368,10 +353,17 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict |
 
 
 def fotografi_indir(kayit: dict) -> Image.Image | None:
-    """Bulunan fotoğrafı indirip Pillow görüntüsü olarak döner."""
+    """Bulunan fotoğrafı indirip kalite denetiminden geçirerek döner."""
     try:
+        from . import gorsel_kalite
         cevap = _istek(kayit["url"])
-        return Image.open(io.BytesIO(cevap.content)).convert("RGB")
+        ham_boyut_kb = len(cevap.content) / 1024.0
+        foto = Image.open(io.BytesIO(cevap.content)).convert("RGB")
+        kaliteli, sebep = gorsel_kalite.gorsel_kalite_denetle(foto, dosya_boyutu_kb=ham_boyut_kb)
+        if not kaliteli:
+            log.info("Commons görsel adayı kalite filtresine takıldı (%s): %s", kayit.get("baslik"), sebep)
+            return None
+        return gorsel_kalite.kristal_netlestir(foto)
     except Exception as e:
         log.warning("fotoğraf indirilemedi (%s): %s", kayit.get("baslik"), e)
         return None

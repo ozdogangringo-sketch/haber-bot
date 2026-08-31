@@ -165,11 +165,18 @@ def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
 
 
 def fotografi_indir(kayit: dict) -> Image.Image | None:
-    """Bulunan fotoğrafı indirip Pillow görüntüsü olarak döner."""
+    """Bulunan fotoğrafı indirip kalite denetiminden geçirerek döner."""
     try:
+        from . import gorsel_kalite
         cevap = requests.get(kayit["url"], timeout=ZAMAN_ASIMI)
         cevap.raise_for_status()
-        return Image.open(io.BytesIO(cevap.content)).convert("RGB")
+        ham_boyut_kb = len(cevap.content) / 1024.0
+        foto = Image.open(io.BytesIO(cevap.content)).convert("RGB")
+        kaliteli, sebep = gorsel_kalite.gorsel_kalite_denetle(foto, dosya_boyutu_kb=ham_boyut_kb)
+        if not kaliteli:
+            log.info("Pexels görsel adayı kalite filtresine takıldı (%s): %s", kayit.get("baslik"), sebep)
+            return None
+        return gorsel_kalite.kristal_netlestir(foto)
     except Exception as e:
         log.warning("Pexels fotoğrafı indirilemedi (%s): %s", kayit.get("baslik"), e)
         return None

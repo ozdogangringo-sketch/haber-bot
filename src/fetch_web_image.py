@@ -68,14 +68,18 @@ def _ddg_gorsel_ara(sorgu: str) -> list[dict[str, Any]]:
         return []
 
 
+from . import gorsel_kalite
+
+
 def fotograf_ara(
     sorgular: list[str],
-    asgari_genislik: int = 1200,
-    asgari_yukseklik: int = 700,
+    asgari_genislik: int = 1600,
+    asgari_yukseklik: int = 1000,
     atlanacak: int = 0,
 ) -> tuple[Image.Image, dict[str, Any]] | None:
     """
-    Verilen sorgu listesini sırayla arar; HD çözünürlük kriterini karşılayan ilk fotoğrafı indirir.
+    Verilen sorgu listesini sırayla arar; 4K/HD çözünürlük ve kristal netlik kriterini
+    karşılayan ilk editoryal basın fotoğrafını indirir.
     """
     for sorgu in sorgular:
         if not sorgu or not str(sorgu).strip():
@@ -92,9 +96,11 @@ def fotograf_ara(
             if not img_url or not img_url.startswith("http"):
                 continue
 
-            # Çözünürlük eşiği: en az 1200x700 px
+            # Çözünürlük eşiği: en az 1600x1000 px (dikey kırpmada kristal netlik için)
             if w < asgari_genislik or h < asgari_yukseklik:
-                continue
+                # Dikey bir portre ise 1080x1350 de kabul edilir
+                if not (w >= 1080 and h >= 1350):
+                    continue
 
             # Filigranlı stok siteleri ele
             if any(yasak in img_url for yasak in YASAKLI_STOK_SITELERI):
@@ -117,14 +123,19 @@ def fotograf_ara(
                 cevap = requests.get(url, headers=HEADERS, timeout=15)
                 if cevap.status_code != 200:
                     continue
-                # En az 60 KB dosya boyutu
-                if len(cevap.content) < 60 * 1024:
-                    continue
+                ham_boyut_kb = len(cevap.content) / 1024.0
                 foto = Image.open(io.BytesIO(cevap.content))
                 foto.load()
-                if foto.width >= asgari_genislik and foto.height >= asgari_yukseklik:
-                    log.info("Webden temiz HD haber fotoğrafı bulundu (%sx%s): %s", foto.width, foto.height, url)
-                    return foto.convert("RGB"), aday
+
+                # Piksel yoğunluğu, dikey kırpma ölçeği ve Laplacian netlik denetimi
+                kaliteli, sebep = gorsel_kalite.gorsel_kalite_denetle(foto, dosya_boyutu_kb=ham_boyut_kb)
+                if not kaliteli:
+                    log.info("Web görsel adayı elendi (%s): %s", url, sebep)
+                    continue
+
+                log.info("Webden temiz HD basın fotoğrafı onaylandı (%sx%s, %.1f KB): %s",
+                         foto.width, foto.height, ham_boyut_kb, url)
+                return gorsel_kalite.kristal_netlestir(foto.convert("RGB")), aday
             except Exception as e:
                 log.debug("Web görseli indirilemedi (%s): %s", url, e)
                 continue
