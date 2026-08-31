@@ -39,6 +39,7 @@ import yaml                                       # noqa: E402
 from src import (                                  # noqa: E402
     aday, android_bridge, android_otomasyon, ayar, caption, db, db_senkron, dogrula, facebook, fetch_news,
     filtre,
+    hata_bildir,
     instagram,
     make_image,
     secim,
@@ -3120,20 +3121,16 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
             basarisiz.append((hid, basliklar[hid]))
 
     if basarisiz:
-        # ⚠️ TEKRAR DENEME DÜĞMESİ ŞART. Önce yalnızca düz metin
-        # gönderiliyordu ve kullanıcı hazırlanamayan haberi bir daha
-        # deneyemiyordu — öneri mesajının butonları da silinmiş
-        # oluyordu, yani haber tamamen erişilemez hale geliyordu.
-        # Hataların çoğu geçici (Gemini kotası, Instagram medya
-        # indirme), yani tekrar denemek gerçekten çözüyor.
         idler = ",".join(str(hid) for hid, _ in basarisiz)
-        telegram_bot.mesaj_gonder(
-            f"⚠️ {len(basarisiz)} haber hazırlanamadı:\n"
-            + "\n".join(f"  • {b}" for _, b in basarisiz)
-            + ("\n\nDiğerleri onayına sunuldu." if basarili else "")
-            + "\n\nHataların çoğu geçicidir (kota, medya indirme).",
-            [[{"text": f"🔄 {len(basarisiz)} haberi tekrar dene",
-               "callback_data": f"hazirla:{idler}"}]])
+        hata_listesi = "\n".join(f"• {b}" for _, b in basarisiz)
+        hata_bildir.bildir(
+            f"{len(basarisiz)} Haber Hazırlanamadı",
+            f"Seçilen haber(ler) için slayt üretimi tamamlanamadı:\n{hata_listesi}\n\n"
+            + ("Diğer seçtiğin haberler başarıyla onayına sunuldu.\n" if basarili else "")
+            + "Hatanın sebebi geçici görsel indirme veya API yoğunluğu olabilir.",
+            nerede="Haber Seçimi & Slayt Hazırlama",
+            mesaj_id=f"hazirla:{idler}",
+        )
     return 0 if basarili else 1
 
 

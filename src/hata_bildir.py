@@ -184,16 +184,15 @@ def tani(hata) -> dict:
 
 
 def _butonlar(eylem: str, nerede: str = "", mesaj_id: int | str = "") -> list | None:
-    """Hataya uygun zengin eylem düğmeleri üretir."""
-    if "son_dakika" in (nerede or ""):
-        return [
-            [{"text": "🔄 Son dakika kontrolünü tekrar çalıştır", "callback_data": "hata:sondakika_tekrar"}],
-            [{"text": "🔍 Yayın durumunu kontrol et", "callback_data": "durum"},
-             {"text": "📄 Detaylı Hata Kaydı", "callback_data": "hata:ayrinti"}],
-        ]
-
+    """Hataya uygun zengin ve tek tıkla çözümlü eylem düğmeleri üretir."""
     butonlar = []
-    if eylem == "yeniden_yayinla" or str(eylem).startswith("yeniden_yayinla:"):
+
+    m_str = str(mesaj_id or "")
+
+    # 1. Öncelikli Çözüm Düğmesi
+    if m_str.startswith("hazirla:"):
+        butonlar.append([{"text": "🔄 Haberi Tekrar Hazırla", "callback_data": m_str}])
+    elif eylem == "yeniden_yayinla" or str(eylem).startswith("yeniden_yayinla:"):
         cb = eylem if str(eylem).startswith("yeniden_yayinla:") else (f"yeniden_yayinla:{mesaj_id}" if mesaj_id else "yayinla")
         butonlar.append([{"text": "🔄 Tekrar Yayınla", "callback_data": cb}])
     elif eylem == "tur_metinsiz":
@@ -201,9 +200,12 @@ def _butonlar(eylem: str, nerede: str = "", mesaj_id: int | str = "") -> list | 
             {"text": "🧯 Metinsiz Tur Kur", "callback_data": "hata:tur_metinsiz"},
             {"text": "🔄 Normal Tur Kur", "callback_data": "hata:tur_tekrar"},
         ])
+    elif "son_dakika" in (nerede or "") or "oneri" in (nerede or "").lower() or "öneri" in (nerede or "").lower():
+        butonlar.append([{"text": "🔄 Son Dakika Kontrolünü Tekrar Çalıştır", "callback_data": "hata:sondakika_tekrar"}])
     else:
-        butonlar.append([{"text": "🔄 Turu Yeniden Hazırla", "callback_data": "hata:tur_tekrar"}])
+        butonlar.append([{"text": "🔄 İşlemi Tekrar Dene", "callback_data": "hata:tur_tekrar"}])
 
+    # 2. Genel Kontrol ve Temizlik Düğmeleri
     butonlar.append([
         {"text": "🔍 Yayın Durumunu Kontrol Et", "callback_data": "durum"},
         {"text": "🧹 Askıdaki Turu Sıfırla", "callback_data": "tur_temizle"},
@@ -213,7 +215,7 @@ def _butonlar(eylem: str, nerede: str = "", mesaj_id: int | str = "") -> list | 
 
 
 def mesaji_kur(baslik: str, teshis: dict, nerede: str = "") -> str:
-    """Telegram mesaj metni (HTML güvenli)."""
+    """Telegram mesaj metni (HTML güvenli ve zengin açıklamalı)."""
     import html as html_lib
 
     b_esc = html_lib.escape(baslik or "")
@@ -221,20 +223,20 @@ def mesaji_kur(baslik: str, teshis: dict, nerede: str = "") -> str:
     ne_oldu = html_lib.escape(teshis.get("ne_oldu", "") or "")
     neden = html_lib.escape(teshis.get("neden", "") or "")
     ne_yapilir = html_lib.escape(teshis.get("ne_yapilir", "") or "")
-    ham = html_lib.escape(str(teshis.get("ham", ""))[:400] or "")
+    ham = html_lib.escape(str(teshis.get("ham", ""))[:450] or "")
 
     p = [f"⚠️ <b>BİR SORUN OLUŞTU:</b> {b_esc}"]
     if nerede:
-        p.append(f"📍 <b>Konum / İşlem:</b> <code>{n_esc}</code>")
+        p.append(f"📍 <b>İşlem / Konum:</b> <code>{n_esc}</code>")
     p.append("")
     p.append(f"🔍 <b>NE OLDU?</b>\n{ne_oldu}")
     p.append("")
     p.append(f"💡 <b>NEDEN?</b>\n{neden}")
     p.append("")
-    p.append(f"🛠️ <b>EYLEM PLANI / ÇÖZÜM:</b>\n{ne_yapilir}")
-    if not teshis.get("tanindi"):
+    p.append(f"🛠️ <b>ÇÖZÜM / NE YAPILMALI?</b>\n{ne_yapilir}")
+    if ham:
         p.append("")
-        p.append(f"📄 <b>HAM HATA:</b>\n<code>{ham}</code>")
+        p.append(f"📄 <b>HATA DETAYI:</b>\n<code>{ham}</code>")
     return "\n".join(p)
 
 
