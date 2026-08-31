@@ -763,6 +763,7 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
     )
     con.commit()
     sayaci_artir(con)
+    return mesaj_id
 
     # Onay butonu GitHub'daki veritabanına bakıyor. Workflow'un
     # sonundaki commit adımını beklersek kullanıcı o aralıkta

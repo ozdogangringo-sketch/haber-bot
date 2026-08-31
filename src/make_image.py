@@ -271,6 +271,7 @@ def _font(punto: int, eksenler: list[float]) -> ImageFont.FreeTypeFont:
 def _kelimeleri_satir_yap(kelimeler: list[tuple[str, bool]]) -> str:
     """
     Kelimeleri birleştirir; ardışık bold kelimeleri tek bir **word1 word2** içine alır.
+    Kesme işareti ve noktalamaları önceki kelimeye boşluksuz bağlar.
     """
     parcalar = []
     bold_grup = []
@@ -286,7 +287,16 @@ def _kelimeleri_satir_yap(kelimeler: list[tuple[str, bool]]) -> str:
     if bold_grup:
         joined = " ".join(bold_grup)
         parcalar.append(f"**{joined}**")
-    return " ".join(parcalar)
+
+    satir = ""
+    for p in parcalar:
+        if not satir:
+            satir = p
+        elif p.startswith(("'", "’", ",", ".", ":", ";", "!", "?", ")", "]", "”")):
+            satir += p
+        else:
+            satir += f" {p}"
+    return satir
 
 
 def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
