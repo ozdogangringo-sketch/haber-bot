@@ -76,14 +76,14 @@ def _cercevele_9_16(img: Image.Image, baslik_rozet: str = "") -> Image.Image:
 
 
 def reels_dikey_gorselleri_uret(
-    gorsel_kaynaklari: list[Path | str],
+    gorsel_kaynaklari: list[Path | str] | None = None,
     cikti_dizini: Path | str | None = None,
     haberler: list | None = None,
     ayarlar: dict | None = None,
 ) -> list[Path]:
     """
     Verilen tüm slayt görsellerini sırasıyla 1080x1920 (9:16) Reels video karelerine dönüştürür.
-    Carousel'deki 1. slayt (Piyasa Isı Haritası vb.) videonun da 1. karesi olur; hiçbir görsel atlanmaz.
+    Öncelikle yerel güncel 1080x1920 dosyaları kullanır, yoksa URL'den indirir veya üretir.
     """
     if cikti_dizini is None:
         cikti_dizini = CIKTI_KLASORU / "reels_9_16"
@@ -96,17 +96,18 @@ def reels_dikey_gorselleri_uret(
 
     from src import slaytlar
 
-    # 1. Son dakika / Tekil haber için 1080x1920 Native Story slaytları (Kapak + Detay 1 + Detay 2...)
-    if haberler and len(haberler) == 1 and bool(dict(haberler[0]).get("son_dakika")):
+    # 1. Tekil haber için doğrudan güncel yerel dosyaları veya URL'leri topla
+    if haberler and len(haberler) == 1:
         h0 = dict(haberler[0])
         h_id = h0.get("id")
 
         kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
         detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
 
+        # Eğer yerel dosyalar yoksa sıfırdan üret
         if not kapak_story.exists() or not detay_storyler:
             try:
-                log.info("Native 9:16 story dosyaları diskte yok, tam ekran üretiliyor (Haber #%s)", h_id)
+                log.info("Native 9:16 story dosyaları diskte yok, sıfırdan üretiliyor (Haber #%s)", h_id)
                 slaytlar.son_dakika_uret(h0, ayarlar or {})
                 detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
             except Exception as e:
@@ -116,43 +117,45 @@ def reels_dikey_gorselleri_uret(
             kaynak_listesi.append(kapak_story)
         kaynak_listesi.extend(detay_storyler)
 
-    # 2. Çoklu haber turu için her haberin 1080x1920 Native Story slaytı
-    elif haberler and len(haberler) > 1:
-        for idx, h_raw in enumerate(haberler, start=1):
-            h_d = dict(h_raw)
-            hid = h_d.get("id")
-            s_yol = CIKTI_KLASORU / f"story-{hid}.jpg"
-            if not s_yol.exists():
-                try:
-                    slaytlar.slayt_uret(h_d, ayarlar or {}, sira=idx)
-                except Exception as e:
-                    log.warning("Tur story slaytı #%s üretilemedi: %s", hid, e)
-            if s_yol.exists():
-                kaynak_listesi.append(s_yol)
-
-    # 3. Eğer yukarıdakiler boşsa gorsel_kaynaklari üzerinden devam et
+    # 2. Eğer yukarıdaki çalışmadıysa gorsel_kaynaklari üzerinden devam et
     if not kaynak_listesi and gorsel_kaynaklari:
         kaynak_listesi = list(gorsel_kaynaklari)
+
+    # 3. Eğer hâlâ boşsa haberler içindeki URL'leri topla
+    if not kaynak_listesi and haberler:
+        for h_raw in haberler:
+            h_d = dict(h_raw)
+            k_url = h_d.get("story_url") or h_d.get("gorsel_url")
+            if k_url:
+                kaynak_listesi.append(k_url)
+            detay_json = h_d.get("detay_url")
+            if detay_json:
+                try:
+                    detay_listesi = json.loads(detay_json) if isinstance(detay_json, str) else detay_json
+                    if isinstance(detay_listesi, list):
+                        kaynak_listesi.extend(detay_listesi)
+                except Exception:
+                    pass
 
     # 4. Toplanan tüm kaynakları sırayla 1080x1920 dikey video karelerine dönüştür
     for idx, kaynak in enumerate(kaynak_listesi, start=1):
         hedef_yol = cikti_dizini / f"slayt_9_16_{idx:02d}.jpg"
 
         try:
-            if str(kaynak).startswith("http://") or str(kaynak).startswith("https://"):
-                r = requests.get(str(kaynak), timeout=25)
+            p = Path(str(kaynak))
+            if p.exists() and p.is_file():
+                img = Image.open(p)
+            elif str(kaynak).startswith("http://") or str(kaynak).startswith("https://"):
+                headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+                r = requests.get(str(kaynak), headers=headers, timeout=25)
                 if r.status_code != 200:
                     log.warning("Görsel indirilemedi (HTTP %s): %s", r.status_code, kaynak)
                     continue
                 img = Image.open(io.BytesIO(r.content))
             else:
-                p = Path(kaynak)
-                if not p.exists():
-                    log.warning("Görsel dosyası bulunamadı: %s", p)
-                    continue
-                img = Image.open(p)
+                log.warning("Geçersiz görsel kaynağı: %s", kaynak)
+                continue
 
-            # Görsel zaten 1080x1920 ise doğrudan kaydet, değilse sinematik zeminle yerleştir
             if img.size == (HEDEF_GENISLIK, HEDEF_YUKSEKLIK):
                 dikey_img = img.convert("RGB")
             else:
