@@ -960,7 +960,8 @@ def video_gonder(
     data = {"chat_id": _sohbet_id()}
     if aciklama:
         data["caption"] = aciklama[:1024]
-        data["parse_mode"] = "HTML"
+        if "<" in aciklama and ">" in aciklama:
+            data["parse_mode"] = "HTML"
     if butonlar:
         data["reply_markup"] = json.dumps({"inline_keyboard": butonlar})
 
@@ -970,6 +971,14 @@ def video_gonder(
 
     veri = cevap.json() if cevap.content else {}
     if not veri.get("ok"):
+        # Eğer HTML etiket parse hatası verirse parse_mode'suz güvenli dene
+        if "can't parse entities" in veri.get("description", ""):
+            data.pop("parse_mode", None)
+            with open(p, "rb") as f2:
+                cevap2 = requests.post(url, data=data, files={"video": f2}, timeout=180)
+            veri2 = cevap2.json() if cevap2.content else {}
+            if veri2.get("ok"):
+                return veri2["result"]["message_id"]
         raise RuntimeError(f"Telegram video gönderme hatası: {veri.get('description', cevap.text[:200])}")
     return veri["result"]["message_id"]
 

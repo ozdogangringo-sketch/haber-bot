@@ -347,10 +347,13 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             temiz_metin = html_lib.escape(metin.strip())
             telegram_bot.video_gonder(
                 video_yolu,
-                aciklama="🎬 <b>Daily Brief Reels Videosu Hazır!</b>\n\n"
-                         "📝 <b>Açıklama (Kopyalamak için Dokun):</b>\n"
-                         f"<code>{temiz_metin}</code>\n\n"
-                         "💡 <i>Videoyu kaydedip Instagram uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>",
+                aciklama="🎬 <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
+                         "💡 <i>Videoyu kaydedip Instagram/TikTok uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>",
+            )
+            telegram_bot.mesaj_gonder(
+                "📝 <b>Reels Açıklama Metni (Kopyalamak için dokunun):</b>\n"
+                f"<pre>{temiz_metin}</pre>",
+                html=True,
             )
             ig_notu = "\n🎬 Reels videosu ve açıklama metni Telegram'a iletildi"
 
