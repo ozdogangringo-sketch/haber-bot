@@ -1669,6 +1669,22 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
         )
         con.commit()
 
+        # Telegram'da gösterilecek 9:16 Story / 4:5 Akış slayt URL'leri ve etiketleri
+        telegram_urller = [story_url] if story_url else [urller[0]]
+        if story_detay_urller:
+            telegram_urller.extend(story_detay_urller)
+        elif len(urller) > 1:
+            telegram_urller.extend(urller[1:])
+
+        etiketler = []
+        for idx in range(len(telegram_urller)):
+            if idx == 0:
+                etiketler.append("Kapak")
+            elif len(telegram_urller) == 2:
+                etiketler.append("Ayrıntı")
+            else:
+                etiketler.append(f"Ayrıntı {idx}/{len(telegram_urller)-1}")
+
         # Telegram albümünü güncelle: Eski albümü silip yenisini gönder
         eski_albom = db.ayar_oku(con, f"albom_{mesaj_id}", "")
         if eski_albom:
