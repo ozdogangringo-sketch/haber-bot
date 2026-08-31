@@ -137,21 +137,45 @@ def haber_icin_fotograf(
     atlanacak: int = 0,
 ) -> tuple[Image.Image, dict[str, Any]] | None:
     """
-    Haber için en uygun 2-3 arama kalıbını oluşturup webde gerçek HD fotoğraf arar.
+    Haber için en uygun 4-5 editoryal basın arama kalıbını oluşturup webde gerçek HD fotoğraf arar.
+    Kişi, sıcak olay, şirket, kurum ve teknoloji kategorilerine göre optimize edilmiş sorgular üretir.
     """
     h_dict = dict(haber) if hasattr(haber, "keys") else (haber or {})
     baslik = h_dict.get("orijinal_baslik") or h_dict.get("ig_baslik") or h_dict.get("baslik") or ""
     ulke = h_dict.get("ulke_adi") or ""
+    konu = h_dict.get("gorsel_konu") or ""
     temsili = h_dict.get("gorsel_temsili") or ""
+    kategori = h_dict.get("kategori") or ""
+
+    # Başlığı temizle (özel karakterleri ve tırnakları ayıkla)
+    temiz_baslik = re.sub(r'[^\w\sğüşıöçĞÜŞİÖÇ]', ' ', baslik).strip()
+    kelimeler = temiz_baslik.split()
+    kisa_baslik = " ".join(kelimeler[:6]) if len(kelimeler) > 6 else temiz_baslik
 
     sorgular = []
-    if ulke and temsili:
-        sorgular.append(f"{ulke} {temsili} news photo")
-    if ulke and baslik:
-        sorgular.append(f"{ulke} {baslik} news photo")
-    if temsili:
-        sorgular.append(f"{temsili} news photo HD")
-    if baslik:
-        sorgular.append(f"{baslik} fotoğrafları")
 
-    return fotograf_ara(sorgular, atlanacak=atlanacak)
+    # 1. Kişi / Lider Odaklı Sorgular
+    if konu:
+        sorgular.append(f"{konu} basın toplantısı")
+        sorgular.append(f"{konu} press portrait HD")
+        sorgular.append(f"{konu} news photo")
+
+    # 2. Somut İngilizce Basın & Olay Sorguları
+    if temsili:
+        if ulke:
+            sorgular.append(f"{ulke} {temsili} press photo")
+        sorgular.append(f"{temsili} news editorial photo")
+        sorgular.append(f"{temsili} press kit HD")
+
+    # 3. Sıcak Türkçe Haber & Ajans Başlık Sorguları
+    if kisa_baslik:
+        sorgular.append(f"{kisa_baslik} haber fotoğrafları")
+        sorgular.append(f"{kisa_baslik} basın görseli")
+
+    # 4. Kategoriye Özel Zenginleştirme
+    if kategori == "ekonomi" and kisa_baslik:
+        sorgular.append(f"{kisa_baslik} bloomberg reuters")
+    elif kategori in ("teknoloji", "bilim") and temsili:
+        sorgular.append(f"{temsili} product launch press kit")
+
+    return fotograf_ara(sorgular, asgari_genislik=1000, asgari_yukseklik=600, atlanacak=atlanacak)
