@@ -149,7 +149,7 @@ genel:
   # haber sabaha bırakılıp insana soruluyor.
   #
   # false yaparsan gece de insan onayı beklenir (eski davranış).
-  gece_otomatik_yayin: true
+  gece_otomatik_yayin: false
 
   # İkinci kaynak teyidi hangi ağırlıktan itibaren GEREKMESİN.
   # TRT Haber ve BBC Türkçe 10, Anadolu Ajansı 9 — kurumsal yayıncı,

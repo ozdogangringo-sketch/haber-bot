@@ -961,8 +961,8 @@ def main(zorla_haber_id: int | None = None) -> int:
         taze = con.execute("SELECT * FROM haberler WHERE id = ?",
                            (aday["id"],)).fetchone()
 
-        # Story carousel'e girmiyor, ayrı yükleniyor.
-        carousel = [s for s in sonuclar if s["katman"] != "story"]
+        # Story slaytları (9:16) akış carousel'ine (4:5) ASLA girmez, ayrı yüklenir.
+        carousel = [s for s in sonuclar if not s["katman"].startswith("story")]
         story_slayt = next((s for s in sonuclar if s["katman"] == "story"), None)
 
         yuklemeler = upload_image.hepsini_yukle(
