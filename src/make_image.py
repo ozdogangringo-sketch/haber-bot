@@ -268,25 +268,55 @@ def _font(punto: int, eksenler: list[float]) -> ImageFont.FreeTypeFont:
     return f
 
 
+def _kelimeleri_satir_yap(kelimeler: list[tuple[str, bool]]) -> str:
+    """
+    Kelimeleri birleştirir; ardışık bold kelimeleri tek bir **word1 word2** içine alır.
+    """
+    parcalar = []
+    bold_grup = []
+    for w, is_b in kelimeler:
+        if is_b:
+            bold_grup.append(w)
+        else:
+            if bold_grup:
+                joined = " ".join(bold_grup)
+                parcalar.append(f"**{joined}**")
+                bold_grup = []
+            parcalar.append(w)
+    if bold_grup:
+        joined = " ".join(bold_grup)
+        parcalar.append(f"**{joined}**")
+    return " ".join(parcalar)
+
+
 def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
     """
     Kelime kelime ilerleyip satır genişliğini aşmadan böler.
     Satır bölünmelerinde **bold** etiketlerinin kopmasını önler.
     """
-    # 1. Kelimeleri ve bold durumlarını çıkar
-    tokens = []
-    is_bold = False
-    for w in metin.split():
-        if w.startswith('**') and w.endswith('**') and len(w) > 4:
-            tokens.append((w[2:-2], True))
-        elif w.startswith('**'):
-            is_bold = True
-            tokens.append((w[2:], True))
-        elif w.endswith('**'):
-            tokens.append((w[:-2], True))
-            is_bold = False
+    if not metin:
+        return []
+
+    # 1. Regex ile metni (**bold** ve düz) parçala
+    pattern = re.compile(r"(\*\*[^*]+\*\*)")
+    parts = pattern.split(metin)
+    tokens: list[tuple[str, bool]] = []
+
+    for part in parts:
+        if not part:
+            continue
+        if part.startswith("**") and part.endswith("**") and len(part) >= 4:
+            clean_part = part[2:-2]
+            for w in clean_part.split():
+                if w:
+                    tokens.append((w, True))
         else:
-            tokens.append((w, is_bold))
+            for w in part.split():
+                if w:
+                    tokens.append((w, False))
+
+    if not tokens:
+        return []
 
     # 2. Satırlara böl
     satirlar = []
@@ -300,18 +330,12 @@ def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
             gecerli_kelimeler.append((word, bold))
         else:
             if gecerli_kelimeler:
-                satir_str = ""
-                for w, b in gecerli_kelimeler:
-                    satir_str += f" **{w}**" if b else f" {w}"
-                satirlar.append(satir_str.strip())
+                satirlar.append(_kelimeleri_satir_yap(gecerli_kelimeler))
             gecerli_kelimeler = [(word, bold)]
             gecerli_str = word
 
     if gecerli_kelimeler:
-        satir_str = ""
-        for w, b in gecerli_kelimeler:
-            satir_str += f" **{w}**" if b else f" {w}"
-        satirlar.append(satir_str.strip())
+        satirlar.append(_kelimeleri_satir_yap(gecerli_kelimeler))
 
     return satirlar
 
@@ -792,7 +816,7 @@ def yaziyi_bas(
     golge_ciz = ImageDraw.Draw(golge)
     y = baslik_ust
     for satir in satirlar:
-        golge_ciz.text((kenar, y + 4), satir, font=font, fill=(0, 0, 0, 230))
+        golge_ciz.text((kenar, y + 4), satir.replace("**", ""), font=font, fill=(0, 0, 0, 230))
         y += satir_yuksekligi
     golge = golge.filter(ImageFilter.GaussianBlur(13))
     gorsel = Image.alpha_composite(gorsel.convert("RGBA"), golge).convert("RGB")
@@ -800,12 +824,12 @@ def yaziyi_bas(
 
     y = baslik_ust
     for satir in satirlar:
-        ciz.text((kenar, y), satir, font=font, fill=(255, 255, 255))
+        ciz.text((kenar, y), satir.replace("**", ""), font=font, fill=(255, 255, 255))
         y += satir_yuksekligi
 
     y = ozet_ust
     for satir in ozet_satirlari:
-        ciz.text((kenar, y), satir, font=ozet_font, fill=(226, 232, 240))
+        _formatli_satir_ciz(ciz, kenar, y, satir, punto=34, spot=True, varsayilan_renk=(226, 232, 240))
         y += ozet_satir_y
 
     # Son slayt Call-To-Action (CTA) etkileşim rozeti
@@ -1177,7 +1201,7 @@ def story_kapak(
 
         cur_y = y
         for satir in satirlar:
-            ciz.text((kenar + 52, cur_y), satir, font=madde_font, fill=(246, 243, 236))
+            ciz.text((kenar + 52, cur_y), satir.replace("**", ""), font=madde_font, fill=(246, 243, 236))
             cur_y += satir_y
         y += max(cur_y - y, 42) + 32
 
@@ -1280,7 +1304,7 @@ def story_ekonomi_kapak(
         # Metin Satırları
         cur_y = y
         for satir in satirlar:
-            ciz.text((kenar + 52, cur_y), satir, font=madde_font, fill=(246, 243, 236))
+            ciz.text((kenar + 52, cur_y), satir.replace("**", ""), font=madde_font, fill=(246, 243, 236))
             cur_y += satir_y
         y += max(cur_y - y, 42) + 32
 
@@ -1850,8 +1874,8 @@ def kapak_ciz(
     )
     y = kenar + 104
     for satir in satirlar:
-        ciz.text((kenar + 2, y + 2), satir, font=font, fill=(0, 0, 0))
-        ciz.text((kenar, y), satir, font=font, fill=(255, 255, 255))
+        ciz.text((kenar + 2, y + 2), satir.replace("**", ""), font=font, fill=(0, 0, 0))
+        ciz.text((kenar, y), satir.replace("**", ""), font=font, fill=(255, 255, 255))
         y += satir_yuksekligi
     baslik_alti = y
 
@@ -2053,7 +2077,7 @@ def haftalik_kapak_ciz(
         # Küçük altın nokta
         ciz.ellipse([kenar, y + 10, kenar + 10, y + 20], fill=(226, 170, 88))
         for satir in blok:
-            ciz.text((kenar + 26, y), satir, font=madde_font, fill=(226, 231, 242))
+            ciz.text((kenar + 26, y), satir.replace("**", ""), font=madde_font, fill=(226, 231, 242))
             y += satir_y
         y += 18
         if y > alt_bilgi_y - 60:
