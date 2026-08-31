@@ -3374,18 +3374,8 @@ def main() -> int:
 
     if komut in ("hata:sondakika_tekrar", "sondakika", "son_dakika"):
         from scripts import son_dakika
-        telegram_bot.mesaj_gonder("🔍 Son dakika kontrolü yapılıyor, havuz ve kaynaklar taranıyor…")
-        sonuc = son_dakika.main()
-        acik_sayisi = con.execute("SELECT COUNT(*) FROM haberler WHERE durum = 'onay_bekliyor' AND son_dakika = 1").fetchone()[0]
-        if acik_sayisi == 0:
-            telegram_bot.mesaj_gonder(
-                "ℹ️ <b>Son dakika taraması tamamlandı.</b>\n\n"
-                "Havuzdaki ve RSS beslemelerindeki en sıcak haberler incelendi ancak şu an "
-                "son dakika eşiğini (8+/10) aşan yeni bir acil haber bulunamadı.\n"
-                "Sıcak bir gelişme olduğunda sistem otomatik olarak bildirecektir.",
-                html=True,
-            )
-        return sonuc
+        telegram_bot.mesaj_gonder("🔍 Son dakika ve güncel haber havuzu taranıyor, öneriler hazırlanıyor…")
+        return son_dakika.main()
 
     if komut == "haftalik":
         from scripts import haftalik_ozet

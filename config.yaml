@@ -60,20 +60,18 @@ genel:
   son_dakika_puan_esigi: 8
 
   # ⚠️ SON DAKİKA KONTROLÜ VE GÜN İÇİ ÖNERİLER İÇİN ASGARİ AĞIRLIK.
-  # 7: TRT, BBC, AA'nın yanı sıra Webrazzi, ShiftDelete, Donanım Haber,
-  # Habertürk ve NTV gibi kaliteli teknoloji, ekonomi ve gündem kaynakları
-  # gün içi öneri havuzuna dahil edilir.
-  son_dakika_asgari_agirlik: 7
+  # 6: Kaliteli teknoloji, ekonomi, spor, kültür ve gündem kaynaklarının tamamı
+  # gün içi 5'li öneri havuzuna dahil edilir.
+  son_dakika_asgari_agirlik: 6
 
   # Günde en fazla kaç tekil haber postu yayınlanabilir (saatlik ritme uygun: 18).
   son_dakika_gunluk_azami: 18
   # Tek kategori günü domine etmesin — kategori başına günlük sınır
   son_dakika_kategori_azami: 6
   # Kontrol job'ı aday bulamazsa kaç habere metin üretsin.
-  # Actions kotasının en büyük kalemi bu; 5'ten 3'e indirildi.
   # Tekil post önerisinde kaç başlık TEK Gemini isteğiyle puanlanacak.
   # Bunların en iyi 5'i Telegram'a öneri olarak gidiyor.
-  oneri_aday_adedi: 12
+  oneri_aday_adedi: 24
   # ⚠️ ÖNERİ EŞİKLERİ, TAM METİN EŞİKLERİNDEN 2 PUAN DÜŞÜK.
   # Sebep ölçüldü (19 Ağu 2026): toplu başlık puanlaması aynı habere
   # tam metin puanlamasından ortalama 1.5-1.8 puan DÜŞÜK veriyor.
