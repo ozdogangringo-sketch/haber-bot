@@ -625,7 +625,7 @@ def piyasa_karti_uret_9_16(sektor_verileri: dict | None = None) -> Path:
     Asla 4:5 kartı çerçevelemez veya blur kenar kullanmaz; doğrudan 1920px dikey tuvale
     ferah, yüksek çözünürlüklü ve interaktif infografik olarak sıfırdan çizilir.
     """
-    if sektor_verileri is None:
+    if sektor_verileri is None or "BİST & TÜRKİYE HİSSELERİ" not in sektor_verileri:
         sektor_verileri = piyasa.isi_haritasi_verileri_getir()
 
     simdi = datetime.now(timezone.utc)

@@ -1110,4 +1110,22 @@ export default {
 
     return new Response("ok");
   },
+
+  async scheduled(event, env, ctx) {
+    // Saat başı son dakika kontrolünü Cloudflare Edge üzerinden tam zamanında tetikler
+    if (!env.GITHUB_PAT || !env.GITHUB_REPO) return;
+    const url = `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`;
+    await fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${env.GITHUB_PAT}`,
+        "User-Agent": "HaberBot-CloudflareWorker",
+      },
+      body: JSON.stringify({
+        event_type: "son_dakika_calistir",
+        client_payload: { tetikleyen: "cloudflare_cron" },
+      }),
+    });
+  },
 };

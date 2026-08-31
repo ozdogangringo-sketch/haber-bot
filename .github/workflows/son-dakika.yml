@@ -30,11 +30,11 @@ name: Son Dakika Kontrolü
 
 on:
   schedule:
-    # GÜNDÜZ: TR 08:05 - 23:05 arası HER SAAT BAŞI (16 kontrol)
-    # UTC 05:05, 06:05, ..., 20:05 = TR 08:05 - 23:05
-    - cron: "5 5-20 * * *"
-    # GECE: TR 02:05 ve TR 05:05 (UTC 23:05, 02:05)
-    - cron: "5 23,2 * * *"
+    # GÜNDÜZ: TR 08:12 - 23:12 arası HER SAAT BAŞI (16 kontrol)
+    # UTC 05:12, 06:12, ..., 20:12 = TR 08:12 - 23:12
+    - cron: "12 5-20 * * *"
+    # GECE: TR 02:12 ve TR 05:12 (UTC 23:12, 02:12)
+    - cron: "12 23,2 * * *"
   # Telegram'daki "🔄 Son dakika kontrolünü tekrar çalıştır" düğmesi
   # buraya geliyor. Önce böyle bir yol yoktu ve son dakika hatasındaki
   # düğme akşam turunu tetikliyordu.

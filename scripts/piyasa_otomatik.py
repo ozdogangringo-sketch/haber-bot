@@ -87,7 +87,7 @@ def main() -> int:
     slayt_urlleri = [kart_url, tablo_url]
 
     # 5. %100 Saf Native 9:16 Full-bleed Story slaytları üret (Asla blur/çerçeveleme yok)
-    reels_kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(piyasa_verileri)
+    reels_kart_yolu = piyasa_kart.piyasa_karti_uret_9_16()
     reels_tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16()
 
     kart_story_url = upload_image.gorsel_yukle(reels_kart_yolu, ayarlar)["url"]
