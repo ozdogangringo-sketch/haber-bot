@@ -256,27 +256,15 @@ def _aday_puani(baslik: str, genislik: int, yukseklik: int,
 AZAMI_AYNI_KISI = 3
 
 
-def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict | None:
-    """
-    Konu için lisansı uygun VE isabetli bir fotoğraf bulur.
-
-    Tüm adayları puanlayıp en iyisini seçiyoruz; ilk uygun olanı almak
-    kötü sonuç veriyor.
-
-    Döner: {'url', 'lisans', 'sanatci', 'baslik', 'genislik', 'yukseklik'}
-    veya None.
-    """
+def aday_listesi_ara(konu: str, aday_sayisi: int = 20) -> list[dict]:
+    """Commons'ta arar, uygun lisanslı ve kaliteli tüm adayları döner."""
     konu = (konu or "").strip()
     if not konu:
-        return None
+        return []
 
-    # İkinci savunma hattı: kısaltmalar Commons'ta yanlış eşleşiyor
-    # (İSKİ -> Macar sanatçı, TRT -> rastgele pavyon fotoğrafı) ve tek
-    # kelime oldukları için soyadı denetiminden de kaçıyorlar. Gemini'ye
-    # zaten "kurum yazma" dedik; bu, o kural delinirse diye duruyor.
     if len(konu.split()) == 1 and konu.isupper():
         log.info("kısaltma Commons'a sorulmuyor: %s", konu)
-        return None
+        return []
 
     parametreler = {
         "action": "query",
@@ -287,15 +275,14 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict |
         "gsrlimit": str(aday_sayisi),
         "prop": "imageinfo",
         "iiprop": "url|size|extmetadata",
-        "iiurlwidth": "2000",   # ⚠️ 1600'dü: portre kırpması sonrası 1080
-                                #    genişliğe çıkarken pay kalmıyordu
+        "iiurlwidth": "2000",
     }
 
     try:
         veri = _istek(API, parametreler).json()
     except Exception as e:
         log.warning("Commons araması başarısız (%s): %s", konu, e)
-        return None
+        return []
 
     sayfalar = (veri.get("query", {}) or {}).get("pages") or {}
     adaylar = []
@@ -335,11 +322,18 @@ def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict |
             "puan": puan,
         })
 
+    adaylar.sort(key=lambda a: a["puan"], reverse=True)
+    return adaylar
+
+
+def fotograf_ara(konu: str, aday_sayisi: int = 20, atlanacak: int = 0) -> dict | None:
+    """
+    Konu için lisansı uygun VE isabetli bir fotoğraf bulur.
+    """
+    adaylar = aday_listesi_ara(konu, aday_sayisi=aday_sayisi)
     if not adaylar:
         log.info("Commons'ta uygun görsel bulunamadı: %s", konu)
         return None
-
-    adaylar.sort(key=lambda a: a["puan"], reverse=True)
 
     if atlanacak >= min(len(adaylar), AZAMI_AYNI_KISI):
         log.info("Commons adayları tükendi (%s aday), sonraki katmana "
@@ -372,9 +366,6 @@ def fotografi_indir(kayit: dict) -> Image.Image | None:
 def atif_metni(kayit: dict) -> str:
     """
     Caption'a eklenecek atıf satırı.
-
-    Kamu malı görsel için hukuken zorunlu değil ama CC BY için ŞART.
-    Ayırt etmekle uğraşmayıp hepsine yazıyoruz — dürüst ve zararsız.
     """
     parcalar = [kayit.get("baslik", "").rsplit(".", 1)[0]]
     if kayit.get("sanatci"):
@@ -387,16 +378,20 @@ def atif_metni(kayit: dict) -> str:
 def konu_icin_fotograf(konu: str,
                        atlanacak: int = 0) -> tuple[Image.Image, dict] | None:
     """
-    Tek adımda: ara + indir. Bulamazsa None.
-    Çağıran taraf None gelirse soyut/gradyan arka plana düşmeli.
+    Tek adımda: ara + kalite denetimli indir.
     """
-    kayit = fotograf_ara(konu, atlanacak=atlanacak)
-    if not kayit:
+    adaylar = aday_listesi_ara(konu)
+    if not adaylar:
         return None
-    gorsel = fotografi_indir(kayit)
-    if gorsel is None:
+
+    if atlanacak >= min(len(adaylar), AZAMI_AYNI_KISI):
         return None
-    return gorsel, kayit
+
+    for i in range(atlanacak, min(len(adaylar), AZAMI_AYNI_KISI)):
+        gorsel = fotografi_indir(adaylar[i])
+        if gorsel is not None:
+            return gorsel, adaylar[i]
+    return None
 
 
 def iki_portre_ara(kisi1: str, kisi2: str) -> tuple[Image.Image, Image.Image, str] | None:

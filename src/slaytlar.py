@@ -308,6 +308,17 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
         except Exception as e:
             log.warning("Pexels katmanı patladı (%s): %s", terim, e)
 
+    # --- 2.5) Gemini AI Görsel Üretimi (Fotoğraf bulunamazsa AI ile özel editoryal görsel üret) ---
+    try:
+        gorsel_ai = make_image.arkaplan_uret_ai(haber.get("kategori") or "turkiye", ayarlar)
+        if gorsel_ai is not None:
+            if gorsel_ai.size != (genislik, yukseklik):
+                gorsel_ai = gorsel_ai.resize((genislik, yukseklik), Image.LANCZOS)
+            log.info("arka plan: Gemini AI ile üretildi (#%s)", haber.get("id"))
+            return gorsel_ai, "ai", ""
+    except Exception as e:
+        log.warning("AI arka plan üretimi hatası: %s", e)
+
     # --- 3) Gradyan: her zaman çalışır ---
     return (
         make_image.arkaplan_uret_yedek(haber["kategori"], genislik, yukseklik, g),

@@ -129,9 +129,9 @@ def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
         if puan < 0:
             continue
         
-        # En net ve hızlı yüklenen yüksek çözünürlüklü kaynak URL'si (large2x veya original)
+        # En net ve yüksek çözünürlüklü orijinal master URL'si (original veya large2x)
         src = foto.get("src", {})
-        foto_url = src.get("large2x") or src.get("original") or src.get("large")
+        foto_url = src.get("original") or src.get("large2x") or src.get("large")
         if not foto_url:
             continue
 
@@ -164,6 +164,65 @@ def fotograf_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
     return adaylar[atlanacak % len(adaylar)]
 
 
+def aday_listesi_ara(terim: str, aday_sayisi: int = ADAY_SAYISI,
+                     kullanilmis: set | None = None) -> list[dict]:
+    """Pexels'te arar, kaliteli adayların puanlanmış listesini döner."""
+    headers = {"Authorization": _anahtar()}
+    ham_fotolar = []
+    
+    # 1. Aşama: Dikey formatta ara
+    try:
+        cevap = requests.get(
+            API,
+            headers=headers,
+            params={"query": terim, "per_page": aday_sayisi, "orientation": "portrait"},
+            timeout=ZAMAN_ASIMI,
+        )
+        if cevap.status_code == 200:
+            ham_fotolar.extend(cevap.json().get("photos", []))
+    except Exception as e:
+        log.warning("Pexels dikey arama hatası (%s): %s", terim, e)
+
+    # 2. Aşama: Dikeyde yeterli fotoğraf yoksa genel yüksek çözünürlüklü havuzu ara
+    if len(ham_fotolar) < 3:
+        try:
+            cevap = requests.get(
+                API,
+                headers=headers,
+                params={"query": terim, "per_page": aday_sayisi},
+                timeout=ZAMAN_ASIMI,
+            )
+            if cevap.status_code == 200:
+                for f in cevap.json().get("photos", []):
+                    if f.get("id") not in [x.get("id") for x in ham_fotolar]:
+                        ham_fotolar.append(f)
+        except Exception as e:
+            log.warning("Pexels genel arama hatası (%s): %s", terim, e)
+
+    adaylar = []
+    for foto in ham_fotolar:
+        puan = _aday_puani(foto)
+        if puan < 0:
+            continue
+        src = foto.get("src", {})
+        foto_url = src.get("original") or src.get("large2x") or src.get("large")
+        if not foto_url:
+            continue
+        adaylar.append({
+            "id": foto.get("id"),
+            "url": foto_url,
+            "baslik": foto.get("alt") or terim,
+            "sanatci": foto.get("photographer", ""),
+            "lisans": "Pexels Lisansı",
+            "sayfa": foto.get("url", ""),
+            "puan": puan,
+        })
+
+    onceki = kullanilmis or set()
+    adaylar.sort(key=lambda a: (str(a.get("id")) in onceki, -a["puan"]))
+    return adaylar
+
+
 def fotografi_indir(kayit: dict) -> Image.Image | None:
     """Bulunan fotoğrafı indirip kalite denetiminden geçirerek döner."""
     try:
@@ -183,13 +242,7 @@ def fotografi_indir(kayit: dict) -> Image.Image | None:
 
 
 def atif_metni(kayit: dict) -> str:
-    """
-    Caption'a eklenecek atıf satırı.
-
-    Pexels lisansı atıf ZORUNLU kılmıyor ama fotoğrafçıya hakkını teslim
-    etmek bedava. Ayrıca görselin nereden geldiğini yazmak, takipçinin
-    onu olay fotoğrafı sanmasını da önlüyor.
-    """
+    """Caption'a eklenecek atıf satırı."""
     sanatci = kayit.get("sanatci") or "bilinmeyen"
     return f"Temsili foto: {sanatci} (Pexels)"
 
@@ -198,16 +251,23 @@ def konu_icin_fotograf(terim: str, atlanacak: int = 0,
                        kullanilmis: set | None = None
                        ) -> tuple[Image.Image, dict] | None:
     """
-    Tek adımda: ara + indir. Bulamazsa None.
-
-    `fetch_photo.konu_icin_fotograf` ile aynı imza — katman seçici
-    ikisini de aynı şekilde çağırabilsin diye bilinçli.
+    Tek adımda: ara + kalite denetimli indir.
+    İlk aday elenirse sıradaki adayları dener.
     """
-    kayit = fotograf_ara(terim, atlanacak=atlanacak,
-                         kullanilmis=kullanilmis)
-    if not kayit:
+    adaylar = aday_listesi_ara(terim, kullanilmis=kullanilmis)
+    if not adaylar and " " in terim:
+        # Alt terimleri dene
+        parcalar = terim.split()
+        if len(parcalar) > 2:
+            adaylar = aday_listesi_ara(" ".join(parcalar[:2]), kullanilmis=kullanilmis)
+
+    if not adaylar:
         return None
-    gorsel = fotografi_indir(kayit)
-    if gorsel is None:
-        return None
-    return gorsel, kayit
+
+    # atlanacak sırasından başlayarak döngüsel dene
+    sirali = adaylar[atlanacak % len(adaylar):] + adaylar[:atlanacak % len(adaylar)]
+    for aday in sirali:
+        gorsel = fotografi_indir(aday)
+        if gorsel is not None:
+            return gorsel, aday
+    return None

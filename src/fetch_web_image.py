@@ -43,7 +43,8 @@ YASAKLI_STOK_SITELERI = (
 def _ddg_gorsel_ara(sorgu: str) -> list[dict[str, Any]]:
     """DuckDuckGo Image Search üzerinden yüksek çözünürlüklü görselleri listeler."""
     try:
-        res = requests.get(
+        s = requests.Session()
+        res = s.get(
             "https://duckduckgo.com/",
             params={"q": sorgu},
             headers=HEADERS,
@@ -51,10 +52,13 @@ def _ddg_gorsel_ara(sorgu: str) -> list[dict[str, Any]]:
         )
         m = re.search(r'vqd=([\d-]+)', res.text) or re.search(r'vqd=\"([\d-]+)\"', res.text)
         if not m:
+            # Fallback regex for single quotes or json
+            m = re.search(r"vqd='([\d-]+)'", res.text) or re.search(r'data-vqd="([\d-]+)"', res.text)
+        if not m:
             return []
         vqd = m.group(1)
 
-        r = requests.get(
+        r = s.get(
             "https://duckduckgo.com/i.js",
             params={"l": "us-en", "o": "json", "q": sorgu, "vqd": vqd, "f": ",,,", "p": "1"},
             headers=HEADERS,
@@ -73,8 +77,8 @@ from . import gorsel_kalite
 
 def fotograf_ara(
     sorgular: list[str],
-    asgari_genislik: int = 1600,
-    asgari_yukseklik: int = 1000,
+    asgari_genislik: int = 1000,
+    asgari_yukseklik: int = 700,
     atlanacak: int = 0,
 ) -> tuple[Image.Image, dict[str, Any]] | None:
     """
@@ -96,11 +100,9 @@ def fotograf_ara(
             if not img_url or not img_url.startswith("http"):
                 continue
 
-            # Çözünürlük eşiği: en az 1600x1000 px (dikey kırpmada kristal netlik için)
-            if w < asgari_genislik or h < asgari_yukseklik:
-                # Dikey bir portre ise 1080x1350 de kabul edilir
-                if not (w >= 1080 and h >= 1350):
-                    continue
+            # Asgari boyut eşiği: en az 1000x700 px (yatay) veya 900x1100 px (dikey)
+            if (w < asgari_genislik or h < asgari_yukseklik) and not (w >= 900 and h >= 1100):
+                continue
 
             # Filigranlı stok siteleri ele
             if any(yasak in img_url for yasak in YASAKLI_STOK_SITELERI):
