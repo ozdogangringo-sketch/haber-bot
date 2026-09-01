@@ -230,9 +230,11 @@ def slaytlardan_reels_uret(
         macro_block_size=1,
         quality=9,
         ffmpeg_params=[
-            "-crf", "17",
-            "-preset", "slow",
-            "-tune", "stillimage",
+            "-crf", "18",
+            "-preset", "fast",
+            "-g", "60",
+            "-keyint_min", "30",
+            "-sc_threshold", "0",
             "-movflags", "+faststart",
         ],
     )
@@ -264,6 +266,30 @@ def slaytlardan_reels_uret(
 
     finally:
         writer.close()
+
+    # 3. TikTok, YouTube Shorts ve Instagram İçin Stereo AAC Ses İzi & Hızlı İndeksleme
+    try:
+        import imageio_ffmpeg, subprocess
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        gecici_yol = cikti_yolu.with_name(f"{cikti_yolu.stem}_raw.mp4")
+        cikti_yolu.rename(gecici_yol)
+
+        komut = [
+            ffmpeg_exe, "-y",
+            "-i", str(gecici_yol),
+            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-c:v", "copy",
+            "-c:a", "aac", "-b:a", "128k",
+            "-shortest",
+            "-movflags", "+faststart",
+            str(cikti_yolu),
+        ]
+        subprocess.run(komut, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        gecici_yol.unlink(missing_ok=True)
+    except Exception as e:
+        log.warning("Sessiz ses izi eklenirken hata: %s", e)
+        if gecici_yol.exists() and not cikti_yolu.exists():
+            gecici_yol.rename(cikti_yolu)
 
     log.info("Reels videosu başarıyla oluşturuldu: %s (boyut: %.2f MB)",
              cikti_yolu, cikti_yolu.stat().st_size / (1024 * 1024))
