@@ -29,14 +29,16 @@ HEADERS = {
 ISTENMEYEN_TERIMLER = (
     "logo", "icon", "cartoon", "vector", "drawing", "caricature",
     "chart", "graph", "diagram", "map", "flag", "symbol", "avatar",
-    "thumbnail", "poster", "banner", "sticker"
+    "thumbnail", "poster", "banner", "sticker", "form", "tablo",
+    "belge", "ilan", "dilekce", "resmigazete", "document"
 )
 
-# Filigran basan ücretli stok siteleri (bunlar elenmeli, yalnızca haber ve basın fotoğrafları alınmalı)
+# Filigran basan ücretli stok siteleri ve taranmış ilan formları
 YASAKLI_STOK_SITELERI = (
     "vecteezy", "shutterstock", "gettyimages", "alamy", "dreamstime",
     "istockphoto", "depositphotos", "123rf", "stockphoto", "freepik",
-    "watermark", "pond5", "canva"
+    "watermark", "pond5", "canva", "ilan.memurlar.net", "kamuilan",
+    "ilan.gov.tr", "advert/documents"
 )
 
 
@@ -154,7 +156,7 @@ def haber_icin_fotograf(
     Kişi, sıcak olay, şirket, kurum ve teknoloji kategorilerine göre optimize edilmiş sorgular üretir.
     """
     h_dict = dict(haber) if hasattr(haber, "keys") else (haber or {})
-    baslik = h_dict.get("orijinal_baslik") or h_dict.get("ig_baslik") or h_dict.get("baslik") or ""
+    baslik = h_dict.get("baslik_orj") or h_dict.get("orijinal_baslik") or h_dict.get("ig_baslik") or h_dict.get("baslik") or ""
     ulke = h_dict.get("ulke_adi") or ""
     konu = h_dict.get("gorsel_konu") or ""
     temsili = h_dict.get("gorsel_temsili") or ""

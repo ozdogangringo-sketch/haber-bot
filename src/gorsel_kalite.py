@@ -118,6 +118,20 @@ def gorsel_kalite_denetle(
     if puan < asgari_netlik:
         return False, f"Görsel bulanık veya yapay büyütülmüş (Netlik puanı: {puan:.1f} < {asgari_netlik})"
 
+    # 5. Belge / Tablo / Taranmış İlan Formu Denetimi (Scanned Document Filter)
+    try:
+        stat_hsv = ImageStat.Stat(img.convert("HSV"))
+        stat_l = ImageStat.Stat(img.convert("L"))
+        sat_mean = stat_hsv.mean[1] if len(stat_hsv.mean) > 1 else 100.0
+        lum_mean = stat_l.mean[0] if stat_l.mean else 100.0
+        if sat_mean < 15.0 and lum_mean > 175.0:
+            return (
+                False,
+                f"Görsel bir belge/tablo taraması veya düz beyaz zeminli metin belgesi (Doygunluk: {sat_mean:.1f}, Parlaklık: {lum_mean:.1f})",
+            )
+    except Exception as e:
+        log.debug("Belge denetiminde hata: %s", e)
+
     return True, f"Kalite onaylandı (Ölçek: {olcek}x, Netlik: {puan:.1f}, {w}x{h} px)"
 
 

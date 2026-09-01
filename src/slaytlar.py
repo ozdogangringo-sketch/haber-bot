@@ -454,7 +454,8 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
 
 def son_dakika_uret(haber, ayarlar: dict, con=None,
                     zorla_ai: bool = False,
-                    atlanacak: int = 0) -> list[dict]:
+                    atlanacak: int = 0,
+                    haber_gorseli_atla: bool = False) -> list[dict]:
     """
     Son dakika postunun iki slaytını üretir.
 
@@ -473,7 +474,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     # ondan üretmeye kalkmak yazının üstüne yazı basmak oluyor —
     # 17 Ağu 2026'da yayınlanan story'de tam olarak bu oldu.
     ham_arkaplan, katman, atif = arkaplan_sec(
-        haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak)
+        haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
+        haber_gorseli_atla=haber_gorseli_atla)
 
     veri_karti = None
     v_etiket = _alan(haber, "veri_karti_etiket")

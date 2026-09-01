@@ -199,12 +199,13 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
         log.warning("Haber görseli için sayfa alınamadı %s: %s", link, e)
         return None
 
-    # İstenmeyen görsel kalıpları (avatar, logo, sayaç, banner reklam, küçük thumbnail)
+    # İstenmeyen görsel kalıpları (avatar, logo, sayaç, banner reklam, küçük thumbnail, ilan formları)
     YASAK_DESENLER = [
         "avatar", "author", "yazar", "logo", "banner_ad", "pixel",
         "tracker", "spacer", "placeholder", "icon", ".svg", ".gif",
         "share-button", "default_image", "no-image", "-150x150", "-300x",
-        "-thumb", "small_thumb", "widget"
+        "-thumb", "small_thumb", "widget", "advert/documents", "ilan.memurlar",
+        "kamuilan", "documents", "tablo", "dilekce"
     ]
 
     def _gecerli_url_mi(u: str) -> bool:
