@@ -43,11 +43,11 @@ SON_HATA_YOLU = Path("data") / "son_hata.txt"
 # ----------------------------------------------------------------------
 KATALOG = [
     {
-        "desen": r"sqlite3\.Row.*has no attribute 'get'|'sqlite3\.Row' object has no attribute 'get'",
+        "desen": r"sqlite3\.Row.*has no attribute|'sqlite3\.Row' object has no attribute",
         "ne_oldu": "Veritabanı satır nesnesinde sözlük fonksiyonu (.get) çağrıldı.",
         "neden": "Veritabanından dönen satır doğrudan sözlük gibi kullanılmak istendi. Bu kod içi tip uyuşmazlığı giderildi.",
-        "ne_yapilir": "Yayınla butonuna tekrar basarak yayını sorunsuz tamamlayabilirsin.",
-        "eylem": "yeniden_yayinla",
+        "ne_yapilir": "'🔄 Haberi Tekrar Hazırla' veya '🔄 Turu Yeniden Hazırla' butonuyla işlemi hemen tamamlayabilirsin.",
+        "eylem": "tur_tekrar",
     },
     {
         "desen": r"database is locked|database table is locked",

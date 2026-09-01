@@ -310,11 +310,11 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
 
     # --- 2.5) Gemini AI Görsel Üretimi (Fotoğraf bulunamazsa AI ile özel editoryal görsel üret) ---
     try:
-        gorsel_ai = make_image.arkaplan_uret_ai(haber.get("kategori") or "turkiye", ayarlar)
+        gorsel_ai = make_image.arkaplan_uret_ai(_alan(haber, "kategori") or "turkiye", ayarlar)
         if gorsel_ai is not None:
             if gorsel_ai.size != (genislik, yukseklik):
                 gorsel_ai = gorsel_ai.resize((genislik, yukseklik), Image.LANCZOS)
-            log.info("arka plan: Gemini AI ile üretildi (#%s)", haber.get("id"))
+            log.info("arka plan: Gemini AI ile üretildi (#%s)", _alan(haber, "id"))
             return gorsel_ai, "ai", ""
     except Exception as e:
         log.warning("AI arka plan üretimi hatası: %s", e)
@@ -361,7 +361,7 @@ def slayt_uret(haber, ayarlar: dict,
             if not dogrula.veri_karti_baslikta_var_mi(gecici_kart, baslik, ozet):
                 veri_karti = gecici_kart
             else:
-                log.info("Veri kartı başlıkta/özette zaten var, atlandı #%s", haber.get("id"))
+                log.info("Veri kartı başlıkta/özette zaten var, atlandı #%s", _alan(haber, "id"))
 
     gorsel = make_image.yaziyi_bas(
         arkaplan,
@@ -500,7 +500,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
             if not dogrula.veri_karti_baslikta_var_mi(gecici_kart, baslik, ozet):
                 veri_karti = gecici_kart
             else:
-                log.info("Veri kartı başlıkta/özette zaten var, atlandı #%s", haber.get("id"))
+                log.info("Veri kartı başlıkta/özette zaten var, atlandı #%s", _alan(haber, "id"))
 
     # ig_caption ve detay metinleri
     detay = (_alan(haber, "detay_metni")
@@ -587,7 +587,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         story_d.save(s_detay_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
         story_detay_yollari.append(s_detay_yol)
 
-    log.info("son dakika %100 native 9:16 slaytları üretildi #%s [%s + %d detay]",
+    log.info("son dakika %%100 native 9:16 slaytları üretildi #%s [%s + %d detay]",
              haber["id"], katman, len(story_detay_yollari))
 
     if con is not None:
