@@ -1473,14 +1473,58 @@ def detay_sayfalara_bol(
     kenar = g["kenar_bosluk"]
     dikey_kenar = max(kenar, g.get("dikey_guvenli_pay", kenar))
 
+def _metni_paragraflara_ayir(metin: str, azami_cumle: int = 3) -> list[str]:
+    """
+    Uzun veya tek parça detay metnini okunaklı, ferah paragraflara böler.
+    Satır sonlarını korur; 3'ten fazla cümle içeren uzun blokları 2-3 cümlelik
+    doğal paragraflara ayırarak okumayı kolaylaştırır.
+    """
+    if not metin or not metin.strip():
+        return []
+
+    ham_paragraflar = [p.strip() for p in re.split(r"\n+", metin.strip()) if p.strip()]
+    sonuc = []
+
+    for p in ham_paragraflar:
+        cumleler = [c.strip() for c in re.split(r"(?<=[.!?])\s+", p) if c.strip()]
+        if len(cumleler) <= azami_cumle:
+            sonuc.append(p)
+        else:
+            for i in range(0, len(cumleler), azami_cumle):
+                parca = " ".join(cumleler[i : i + azami_cumle]).strip()
+                if parca:
+                    sonuc.append(parca)
+
+    return sonuc
+
+
+def detay_sayfalara_bol(
+    detay: str, ayarlar: dict,
+    vurgu: tuple[str, str] | None = None,
+    alinti: tuple[str, str] | None = None,
+    neden_onemli: str | None = None,
+    sirada_ne_var: str | None = None,
+    trend_karti: Image.Image | None = None,
+    sana_etkisi: str | None = None,
+) -> list[list[dict]]:
+    """
+    Detay metnini paragraflara ayırıp sayfalara dağıtır.
+    Smart Brevity formatını (Ne oldu / Sana Etkisi / Neden Önemli / Sırada Ne Var) ve Finans Trend Kartlarını destekler.
+    """
+    g = ayarlar["gorsel"]
+    genislik = g.get("genislik", STORY_GENISLIK)
+    yukseklik = g.get("yukseklik", STORY_YUKSEKLIK)
+    kenar = g.get("kenar_bosluk", 80)
+    dikey_kenar = max(kenar, g.get("dikey_guvenli_pay", STORY_GUVENLI_PAY))
+
     olcu = ImageDraw.Draw(Image.new("RGB", (genislik, yukseklik)))
-    alan = genislik - 2 * kenar
+    alan = genislik - 2 * kenar - 32  # Sol çentik ve girinti payı (kenar + 24)
 
-    ust_blok = dikey_kenar + 76 + 3 * int(46 * 1.2) + 62
-    kullanilabilir = (yukseklik - dikey_kenar - 34 - 40) - ust_blok
+    ust_blok = dikey_kenar + 150 + 3 * int(46 * 1.2) + 22 + 5 + 40
+    alt_bilgi_y = yukseklik - dikey_kenar - 34
+    kullanilabilir = alt_bilgi_y - 40 - ust_blok
 
-    paragraflar = [p.strip() for p in re.split(r"\n\s*\n", detay or "")
-                   if p.strip()]
+    paragraflar = _metni_paragraflara_ayir(detay or "")
     if not paragraflar and not vurgu and not alinti and not neden_onemli and not trend_karti and not sana_etkisi:
         return [[]]
 
@@ -1508,14 +1552,25 @@ def detay_sayfalara_bol(
         font = _font(punto, EKSEN_OZET)
         satirlar = _satirlara_bol(metin, font, alan, olcu)
         yukseklik_px = int(punto * 1.5) * len(satirlar)
-        bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
-                        "yukseklik": yukseklik_px})
+
+        # Eğer tek paragraf tek sayfaya sığmıyorsa satırları böl
+        if yukseklik_px > kullanilabilir and len(satirlar) > 4:
+            yari = len(satirlar) // 2
+            satirlar_1 = satirlar[:yari]
+            satirlar_2 = satirlar[yari:]
+            bloklar.append({"tip": "metin", "satirlar": satirlar_1, "spot": spot,
+                            "yukseklik": int(punto * 1.5) * len(satirlar_1)})
+            bloklar.append({"tip": "metin", "satirlar": satirlar_2, "spot": False,
+                            "yukseklik": int(DETAY_PUNTO * 1.5) * len(satirlar_2)})
+        else:
+            bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
+                            "yukseklik": yukseklik_px})
 
     # Sana / Piyasaya Etkisi (Zümrüt Yeşil Vurgulu Doğal Editoryal Blok)
     if sana_etkisi and sana_etkisi.strip():
         se_punto = DETAY_PUNTO - 3
         se_font = _font(se_punto, EKSEN_OZET)
-        se_satirlar = _satirlara_bol(sana_etkisi.strip(), se_font, alan - 32, olcu)
+        se_satirlar = _satirlara_bol(sana_etkisi.strip(), se_font, alan, olcu)
         bloklar.append({
             "tip": "sana_etkisi",
             "metin": sana_etkisi.strip(),
@@ -1528,7 +1583,7 @@ def detay_sayfalara_bol(
     if neden_onemli and neden_onemli.strip():
         n_punto = DETAY_PUNTO - 3
         n_font = _font(n_punto, EKSEN_OZET)
-        n_satirlar = _satirlara_bol(neden_onemli.strip(), n_font, alan - 32, olcu)
+        n_satirlar = _satirlara_bol(neden_onemli.strip(), n_font, alan, olcu)
         bloklar.append({
             "tip": "neden_onemli",
             "metin": neden_onemli.strip(),
@@ -1541,7 +1596,7 @@ def detay_sayfalara_bol(
     if sirada_ne_var and sirada_ne_var.strip():
         s_punto = DETAY_PUNTO - 3
         s_font = _font(s_punto, EKSEN_OZET)
-        s_satirlar = _satirlara_bol(sirada_ne_var.strip(), s_font, alan - 32, olcu)
+        s_satirlar = _satirlara_bol(sirada_ne_var.strip(), s_font, alan, olcu)
         bloklar.append({
             "tip": "sirada_ne_var",
             "metin": sirada_ne_var.strip(),
@@ -1563,7 +1618,7 @@ def detay_sayfalara_bol(
     # Alıntı en sonda: kapanış
     if alinti and alinti[0]:
         a_font = _font(ALINTI_PUNTO, EKSEN_OZET)
-        a_satirlar = _satirlara_bol(f"“{alinti[0]}”", a_font, alan - 40, olcu)
+        a_satirlar = _satirlara_bol(f"“{alinti[0]}”", a_font, alan - 8, olcu)
         bloklar.append({
             "tip": "alinti", "satirlar": a_satirlar,
             "sahibi": alinti[1] or "", "spot": False,
@@ -1571,9 +1626,6 @@ def detay_sayfalara_bol(
         })
 
     # VURGU + İLK PARAGRAF BİRLİKTE SIĞMALI.
-    # Ayrılırlarsa vurgu tek başına sayfayı işgal ediyor ve altta koca
-    # bir boşluk kalıyor (17 Ağu 2026'da yayınlanan slaytta görüldü).
-    # Sığmıyorsa spot paragrafın puntosunu düşürüp birleştiriyoruz.
     if len(bloklar) >= 2 and bloklar[0].get("tip") == "sayi":
         ikisi = bloklar[0]["yukseklik"] + PARAGRAF_ARASI + bloklar[1]["yukseklik"]
         for kucuk in (DETAY_PUNTO, 34, 31):
@@ -1590,8 +1642,6 @@ def detay_sayfalara_bol(
     sayfalar, gecerli, dolu = [], [], 0
     for blok in bloklar:
         gerekli = blok["yukseklik"] + (PARAGRAF_ARASI if gecerli else 0)
-        # Vurgu bloğu asla tek başına sayfada kalmasın: yanındaki
-        # paragrafla birlikte taşınıyor.
         tek_basina_vurgu = (len(gecerli) == 1
                             and gecerli[0].get("tip") == "sayi")
         if gecerli and dolu + gerekli > kullanilabilir and not tek_basina_vurgu:
@@ -1642,8 +1692,6 @@ def detay_slayti(
     alan_genislik = genislik - 2 * kenar
 
     # Bayrak sağ üstte duruyor; başlık oraya kadar uzarsa altında kalıyor.
-    # Etiket olmadığında başlık daha yukarıdan başladığı için çakışma
-    # görünür hâle geliyordu — başlık alanını bayrak kadar daraltıyoruz.
     baslik_genislik = alan_genislik - (170 if ulke_kodu else 0)
 
     # Sol üst logo (%50 büyütülmüş 144px)
@@ -1679,7 +1727,6 @@ def detay_slayti(
     y += 40
 
     # --- Detay metni: asıl içerik ---
-    # Punto SABİT; metin uzunsa sayfa ekleniyor (bkz. detay_sayfalara_bol).
     alt_bilgi_y = yukseklik - dikey_kenar - 34
     kullanilabilir = alt_bilgi_y - 40 - y
 
@@ -1687,7 +1734,7 @@ def detay_slayti(
     bloklar = satirlar
     if bloklar is None:
         d_font = _font(DETAY_PUNTO, EKSEN_OZET)
-        bloklar = [{"satirlar": _satirlara_bol(detay, d_font, alan_genislik, ciz),
+        bloklar = [{"satirlar": _satirlara_bol(detay, d_font, alan_genislik - 32, ciz),
                     "spot": False}]
 
     toplam = (sum(b.get("yukseklik", 0) for b in bloklar)
@@ -1701,7 +1748,6 @@ def detay_slayti(
 
         if tip == "sayi":
             # İri rakam + altında ne olduğu. Amber renk: sayfadaki tek
-            # renkli öğe, göz doğrudan oraya gidiyor.
             punto = b.get("punto", VURGU_SAYI_PUNTO)
             f = _font(punto, EKSEN_BASLIK)
             ciz.text((kenar, y), b["sayi"], font=f, fill=(226, 170, 88))
@@ -1755,12 +1801,26 @@ def detay_slayti(
             y += b["yukseklik"]
 
         else:
-            punto = b.get("punto") or (DETAY_SPOT_PUNTO if b["spot"]
-                                       else DETAY_PUNTO)
+            # Normal Detay Paragrafı (Spot veya Gelişme)
+            punto = b.get("punto") or (DETAY_SPOT_PUNTO if b["spot"] else DETAY_PUNTO)
             satir_y = int(punto * 1.5)
+            blok_yuk = satir_y * len(b["satirlar"])
+
+            # Paragraf Başı Çentiği (Sleek Rounded Vertical Accent Notch):
+            # 1. Paragraf (Spot): Canlı Amber (#E2AA58)
+            # 2+ Paragraflar: Siber Turkuaz (#06B6D4)
+            centik_renk = (226, 170, 88) if b["spot"] else (6, 182, 212)
+            ciz.rounded_rectangle(
+                [kenar, y + 4, kenar + 4, y + blok_yuk - 4],
+                radius=2,
+                fill=centik_renk
+            )
+
+            y_yazi = y
             for satir in b["satirlar"]:
-                _formatli_satir_ciz(ciz, kenar, y, satir, punto, spot=b["spot"])
-                y += satir_y
+                _formatli_satir_ciz(ciz, kenar + 24, y_yazi, satir, punto, spot=b["spot"])
+                y_yazi += satir_y
+            y += blok_yuk
 
         if i < len(bloklar) - 1:
             y += PARAGRAF_ARASI

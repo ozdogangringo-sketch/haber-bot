@@ -318,18 +318,11 @@ gorsel:
   # Instagram carousel'de TÜM slaytlar aynı en-boy oranında olmalı.
   # 4:5 dikey seçtik: karaya göre akışta daha çok yer kaplıyor.
   genislik: 1080
-  yukseklik: 1350
+  yukseklik: 1920
   kenar_bosluk: 80         # yazının kenarlardan uzaklığı (piksel)
 
-  # GÜVENLİ ALAN — dikey kenarlarda fazladan pay.
-  # Instagram feed'de 4:5 görsel tam görünüyor, sorun yok. Risk profil
-  # ızgarasında: eskiden 4:5 postlar kareye kırpılıyordu ve 1080x1350'de
-  # bu üstten/alttan 135'er piksel demek. Instagram ızgarayı 2025'te
-  # dikey yaptı, yani bugün kırpılmıyor — ama bayrak (y=80) ve kaynak
-  # satırı (y=1236) tam o sınırın üstündeydi, hiç payımız yoktu.
-  # 150 diyerek ikisini de kırpma çizgisinin içine aldık; başlık ve özet
-  # zaten merkezde olduğu için onlar en baştan güvendeydi.
-  dikey_guvenli_pay: 150
+  # GÜVENLİ ALAN (9:16 - 1080x1920)
+  dikey_guvenli_pay: 330
   # Alt bilgideki sosyal kanal ikonlarının boyu (piksel)
   # 26'da alt bilgide gözden kaçıyordu (kullanıcı fark etmedi).
   # 26/34/42 karşılaştırıldı; 34 fark ediliyor ama kaynak adını ezmiyor.
