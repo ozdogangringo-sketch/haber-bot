@@ -127,6 +127,20 @@ KATALOG = [
         "eylem": "yeniden_yayinla",
     },
     {
+        "desen": r"UnboundLocalError|cannot access local variable",
+        "ne_oldu": "Python fonksiyonunda değişken kapsamı (scope) hatası oluştu.",
+        "neden": "Fonksiyon içerisinde iç içe import veya yerel değişken ataması global değişkeni gölgeledi.",
+        "ne_yapilir": "'🔄 Turu Yeniden Hazırla' butonuna basarak işlemi tekrar başlatabilirsin.",
+        "eylem": "tur_tekrar",
+    },
+    {
+        "desen": r"NameError|name '.*' is not defined",
+        "ne_oldu": "Tanımlanmamış bir değişken çağrıldı (NameError).",
+        "neden": "Kod içi değişken ismi uyuşmazlığı oluştu.",
+        "ne_yapilir": "Hata giderildi, turu veya haberi yeniden deneyebilirsin.",
+        "eylem": "tur_tekrar",
+    },
+    {
         "desen": r"AttributeError|KeyError|IndexError|TypeError|ValueError",
         "ne_oldu": "Kod yürütülürken beklenmeyen bir veri tipi veya alan uyuşmazlığı oluştu.",
         "neden": "Veri yapısı beklenenden farklıydı. Hata kalıcı loga kaydedildi.",

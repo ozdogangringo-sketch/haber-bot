@@ -98,6 +98,11 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 - **`+faststart` Moov Atomu:** MP4 konteynerinin indeks verisini dosyanın başına taşıyarak anında yayın ve indirme başlatır.
 - **Canlı Yayın Durumu Sorgulama (`yayin_durumu_sorgula`):** TikTok Content Posting API üzerinden `SEND_TO_USER_INBOX` durumunu canlı takip eder.
 
+### H. Fiyat Trend Grafiği (Sparkline) & Mükerrer Veri Kartı Filtreleri (`src/sparkline.py` & `src/dogrula.py`)
+- **Piyasa/Fiyatlama Bağlam Şartı (`src/sparkline.py`):** Yaşam, dünya, spor, teknoloji vb. haberlerde metinde para birimi ("4.500 Euro maaş", "100 milyon dolar yatırım") geçse dahi 30 günlük borsa/döviz trend grafiği kesinlikle basılmaz. Grafik SADECE `ekonomi`/`borsa`/`finans` kategorisinde ve doğrudan kur/hisse/emtia fiyat hareketi varsa üretilir.
+- **Mükerrer Rozet Engeli (`dogrula.veri_karti_baslikta_var_mi`):** Başlıkta veya spotta zaten yer alan skorlar (örn: "6-2 yendi"), maaşlar ("4.500 Euro") veya üye sayıları ("600 bin") sağ üstteki rozete mükerrer olarak basılmaz (`veri_karti = None`). Sadece başlıkta olmayan arka plan karşılaştırmaları gösterilir.
+- **Hata Kataloğu & Kapsam Güvenliği (`src/hata_bildir.py`):** `UnboundLocalError` ve `NameError` gibi Python çalıştırma hataları resmi hata kataloğuna eklendi; Telegram üzerinden anında teşhis ve tek tıkla yeniden deneme butonları sağlandı.
+
 ---
 
 ## 4. Görsel Seçim Standartları ve İyileştirme Yol Haritası

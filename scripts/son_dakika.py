@@ -901,7 +901,6 @@ def main(zorla_haber_id: int | None = None) -> int:
                         log.warning("Sabah Piyasa Açılış Bülteni henüz yayınlanmamış! Otomatik telafi yayını başlatılıyor...")
                         try:
                             from scripts import piyasa_otomatik
-                            import sys
                             eski_argv = sys.argv
                             sys.argv = ["piyasa_otomatik.py", "--mod", "acilis"]
                             piyasa_otomatik.main()
