@@ -69,31 +69,95 @@ SEMBOL_HARITASI: dict[str, dict[str, str]] = {
 
 def sembol_tespit_et(metin: str) -> tuple[str, dict[str, str]] | None:
     """
-    Haber başlığı veya özetinde geçen borsa/finans sembolünü tespit eder.
+    Haber metninde DOĞRUDAN finansal piyasa/fiyatlama/borsa hareketi olan sembolleri tespit eder.
+    Rastgele para birimi (örn: 4500 Euro maaş, 100 milyon dolar yatırım) veya madalya haberlerini eler.
     """
     if not metin:
         return None
 
-    # Kelime sınırlarına göre ara
-    for kod, bilgi in SEMBOL_HARITASI.items():
-        desen = rf"\b{kod}\b"
-        if re.search(desen, metin, re.IGNORECASE):
-            return kod, bilgi
+    m = metin.lower()
 
-    # Ek Türkçe aramalar
-    metin_kucuk = metin.lower()
-    if "bist 100" in metin_kucuk or "borsa istanbul" in metin_kucuk:
+    # 1. BIST 100 & Borsa İstanbul
+    if any(k in m for k in ("bist 100", "bist100", "borsa istanbul endeks", "bist endeksi")):
         return "BIST100", SEMBOL_HARITASI["BIST100"]
-    if "türk hava yolları" in metin_kucuk:
+
+    # 2. Döviz Kurları (Sadece kur ve parite hareketlerinde)
+    if any(k in m for k in ("euro/tl", "eur/try", "euro kuru", "euro parite", "euro yükseldi", "euro düştü", "euro rekor")):
+        return "EURO", SEMBOL_HARITASI["EURO"]
+
+    if any(k in m for k in ("dolar/tl", "usd/try", "dolar kuru", "dolar yükseldi", "dolar düştü", "dolar rekor", "dolar endeksi", "dxy")):
+        return "DOLAR", SEMBOL_HARITASI["DOLAR"]
+
+    # 3. Emtia & Kripto (Sadece fiyat ve piyasa hareketlerinde)
+    if any(k in m for k in ("gram altın", "ons altın", "çeyrek altın", "altın fiyatı", "altın fiyatları", "altın rekor", "altın yükseldi", "altın düştü", "altın piyasası")):
+        return "ALTIN", SEMBOL_HARITASI["ALTIN"]
+
+    if any(k in m for k in ("ons gümüş", "gümüş fiyatı", "gümüş fiyatları", "gümüş yükseldi", "gümüş düştü")):
+        return "GUMUS", SEMBOL_HARITASI["GUMUS"]
+
+    if any(k in m for k in ("brent petrol", "petrol varil", "ham petrol fiyatı", "brent petrol fiyat")):
+        return "BRENT", SEMBOL_HARITASI["BRENT"]
+
+    if any(k in m for k in ("bitcoin", "btc/usd", "btc yükseldi", "btc rekor", "ethereum", "eth/usd", "kripto para piyasası")):
+        if "ethereum" in m or "eth" in m:
+            return "ETH", SEMBOL_HARITASI["ETH"]
+        return "BTC", SEMBOL_HARITASI["BTC"]
+
+    # 4. BİST Hisseleri (Hisse/finans/borsa bağlamı zorunludur)
+    hisse_baglami = any(k in m for k in (
+        "hisse", "hisseleri", "hisse senedi", "borsa", "bist", "hedef fiyat",
+        "bilanço", "net kâr", "şirket değeri", "temettü", "tavan yaptı", "taban yaptı"
+    ))
+    if not hisse_baglami:
+        return None
+
+    # Şirket / Hisse eşleştirmeleri
+    if "türk hava yolları" in m or re.search(r"\bthyao\b", m):
         return "THYAO", SEMBOL_HARITASI["THYAO"]
-    if "garanti" in metin_kucuk:
+    if "garanti bbva" in m or "garanti bankası" in m or re.search(r"\bgaran\b", m):
         return "GARAN", SEMBOL_HARITASI["GARAN"]
-    if "tüpraş" in metin_kucuk or "tupras" in metin_kucuk:
-        return "TUPRS", SEMBOL_HARITASI["TUPRS"]
-    if "aselsan" in metin_kucuk:
+    if "akbank" in m or re.search(r"\bakbnk\b", m):
+        return "AKBNK", SEMBOL_HARITASI["AKBNK"]
+    if "iş bankası" in m or "isctr" in m:
+        return "ISCTR", SEMBOL_HARITASI["ISCTR"]
+    if "yapı kredi" in m or "ykbnk" in m:
+        return "YKBNK", SEMBOL_HARITASI["YKBNK"]
+    if "aselsan" in m or re.search(r"\basels\b", m):
         return "ASELS", SEMBOL_HARITASI["ASELS"]
-    if "koç holding" in metin_kucuk or "koc holding" in metin_kucuk:
+    if "ereğli" in m or "eregl" in m:
+        return "EREGL", SEMBOL_HARITASI["EREGL"]
+    if "tüpraş" in m or "tupras" in m or re.search(r"\btuprs\b", m):
+        return "TUPRS", SEMBOL_HARITASI["TUPRS"]
+    if "koç holding" in m or "kchol" in m:
         return "KCHOL", SEMBOL_HARITASI["KCHOL"]
+    if "sabancı holding" in m or "sahol" in m:
+        return "SAHOL", SEMBOL_HARITASI["SAHOL"]
+    if "bim" in m or "bimas" in m:
+        return "BIMAS", SEMBOL_HARITASI["BIMAS"]
+    if "şişecam" in m or "sisecam" in m or re.search(r"\bsise\b", m):
+        return "SISE", SEMBOL_HARITASI["SISE"]
+    if "ford otosan" in m or "froto" in m:
+        return "FROTO", SEMBOL_HARITASI["FROTO"]
+    if "tofaş" in m or "toaso" in m:
+        return "TOASO", SEMBOL_HARITASI["TOASO"]
+    if "pegasus" in m or "pgsus" in m:
+        return "PGSUS", SEMBOL_HARITASI["PGSUS"]
+    if "turkcell" in m or "tcell" in m:
+        return "TCELL", SEMBOL_HARITASI["TCELL"]
+    if "türk telekom" in m or "ttkom" in m:
+        return "TTKOM", SEMBOL_HARITASI["TTKOM"]
+    if "petkim" in m or re.search(r"\bpetkm\b", m):
+        return "PETKM", SEMBOL_HARITASI["PETKM"]
+    if "kardemir" in m or "krdmd" in m:
+        return "KRDMD", SEMBOL_HARITASI["KRDMD"]
+    if "koza altın" in m or "kozal" in m:
+        return "KOZAL", SEMBOL_HARITASI["KOZAL"]
+    if "migros" in m or "mgros" in m:
+        return "MGROS", SEMBOL_HARITASI["MGROS"]
+    if "sasa" in m:
+        return "SASA", SEMBOL_HARITASI["SASA"]
+    if "emlak konut" in m or "ekgyo" in m:
+        return "EKGYO", SEMBOL_HARITASI["EKGYO"]
 
     return None
 
@@ -252,8 +316,13 @@ def trend_karti_ciz(
 def haber_icin_trend_karti(haber: dict[str, Any] | Any) -> Image.Image | None:
     """
     Verilen haber için borsa/finans sembolü varsa otomatik olarak trend kartını üretir.
+    Kural: SADECE ekonomi/borsa/finans kategorisinde ve doğrudan piyasa/fiyatlama haberi ise çalışır.
     """
     h = dict(haber) if haber else {}
+    kategori = (h.get("kategori") or "").lower().strip()
+    if kategori not in ("ekonomi", "borsa", "finans"):
+        return None
+
     baslik = h.get("ig_baslik") or h.get("baslik_orj") or ""
     ozet = h.get("slayt_ozet") or h.get("detay_metni") or ""
     metin = f"{baslik} {ozet}"

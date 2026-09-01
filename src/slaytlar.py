@@ -349,13 +349,19 @@ def slayt_uret(haber, ayarlar: dict,
     v_yeni = _alan(haber, "veri_karti_yeni")
     if v_etiket and v_yeni:
         km = _alan(haber, "makale_metni") or _alan(haber, "ozet_orj")
+        baslik = _alan(haber, "ig_baslik") or _alan(haber, "baslik_orj") or ""
+        ozet = _alan(haber, "slayt_ozet") or ""
         if dogrula.veri_karti_dogrula(_alan(haber, "veri_karti_eski"), v_yeni, km):
-            veri_karti = {
+            gecici_kart = {
                 "etiket": v_etiket,
                 "yeni": v_yeni,
                 "eski": _alan(haber, "veri_karti_eski") or "",
                 "yon": _alan(haber, "veri_karti_yon") or "artis",
             }
+            if not dogrula.veri_karti_baslikta_var_mi(gecici_kart, baslik, ozet):
+                veri_karti = gecici_kart
+            else:
+                log.info("Veri kartı başlıkta/özette zaten var, atlandı #%s", haber.get("id"))
 
     gorsel = make_image.yaziyi_bas(
         arkaplan,
@@ -482,13 +488,19 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     v_yeni = _alan(haber, "veri_karti_yeni")
     if v_etiket and v_yeni:
         km = _alan(haber, "makale_metni") or _alan(haber, "ozet_orj")
+        baslik = _alan(haber, "ig_baslik") or _alan(haber, "baslik_orj") or ""
+        ozet = _alan(haber, "slayt_ozet") or ""
         if dogrula.veri_karti_dogrula(_alan(haber, "veri_karti_eski"), v_yeni, km):
-            veri_karti = {
+            gecici_kart = {
                 "etiket": v_etiket,
                 "yeni": v_yeni,
                 "eski": _alan(haber, "veri_karti_eski") or "",
                 "yon": _alan(haber, "veri_karti_yon") or "artis",
             }
+            if not dogrula.veri_karti_baslikta_var_mi(gecici_kart, baslik, ozet):
+                veri_karti = gecici_kart
+            else:
+                log.info("Veri kartı başlıkta/özette zaten var, atlandı #%s", haber.get("id"))
 
     # ig_caption ve detay metinleri
     detay = (_alan(haber, "detay_metni")

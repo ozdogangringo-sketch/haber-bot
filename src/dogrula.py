@@ -85,6 +85,39 @@ def veri_karti_dogrula(eski_deger: str | None, yeni_deger: str | None, kaynak_me
     return True
 
 
+def veri_karti_baslikta_var_mi(veri_karti: dict, baslik: str, ozet: str = "") -> bool:
+    """
+    Veri kartındaki sayılar veya değerler başlıkta ya da spotta zaten geçiyorsa True döner.
+    Bu durumda veri kartı çizilmemeli (kopya / gereksiz rozet engellenir).
+    """
+    if not veri_karti:
+        return False
+
+    baslik_ozet = f"{baslik} {ozet}".lower()
+    baslik_sayilar = _sayilar(baslik_ozet)
+
+    yeni = str(veri_karti.get("yeni") or "")
+    eski = str(veri_karti.get("eski") or "")
+
+    # 1. Sayısal geçiş kontrolü
+    yeni_sayilar = _sayilar(yeni)
+    if yeni_sayilar and yeni_sayilar.issubset(baslik_sayilar):
+        if not eski:
+            return True
+        eski_sayilar = _sayilar(eski)
+        if eski_sayilar and eski_sayilar.issubset(baslik_sayilar):
+            return True
+
+    # 2. Metinsel doğrudan geçiş kontrolü (örn "6 - 2", "6-2", "4500", "600 bin")
+    yeni_temiz = _sadelestir(yeni)
+    baslik_temiz = _sadelestir(baslik_ozet)
+    if yeni_temiz and len(yeni_temiz) >= 2 and yeni_temiz in baslik_temiz:
+        if not eski or _sadelestir(eski) in baslik_temiz:
+            return True
+
+    return False
+
+
 def _ozel_isimler(metin: str) -> list[str]:
     """
     Cümle ortasında büyük harfle başlayan kelimeler.

@@ -194,8 +194,8 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
   (Örn: "Sizce TCMB'nin ilk faiz indirimi hangi ayda gelmeli?", "Bu hedef fiyat sonrası hisseyi takibe alır mısınız?")
 - neden_onemli: 1-2 CÜMLE. Haberin makro, stratejik veya jeopolitik etki boyutu. Genel geçer soyut laflar yerine somut etkiyi net bir dille yaz. Asla markdown yıldız (**) kullanma.
 - sirada_ne_var: TEK CÜMLE. Haberde açıkça geçen sonraki resmi adım, duruşma veya yürürlük tarihi. Bilgi yoksa boş string ("") bırak.
-- veri_karti_*: Haberde herhangi bir karşılaştırma veya oran (eski vs yeni, hedef fiyat, kâr artışı, enflasyon vb.) varsa ZORUNLU olarak doldur:
-    veri_karti_etiket : "Hedef Fiyat", "Politika Faizi", "Yıllık TÜFE", "Net Kâr Artışı"
+- veri_karti_*: SADECE başlıkta ve slayt özetinde YER ALMAYAN somut bir karşılaştırma (eski vs yeni) veya arka plan göstergesi (hedef fiyat, faiz değişimi vb.) varsa doldur. Başlıkta zaten geçen skor, maç sonucu, maaş veya sayıları buraya ASLA TEKRAR YAZMA (başlıkta zaten geçen veriler için tüm veri_karti alanlarını boş string "" bırak):
+    veri_karti_etiket : "Hedef Fiyat", "Politika Faizi", "Yıllık TÜFE"
     veri_karti_eski   : "380 ₺" veya "%50" (varsa, yoksa "")
     veri_karti_yeni   : "450 ₺" veya "%45"
     veri_karti_yon    : "artis" | "azalis" | "hedef" | "notr" | ""
