@@ -230,10 +230,43 @@ def video_yukle(
                 "durum": False,
                 "hata": f"TikTok bayt yükleme hatası ({r_up.status_code}): {r_up.text[:150]}",
             }
-
     except Exception as e:
         log.warning("TikTok yükleme hatası: %s", e)
         return {"durum": False, "hata": str(e)}
+
+
+def yayin_durumu_sorgula(publish_id: str) -> dict[str, Any]:
+    """
+    TikTok'a yüklenen videonun işlenme ve gelen kutusuna ulaşma durumunu sorgular.
+    Döner: {'durum': True/False, 'status': 'SEND_TO_USER_INBOX'|'PROCESSING_UPLOAD'|'SUCCESS'|'FAILED', 'hata': '...'}
+    """
+    token = access_token_al()
+    if not token or not publish_id:
+        return {"durum": False, "status": "NO_TOKEN", "hata": "Token veya publish_id eksik."}
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json; charset=UTF-8",
+    }
+    try:
+        url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
+        r = requests.post(url, headers=headers, json={"publish_id": publish_id}, timeout=15)
+        veri = r.json()
+        if r.status_code == 401 or veri.get("error", {}).get("code") in ("access_token_invalid", "token_expired"):
+            token = token_yenile()
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                r = requests.post(url, headers=headers, json={"publish_id": publish_id}, timeout=15)
+                veri = r.json()
+
+        if r.status_code == 200 and veri.get("error", {}).get("code") == "ok":
+            status = veri.get("data", {}).get("status", "UNKNOWN")
+            return {"durum": True, "status": status, "veri": veri}
+        else:
+            hata = veri.get("error", {}).get("message", r.text[:100])
+            return {"durum": False, "status": "ERROR", "hata": hata}
+    except Exception as e:
+        return {"durum": False, "status": "EXCEPTION", "hata": str(e)}
 
 
 def saglik_testi(ayarlar: dict) -> dict[str, Any]:
