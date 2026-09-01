@@ -74,15 +74,12 @@ jobs:
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
         run: |
-          MOD_ARG=""
-          if [ "${{ inputs.mod }}" != "" ]; then
-            MOD_ARG="--mod ${{ inputs.mod }}"
-          fi
+          MOD_VAL="${{ inputs.mod || github.event.client_payload.mod || 'oto' }}"
           KURU_ARG=""
-          if [ "${{ inputs.kuru }}" = "true" ]; then
+          if [ "${{ inputs.kuru || github.event.client_payload.kuru }}" = "true" ]; then
             KURU_ARG="--kuru"
           fi
-          python scripts/piyasa_otomatik.py $MOD_ARG $KURU_ARG
+          python scripts/piyasa_otomatik.py --mod "$MOD_VAL" $KURU_ARG
 
       - name: Veritabanını kaydet
         if: always()

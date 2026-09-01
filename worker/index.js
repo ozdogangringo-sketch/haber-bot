@@ -33,7 +33,8 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
                   "kota_raporu", "tur_temizle", "tur_hazirla", "ekonomi_hazirla", "ekonomi",
-                  "piyasa", "piyasa_ozet", "bulten", "sonpostlar", "son_postlar",
+                  "piyasa", "piyasa_ozet", "piyasa_yayinla", "piyasa_onizle", "ekonomi_yayinla",
+                  "bulten", "sonpostlar", "son_postlar",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
                   "tur_onayla", "tur_yeniden"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
@@ -1112,9 +1113,45 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    // Saat başı son dakika kontrolünü Cloudflare Edge üzerinden tam zamanında tetikler
+    // Cloudflare Edge üzerinden sıfır gecikmeli cron tetikleyici
     if (!env.GITHUB_PAT || !env.GITHUB_REPO) return;
     const url = `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`;
+
+    // 1. Hafta içi Borsa Açılış Bülteni (TR 10:08 / UTC 07:08)
+    if (event.cron === "8 7 * * 1-5") {
+      await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${env.GITHUB_PAT}`,
+          "User-Agent": "HaberBot-CloudflareWorker",
+        },
+        body: JSON.stringify({
+          event_type: "piyasa_bulteni",
+          client_payload: { mod: "acilis", tetikleyen: "cloudflare_cron" },
+        }),
+      });
+      return;
+    }
+
+    // 2. Hafta içi Borsa Kapanış Bülteni (TR 18:20 / UTC 15:20)
+    if (event.cron === "20 15 * * 1-5") {
+      await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${env.GITHUB_PAT}`,
+          "User-Agent": "HaberBot-CloudflareWorker",
+        },
+        body: JSON.stringify({
+          event_type: "piyasa_bulteni",
+          client_payload: { mod: "kapanis", tetikleyen: "cloudflare_cron" },
+        }),
+      });
+      return;
+    }
+
+    // 3. Saatlik son dakika ve taze haber taraması
     await fetch(url, {
       method: "POST",
       headers: {
