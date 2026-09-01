@@ -12,9 +12,6 @@
 name: Piyasa Bulteni
 
 on:
-  schedule:
-    - cron: "8 7 * * 1-5"        # Hafta içi TR 10:08 (BIST 10:00 açılış verileri oturduktan sonra)
-    - cron: "20 15 * * 1-5"      # Hafta içi TR 18:20 (BIST 18:00 seans kapanışı ve karanlık oda sonrası)
   workflow_dispatch:
     inputs:
       mod:

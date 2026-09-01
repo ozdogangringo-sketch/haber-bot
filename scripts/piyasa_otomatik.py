@@ -70,26 +70,48 @@ def main() -> int:
     hafta_ici = tr_simdi.weekday() < 5
     tr_saat = tr_simdi.hour
     tr_dakika = tr_simdi.minute
+    toplam_dakika = tr_saat * 60 + tr_dakika
     bugun_str = tr_simdi.date().isoformat()
 
+    if not hafta_ici and not args.zorla:
+        log.info("Hafta sonu — Piyasa Bülteni yayınlanmaz.")
+        con.close()
+        return 0
+
+    # Saat Pencereleri (TR Saati):
+    # Açılış: 09:55 - 11:30 (Borsa 10:00 açılışı sonrası)
+    # Kapanış: 18:15 - 20:00 (Borsa 18:00 kapanışı sonrası)
+    dakika_acilis_bas = 9 * 60 + 55    # 09:55
+    dakika_acilis_bit = 11 * 60 + 30   # 11:30
+
+    dakika_kapanis_bas = 18 * 60 + 15  # 18:15
+    dakika_kapanis_bit = 20 * 60 + 0   # 20:00
+
     if args.mod == "oto":
-        if not hafta_ici:
-            log.info("Hafta sonu — Piyasa Bülteni yayınlanmaz.")
-            con.close()
-            return 0
-        if 8 <= tr_saat <= 15:
+        if dakika_acilis_bas <= toplam_dakika <= dakika_acilis_bit:
             mod = "acilis"
-        elif 16 <= tr_saat <= 23:
+        elif dakika_kapanis_bas <= toplam_dakika <= dakika_kapanis_bit:
             mod = "kapanis"
+        elif args.zorla:
+            mod = "acilis" if toplam_dakika < 15 * 60 else "kapanis"
         else:
-            log.info(
-                "Piyasa bülteni saat penceresi dışında (%02d:%02d TR) — atlanıyor.",
+            log.warning(
+                "Piyasa bülteni açılış/kapanış saat penceresi dışında (şu an %02d:%02d TR) — atlanıyor.",
                 tr_saat, tr_dakika
             )
             con.close()
             return 0
     else:
         mod = args.mod
+        # Mod açıkça belirtilmişse bile saat penceresi dışındaysa --zorla olmadan yayınlama!
+        if mod == "acilis" and not (dakika_acilis_bas <= toplam_dakika <= dakika_acilis_bit) and not args.zorla:
+            log.warning("Açılış bülteni saat penceresi dışında (şu an %02d:%02d TR, geçerli: 09:55-11:30) — atlandı.", tr_saat, tr_dakika)
+            con.close()
+            return 0
+        if mod == "kapanis" and not (dakika_kapanis_bas <= toplam_dakika <= dakika_kapanis_bit) and not args.zorla:
+            log.warning("Kapanış bülteni saat penceresi dışında (şu an %02d:%02d TR, geçerli: 18:15-20:00) — atlandı.", tr_saat, tr_dakika)
+            con.close()
+            return 0
 
     # 3. Mükerrer Bülten Kilidi (Günde 1 kez açılış, 1 kez kapanış)
     anahtar_bulten = f"piyasa_bulteni_{mod}_{bugun_str}"
@@ -107,9 +129,19 @@ def main() -> int:
     # 4. Canlı piyasa verilerini çek
     piyasa_verileri = piyasa.piyasa_verileri_getir()
 
-    # 5. %100 Saf Native 1080x1920 Full-bleed Slaytları Üret
-    kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(piyasa_verileri)
-    tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16()
+    # 5. 4:5 Destekli 1080x1920 (9:16) Slaytları Üret
+    kart_4_5_yolu = piyasa_kart.piyasa_karti_uret(piyasa_verileri)
+    tablo_4_5_yolu = piyasa_tablo.piyasa_tablosu_uret()
+
+    with Image.open(kart_4_5_yolu) as img_k:
+        story_kart = video._cercevele_9_16(img_k)
+    with Image.open(tablo_4_5_yolu) as img_t:
+        story_tablo = video._cercevele_9_16(img_t)
+
+    kart_yolu = make_image.CIKTI_KLASORU / "piyasa_karti_story.jpg"
+    tablo_yolu = make_image.CIKTI_KLASORU / "piyasa_tablosu_story.jpg"
+    story_kart.save(kart_yolu, "JPEG", quality=95, optimize=True)
+    story_tablo.save(tablo_yolu, "JPEG", quality=95, optimize=True)
 
     kart_yukleme = upload_image.gorsel_yukle(kart_yolu, ayarlar)
     tablo_yukleme = upload_image.gorsel_yukle(tablo_yolu, ayarlar)

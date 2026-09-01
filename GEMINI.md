@@ -61,14 +61,16 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 
 ## 3. Yapılan Başlıca Geliştirmeler & Modüller
 
-### A. %100 Saf Native 1080x1920 Canlı Piyasa Bülteni (`src/piyasa_kart.py` & `src/piyasa_tablo.py`)
-- **%100 Native 9:16 (1080x1920):** `piyasa_karti_uret_9_16()` ve `piyasa_tablosu_uret_9_16()` ile 1. Slayt (Piyasa Isı Haritası) + 2. Slayt (30 Varlık BİST/Küresel/Kripto Tablosu) hiçbir blur/çerçeve olmadan doğrudan 1920px dikey ekranda tam ekran infografik olarak çizilir.
+### A. 4:5 Destekli 1080x1920 Canlı Piyasa Bülteni (`src/piyasa_kart.py` & `src/piyasa_tablo.py`)
+- **4:5 Destekli 1080x1920 (9:16):** 1. Slayt (Piyasa Isı Haritası) ve 2. Slayt (30 Varlık Piyasa Karnesi) 1080x1920 tuvalde, merkezi 1080x1350 (4:5) içerik güvenli bölgesine yerleştirilir.
+  * Instagram Carousel Akışında (4:5) tüm tablolar ve rozetler sıfır taşmayla ve dikey bozulma olmadan görünür.
+  * Story ve Dikey formatlarda (9:16) üst ve alt alanlar sinematik degrade ve derinlik gölgesiyle tam ekranı doldurur.
 - **Tasarım:** *Derin Okyanus Petrolü* zemin (`#04181C`), *Siber Turkuaz* parıltılı rozet (`#06B6D4`), canlı Gram Altın/Gümüş TL çevrimi ve 30 günlük Yahoo Finance sparkline trend çizgileri.
-- **Saat Penceresi & Telafi:** Açılış bülteni penceresi 08:00 - 15:00, kapanış penceresi 16:00 - 23:00 aralığına genişletilmiştir.
+- **Kesin Saat Pencereleri:** Açılış bülteni penceresi **09:55 - 11:30 TR**, Kapanış bülteni penceresi **18:15 - 20:00 TR** aralığındadır. Bu saatler dışında sistem otomatik yayınlamayı reddeder.
 
 ### B. Cloudflare Edge Cron & Çok Katmanlı Güvenlik Mimarisi
-- **Cloudflare Edge Cron:** `worker/wrangler.toml` ve `worker/index.js` üzerinden `8 7 * * 1-5` (10:08 TR) ve `20 15 * * 1-5` (18:20 TR) cron'ları doğrudan Cloudflare Edge ağında çalışarak GitHub REST API `repository_dispatch` ile piyasa bültenini ve saatlik haber akışını sıfır gecikmeyle tetikler.
-- **Saatlik `son_dakika` Emniyet Ağı:** Hafta içi sabah bülteni gecikirse, saat başı çalışan `son_dakika.py` motoru durumu fark edip piyasa bültenini anında yayına alır.
+- **Cloudflare Edge Cron:** `worker/wrangler.toml` ve `worker/index.js` üzerinden `8 7 * * 1-5` (10:08 TR) ve `20 15 * * 1-5` (18:20 TR) cron'ları doğrudan Cloudflare Edge ağında çalışarak GitHub REST API `repository_dispatch` ile piyasa bültenini ve saatlik haber akışını sıfır gecikmeyle tetikler. GitHub Actions'ın kendi gecikmeli `schedule:` cron'ları tamamen kaldırılmıştır.
+- **Saatlik `son_dakika` Emniyet Ağı:** Hafta içi sabah 10:15 - 11:30 arasında bülten gecikirse, saat başı çalışan `son_dakika.py` motoru durumu fark edip piyasa bültenini anında yayına alır.
 - **Telegram `/piyasa` ve `/ekonomi` Butonları:** Telegram'dan anlık olarak "🚀 Canlı Bülteni Şimdi Yayınla" ve "🖼️ 1080x1920 Slaytları Önizle" butonlarıyla bülten tetiklenebilir.
 
 ### C. Tek Merkezli Komut Sözlüğü (`src/komutlar.py`) & Modüler Handler Katmanı (`src/handlers/`)

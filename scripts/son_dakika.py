@@ -893,8 +893,8 @@ def main(zorla_haber_id: int | None = None) -> int:
                     )
                     return 0
 
-                # Sabah bülteni geciktiyse (10:15 - 15:00) ve bugün açılış bülteni hiç atılmadıysa otomatik telafi et
-                if 10 <= saat <= 14:
+                # Sabah bülteni geciktiyse (10:15 - 11:30 TR) ve bugün açılış bülteni hiç atılmadıysa otomatik telafi et
+                if (saat == 10 and dakika >= 15) or (saat == 11 and dakika <= 30):
                     anahtar_acilis = f"piyasa_bulteni_acilis_{bugun_str}"
                     zaten_acilis = con.execute("SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_acilis,)).fetchone()
                     if not zaten_acilis:
