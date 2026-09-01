@@ -63,12 +63,15 @@ def _alan(haber, ad: str) -> str:
     """
     Haber kaydından güvenli alan okuma.
 
-    sqlite3.Row'da olmayan bir kolona erişmek IndexError atıyor; eski
-    bir veritabanında yeni kolonlar henüz yokken çökmemek için sarmaladık.
+    sqlite3.Row'da olmayan bir kolona erişmek IndexError/KeyError atıyor;
+    sayısal değerlerde (id, onem_puani vb.) strip çökmemesi için str'ye çevrilir.
     """
     try:
-        return (haber[ad] or "").strip()
-    except (IndexError, KeyError):
+        val = haber[ad]
+        if val is None:
+            return ""
+        return str(val).strip()
+    except (IndexError, KeyError, TypeError):
         return ""
 
 
