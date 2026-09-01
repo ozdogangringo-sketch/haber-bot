@@ -7,41 +7,47 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 ## 1. Kullanıcı Profili ve Değişmez Temel İlkeler
 
 - **Kullanıcı:** Doğukan. Türkçe konuşur, kararlı, yüksek kaliteli ve net çıktılar bekler.
-- **Teknik Yaklaşım:** SQL ve veritabanı mantığına hakimdir. Kodların doğrudan asistan tarafından profesyonelce yazılıp test edilmesini tercih eder.
+- **Alan Adı (Domain):** `ozbornstudio.com` alan adı projeye aittir. Gelecekte ihtiyaç halinde alt alan adları (örn: `bot.ozbornstudio.com`, `api.ozbornstudio.com`, `media.ozbornstudio.com`, `brief.ozbornstudio.com`) Cloudflare DNS üzerinden webhook, CDN, görsel barındırma veya web kontrol paneli için yapılandırılabilir.
 - **KATI VE DEĞİŞMEZ KURAL (ZERO 4:5 & 100% NATIVE 1080x1920 9:16):**
   * **4:5 (1080x1350) görsel üretimi TAMAMEN KALDIRILMIŞTIR!**
   * Hiçbir slayt 4:5 çizilmez; tüm slaytlar (Tekil Haber 1. Kapak, 2. Detay, 3. Detay/Etki, Canlı Piyasa Bülteni 1. Isı Haritası, 2. BİST Tablosu, Özel Dosya Haberleri vb.) **doğrudan 1080x1920 piksel tuvalde %100 SAF NATIVE FULL-BLEED infografik ve slayt olarak sıfırdan çizilir**.
-  * Instagram, Facebook, Threads, X, YouTube Shorts ve TikTok paylaşımları doğrudan bu 1080x1920 native dikey slaytlar üzerinden yürütülür.
+  * Instagram (Akış & Story), Facebook (Albüm & Story), Threads, X, YouTube Shorts ve TikTok paylaşımları doğrudan bu 1080x1920 native dikey slaytlar üzerinden yürütülür.
   * **ASLA VE ASLA** yapay çerçeve veya blur kenarlık eklenmeyecektir.
-- **KATI TİPOGRAFİ VE ÇİĞ YILDIZ ENGELİ:**
+- **KATI TİPOGRAFİ, PARAGRAF ÇENTİKLERİ VE TEMİZ METİN:**
+  * **Paragraf Başı Dikey Çentikleri (Sleek Accent Notch):** Detay slaytlarında paragrafların solunda 4px yuvarlatılmış renkli dikey çentikler yer alır:
+    - *Spot Paragraf:* Sıcak Kehribar (`#E2AA58`)
+    - *Gelişme Paragrafları:* Siber Turkuaz (`#06B6D4`)
+    - *Sana Etkisi:* Zümrüt Yeşili (`#10B981`)
+  * **Sıfır Taşma Garantisi (`detay_sayfalara_bol` & `_metni_paragraflara_ayir`):** Metinler Türkçe sıra sayıları (`42.`, `3.`) ve unvan/kısaltmaları (`Dr.`, `vb.`) bozulmadan 2-3 cümlelik ferah paragraflara ayrılır ve 1080x1920 tuvalde alt bilgi çizgisine değmeden dinamik sayfalara bölünür.
   * Slayt görsellerinde kilit veriler, oranlar ve aktörler Pillow render motoru tarafından **800.0 Extra Bold** kalın ve parlak çizilir.
-  * Sosyal medya açıklamalarında (`ig_caption`, Threads, Twitter) ise **SIFIR MARKDOWN (`**`) KURALI** geçerlidir; tüm açıklamalar temiz düz metindir.
-- **YAYIN MODELİ (SAATLİK TEKLİ HABERLER):**
+  * Sosyal medya açıklamalarında (`ig_caption`, Threads, Twitter) ise **SIFIR MARKDOWN (`**`) KURALI** geçerlidir; `ÖNE ÇIKAN VERİ` gibi kalıp etiketler kaldırılmıştır, tüm açıklamalar akıcı ve temiz editoryal düz metindir.
+- **YAYIN MODELİ (SAATLİK TEKLİ HABERLER & GÜNLÜK PİYASA BÜLTENİ):**
   * Akşam çoklu haber turları kaldırılmıştır.
   * Gün boyu 1'er saat aralıklarla Telegram'a **en taze 5 haber önerisi** düşer; seçilen haber varsayılan olarak **3 ferah sayfa (1 Kapak + 2 Detay/Analiz Slaytı - 1080x1920)** olarak üretilir.
-  * Sabahları fiks **Canlı Borsa & Piyasa Bülteni** (%100 Native 1080x1920 Story ve Akış) otomatik paylaşılır.
+  * Hafta içi sabah (TR 10:08) ve akşam (TR 18:20) fiks **Canlı Borsa & Piyasa Bülteni** (%100 Native 1080x1920 Story ve Akış) otomatik paylaşılır.
 
 ---
 
-## 2. Sistem Mimarisi & İşleyiş Akışı
+## 2. Sistem Mimarisi & Kesintisiz 3 Katmanlı Tetikleme
 
 ```
-[RSS & Finans Beslemeleri] 
-       │ (AA, BloombergHT, Borsa Gündem, Investing TR, Webrazzi...)
+[Cloudflare Edge Cron Triggers] (10:08 TR Açılış, 18:20 TR Kapanış, Saatlik Akış)
+       │ (0 Gecikme, 99.99% Uptime — worker/index.js)
        ▼
-[fetch_news.py] ──> SQLite (data/haber.db) [durum='yeni']
+[GitHub Actions repository_dispatch] ──► [piyasa-bulteni.yml / son-dakika.yml]
+       │
+[son_dakika.py Otomatik Telafi Ağı] ──► (Bülten gecikirse saat başı otomatik tamamlar)
+       │
+[fetch_news.py] ──> SQLite (data/haber.db)
        │
        ▼
-[Saatlik Öneri & Seçim] (son_dakika.py)
-       │ (Her saat başı en iyi 5 taze haber önerisi)
+[Tekil 3 Slayt %100 Native 1080x1920 Üretimi] (slaytlar.py / make_image.py / piyasa_kart.py / piyasa_tablo.py)
+       │ (1 Kapak + 2 Detay Slaytı + 144px 3D Logo + Renkli Paragraf Çentikleri)
        ▼
-[Tekil 3 Slayt %100 Native 1080x1920 Üretimi] (slaytlar.py / make_image.py)
-       │ (1 Kapak + 2 Detay Slaytı + 144px 3D Logo + Zümrüt Yeşili "Sana Etkisi")
+[Telegram Onay & Yönetim Grubu] (telegram_bot.py ──> Daily Brief Grubu)
+       │ (İnteraktif butonlar: 1️⃣..5️⃣ Seç, ✅ Yayınla, 🚀 Canlı Bülteni Şimdi Yayınla...)
        ▼
-[Telegram Onay Grubu] (telegram_bot.py ──> Daily Brief Grubu)
-       │ (İnteraktif butonlar: 1️⃣..5️⃣ Seç, ✅ Yayınla, 🔄 Başka Fotoğraf...)
-       ▼
-[Cloudflare Worker ──> GitHub Actions] (onay_isle.py)
+[onay_isle.py Router]
        │
        ├─► Instagram Graph API (1080x1920 Carousel & 1080x1920 Story)
        ├─► Facebook Graph API (1080x1920 Albüm & 1080x1920 Story)
@@ -58,24 +64,31 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 ### A. %100 Saf Native 1080x1920 Canlı Piyasa Bülteni (`src/piyasa_kart.py` & `src/piyasa_tablo.py`)
 - **%100 Native 9:16 (1080x1920):** `piyasa_karti_uret_9_16()` ve `piyasa_tablosu_uret_9_16()` ile 1. Slayt (Piyasa Isı Haritası) + 2. Slayt (30 Varlık BİST/Küresel/Kripto Tablosu) hiçbir blur/çerçeve olmadan doğrudan 1920px dikey ekranda tam ekran infografik olarak çizilir.
 - **Tasarım:** *Derin Okyanus Petrolü* zemin (`#04181C`), *Siber Turkuaz* parıltılı rozet (`#06B6D4`), canlı Gram Altın/Gümüş TL çevrimi ve 30 günlük Yahoo Finance sparkline trend çizgileri.
+- **Saat Penceresi & Telafi:** Açılış bülteni penceresi 08:00 - 15:00, kapanış penceresi 16:00 - 23:00 aralığına genişletilmiştir.
 
-### B. Tek Merkezli Komut Sözlüğü (`src/komutlar.py`) & Modüler Handler Katmanı (`src/handlers/`)
+### B. Cloudflare Edge Cron & Çok Katmanlı Güvenlik Mimarisi
+- **Cloudflare Edge Cron:** `worker/wrangler.toml` ve `worker/index.js` üzerinden `8 7 * * 1-5` (10:08 TR) ve `20 15 * * 1-5` (18:20 TR) cron'ları doğrudan Cloudflare Edge ağında çalışarak GitHub REST API `repository_dispatch` ile piyasa bültenini ve saatlik haber akışını sıfır gecikmeyle tetikler.
+- **Saatlik `son_dakika` Emniyet Ağı:** Hafta içi sabah bülteni gecikirse, saat başı çalışan `son_dakika.py` motoru durumu fark edip piyasa bültenini anında yayına alır.
+- **Telegram `/piyasa` ve `/ekonomi` Butonları:** Telegram'dan anlık olarak "🚀 Canlı Bülteni Şimdi Yayınla" ve "🖼️ 1080x1920 Slaytları Önizle" butonlarıyla bülten tetiklenebilir.
+
+### C. Tek Merkezli Komut Sözlüğü (`src/komutlar.py`) & Modüler Handler Katmanı (`src/handlers/`)
 - **Single Source of Truth (`src/komutlar.py`):** `MESAJSIZ_KOMUTLAR`, `KOMUT_MENUSU` ve yetki yönetimi tek merkezde toplandı.
 - **Modüler Handler Katmanı (`src/handlers/`):**
   * `yayin_yonetimi.py`: Çoklu platform yayını, telafi, URL doğrulama ve zamanlanmış yayınlar.
   * `slayt_yonetimi.py`: Fotoğraf değiştirme, AI ile görsel üretme, metin düzenleme ve slayt silme.
   * `tur_yonetimi.py`: Tur yaşam döngüsü, aday seçimi, başlık onayı, arama ve erteleme/iptal.
-- **Telegram Slash Menüsü:** `/dosya`, `/kronoloji`, `/link`, `/arastir`, `/sondakika`, `/piyasa`, `/yonetim`, `/temizle` resmi olarak `setMyCommands` ile kaydedildi.
+- **Telegram Slash Menüsü:** `/dosya`, `/kronoloji`, `/link`, `/arastir`, `/sondakika`, `/piyasa`, `/ekonomi`, `/yonetim`, `/durum`, `/temizle` resmi olarak `setMyCommands` ile kayıtlıdır.
 
-### C. A'dan Z'ye Perde Arkası Dosya Haberi Motoru (`/dosya <KONU>`, `src/ozel_haber.py`)
+### D. A'dan Z'ye Perde Arkası Dosya Haberi Motoru (`/dosya <KONU>`, `src/ozel_haber.py`)
 - Verilen konunun (örn. davalar, teftişler, şirket krizleri) başından günümüze kadarki tüm kronolojisini, ara bilirkişi raporlarını ve gelinen son hukuki durumu 3 ferah paragraflı, kilit verili derinlemesine bir bültene dönüştürür.
 
-### D. Kurumsal Marka Kimliği & 144px 3D Logo (`src/slaytlar.py` & `src/make_image.py`)
+### E. Kurumsal Marka Kimliği & 144px 3D Logo (`src/slaytlar.py` & `src/make_image.py`)
 - Slaytlardaki marka logosu 144x144 px boyutundadır. Arka planında çok katmanlı 14px Gaussian Blur gölge ile 3D kabartma derinliği bulunur.
 - Slaytların sağ alt köşesinde 6 platformun (`Instagram`, `Threads`, `Facebook`, `X`, `YouTube`, `TikTok`) resmi kurumsal vektör ikonları yer alır.
 
-### F. Kristal Netlik ve Piksel Yoğunluğu Motoru (`src/gorsel_kalite.py`)
-- **Dikey Kırpma Piksel Yoğunluğu Denetimi:** 16:9 yatay görsellerin 4:5 veya 9:16'ya kırpılırken piksellenmesi engellenir. Dikey kırpma ölçeği $< 0.88x$ olan veya büyütme (upscale) gerektiren fotoğraflar elenir.
+### F. Kristal Netlik ve Taranmış Belge/Tablo Filtresi (`src/gorsel_kalite.py`)
+- **Taranmış Belge / PDF / İlan Formu Engeli:** Doygunluk $\le 15.0$ ve Parlaklık $\ge 175.0$ olan ham tablo, PDF ekran görüntüsü veya beyaz kağıt taramaları otomatik elenerek gerçek editoryal haber fotoğraflarına geçilir.
+- **Dikey Kırpma Piksel Yoğunluğu Denetimi:** 16:9 yatay görsellerin 9:16'ya kırpılırken piksellenmesi engellenir. Dikey kırpma ölçeği $< 0.88x$ olan veya büyütme (upscale) gerektiren fotoğraflar elenir.
 - **Laplacian Netlik Varyansı:** Yapay büyütülmüş, düşük bitrate'li TV ekran yakalamaları ve bulanık fotoğraflar elenir (Asgari netlik varyansı $\ge 90.0$).
 - **Kristal Keskinleştirme (`kristal_netlestir`):** Seçilen kaliteli fotoğraflar UnsharpMask ile pürüzsüz ve kristal netlikte editoryal stile kavuşturulur.
 
@@ -96,16 +109,17 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 | Dizin / Dosya | Görevi |
 |---|---|
 | `config.yaml` | Tüm bot ayarları, RSS kaynakları, ağırlıklar, eşikler ve sosyal medya anahtarları. |
-| `src/gorsel_kalite.py` | Çözünürlük, dikey kırpma piksel yoğunluğu, Laplacian netlik varyansı ve keskinleştirme motoru. |
+| `worker/` | Cloudflare Worker edge cron tetikleyicisi (`wrangler.toml` ve `index.js`). |
+| `src/gorsel_kalite.py` | Çözünürlük, dikey kırpma piksel yoğunluğu, Laplacian netlik varyansı ve taranmış belge/tablo filtresi. |
 | `src/fetch_web_image.py` | DuckDuckGo üzerinden HD/4K editoryal basın ve olay fotoğrafları arama motoru. |
 | `src/komutlar.py` | Tek merkezli komut listesi, alias'lar, mesajsız serbest komutlar ve slash menü sözlüğü. |
 | `src/handlers/` | Modüler Telegram onay ve yayın işleme handler modülleri (`yayin`, `slayt`, `tur`). |
 | `src/piyasa.py` | Yahoo Finance canlı veri çekimi, BİST, döviz, emtia, kripto ve Gram TL hesabı. |
-| `src/piyasa_kart.py` | 1080x1350 Akış ve 1080x1920 Native Story Canlı Piyasa Isı Haritası motoru. |
-| `src/piyasa_tablo.py` | 1080x1350 Akış ve 1080x1920 Native Story 30 Varlık Piyasa Karnesi motoru. |
+| `src/piyasa_kart.py` | %100 Native 1080x1920 Canlı Piyasa Isı Haritası motoru (`piyasa_karti_uret_9_16`). |
+| `src/piyasa_tablo.py` | %100 Native 1080x1920 30 Varlık Piyasa Karnesi motoru (`piyasa_tablosu_uret_9_16`). |
 | `src/sparkline.py` | Borsa ve emtia için 30 günlük geçmiş fiyat çekimi ve estetik trend grafiği çizimi. |
-| `src/slaytlar.py` | 4:5 haber slaytlarının ve 9:16 Story slaytlarının çizimi, tipografi, 144px 3D logo. |
-| `src/make_image.py` | Pillow tabanlı infografik ve tipografi çizim motoru (`_satirlara_bol`, `_formatli_satir_ciz`). |
+| `src/slaytlar.py` | %100 Native 1080x1920 haber slaytlarının çizimi, tipografi, 144px 3D logo. |
+| `src/make_image.py` | Pillow tabanlı infografik ve tipografi çizim motoru (`_metni_paragraflara_ayir`, `detay_sayfalara_bol`, `detay_slayti`). |
 | `src/video.py` | 1080x1920 Story slaytlarından dikey video (Reels/Shorts/TikTok) derleme motoru. |
 | `src/ozel_haber.py` | Telegram üzerinden `/dosya`, `/kronoloji`, `/link`, `/arastir` ve `/ozel` ile özel haber üretimi. |
 | `src/twitter.py` | X (Twitter) API v2 üzerinden 4 fotoğraflı tweet paylaşımı. |
@@ -113,6 +127,6 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 | `src/tiktok.py` | TikTok Content Posting API v2 üzerinden dikey video yükleme. |
 | `src/fetch_news.py` | 20+ RSS kaynağından haberleri çekme, parse etme ve SQLite veritabanına aktarma. |
 | `src/generate_text.py` | Gemini Flash modelleri ile başlık, özet, detay metni ve önem puanı üretimi. |
-| `scripts/piyasa_otomatik.py`| Hafta içi 10:08 ve 18:20 otomatik Piyasa Bülteni yayınlama scripti. |
-| `scripts/son_dakika.py` | Saatlik 5'li haber önerisi akışını yöneten ana script. |
-| `scripts/onay_isle.py` | Telegram onay ve komut işleme facade router'ı. |
+| `scripts/piyasa_otomatik.py`| Hafta içi 10:08 ve 18:20 %100 Native 1080x1920 Piyasa Bülteni yayınlama scripti. |
+| `scripts/son_dakika.py` | Saatlik 5'li haber önerisi ve otomatik piyasa bülteni telafi güvenlik ağı scripti. |
+| `scripts/onay_isle.py` | Telegram onay, buton ve komut işleme facade router'ı. |
