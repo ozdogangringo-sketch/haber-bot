@@ -71,6 +71,10 @@ MESAJSIZ_KOMUTLAR: set[str] = {
     "kripto",
     "piyasa",
     "piyasa_ozet",
+    "ekonomi",
+    "piyasa_yayinla",
+    "ekonomi_yayinla",
+    "piyasa_onizle",
 }
 
 # Telegram resmi açılır menüsünde (setMyCommands) listelenen komutlar

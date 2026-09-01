@@ -876,23 +876,38 @@ def main(zorla_haber_id: int | None = None) -> int:
                 log.info("günlük son dakika sınırı dolu (%s/%s)", bugun, azami)
                 return 0
 
-        # --- 3.5) Hafta içi Piyasa Bülteni Zaman Dilimi Kontrolü ---
-        # Hafta içi 10:00 ve 18:00 saat dilimleri Canlı Piyasa Bültenine tahsis edilmiştir.
-        # Bu dakikalarda otomatik öneri gönderilmez; 10:08 ve 18:20 bültenlerine öncelik tanınır.
+        # --- 3.5) Hafta içi Piyasa Bülteni Otomatik Telafi ve Öncelik Denetimi ---
         if not zorla_haber_id:
             tr_simdi = datetime.now(timezone.utc) + timedelta(hours=3)
             hafta_ici = tr_simdi.weekday() < 5
             saat = tr_simdi.hour
             dakika = tr_simdi.minute
-            if hafta_ici and (
-                (saat == 10 and dakika < 20) or
-                (saat == 18 and dakika < 30)
-            ):
-                log.info(
-                    "Hafta içi Piyasa Bülteni saat dilimi (%02d:%02d TR) — saatlik öneri piyasa bültenine öncelik tanımak için atlanıyor.",
-                    saat, dakika
-                )
-                return 0
+            bugun_str = tr_simdi.date().isoformat()
+
+            if hafta_ici:
+                # 10:00 - 10:20 ve 18:00 - 18:30 arası bülten yayın anı: öneri gönderilmez
+                if (saat == 10 and dakika < 20) or (saat == 18 and dakika < 30):
+                    log.info(
+                        "Hafta içi Piyasa Bülteni saat dilimi (%02d:%02d TR) — saatlik öneri piyasa bültenine öncelik tanımak için atlanıyor.",
+                        saat, dakika
+                    )
+                    return 0
+
+                # Sabah bülteni geciktiyse (10:15 - 15:00) ve bugün açılış bülteni hiç atılmadıysa otomatik telafi et
+                if 10 <= saat <= 14:
+                    anahtar_acilis = f"piyasa_bulteni_acilis_{bugun_str}"
+                    zaten_acilis = con.execute("SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_acilis,)).fetchone()
+                    if not zaten_acilis:
+                        log.warning("Sabah Piyasa Açılış Bülteni henüz yayınlanmamış! Otomatik telafi yayını başlatılıyor...")
+                        try:
+                            from scripts import piyasa_otomatik
+                            import sys
+                            eski_argv = sys.argv
+                            sys.argv = ["piyasa_otomatik.py", "--mod", "acilis"]
+                            piyasa_otomatik.main()
+                            sys.argv = eski_argv
+                        except Exception as e:
+                            log.error("Piyasa bülteni telafi yayını hatası: %s", e)
 
         # --- 4) Taze haber çek, sonra aday ara ---
         # Yalnızca yüksek ağırlıklı gündem kaynakları — Actions kotası

@@ -3391,7 +3391,7 @@ def main() -> int:
             telegram_bot.mesaj_gonder("⚠️ Video üretilecek slayt görseli bulunamadı.")
             return 0
             
-    if komut in ("piyasa", "piyasa_ozet"):
+    if komut in ("piyasa", "piyasa_ozet", "ekonomi"):
         from src import piyasa
         pv = piyasa.piyasa_verileri_getir()
         satirlar = ["📈 <b>CANLI PİYASA & BORSA ÖZETİ</b>\n"]
@@ -3422,7 +3422,52 @@ def main() -> int:
 
         from src.zaman import tr_format, su_an_tr
         satirlar.append(f"\n⏰ <i>Canlı Piyasa: {tr_format(su_an_tr(), 'canli')}</i>")
-        telegram_bot.mesaj_gonder("\n".join(satirlar), html=True)
+
+        butonlar = [
+            [{"text": "🚀 Canlı Bülteni Şimdi Yayınla", "callback_data": "piyasa_yayinla"}],
+            [{"text": "🖼️ 1080x1920 Slaytları Önizle", "callback_data": "piyasa_onizle"}],
+        ]
+        telegram_bot.mesaj_gonder("\n".join(satirlar), html=True, butonlar=butonlar)
+        return 0
+
+    if komut in ("piyasa_yayinla", "ekonomi_yayinla"):
+        telegram_bot.mesaj_gonder("⏳ <b>Canlı Piyasa Bülteni Hazırlanıyor ve Yayınlanıyor...</b>\n<i>Tüm platformlara (Instagram, Story, Facebook, Threads, X) 1080x1920 infografikler paylaşılıyor.</i>", html=True)
+        try:
+            from scripts import piyasa_otomatik
+            import sys
+            eski_argv = sys.argv
+            sys.argv = ["piyasa_otomatik.py", "--zorla"]
+            piyasa_otomatik.main()
+            sys.argv = eski_argv
+        except Exception as e:
+            log.exception("piyasa bülteni yayınlama hatası: %s", e)
+            telegram_bot.mesaj_gonder(f"⚠️ <b>Piyasa bülteni yayın hatası:</b> <code>{e}</code>", html=True)
+        return 0
+
+    if komut == "piyasa_onizle":
+        telegram_bot.mesaj_gonder("⏳ <i>1080x1920 Piyasa Slaytları Hazırlanıyor...</i>", html=True)
+        try:
+            from src import piyasa, piyasa_kart, piyasa_tablo, caption
+            pv = piyasa.piyasa_verileri_getir()
+            kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(pv)
+            tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16()
+            ig_caption = caption.piyasa_bulteni_caption(pv, _ayarlar_onbellek, mod="oto")
+
+            resimler = [kart_yolu, tablo_yolu]
+            telegram_bot.yerel_albom_gonder(
+                resimler,
+                basliklar=["📊 Canlı Piyasa Isı Haritası (1080x1920)", "📈 30 Varlık Piyasa Karnesi (1080x1920)"],
+            )
+            telegram_bot.mesaj_gonder(
+                f"📊 <b>1080x1920 CANLI PİYASA VE BORSA BÜLTENİ</b>\n\n"
+                f"<pre>{html.escape(ig_caption.strip()[:1500])}</pre>\n\n"
+                f"<i>Yayınlamak için aşağıdaki butona basabilirsiniz:</i>",
+                html=True,
+                butonlar=[[{"text": "🚀 Canlı Bülteni Şimdi Yayınla", "callback_data": "piyasa_yayinla"}]],
+            )
+        except Exception as e:
+            log.exception("piyasa önizleme hatası: %s", e)
+            telegram_bot.mesaj_gonder(f"⚠️ <b>Piyasa önizleme hatası:</b> <code>{e}</code>", html=True)
         return 0
 
     if komut.startswith("hisse:") or komut.startswith("kripto:"):

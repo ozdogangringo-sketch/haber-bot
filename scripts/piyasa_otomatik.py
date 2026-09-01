@@ -49,6 +49,7 @@ def main() -> int:
     parser.add_argument("--mod", choices=["acilis", "kapanis", "oto"], default="oto",
                         help="Yayın modu: acilis, kapanis veya saate göre oto")
     parser.add_argument("--kuru", action="store_true", help="Kuru çalışma (API'lere paylaşım yapmaz)")
+    parser.add_argument("--zorla", action="store_true", help="Mükerrer kilidini atla, zorla yayınla")
     args = parser.parse_args()
 
     ayarlar_yolu = KOK / "config.yaml"
@@ -76,9 +77,9 @@ def main() -> int:
             log.info("Hafta sonu — Piyasa Bülteni yayınlanmaz.")
             con.close()
             return 0
-        if 9 <= tr_saat <= 12:
+        if 8 <= tr_saat <= 15:
             mod = "acilis"
-        elif 17 <= tr_saat <= 20:
+        elif 16 <= tr_saat <= 23:
             mod = "kapanis"
         else:
             log.info(
@@ -95,7 +96,7 @@ def main() -> int:
     zaten_var = con.execute(
         "SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_bulten,)
     ).fetchone()
-    if zaten_var and not args.kuru:
+    if zaten_var and not args.kuru and not args.zorla:
         log.info("Bugün %s bülteni zaten yayınlanmış (%s), mükerrer yayın engellendi.",
                  mod.upper(), bugun_str)
         con.close()
@@ -106,9 +107,9 @@ def main() -> int:
     # 4. Canlı piyasa verilerini çek
     piyasa_verileri = piyasa.piyasa_verileri_getir()
 
-    # 4. 1. ve 2. Slaytları üret (1080x1350)
-    kart_yolu = piyasa_kart.piyasa_karti_uret(piyasa_verileri)
-    tablo_yolu = piyasa_tablo.piyasa_tablosu_uret()
+    # 5. %100 Saf Native 1080x1920 Full-bleed Slaytları Üret
+    kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(piyasa_verileri)
+    tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16()
 
     kart_yukleme = upload_image.gorsel_yukle(kart_yolu, ayarlar)
     tablo_yukleme = upload_image.gorsel_yukle(tablo_yolu, ayarlar)
@@ -116,12 +117,8 @@ def main() -> int:
     tablo_url = tablo_yukleme["url"]
     slayt_urlleri = [kart_url, tablo_url]
 
-    # 5. %100 Saf Native 9:16 Full-bleed Story slaytları üret (Asla blur/çerçeveleme yok)
-    reels_kart_yolu = piyasa_kart.piyasa_karti_uret_9_16()
-    reels_tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16()
-
-    kart_story_url = upload_image.gorsel_yukle(reels_kart_yolu, ayarlar)["url"]
-    tablo_story_url = upload_image.gorsel_yukle(reels_tablo_yolu, ayarlar)["url"]
+    kart_story_url = kart_url
+    tablo_story_url = tablo_url
 
     # 6. Açıklama metinlerini oluştur
     ig_caption = caption.piyasa_bulteni_caption(piyasa_verileri, ayarlar, mod=mod)
