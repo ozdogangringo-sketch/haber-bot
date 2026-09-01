@@ -92,6 +92,12 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 - **Laplacian Netlik Varyansı:** Yapay büyütülmüş, düşük bitrate'li TV ekran yakalamaları ve bulanık fotoğraflar elenir (Asgari netlik varyansı $\ge 90.0$).
 - **Kristal Keskinleştirme (`kristal_netlestir`):** Seçilen kaliteli fotoğraflar UnsharpMask ile pürüzsüz ve kristal netlikte editoryal stile kavuşturulur.
 
+### G. Hızlı Video ve TikTok / Shorts / Reels İşleme Motoru (`src/video.py` & `src/tiktok.py`)
+- **Stereo AAC Ses İzi Entegrasyonu:** Sessiz videolarda sosyal medya algoritmalarının (TikTok, Shorts, Reels) ikincil transcode kuyruğuna düşüp bildirimleri geciktirmesini önlemek için videolara otomatik standart stereo AAC ses kanalı (`44.1 kHz, 128 kbps`) gömülür.
+- **Sabit 2 Saniyelik GOP Keyframe (`-g 60 -keyint_min 30 -sc_threshold 0`):** TikTok'un dağıtık sunucularının videoyu paralel parçalara (chunks) bölerek saniyeler içinde işlemesini sağlar.
+- **`+faststart` Moov Atomu:** MP4 konteynerinin indeks verisini dosyanın başına taşıyarak anında yayın ve indirme başlatır.
+- **Canlı Yayın Durumu Sorgulama (`yayin_durumu_sorgula`):** TikTok Content Posting API üzerinden `SEND_TO_USER_INBOX` durumunu canlı takip eder.
+
 ---
 
 ## 4. Görsel Seçim Standartları ve İyileştirme Yol Haritası
