@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 REDIRECT_URI = "https://haber-bot-onay.ezanplus.workers.dev/tiktok-callback"
-SCOPES = ["user.info.basic", "video.upload"]
+SCOPES = ["user.info.basic", "video.upload", "video.publish"]
 
 
 def generate_pkce_pair():
