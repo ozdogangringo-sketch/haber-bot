@@ -280,7 +280,7 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
     def _tek_cek(s):
         try:
             r = requests.get(
-                f"https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=30m&range=1d",
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1h&range=5d",
                 headers=headers,
                 timeout=4,
             )
@@ -291,9 +291,11 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
                 price = res.get("regularMarketPrice")
                 chg = ((price - prev) / prev) * 100 if prev else 0.0
 
-                # Gün içi gerçek fiyat kapanış serisi (Sparkline)
+                # 5 günlük gerçek fiyat serisi (Sparkline)
                 closes = veri.get("indicators", {}).get("quote", [{}])[0].get("close", [])
                 sparkline = [float(c) for c in closes if c is not None]
+                if prev and sparkline:
+                    sparkline = [float(prev)] + sparkline
 
                 return s, {"price": price, "chg": chg, "sparkline": sparkline}
         except Exception:

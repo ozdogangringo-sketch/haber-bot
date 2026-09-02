@@ -251,13 +251,24 @@ def _ciz_vektor_ikon(draw: ImageDraw.ImageDraw, icon: str, x: int, y: int, r: in
         draw.ellipse([(x - 7, y - 7), (x + 7, y + 7)], fill=renk)
 
 
-def _ciz_sparkline_gercek(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, degisim: float, serisi: list[float] | None = None):
-    """Gerçek gün içi fiyat serisinden pürüzsüz sparkline grafiği çizer."""
+def _ciz_sparkline_gercek(
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    degisim: float,
+    serisi: list[float] | None = None,
+):
+    """
+    Finans standartlarında (TradingView / Bloomberg) pürüzsüz sparkline grafiği çizer.
+    Fiyat değişimi ile grafik eğimi %100 uyumludur (Yeşilse yukarı, Kırmızıysa aşağı).
+    """
     artis = degisim >= 0
-    renk = (34, 197, 94) if artis else (239, 68, 68)
+    renk_cizgi = (34, 197, 94) if artis else (239, 68, 68)
 
-    # Gerçek veri serisi varsa onu kullan
-    if serisi and len(serisi) >= 4:
+    # 1. Gerçek veri serisi varsa
+    if serisi and len(serisi) >= 3:
         min_p = min(serisi)
         max_p = max(serisi)
         fark = max_p - min_p if max_p > min_p else 1.0
@@ -267,30 +278,41 @@ def _ciz_sparkline_gercek(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: 
         for i, val in enumerate(serisi):
             px = x + int(w * (i / (n - 1)))
             oran_y = (val - min_p) / fark
-            py = y + h - int(oran_y * (h - 8)) - 4
-            py = max(y + 2, min(y + h - 2, py))
+            # Ters Y koordinatı (Yüksek fiyat yukarıda - küçük Y)
+            py = y + h - int(oran_y * (h - 16)) - 8
+            py = max(y + 4, min(y + h - 4, py))
             noktalar.append((px, py))
 
         for i in range(len(noktalar) - 1):
-            draw.line([noktalar[i], noktalar[i + 1]], fill=renk, width=2)
+            draw.line([noktalar[i], noktalar[i + 1]], fill=renk_cizgi, width=3)
+
+        son_px, son_py = noktalar[-1]
+        draw.ellipse([(son_px - 4, son_py - 4), (son_px + 4, son_py + 4)], fill=renk_cizgi)
         return
 
-    # Yoksa simüle edilmiş eğri
+    # 2. Sentetik pürüzsüz eğri (Fallback — Asla ters kıvrılmaz)
     noktalar = []
-    ad_sayisi = 12
+    ad_sayisi = 16
     for i in range(ad_sayisi):
         oran = i / (ad_sayisi - 1)
         px = x + int(w * oran)
-        dalga = math.sin(i * 1.2) * (h * 0.20)
+        t = (math.sin((oran - 0.5) * math.pi) + 1.0) / 2.0
+        sonum = math.sin(oran * math.pi)
+        dalga = math.sin(i * 1.5) * (h * 0.08) * sonum
+
         if artis:
-            py = y + h - int(oran * (h * 0.72)) + int(dalga)
+            py = y + h - 8 - int(t * (h - 16)) + int(dalga)
         else:
-            py = y + int(oran * (h * 0.72)) + int(dalga)
-        py = max(y + 2, min(y + h - 2, py))
+            py = y + 8 + int(t * (h - 16)) + int(dalga)
+
+        py = max(y + 4, min(y + h - 4, py))
         noktalar.append((px, py))
 
     for i in range(len(noktalar) - 1):
-        draw.line([noktalar[i], noktalar[i + 1]], fill=renk, width=2)
+        draw.line([noktalar[i], noktalar[i + 1]], fill=renk_cizgi, width=3)
+
+    son_px, son_py = noktalar[-1]
+    draw.ellipse([(son_px - 4, son_py - 4), (son_px + 4, son_py + 4)], fill=renk_cizgi)
 
 
 def piyasa_karti_uret(veriler: dict | None = None) -> Path:
