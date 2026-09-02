@@ -61,11 +61,9 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 
 ## 3. Yapılan Başlıca Geliştirmeler & Modüller
 
-### A. 4:5 Destekli 1080x1920 Canlı Piyasa Bülteni (`src/piyasa_kart.py` & `src/piyasa_tablo.py`)
-- **4:5 Destekli 1080x1920 (9:16):** 1. Slayt (Piyasa Isı Haritası) ve 2. Slayt (30 Varlık Piyasa Karnesi) 1080x1920 tuvalde, merkezi 1080x1350 (4:5) içerik güvenli bölgesine yerleştirilir.
-  * Instagram Carousel Akışında (4:5) tüm tablolar ve rozetler sıfır taşmayla ve dikey bozulma olmadan görünür.
-  * Story ve Dikey formatlarda (9:16) üst ve alt alanlar sinematik degrade ve derinlik gölgesiyle tam ekranı doldurur.
-- **Tasarım:** *Derin Okyanus Petrolü* zemin (`#04181C`), *Siber Turkuaz* parıltılı rozet (`#06B6D4`), canlı Gram Altın/Gümüş TL çevrimi ve 30 günlük Yahoo Finance sparkline trend çizgileri.
+### A. %100 Saf Full-Bleed Native 1080x1920 Canlı Piyasa Bülteni (`src/piyasa_kart.py` & `src/piyasa_tablo.py`)
+- **Sıfır Çerçeve & Sıfır Blur (%100 Native 1080x1920):** 1. Slayt (Canlı Piyasa Isı Haritası) ve 2. Slayt (30 Varlık Piyasa Karnesi) `_cercevele_9_16` çağrısı olmadan, doğrudan `piyasa_kart.piyasa_karti_uret_9_16()` ve `piyasa_tablo.piyasa_tablosu_uret_9_16()` motorlarıyla 1080x1920 piksel tuvalin en tepesinden en altına kadar tek parça infografik olarak sıfırdan çizilir.
+- **Tasarım:** *Derin Okyanus Petrolü* zemin (`#04181C`), *Siber Turkuaz* parıltılı rozet (`#06B6D4`), canlı Gram Altın/Gümüş TL çevrimi, BİST Ağaç Haritası, 5'li makro emtia ve 5'li küresel piyasa/kripto sparkline trend kartları.
 - **Kesin Saat Pencereleri:** Açılış bülteni penceresi **09:55 - 11:30 TR**, Kapanış bülteni penceresi **18:15 - 20:00 TR** aralığındadır. Bu saatler dışında sistem otomatik yayınlamayı reddeder.
 
 ### B. Cloudflare Edge Cron & Çok Katmanlı Güvenlik Mimarisi
@@ -88,10 +86,10 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 - Slaytlardaki marka logosu 144x144 px boyutundadır. Arka planında çok katmanlı 14px Gaussian Blur gölge ile 3D kabartma derinliği bulunur.
 - Slaytların sağ alt köşesinde 6 platformun (`Instagram`, `Threads`, `Facebook`, `X`, `YouTube`, `TikTok`) resmi kurumsal vektör ikonları yer alır.
 
-### F. Kristal Netlik ve Taranmış Belge/Tablo Filtresi (`src/gorsel_kalite.py`)
+### F. Kristal Netlik ve 16:9 HD Basın Fotoğrafı Standartları (`src/gorsel_kalite.py`)
+- **16:9 HD Ajans ve Lansman Standartları:** Çözünürlük eşikleri $800\times 450$ px (16:9 HD) ve $600\times 600$ px (kare/portre) olarak optimize edildi; $1200\times 675$, $1280\times 720$ ve $1372\times 772$ boyutlarındaki tüm gerçek basın fotoğrafları tam kaliteyle kabul edilir.
 - **Taranmış Belge / PDF / İlan Formu Engeli:** Doygunluk $\le 15.0$ ve Parlaklık $\ge 175.0$ olan ham tablo, PDF ekran görüntüsü veya beyaz kağıt taramaları otomatik elenerek gerçek editoryal haber fotoğraflarına geçilir.
-- **Dikey Kırpma Piksel Yoğunluğu Denetimi:** 16:9 yatay görsellerin 9:16'ya kırpılırken piksellenmesi engellenir. Dikey kırpma ölçeği $< 0.88x$ olan veya büyütme (upscale) gerektiren fotoğraflar elenir.
-- **Laplacian Netlik Varyansı:** Yapay büyütülmüş, düşük bitrate'li TV ekran yakalamaları ve bulanık fotoğraflar elenir (Asgari netlik varyansı $\ge 90.0$).
+- **Laplacian Netlik Varyansı:** Yapay büyütülmüş ve bulanık fotoğraflar elenir (Asgari netlik varyansı $\ge 35.0$).
 - **Kristal Keskinleştirme (`kristal_netlestir`):** Seçilen kaliteli fotoğraflar UnsharpMask ile pürüzsüz ve kristal netlikte editoryal stile kavuşturulur.
 
 ### G. Hızlı Video ve TikTok / Shorts / Reels İşleme Motoru (`src/video.py` & `src/tiktok.py`)
@@ -101,19 +99,27 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 - **`+faststart` Moov Atomu:** MP4 konteynerinin indeks verisini dosyanın başına taşıyarak anında yayın ve indirme başlatır.
 - **Canlı Yayın Durumu Sorgulama (`yayin_durumu_sorgula`):** TikTok Content Posting API üzerinden `SEND_TO_USER_INBOX` durumunu canlı takip eder.
 
-### H. Fiyat Trend Grafiği (Sparkline) & Mükerrer Veri Kartı Filtreleri (`src/sparkline.py` & `src/dogrula.py`)
-- **Piyasa/Fiyatlama Bağlam Şartı (`src/sparkline.py`):** Yaşam, dünya, spor, teknoloji vb. haberlerde metinde para birimi ("4.500 Euro maaş", "100 milyon dolar yatırım") geçse dahi 30 günlük borsa/döviz trend grafiği kesinlikle basılmaz. Grafik SADECE `ekonomi`/`borsa`/`finans` kategorisinde ve doğrudan kur/hisse/emtia fiyat hareketi varsa üretilir.
-- **Mükerrer Rozet Engeli (`dogrula.veri_karti_baslikta_var_mi`):** Başlıkta veya spotta zaten yer alan skorlar (örn: "6-2 yendi"), maaşlar ("4.500 Euro") veya üye sayıları ("600 bin") sağ üstteki rozete mükerrer olarak basılmaz (`veri_karti = None`). Sadece başlıkta olmayan arka plan karşılaştırmaları gösterilir.
-- **Hata Kataloğu & Kapsam Güvenliği (`src/hata_bildir.py`):** `UnboundLocalError` ve `NameError` gibi Python çalıştırma hataları resmi hata kataloğuna eklendi; Telegram üzerinden anında teşhis ve tek tıkla yeniden deneme butonları sağlandı.
+### H. Finansal Trend (Sparkline) Çapa Mimarisi & Mükerrer Rozet Filtresi (`src/sparkline.py` & `src/piyasa_kart.py`)
+- **Kapanış Çapası (Previous Close Anchored):** Piyasa kartı sparkline grafiklerinin başlangıç noktası dünkü kapanış fiyatına (`previousClose`) sabitlendi (`[prev_close] + fiyat_serisi`).
+  * Değişim pozitifse (`degisim >= 0`) çizgi kesinlikle başlangıcından daha yukarıda biter ve **Zümrüt Yeşili (`#22C55E`)** çizilir.
+  * Değişim negatifse (`degisim < 0`) çizgi kesinlikle başlangıcından daha aşağıda biter ve **Mercan Kırmızı (`#EF4444`)** çizilir.
+  * Renk ile grafik eğimi arasındaki tüm görsel çelişkiler sıfırlandı.
+- **5 Günlük Kesintisiz Veri Akışı (`range=5d&interval=1h`):** Piyasalar kapalı olsa bile 40-100 nokta gerçek veri çekilerek kesintisiz trend çizilir.
+- **Sönümlü Sigmoid Eğri:** Veri bulunamadığında çağrılan sentetik eğri uca doğru asla ters bükülmez, son fiyat noktasına parlayan odak noktası (dot) eklenir.
+- **Piyasa/Fiyatlama Bağlam Şartı (`src/sparkline.py`):** Yaşam, dünya, spor vb. haberlerde metinde para birimi geçse dahi 30 günlük borsa trend grafiği kesinlikle basılmaz. SADECE borsa/finans haberlerinde doğrudan fiyat hareketi varsa üretilir.
+- **Mükerrer Rozet Engeli (`dogrula.veri_karti_baslikta_var_mi`):** Başlıkta veya spotta zaten yer alan skorlar veya sayılar sağ üstteki rozete mükerrer olarak basılmaz (`veri_karti = None`).
 
 ---
 
 ## 4. Görsel Seçim Standartları ve İyileştirme Yol Haritası
 
 ### 4 Katmanlı Akıllı Görsel Hiyerarşisi:
-1. **1. Katman — Web HD / 4K Basın Fotoğrafları Motoru (`src/fetch_web_image.py`):** Doğrudan haber ajanslarının (AA, Reuters, AP, AFP) ve yayıncıların 16:9 HD (`1200x675`, `1280x720`, `1920x1080`) editoryal basın fotoğrafları çekilir. `atlanacak` parametresiyle çoklu arama sorgularındaki adaylar tek havuzda birleştirilip dedupe edilir; her "Başka Fotoğraf Bul" çağrısında olayın sıradaki gerçek basın karesi getirilir.
+1. **1. Katman — Web HD / 4K Basın Fotoğrafları Motoru (`src/fetch_web_image.py`):** 
+   - `gorsel_konu` doğrudan haberin odaklandığı somut varlık/marka/model/kulüp (`Volkswagen Passat Pro`, `Apple iPhone 16`, `Tesla Model 3`, `Beşiktaş`, `Boeing 737`, `Silivri gemi kazası`, `Lionel Messi`) olarak kaydedilir.
+   - Doğrudan haber ajanslarının ve yayıncıların 16:9 HD (`1200x675`, `1280x720`, `1372x772`, `1920x1080`) editoryal basın fotoğrafları çekilir.
+   - `atlanacak` parametresiyle çoklu arama sorgularındaki adaylar tek havuzda birleştirilip dedupe edilir; her "Başka Fotoğraf Bul" çağrısında olayın sıradaki gerçek basın karesi getirilir.
 2. **2. Katman — Akıllı Makale Basın & Ürün Görseli Çekici (`src/fetch_article.py`):** `og:image`, `twitter:image`, JSON-LD `NewsArticle` ve makale gövdesindeki orijinal lansman fotoğrafları taranır ve `gorsel_kalite` denetiminden geçirilir.
-3. **3. Katman — Wikimedia Commons & Pexels HD Stok (`src/fetch_photo.py`, `src/fetch_stock.py`):** Kişi portreleri ($\ge 1200\text{px}$) ve 4K dikey temsili stoklar (yalnızca webde gerçek olay/ürün fotoğrafı bulunamazsa fallback).
+3. **3. Katman — Wikimedia Commons & Pexels HD Stok (`src/fetch_photo.py`, `src/fetch_stock.py`):** Kişi portreleri ($\ge 1200\text{px}$) ve 4K dikey temsili stoklar. Marka ve ürün haberlerinde başka markanın stok fotoğrafının çekilmesi marka koruma filtresiyle engellenir.
 4. **4. Katman — Kategoriye Özel Gemini Görsel Motoru (`src/make_image.py`):** Hiçbir katmandan yüksek çözünürlüklü kaliteli fotoğraf bulunamazsa Gemini AI ile özel görsel üretimi.
 
 ---
