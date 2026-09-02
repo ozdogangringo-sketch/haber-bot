@@ -493,9 +493,9 @@ async function githubaIlet(env, komut, mesajId, basanKisi, kanallar, metin) {
     body: JSON.stringify({
       // Tur kurma ayrı bir workflow (hazirla.yml); onay akışıyla aynı
       // event'i paylaşırsa yayinla.yml onu da işlemeye kalkıyor.
-      event_type: komut === SONDAKIKA_EYLEM
+      event_type: (komut === SONDAKIKA_EYLEM || komut === "sondakika" || komut === "son_dakika")
         ? "son_dakika_calistir"
-        : (HATA_EYLEM.test(komut) ? "tur_hazirla" : "telegram_onay"),
+        : (HATA_EYLEM.test(komut) || komut === "tur_hazirla" || komut === "tur" ? "tur_hazirla" : "telegram_onay"),
       client_payload: {
         komut,
         mesaj_id: mesajId,
