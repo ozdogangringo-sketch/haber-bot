@@ -79,14 +79,18 @@ from . import gorsel_kalite
 
 def fotograf_ara(
     sorgular: list[str],
-    asgari_genislik: int = 1000,
-    asgari_yukseklik: int = 700,
+    asgari_genislik: int = 800,
+    asgari_yukseklik: int = 450,
     atlanacak: int = 0,
 ) -> tuple[Image.Image, dict[str, Any]] | None:
     """
     Verilen sorgu listesini sırayla arar; 4K/HD çözünürlük ve kristal netlik kriterini
-    karşılayan ilk editoryal basın fotoğrafını indirir.
+    karşılayan en uygun editoryal basın fotoğrafını indirir.
+    atlanacak parametresine göre sıradaki farklı/alternatif fotoğrafı seçer.
     """
+    tum_adaylar = []
+    gorulen_urller = set()
+
     for sorgu in sorgular:
         if not sorgu or not str(sorgu).strip():
             continue
@@ -94,55 +98,61 @@ def fotograf_ara(
         if not ham_sonuclar:
             continue
 
-        adaylar = []
         for item in ham_sonuclar:
             w = item.get("width", 0)
             h = item.get("height", 0)
-            img_url = (item.get("image") or "").lower()
-            if not img_url or not img_url.startswith("http"):
+            img_url = (item.get("image") or "").strip()
+            img_url_l = img_url.lower()
+            if not img_url or not img_url.startswith("http") or img_url in gorulen_urller:
                 continue
 
-            # Asgari boyut eşiği: en az 1000x700 px (yatay) veya 900x1100 px (dikey)
-            if (w < asgari_genislik or h < asgari_yukseklik) and not (w >= 900 and h >= 1100):
+            # Asgari boyut eşiği: 16:9 HD (800x450+) veya kare/portre (600x600+)
+            if (w < asgari_genislik or h < asgari_yukseklik) and not (w >= 600 and h >= 600):
                 continue
 
             # Filigranlı stok siteleri ele
-            if any(yasak in img_url for yasak in YASAKLI_STOK_SITELERI):
+            if any(yasak in img_url_l for yasak in YASAKLI_STOK_SITELERI):
                 continue
 
             baslik = (item.get("title") or "").lower()
             if any(yasak in baslik for yasak in ISTENMEYEN_TERIMLER):
                 continue
 
-            adaylar.append(item)
+            gorulen_urller.add(img_url)
+            tum_adaylar.append(item)
 
-        if not adaylar:
-            continue
+    if not tum_adaylar:
+        return None
 
-        # Belirtilen sıra adayını indir
-        secilenler = adaylar[atlanacak % len(adaylar):] + adaylar[:atlanacak % len(adaylar)]
-        for aday in secilenler:
-            url = aday["image"]
-            try:
-                cevap = requests.get(url, headers=HEADERS, timeout=15)
-                if cevap.status_code != 200:
-                    continue
-                ham_boyut_kb = len(cevap.content) / 1024.0
-                foto = Image.open(io.BytesIO(cevap.content))
-                foto.load()
-
-                # Piksel yoğunluğu, dikey kırpma ölçeği ve Laplacian netlik denetimi
-                kaliteli, sebep = gorsel_kalite.gorsel_kalite_denetle(foto, dosya_boyutu_kb=ham_boyut_kb)
-                if not kaliteli:
-                    log.info("Web görsel adayı elendi (%s): %s", url, sebep)
-                    continue
-
-                log.info("Webden temiz HD basın fotoğrafı onaylandı (%sx%s, %.1f KB): %s",
-                         foto.width, foto.height, ham_boyut_kb, url)
-                return gorsel_kalite.kristal_netlestir(foto.convert("RGB")), aday
-            except Exception as e:
-                log.debug("Web görseli indirilemedi (%s): %s", url, e)
+    # İndirme ve kalite filtresi: atlanacak kadar başarılı görseli atla
+    gecerli_sayac = 0
+    for aday in tum_adaylar:
+        url = aday["image"]
+        try:
+            cevap = requests.get(url, headers=HEADERS, timeout=12)
+            if cevap.status_code != 200:
                 continue
+            ham_boyut_kb = len(cevap.content) / 1024.0
+            foto = Image.open(io.BytesIO(cevap.content))
+            foto.load()
+
+            # Piksel yoğunluğu, dikey kırpma ölçeği ve Laplacian netlik denetimi
+            kaliteli, sebep = gorsel_kalite.gorsel_kalite_denetle(foto, dosya_boyutu_kb=ham_boyut_kb)
+            if not kaliteli:
+                log.info("Web görsel adayı elendi (%s): %s", url, sebep)
+                continue
+
+            if gecerli_sayac < atlanacak:
+                gecerli_sayac += 1
+                log.info("Fotoğraf alternatifi için önceki aday atlandı (%d/%d): %s", gecerli_sayac, atlanacak, url)
+                continue
+
+            log.info("Webden temiz HD basın fotoğrafı onaylandı (%sx%s, %.1f KB): %s",
+                     foto.width, foto.height, ham_boyut_kb, url)
+            return gorsel_kalite.kristal_netlestir(foto.convert("RGB")), aday
+        except Exception as e:
+            log.debug("Web görseli indirilemedi (%s): %s", url, e)
+            continue
 
     return None
 
@@ -202,4 +212,4 @@ def haber_icin_fotograf(
     elif kategori in ("teknoloji", "bilim") and temsili:
         sorgular.append(f"{temsili} product launch press kit")
 
-    return fotograf_ara(sorgular, asgari_genislik=1000, asgari_yukseklik=600, atlanacak=atlanacak)
+    return fotograf_ara(sorgular, asgari_genislik=800, asgari_yukseklik=450, atlanacak=atlanacak)

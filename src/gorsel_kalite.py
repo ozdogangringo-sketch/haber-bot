@@ -21,7 +21,7 @@ from PIL import Image, ImageFilter, ImageStat
 log = logging.getLogger(__name__)
 
 # Minimum kabul edilebilir netlik (Laplacian varyansı)
-ASGARI_NETLIK_PUANI = 90.0
+ASGARI_NETLIK_PUANI = 35.0
 
 # 4:5 ve 9:16 için asgari hedef ölçüler
 HEDEF_GENISLIK = 1080
@@ -86,7 +86,7 @@ def gorsel_kalite_denetle(
     dosya_boyutu_kb: float = 0.0,
     hedef_g: int = HEDEF_GENISLIK,
     hedef_y: int = HEDEF_YUKSEKLIK_FEED,
-    asgari_olcek: float = 0.88,
+    asgari_olcek: float = 0.45,
     asgari_netlik: float = ASGARI_NETLIK_PUANI,
 ) -> tuple[bool, str]:
     """
@@ -95,16 +95,16 @@ def gorsel_kalite_denetle(
     """
     w, h = img.size
 
-    # 1. Asgari Mutlak Boyut Denetimi
-    if w < 1000 or h < 800:
-        return False, f"Mutlak çözünürlük çok düşük: {w}x{h} px (asgari 1000x800 px gerekli)"
+    # 1. Asgari Mutlak Boyut Denetimi (16:9 HD 1200x675 / 1280x720 / 1920x1080 ve dikey portreleri kapsar)
+    if (w < 800 or h < 450) and not (w >= 600 and h >= 600):
+        return False, f"Mutlak çözünürlük çok düşük: {w}x{h} px (asgari 800x450 px gerekli)"
 
     # 2. Dikey Kırpma Piksel Yoğunluğu (Crop Density)
     olcek = kirpma_olcegi_hesapla(w, h, hedef_g, hedef_y)
     if olcek < asgari_olcek:
         return (
             False,
-            f"Dikey kırpmada piksel kaybı ve dijital büyütme ({olcek}x < {asgari_olcek}x, {w}x{h} px)",
+            f"Dikey kırpmada aşırı piksel kaybı ({olcek}x < {asgari_olcek}x, {w}x{h} px)",
         )
 
     # 3. Dosya Boyutu ve Bitrate Denetimi

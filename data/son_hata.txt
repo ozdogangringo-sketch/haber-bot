@@ -1,1 +1,3 @@
-Traceback (most recent call last): File "/Users/macbook/Dogukan/instabot/scripts/son_dakika.py", line 935, in main sonuclar = slaytlar.son_dakika_uret(aday, ayarlar, con) File "/Users/macbook/Dogukan/instabot/src/slaytlar.py", line 530, in son_dakika_uret gorsel2 = make_image.detay_slayti( _slayt_metni(haber, "ig_baslik", ayarlar), ...<11 lines>... arsiv_ibaresi=(katman in ARSIV_KATMANLARI), ) File "/Users/macbook/Dogukan/instabot/src/make_image.py", line 1614, in detay_slayti gen = ciz.textlength(gosterge, font=kucuk) ^^^^^ NameError: name 'kucuk' is not defined
+[01.09.2026 20:09 (TSİ)] Sistem -> Instagram jetonu geçersiz
+
+Instagram jetonu GEÇERSİZ. Otomatik yenileme çalışmaz — Graph API Explorer'dan elle yeni jeton alıp `python scripts/jeton_uzat.py` ile 60 güne çevirmen gerekiyor.

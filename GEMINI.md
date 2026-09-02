@@ -111,9 +111,9 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 ## 4. Görsel Seçim Standartları ve İyileştirme Yol Haritası
 
 ### 4 Katmanlı Akıllı Görsel Hiyerarşisi:
-1. **1. Katman — Web HD / 4K Basın Fotoğrafları Motoru (`src/fetch_web_image.py`):** Doğrudan haber ajanslarının (AA, Reuters, AP, AFP) webde yayınlanan yüksek çözünürlüklü editoryal basın fotoğrafları çekilir.
+1. **1. Katman — Web HD / 4K Basın Fotoğrafları Motoru (`src/fetch_web_image.py`):** Doğrudan haber ajanslarının (AA, Reuters, AP, AFP) ve yayıncıların 16:9 HD (`1200x675`, `1280x720`, `1920x1080`) editoryal basın fotoğrafları çekilir. `atlanacak` parametresiyle çoklu arama sorgularındaki adaylar tek havuzda birleştirilip dedupe edilir; her "Başka Fotoğraf Bul" çağrısında olayın sıradaki gerçek basın karesi getirilir.
 2. **2. Katman — Akıllı Makale Basın & Ürün Görseli Çekici (`src/fetch_article.py`):** `og:image`, `twitter:image`, JSON-LD `NewsArticle` ve makale gövdesindeki orijinal lansman fotoğrafları taranır ve `gorsel_kalite` denetiminden geçirilir.
-3. **3. Katman — Wikimedia Commons & Pexels HD Stok (`src/fetch_photo.py`, `src/fetch_stock.py`):** Kişi portreleri ($\ge 1200\text{px}$) ve 4K dikey temsili stoklar.
+3. **3. Katman — Wikimedia Commons & Pexels HD Stok (`src/fetch_photo.py`, `src/fetch_stock.py`):** Kişi portreleri ($\ge 1200\text{px}$) ve 4K dikey temsili stoklar (yalnızca webde gerçek olay/ürün fotoğrafı bulunamazsa fallback).
 4. **4. Katman — Kategoriye Özel Gemini Görsel Motoru (`src/make_image.py`):** Hiçbir katmandan yüksek çözünürlüklü kaliteli fotoğraf bulunamazsa Gemini AI ile özel görsel üretimi.
 
 ---
