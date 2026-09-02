@@ -129,19 +129,9 @@ def main() -> int:
     # 4. Canlı piyasa verilerini çek
     piyasa_verileri = piyasa.piyasa_verileri_getir()
 
-    # 5. 4:5 Destekli 1080x1920 (9:16) Slaytları Üret
-    kart_4_5_yolu = piyasa_kart.piyasa_karti_uret(piyasa_verileri)
-    tablo_4_5_yolu = piyasa_tablo.piyasa_tablosu_uret()
-
-    with Image.open(kart_4_5_yolu) as img_k:
-        story_kart = video._cercevele_9_16(img_k)
-    with Image.open(tablo_4_5_yolu) as img_t:
-        story_tablo = video._cercevele_9_16(img_t)
-
-    kart_yolu = make_image.CIKTI_KLASORU / "piyasa_karti_story.jpg"
-    tablo_yolu = make_image.CIKTI_KLASORU / "piyasa_tablosu_story.jpg"
-    story_kart.save(kart_yolu, "JPEG", quality=95, optimize=True)
-    story_tablo.save(tablo_yolu, "JPEG", quality=95, optimize=True)
+    # 5. %100 Native 1080x1920 (9:16 Full-bleed) Slaytları Üret (Sıfır Çerçeve, Sıfır Blur)
+    kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(piyasa_verileri)
+    tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16()
 
     kart_yukleme = upload_image.gorsel_yukle(kart_yolu, ayarlar)
     tablo_yukleme = upload_image.gorsel_yukle(tablo_yolu, ayarlar)

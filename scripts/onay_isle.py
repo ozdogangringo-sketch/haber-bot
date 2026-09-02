@@ -3447,28 +3447,17 @@ def main() -> int:
     if komut == "piyasa_onizle":
         telegram_bot.mesaj_gonder("⏳ <i>1080x1920 Piyasa Slaytları Hazırlanıyor...</i>", html=True)
         try:
-            from PIL import Image
-            from src import piyasa, piyasa_kart, piyasa_tablo, video, caption
+            from src import piyasa, piyasa_kart, piyasa_tablo, caption
             pv = piyasa.piyasa_verileri_getir()
-            kart_4_5 = piyasa_kart.piyasa_karti_uret(pv)
-            tablo_4_5 = piyasa_tablo.piyasa_tablosu_uret()
-
-            with Image.open(kart_4_5) as img_k:
-                story_kart = video._cercevele_9_16(img_k)
-            with Image.open(tablo_4_5) as img_t:
-                story_tablo = video._cercevele_9_16(img_t)
-
-            kart_yolu = make_image.CIKTI_KLASORU / "piyasa_karti_story.jpg"
-            tablo_yolu = make_image.CIKTI_KLASORU / "piyasa_tablosu_story.jpg"
-            story_kart.save(kart_yolu, "JPEG", quality=95, optimize=True)
-            story_tablo.save(tablo_yolu, "JPEG", quality=95, optimize=True)
+            kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(pv)
+            tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16()
 
             ig_caption = caption.piyasa_bulteni_caption(pv, _ayarlar_onbellek, mod="oto")
 
             resimler = [kart_yolu, tablo_yolu]
             telegram_bot.yerel_albom_gonder(
                 resimler,
-                basliklar=["📊 Canlı Piyasa Isı Haritası (4:5 Destekli 1080x1920)", "📈 30 Varlık Piyasa Karnesi (4:5 Destekli 1080x1920)"],
+                basliklar=["📊 Canlı Piyasa Isı Haritası (%100 Native 1080x1920)", "📈 30 Varlık Piyasa Karnesi (%100 Native 1080x1920)"],
             )
             telegram_bot.mesaj_gonder(
                 f"📊 <b>1080x1920 CANLI PİYASA VE BORSA BÜLTENİ</b>\n\n"
