@@ -8,11 +8,12 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 
 - **Kullanıcı:** Doğukan. Türkçe konuşur, kararlı, yüksek kaliteli ve net çıktılar bekler.
 - **Alan Adı (Domain):** `ozbornstudio.com` alan adı projeye aittir. Gelecekte ihtiyaç halinde alt alan adları (örn: `bot.ozbornstudio.com`, `api.ozbornstudio.com`, `media.ozbornstudio.com`, `brief.ozbornstudio.com`) Cloudflare DNS üzerinden webhook, CDN, görsel barındırma veya web kontrol paneli için yapılandırılabilir.
-- **KATI VE DEĞİŞMEZ KURAL (ZERO 4:5 & 100% NATIVE 1080x1920 9:16):**
-  * **4:5 (1080x1350) görsel üretimi TAMAMEN KALDIRILMIŞTIR!**
-  * Hiçbir slayt 4:5 çizilmez; tüm slaytlar (Tekil Haber 1. Kapak, 2. Detay, 3. Detay/Etki, Canlı Piyasa Bülteni 1. Isı Haritası, 2. BİST Tablosu, Özel Dosya Haberleri vb.) **doğrudan 1080x1920 piksel tuvalde %100 SAF NATIVE FULL-BLEED infografik ve slayt olarak sıfırdan çizilir**.
-  * Instagram (Akış & Story), Facebook (Albüm & Story), Threads, X, YouTube Shorts ve TikTok paylaşımları doğrudan bu 1080x1920 native dikey slaytlar üzerinden yürütülür.
-  * **ASLA VE ASLA** yapay çerçeve veya blur kenarlık eklenmeyecektir.
+- **KATI VE DEĞİŞMEZ KURAL (1080x1920 9:16 TUVAL & 4:5 GÜVENLİ ALAN MİMARİSİ):**
+  * **Normal Gönderilerle Birebir Aynı Tasarım Mantığı (`STORY_GUVENLI_PAY = 285px`):** Tüm slaytlar (Tekil Haber 1. Kapak, 2. Detay, 3. Detay/Etki, Canlı Piyasa Bülteni 1. Isı Haritası, 2. BİST Tablosu vb.) **1080x1920 dikey tuvalde**, üstten ve alttan 285px güvenli pay bırakılarak **merkezi 1080x1350 (4:5) alanında ideal tasarım oranlarıyla** çizilir.
+  * Zemin gradyanı ve ambiyans ışıltısı 1080x1920 tuvalin tamamını kesintisiz ve akıcı olarak doldurur.
+  * **Asla dikey esnetme/uzatma yapılmaz**; kartlar ve tablolar doğal 4:5 oranlarında kalır.
+  * **Asla yapay çerçeve çizgisi veya ayrık blur kutuları eklenmez**; görsel tek parça lüks bir infografiktir.
+  * Böylece görsel **Instagram Akışında (4:5)** gösterildiğinde sıfır kırpılma ve kusursuz çerçeveleme ile görünürken, **Instagram Story, Reels, Shorts ve TikTok'ta (9:16)** güvenli alanıyla tam ekran görünür.
 - **KATI TİPOGRAFİ, PARAGRAF ÇENTİKLERİ VE TEMİZ METİN:**
   * **Paragraf Başı Dikey Çentikleri (Sleek Accent Notch):** Detay slaytlarında paragrafların solunda 4px yuvarlatılmış renkli dikey çentikler yer alır:
     - *Spot Paragraf:* Sıcak Kehribar (`#E2AA58`)
@@ -61,8 +62,9 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm m
 
 ## 3. Yapılan Başlıca Geliştirmeler & Modüller
 
-### A. %100 Saf Full-Bleed Native 1080x1920 Canlı Piyasa Bülteni (`src/piyasa_kart.py` & `src/piyasa_tablo.py`)
-- **Sıfır Çerçeve & Sıfır Blur (%100 Native 1080x1920):** 1. Slayt (Canlı Piyasa Isı Haritası) ve 2. Slayt (30 Varlık Piyasa Karnesi) `_cercevele_9_16` çağrısı olmadan, doğrudan `piyasa_kart.piyasa_karti_uret_9_16()` ve `piyasa_tablo.piyasa_tablosu_uret_9_16()` motorlarıyla 1080x1920 piksel tuvalin en tepesinden en altına kadar tek parça infografik olarak sıfırdan çizilir.
+### A. 4:5 Güvenli Alanlı 1080x1920 Canlı Piyasa Bülteni (`src/piyasa_kart.py` & `src/piyasa_tablo.py`)
+- **Normal Haber Slaytlarıyla Birebir Aynı Tasarım Oranı:** 1. Slayt (Canlı Piyasa Isı Haritası) ve 2. Slayt (30 Varlık Piyasa Karnesi) `Y_OFFSET = 285px` güvenli payıyla 1080x1920 tuvalin merkezindeki 1080x1350 bölgesine çizilir.
+- **Sıfır Esneme & Sıfır Yapay Çerçeve:** Tablolar ve kartlar dikeyde 1920'ye kadar uzatılmaz, doğal 4:5 oranlarında kalır; zemin gradyanı ve ışıltısı tüm tuvali kesintisiz sarar.
 - **Tasarım:** *Derin Okyanus Petrolü* zemin (`#04181C`), *Siber Turkuaz* parıltılı rozet (`#06B6D4`), canlı Gram Altın/Gümüş TL çevrimi, BİST Ağaç Haritası, 5'li makro emtia ve 5'li küresel piyasa/kripto sparkline trend kartları.
 - **Kesin Saat Pencereleri:** Açılış bülteni penceresi **09:55 - 11:30 TR**, Kapanış bülteni penceresi **18:15 - 20:00 TR** aralığındadır. Bu saatler dışında sistem otomatik yayınlamayı reddeder.
 
