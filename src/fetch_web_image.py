@@ -179,37 +179,43 @@ def haber_icin_fotograf(
 
     sorgular = []
 
-    # 1. Bağlamsal Takım/Kurum + Kişi Odaklı Sorgular (Eski kulüp/takım fotoğraflarını önler)
+    # 1. Doğrudan Konu / Model / Marka / Kişi Odaklı Nokta Atışı Sorgular
     if konu:
+        sorgular.append(f"{konu}")
+        sorgular.append(f"{konu} HD")
+        sorgular.append(f"{konu} fotoğrafları")
+        sorgular.append(f"{konu} press photo")
         if kelimeler:
             ilk_kelime = kelimeler[0]
             if len(ilk_kelime) > 2 and ilk_kelime.lower() not in konu.lower():
                 sorgular.append(f"{ilk_kelime} {konu}")
-                sorgular.append(f"{konu} {ilk_kelime}")
-        if kisa_baslik:
-            sorgular.append(f"{kisa_baslik}")
-            sorgular.append(f"{kisa_baslik} haber fotoğrafları")
 
     # 2. Doğrudan Sıcak Haber / Olay Başlığı
-    if kisa_baslik and kisa_baslik not in sorgular:
-        sorgular.append(f"{kisa_baslik} fotoğrafları")
+    if kisa_baslik:
         sorgular.append(f"{kisa_baslik}")
+        sorgular.append(f"{kisa_baslik} fotoğrafları")
+        sorgular.append(f"{kisa_baslik} haber")
 
-    # 3. Kişi / Lider Genel Basın Sorguları (Fallback)
-    if konu:
-        sorgular.append(f"{konu} basın toplantısı")
-        sorgular.append(f"{konu} news photo HD")
-
-    # 4. Somut İngilizce Basın & Olay Sorguları
+    # 3. Somut İngilizce Basın & Olay Sorguları
     if temsili:
         if ulke:
             sorgular.append(f"{ulke} {temsili} press photo")
         sorgular.append(f"{temsili} news editorial photo")
+        sorgular.append(f"{temsili} HD")
 
-    # 5. Kategoriye Özel Zenginleştirme
+    # 4. Kategoriye Özel Zenginleştirme
     if kategori == "ekonomi" and kisa_baslik:
         sorgular.append(f"{kisa_baslik} bloomberg reuters")
-    elif kategori in ("teknoloji", "bilim") and temsili:
-        sorgular.append(f"{temsili} product launch press kit")
+    elif kategori in ("teknoloji", "bilim") and konu:
+        sorgular.append(f"{konu} launch press kit")
 
-    return fotograf_ara(sorgular, asgari_genislik=800, asgari_yukseklik=450, atlanacak=atlanacak)
+    # Dedupe queries while preserving order
+    tekil_sorgular = []
+    gorulen = set()
+    for sq in sorgular:
+        s_temiz = sq.strip()
+        if s_temiz and s_temiz.lower() not in gorulen:
+            gorulen.add(s_temiz.lower())
+            tekil_sorgular.append(s_temiz)
+
+    return fotograf_ara(tekil_sorgular, asgari_genislik=800, asgari_yukseklik=450, atlanacak=atlanacak)

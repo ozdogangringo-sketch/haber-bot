@@ -203,15 +203,9 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
 - alinti / alinti_sahibi: Haberde geçen doğrudan söz (en fazla 18 kelime, tırnaksız) ve sahibi. Kaynakta kelimesi kelimesine geçmeli.
 - ig_caption: Haberin tüm detaylarını, arka planını ve nedenlerini anlatan 3-5 cümlelik ferah, akıcı ve bilgilendirici bülten açıklaması. Paragrafları ferah tut, okuyucunun konuyu tam anlamasını sağla. Asla markdown yıldız (**) kullanma. Kaynak adı yazma.
 - ig_hashtag: 5-8 adet konuyla ilgili Türkçe etiket, '#' işareti OLMADAN.
-- gorsel_konu: Sadece tanınmış gerçek bir insanın adı ve soyadı (örn: "Hakan Fidan"). Yoksa boş bırak.
+- gorsel_konu: Haberin ana somut öznesi, markası, modeli veya aktörü (örn: "Volkswagen Passat Pro", "Apple iPhone 16", "Hakan Fidan", "Beşiktaş", "Silivri gemi kazası", "Boeing 737", "Lionel Messi"). Asla boş veya soyut bırakma; haberin odaklandığı asıl varlığı net olarak yaz.
 - gorsel_ikili: Zirve veya ikili diplomatik görüşme ise iki aktörün adı: ["Recep Tayyip Erdoğan", "İlham Aliyev"]. Yoksa boş liste [].
-- gorsel_temsili: Pexels araması için 3-6 kelimelik somut İngilizce terim (örn: "stock market trading chart screen", "commercial passenger jet airplane"). Soyut ve yazılı tabela içeren terim isteme.
-
-- gorsel_ikili: İki lider, bakan veya aktör arasındaki diplomatik zirve,
-  anlaşma veya temas haberi ise iki kişinin adı: ["Recep Tayyip Erdoğan", "Abdülfettah es-Sisi"].
-  Tek kişi varsa veya kişi yoksa boş dizi [] bırak.
-
-- gorsel_temsili: Konuyu temsil eden İNGİLİZCE stok fotoğraf arama terimi.
+- gorsel_temsili: Konuyu temsil eden İNGİLİZCE somut arama terimi (örn: "Volkswagen Passat sedan car", "Apple iPhone smartphone", "commercial passenger jet airplane", "gold bullion bars vault"). EĞER HABER BİR MARKA, MODEL VEYA KİŞİ İLE İLGİLİ İSE MARKA/ÜRÜN ADINI KORU (örn: Passat Pro için "Volkswagen Passat car", iPhone için "Apple iPhone smartphone"). ASLA başka bir markanın çıkmasına yol açacak genel veya yanıltıcı terimler isteme.
 
   İKİ ŞART BİRDEN — biri olmadan diğeri işe yaramıyor:
 
