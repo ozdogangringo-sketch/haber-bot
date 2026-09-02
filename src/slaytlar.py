@@ -29,7 +29,7 @@ import logging
 from pathlib import Path
 
 import requests
-from PIL import Image
+from PIL import Image, ImageOps
 
 from . import filtre, dogrula, fetch_article, fetch_photo, fetch_stock, fetch_web_image, gorsel_kalite, make_image
 
@@ -96,6 +96,7 @@ def _gorseli_indir(url: str, g: dict):
                 continue
             ham_boyut_kb = len(cevap.content) / 1024
             foto = Image.open(io.BytesIO(cevap.content))
+            foto = ImageOps.exif_transpose(foto)
             foto.load()
 
             # gorsel_kalite denetimi: piksel yoğunluğu, dikey kırpma ölçeği ve netlik

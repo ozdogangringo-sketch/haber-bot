@@ -41,7 +41,7 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 from . import db, fetch_flag
 
@@ -477,30 +477,78 @@ def fotograftan_arkaplan(
     foto: Image.Image, genislik: int, yukseklik: int
 ) -> Image.Image:
     """
-    Commons'tan gelen fotoğrafı slayt oranına kırpar.
+    Ham haber veya basın fotoğrafını 1080x1920 dikey Story tuvaline akıllıca yerleştirir.
 
-    Kırpma ÜSTTEN hizalı: portrelerde yüz genelde üst yarıda oluyor,
-    ortadan kırpınca çene kesiliyor. Üstten hizalayınca yüz korunuyor
-    ve alt kısım zaten yazı perdesinin altında kalıyor.
+    - EXIF yön matrisini (ImageOps.exif_transpose) otomatik uygular; asla yan veya ters dönmez.
+    - Dikey portreleri (ratio <= 0.8) üstten hizalı ve doğal derinlikle yerleştirir.
+    - Yatay/16:9 basın fotoğraflarını (ratio > 0.8) aşırı dijital zoom ile kesip bulanıklaştırmak
+      yerine, geniş kadrajıyla üst alana yerleştirir, arka plana yumuşak ambiyans ışıltısı verir
+      ve alt metin alanına kesintisiz editoryal degrade ile eritir.
     """
-    hedef_oran = genislik / yukseklik
+    foto = ImageOps.exif_transpose(foto).convert("RGB")
     f_genislik, f_yukseklik = foto.size
     foto_oran = f_genislik / f_yukseklik
 
-    if foto_oran > hedef_oran:
-        # Fotoğraf çok geniş: yanlardan kırp, ortayı koru
-        yeni_genislik = int(f_yukseklik * hedef_oran)
-        sol = (f_genislik - yeni_genislik) // 2
-        foto = foto.crop((sol, 0, sol + yeni_genislik, f_yukseklik))
-    else:
-        # Fotoğraf çok uzun: alttan kırp, üstü (yüzü) koru
-        yeni_yukseklik = int(f_genislik / hedef_oran)
-        ust = int((f_yukseklik - yeni_yukseklik) * 0.12)   # birazcık nefes payı
-        foto = foto.crop((0, ust, f_genislik, ust + yeni_yukseklik))
+    canvas = Image.new("RGB", (genislik, yukseklik), (4, 24, 28))
 
-    res = foto.resize((genislik, yukseklik), Image.LANCZOS)
-    # Akıllı keskinleştirme: İnterpolasyon bulanıklığını yok edip kristal netlik kazandırır
-    res = res.filter(ImageFilter.UnsharpMask(radius=1.2, percent=105, threshold=2))
+    if foto_oran <= 0.78:
+        # Doğal dikey portre (9:16 veya 4:5 portre)
+        hedef_oran = genislik / yukseklik
+        if foto_oran > hedef_oran:
+            yeni_genislik = int(f_yukseklik * hedef_oran)
+            sol = (f_genislik - yeni_genislik) // 2
+            foto_c = foto.crop((sol, 0, sol + yeni_genislik, f_yukseklik))
+        else:
+            yeni_yukseklik = int(f_genislik / hedef_oran)
+            ust = int((f_yukseklik - yeni_yukseklik) * 0.12)
+            foto_c = foto.crop((0, ust, f_genislik, ust + yeni_yukseklik))
+        foto_res = foto_c.resize((genislik, yukseklik), Image.LANCZOS)
+        canvas.paste(foto_res, (0, 0))
+    else:
+        # Yatay veya kare fotoğraf (16:9 HD, 4:3, 1:1)
+        # 1. Arka plan ambiyans ışıltısı (keskin kenar/boşluk olmaması için)
+        ambiyans = foto.resize((genislik, yukseklik), Image.BILINEAR)
+        ambiyans = ambiyans.filter(ImageFilter.GaussianBlur(radius=40))
+        # Koyu overlay
+        amb_draw = ImageDraw.Draw(ambiyans, "RGBA")
+        amb_draw.rectangle([0, 0, genislik, yukseklik], fill=(4, 24, 28, 150))
+        canvas.paste(ambiyans, (0, 0))
+
+        # 2. Ana fotoğrafı üst yarıya geniş ve kristal netlikte yerleştir
+        hedef_w = genislik
+        hedef_h = int(hedef_w / foto_oran)
+        if hedef_h < 720:
+            hedef_h = 720
+            hedef_w = int(hedef_h * foto_oran)
+            sol = (genislik - hedef_w) // 2
+        else:
+            sol = 0
+
+        foto_ana = foto.resize((hedef_w, hedef_h), Image.LANCZOS)
+        if sol < 0:
+            foto_ana = foto_ana.crop((-sol, 0, -sol + genislik, hedef_h))
+            sol = 0
+
+        canvas.paste(foto_ana, (sol, 0))
+
+    # 3. Alt kısma yumuşak editoryal degrade (başlık ve metin alanına kusursuz erime)
+    mask = Image.new("L", (genislik, yukseklik), 0)
+    for y in range(yukseklik):
+        if y < 450:
+            val = 0
+        elif y < 1100:
+            t = (y - 450) / (1100 - 450)
+            val = int(255 * (t ** 1.8))
+        else:
+            val = 255
+        for x in range(genislik):
+            mask.putpixel((x, y), val)
+
+    koyu_zemin = Image.new("RGB", (genislik, yukseklik), (4, 24, 28))
+    canvas.paste(koyu_zemin, (0, 0), mask)
+
+    # 4. Kristal netleştirme
+    res = canvas.filter(ImageFilter.UnsharpMask(radius=1.2, percent=105, threshold=2))
     return res
 
 

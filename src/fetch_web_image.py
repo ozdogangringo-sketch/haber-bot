@@ -13,7 +13,7 @@ import logging
 import re
 from typing import Any
 import requests
-from PIL import Image
+from PIL import Image, ImageOps
 
 log = logging.getLogger(__name__)
 
@@ -134,6 +134,7 @@ def fotograf_ara(
                 continue
             ham_boyut_kb = len(cevap.content) / 1024.0
             foto = Image.open(io.BytesIO(cevap.content))
+            foto = ImageOps.exif_transpose(foto)
             foto.load()
 
             # Piksel yoğunluğu, dikey kırpma ölçeği ve Laplacian netlik denetimi

@@ -33,7 +33,7 @@ import threading
 import time
 
 import requests
-from PIL import Image
+from PIL import Image, ImageOps
 
 log = logging.getLogger(__name__)
 
@@ -352,7 +352,8 @@ def fotografi_indir(kayit: dict) -> Image.Image | None:
         from . import gorsel_kalite
         cevap = _istek(kayit["url"])
         ham_boyut_kb = len(cevap.content) / 1024.0
-        foto = Image.open(io.BytesIO(cevap.content)).convert("RGB")
+        foto = Image.open(io.BytesIO(cevap.content))
+        foto = ImageOps.exif_transpose(foto).convert("RGB")
         kaliteli, sebep = gorsel_kalite.gorsel_kalite_denetle(foto, dosya_boyutu_kb=ham_boyut_kb)
         if not kaliteli:
             log.info("Commons görsel adayı kalite filtresine takıldı (%s): %s", kayit.get("baslik"), sebep)
