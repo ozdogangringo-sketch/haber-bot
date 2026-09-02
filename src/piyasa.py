@@ -99,8 +99,8 @@ def piyasa_verileri_getir() -> dict[str, dict]:
             if r.status_code == 200:
                 veri = r.json()
                 meta = veri["chart"]["result"][0]["meta"]
-                fiyat = float(meta["regularMarketPrice"])
-                kapanis = float(meta.get("chartPreviousClose", meta.get("previousClose", fiyat)))
+                fiyat = float(meta.get("regularMarketPrice", 0.0))
+                kapanis = float(meta.get("previousClose") or meta.get("chartPreviousClose") or fiyat)
                 degisim = ((fiyat - kapanis) / kapanis) * 100 if kapanis else 0.0
                 sonuclar[anahtar] = {
                     "ad": meta_bilgi["ad"],
@@ -190,8 +190,8 @@ def varlik_sorgula(girdi: str) -> dict | None:
         if r.status_code == 200:
             veri = r.json()
             meta = veri["chart"]["result"][0]["meta"]
-            fiyat = float(meta["regularMarketPrice"])
-            kapanis = float(meta.get("chartPreviousClose", meta.get("previousClose", fiyat)))
+            fiyat = float(meta.get("regularMarketPrice", 0.0))
+            kapanis = float(meta.get("previousClose") or meta.get("chartPreviousClose") or fiyat)
             degisim = ((fiyat - kapanis) / kapanis) * 100 if kapanis else 0.0
             currency = meta.get("currency", "")
             high = float(meta.get("regularMarketDayHigh", fiyat))

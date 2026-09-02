@@ -135,20 +135,21 @@ def _tum_fiyatlari_cek() -> dict[str, dict]:
     fiyatlar = {}
 
     def _tek(s):
-        try:
-            r = requests.get(
-                f"https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1d",
-                headers=headers,
-                timeout=4,
-            )
-            if r.status_code == 200:
-                res = r.json()["chart"]["result"][0]["meta"]
-                p = res.get("regularMarketPrice")
-                prev = res.get("chartPreviousClose") or res.get("previousClose")
-                chg = ((p - prev) / prev) * 100 if prev else 0.0
-                return s, {"price": p, "chg": chg}
-        except Exception:
-            pass
+        for deneme in range(2):
+            try:
+                r = requests.get(
+                    f"https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1h&range=5d",
+                    headers=headers,
+                    timeout=8,
+                )
+                if r.status_code == 200:
+                    res = r.json()["chart"]["result"][0]["meta"]
+                    p = res.get("regularMarketPrice")
+                    prev = res.get("previousClose") or res.get("chartPreviousClose")
+                    chg = ((p - prev) / prev) * 100 if prev else 0.0
+                    return s, {"price": p, "chg": chg}
+            except Exception:
+                continue
         return s, None
 
     with ThreadPoolExecutor(max_workers=25) as ex:
