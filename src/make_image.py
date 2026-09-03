@@ -476,6 +476,64 @@ def _perde_taban_alfa(arkaplan: Image.Image, kutu: tuple) -> int:
     return max(0, min(245, int((ortalama - 55) * 1.63)))
 
 
+# --- YATAY FOTOĞRAF YERLEŞİMİ (3 Eyl 2026, kullanıcı isteği) ---
+#
+# ⚠️ ESKİ HÂLİ: yatay fotoğraf 720px'de kesiliyordu ve başlık 1140'ta
+# başlıyordu — arada ~420px "ne fotoğraf ne yazı" olan ölü bant kalıyordu.
+# Kullanıcı: *"neden yazının çok üstünde yatay bir şekilde duruyor resim,
+# ayrık duruyor çok fazla, burada açıklamaya kadar resim olurdu"*.
+#
+# Dört varyant üretilip yan yana gösterildi (720 / 1150 / 1450 / 1920) ve
+# 1150 seçildi. Gerekçe: başlık fotoğrafın üstüne oturuyor (ayrıklık
+# bitiyor) ama fotoğrafın ANLATTIĞI ŞEY bozulmuyor. 1450 ve 1920'de zoom
+# arttıkça kadraj dağılıyor — Fed örneğinde madalyon iki yandan kesiliyordu.
+FOTO_HEDEF_ALT = 1150
+
+# ⚠️ BÜYÜTME TAVANI. Yatay fotoğrafı dikey tuvale yaymak onu BÜYÜTMEK
+# demek ve büyütme bulanıklaştırır. Zoom oranı basitçe
+# `hedef_yukseklik / kaynak_yukseklik`. 1200x709'luk tipik bir OG
+# fotoğrafı 1150'ye çıkarken 1.62x büyüyor ve temiz kalıyor; küçük bir
+# kaynakta aynı hedef yumuşama yaratır. O yüzden hedef sabit değil:
+# fotoğraf yeterince büyük değilse daha AZ iniyor. Bulanık basmaktansa
+# biraz daha kısa dursun.
+FOTO_AZAMI_BUYUTME = 1.9
+
+# Fotoğrafın en az ineceği yer — eski davranışın tabanı.
+FOTO_ASGARI_ALT = 720
+
+
+def _perde_maskesi(genislik: int, yukseklik: int,
+                   bas: int, son: int) -> Image.Image:
+    """
+    Fotoğraftan düz zemine geçiş maskesi (0 = fotoğraf, 255 = düz zemin).
+
+    ⚠️ EĞRİ SMOOTHSTEP: `t*t*(3-2t)`. Kullanıcı isteği (3 Eyl 2026):
+    *"alt ve üst arasında renkleri bağlayıcı, biraz daha soft geçiş"*.
+    Eski eğri `t**1.8` idi ve BAŞLANGICI KESKİNDİ — türevi 0 noktasında
+    sıfır değil, yani perdenin nerede başladığı ince bir çizgi olarak
+    görünüyordu. Smoothstep'in iki ucunda da türev sıfır, bu yüzden ne
+    başladığı ne bittiği yer belli oluyor.
+
+    ⚠️ PERFORMANS: eski kod her piksel için `putpixel` çağırıyordu —
+    1080x1920 = 2 milyon Python çağrısı, slayt başına saniyeler.
+    Degrade yalnızca Y'ye bağlı olduğu için 1 piksel genişliğinde
+    üretilip yatayda geriliyor.
+    """
+    seritler = []
+    for y in range(yukseklik):
+        if y <= bas:
+            v = 0
+        elif y >= son:
+            v = 255
+        else:
+            t = (y - bas) / (son - bas)
+            v = int(255 * (t * t * (3 - 2 * t)))      # smoothstep
+        seritler.append(v)
+    serit = Image.new("L", (1, yukseklik))
+    serit.putdata(seritler)
+    return serit.resize((genislik, yukseklik), Image.BILINEAR)
+
+
 def fotograftan_arkaplan(
     foto: Image.Image, genislik: int, yukseklik: int
 ) -> Image.Image:
@@ -517,35 +575,35 @@ def fotograftan_arkaplan(
         amb_draw.rectangle([0, 0, genislik, yukseklik], fill=(4, 24, 28, 150))
         canvas.paste(ambiyans, (0, 0))
 
-        # 2. Ana fotoğrafı üst yarıya geniş ve kristal netlikte yerleştir
-        hedef_w = genislik
-        hedef_h = int(hedef_w / foto_oran)
-        if hedef_h < 720:
-            hedef_h = 720
-            hedef_w = int(hedef_h * foto_oran)
-            sol = (genislik - hedef_w) // 2
+        # 2. Fotoğrafı başlığın başladığı yere KADAR indir.
+        #    Ölçekli tuvale oranla: 1920'lik tasarımda 1150.
+        hedef_alt = int(FOTO_HEDEF_ALT * yukseklik / 1920)
+        taban_alt = int(FOTO_ASGARI_ALT * yukseklik / 1920)
+
+        # ⚠️ BÜYÜTME TAVANI — bulanık basmaktansa daha kısa dur.
+        # Geniş fotoğrafta zoom = hedef_yukseklik / kaynak_yukseklik.
+        tavan_alt = int(f_yukseklik * FOTO_AZAMI_BUYUTME)
+        hedef_alt = max(taban_alt, min(hedef_alt, tavan_alt))
+
+        # Tuvali (genislik x hedef_alt) KAPLAYACAK şekilde kırp
+        hedef_oran = genislik / hedef_alt
+        if foto_oran > hedef_oran:
+            yeni_w = int(f_yukseklik * hedef_oran)
+            sol_k = (f_genislik - yeni_w) // 2
+            foto_k = foto.crop((sol_k, 0, sol_k + yeni_w, f_yukseklik))
         else:
-            sol = 0
+            yeni_h = int(f_genislik / hedef_oran)
+            foto_k = foto.crop((0, 0, f_genislik, yeni_h))
 
-        foto_ana = foto.resize((hedef_w, hedef_h), Image.LANCZOS)
-        if sol < 0:
-            foto_ana = foto_ana.crop((-sol, 0, -sol + genislik, hedef_h))
-            sol = 0
+        canvas.paste(foto_k.resize((genislik, hedef_alt), Image.LANCZOS), (0, 0))
 
-        canvas.paste(foto_ana, (sol, 0))
-
-    # 3. Alt kısma yumuşak editoryal degrade (başlık ve metin alanına kusursuz erime)
-    mask = Image.new("L", (genislik, yukseklik), 0)
-    for y in range(yukseklik):
-        if y < 450:
-            val = 0
-        elif y < 1100:
-            t = (y - 450) / (1100 - 450)
-            val = int(255 * (t ** 1.8))
-        else:
-            val = 255
-        for x in range(genislik):
-            mask.putpixel((x, y), val)
+    # 3. Fotoğraftan düz zemine YUMUŞAK geçiş.
+    #    Perde fotoğrafın bittiği yerin ÜSTÜNDE başlıyor ki fotoğrafın
+    #    alt kenarı düz bir çizgi olarak görünmesin — başlık zaten oraya
+    #    oturuyor ve okunması için karartma gerekiyor.
+    perde_bas = int(700 * yukseklik / 1920)
+    perde_son = int(1350 * yukseklik / 1920)
+    mask = _perde_maskesi(genislik, yukseklik, perde_bas, perde_son)
 
     koyu_zemin = Image.new("RGB", (genislik, yukseklik), (4, 24, 28))
     canvas.paste(koyu_zemin, (0, 0), mask)

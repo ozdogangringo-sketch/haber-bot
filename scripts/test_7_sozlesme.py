@@ -1152,6 +1152,73 @@ def test_gorsel_brief_dort_yerde_tanimli() -> None:
                 "'olay' haberinde bile yayıncının kendi fotoğrafı doğrudur")
 
 
+def test_foto_ile_yazi_arasinda_olu_bant_yok() -> None:
+    """
+    Yatay fotoğraf, başlığın başladığı yere KADAR inmeli.
+
+    ⚠️ NEDEN GEREKTİ (3 Eyl 2026, kullanıcı): *"neden yazının çok
+    üstünde yatay bir şekilde duruyor resim, ayrık duruyor çok fazla,
+    burada açıklamaya kadar resim olurdu"*. Eski kod yatay fotoğrafı
+    720px'de kesiyordu, başlık 1140'ta başlıyordu — arada ~420px "ne
+    fotoğraf ne yazı" olan ölü bant kalıyordu.
+
+    Dört varyant üretilip yan yana gösterildi (720/1150/1450/1920);
+    1150 seçildi. Daha aşağısında zoom kadrajı bozuyor (Fed örneğinde
+    madalyon iki yandan kesiliyordu).
+    """
+    sys.path.insert(0, str(KOK))
+    from src import make_image as mi
+
+    # --- 1) Fotoğraf başlık alanına kadar inmeli ---
+    denetle(mi.FOTO_HEDEF_ALT >= 1000,
+            "yatay fotoğraf başlık alanına kadar iniyor",
+            f"FOTO_HEDEF_ALT={mi.FOTO_HEDEF_ALT} — 720'deki eski davranışta "
+            "fotoğraf ile yazı arasında ölü bant oluşuyordu")
+
+    # --- 2) Büyütme tavanı olmalı ---
+    denetle(hasattr(mi, "FOTO_AZAMI_BUYUTME") and mi.FOTO_AZAMI_BUYUTME <= 2.5,
+            "büyütme tavanı var ve makul",
+            "tavansız büyütme küçük kaynak fotoğrafı bulanıklaştırır; "
+            "bulanık basmaktansa fotoğraf daha kısa dursun")
+
+    # --- 3) Geçiş YUMUŞAK olmalı (smoothstep) ---
+    # Kullanıcı isteği: "alt ve üst arasında renkleri bağlayıcı, biraz
+    # daha soft geçiş". Smoothstep'in iki ucunda da türev sıfırdır, yani
+    # perdenin nerede başlayıp bittiği görünmez. Eski `t**1.8` eğrisinin
+    # başlangıcı keskindi.
+    maske = mi._perde_maskesi(100, 1000, 200, 800)
+    d = [maske.getpixel((50, y)) for y in range(1000)]
+    denetle(d[0] == 0 and d[-1] == 255, "perde 0'dan 255'e gidiyor")
+    # Uçlarda değişim yavaş, ortada hızlı olmalı
+    bas_egim = d[230] - d[210]
+    orta_egim = d[510] - d[490]
+    denetle(orta_egim > bas_egim * 2,
+            "geçiş eğrisi yumuşak (uçlarda yavaş, ortada hızlı)",
+            f"başlangıç eğimi={bas_egim} orta eğim={orta_egim} — "
+            "keskin başlayan perde fotoğrafın altında çizgi bırakır")
+    denetle(abs(d[500] - 127) <= 4,
+            "geçiş tam ortada yarı yolda (simetrik)",
+            f"orta nokta {d[500]}/255")
+
+    # --- 4) Piksel piksel döngü OLMAMALI ---
+    # Eski kod slayt başına 1080x1920 = 2 milyon putpixel çağırıyordu
+    # (ölçüldü: 0.78 sn/slayt). Degrade yalnızca Y'ye bağlı.
+    #
+    # ⚠️ DÜZ METİN ARAMASI OLMAZ — bu oturumda ÜÇÜNCÜ kez yakalandı:
+    # fonksiyonun docstring'i "eski kod putpixel çağırıyordu" diye
+    # AÇIKLADIĞI için düz arama yanlış alarm verdi. AST'de docstring
+    # bir Constant düğümü, çağrı ise Attribute — ikisi karışmaz.
+    kaynak = (KOK / "src/make_image.py").read_text(encoding="utf-8")
+    fn = next((d for d in ast.walk(ast.parse(kaynak))
+               if isinstance(d, ast.FunctionDef) and d.name == "_perde_maskesi"), None)
+    denetle(fn is not None, "_perde_maskesi fonksiyonu var")
+    if fn is not None:
+        cagrilar = {d.attr for d in ast.walk(fn) if isinstance(d, ast.Attribute)}
+        denetle("putpixel" not in cagrilar,
+                "perde maskesi putpixel döngüsü kullanmıyor",
+                "2 milyon Python çağrısı slayt başına ~0.8 sn yiyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1195,6 +1262,7 @@ def main() -> int:
         test_commons_tukenince_katman_degisiyor,
         test_gorsel_kunyesi_zorunlu,
         test_gorsel_brief_dort_yerde_tanimli,
+        test_foto_ile_yazi_arasinda_olu_bant_yok,
     ):
         try:
             test()
