@@ -534,6 +534,66 @@ def _perde_maskesi(genislik: int, yukseklik: int,
     return serit.resize((genislik, yukseklik), Image.BILINEAR)
 
 
+def _yansima_ekle(canvas: Image.Image, foto: Image.Image,
+                  foto_alt: int, yukseklik: int,
+                  derinlik: int | None = None) -> None:
+    """
+    Fotoğrafın alt kenarına GÖL YANSIMASI ekler (yerinde değiştirir).
+
+    ⚠️ NEDEN GEREKTİ (3 Eyl 2026, kullanıcı): *"bazı fotolarda fotoğrafın
+    hemen altındaki alan çok keskin bir şekilde bitiyor"*. Fotoğraf
+    `foto_alt`'ta bitiyor, altında bulanık ambiyans başlıyor ve ikisinin
+    arasında NET BİR ÇİZGİ kalıyordu. Perde o çizgiyi ancak yeterince
+    aşağıdaysa gizliyor; büyütme tavanı yüzünden fotoğraf erken bittiğinde
+    (küçük kaynak) çizgi perdenin şeffaf bölgesine denk gelip görünüyordu.
+
+    Çözüm: fotoğrafın alt şeridini dikey çevirip altına koymak. Su
+    yüzeyindeki yansıma gibi — kenar artık "kesilmiş" değil, görüntünün
+    kendi devamı oluyor. İçerik ilgili kaldığı için bulanık ambiyanstan
+    da iyi duruyor.
+
+    Aşağı indikçe hem SOLUYOR hem BULANIKLAŞIYOR: gerçek su yansıması da
+    öyle davranır, sabit opaklıkta bir ayna görüntüsü yapay duruyor.
+    """
+    bosluk = yukseklik - foto_alt
+    if bosluk <= 8:
+        return                                     # yansımaya yer yok
+
+    derinlik = derinlik or min(bosluk, int(foto_alt * 0.42))
+    if derinlik < 24:
+        return
+
+    genislik = canvas.width
+    # Fotoğrafın en alt `derinlik` kadarını al ve dikey çevir
+    serit = canvas.crop((0, max(0, foto_alt - derinlik), genislik, foto_alt))
+    yansima = serit.transpose(Image.FLIP_TOP_BOTTOM)
+
+    # ⚠️ Bulanıklık YUKARIDAN AŞAĞI artmalı. Tek seferde blur uygulamak
+    # yansımanın üst ucunu da bulanıklaştırır ve birleşme yeri yine
+    # belli olur. Bantlara bölüp her banda kendi yarıçapını veriyoruz.
+    bant = max(8, derinlik // 12)
+    parcalar = []
+    for ust in range(0, derinlik, bant):
+        alt = min(ust + bant, derinlik)
+        t = ust / derinlik
+        parca = yansima.crop((0, ust, genislik, alt))
+        yaricap = 0.6 + t * 5.0
+        parcalar.append((ust, parca.filter(ImageFilter.GaussianBlur(yaricap))))
+    for ust, parca in parcalar:
+        yansima.paste(parca, (0, ust))
+
+    # Solma maskesi: üstte yarı görünür, altta tamamen kayıp
+    alfa = []
+    for y in range(derinlik):
+        t = y / derinlik
+        alfa.append(int(150 * (1 - t) ** 1.6))
+    m = Image.new("L", (1, derinlik))
+    m.putdata(alfa)
+    maske = m.resize((genislik, derinlik), Image.BILINEAR)
+
+    canvas.paste(yansima, (0, foto_alt), maske)
+
+
 def fotograftan_arkaplan(
     foto: Image.Image, genislik: int, yukseklik: int
 ) -> Image.Image:
@@ -596,6 +656,9 @@ def fotograftan_arkaplan(
             foto_k = foto.crop((0, 0, f_genislik, yeni_h))
 
         canvas.paste(foto_k.resize((genislik, hedef_alt), Image.LANCZOS), (0, 0))
+
+        # Alt kenardaki keskin kesimi göl yansımasıyla yumuşat
+        _yansima_ekle(canvas, foto, hedef_alt, yukseklik)
 
     # 3. Fotoğraftan düz zemine YUMUŞAK geçiş.
     #    Perde fotoğrafın bittiği yerin ÜSTÜNDE başlıyor ki fotoğrafın

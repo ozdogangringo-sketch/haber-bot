@@ -1219,6 +1219,62 @@ def test_foto_ile_yazi_arasinda_olu_bant_yok() -> None:
                 "2 milyon Python çağrısı slayt başına ~0.8 sn yiyor")
 
 
+def test_fotograf_alt_kenari_keskin_degil() -> None:
+    """
+    Fotoğrafın bittiği yerde KESKİN ÇİZGİ olmamalı.
+
+    ⚠️ NEDEN GEREKTİ (3 Eyl 2026, kullanıcı): *"bazı fotolarda fotoğrafın
+    hemen altındaki alan çok keskin bir şekilde bitiyor"*. Büyütme tavanı
+    yüzünden küçük kaynaklı fotoğraf erken bitiyor (ör. 450px'lik kaynak
+    855'te durur), altında bulanık ambiyans başlıyor ve arada net bir
+    çizgi kalıyordu. Perde o noktada henüz şeffaf olduğu için gizlemiyordu.
+
+    Çözüm: göl yansıması — fotoğrafın alt şeridi dikey çevrilip altına
+    konuyor, aşağı indikçe soluyor ve bulanıklaşıyor.
+
+    ⚠️ BU TEST KOD METNİNE DEĞİL DAVRANIŞA BAKIYOR. Fonksiyon adı
+    değişse, yansıma başka bir yolla yapılsa bile geçerli kalır —
+    denetlenen şey "alt kenarda ani sıçrama var mı".
+    """
+    sys.path.insert(0, str(KOK))
+    from PIL import Image
+    from src import make_image as mi
+
+    # Büyütme tavanına takılacak KÜÇÜK kaynak: 450 * 1.9 = 855'te biter.
+    # Desenli olsun ki yansıma ile düz zemin ayırt edilebilsin.
+    kaynak = Image.new("RGB", (760, 450))
+    px = kaynak.load()
+    for y in range(450):
+        for x in range(0, 760, 2):
+            px[x, y] = (40 + (x * 7) % 200, 90, 150 - (y // 3) % 120)
+    ark = mi.fotograftan_arkaplan(kaynak, 1080, 1920)
+
+    foto_alt = int(450 * mi.FOTO_AZAMI_BUYUTME)         # 855
+    def satir_ort(y):
+        return sum(sum(ark.getpixel((x, y))) for x in range(0, 1080, 20)) / 54
+
+    # Fotoğrafın son satırı ile hemen altındaki satır arasında
+    # ani parlaklık sıçraması olmamalı.
+    ust = satir_ort(foto_alt - 3)
+    alt = satir_ort(foto_alt + 3)
+    sicrama = abs(ust - alt)
+    denetle(sicrama < 60,
+            "fotoğrafın alt kenarında ani sıçrama yok",
+            f"kenarın iki yanı arasında {sicrama:.0f} birimlik fark — "
+            "fotoğraf düz bir çizgiyle kesiliyor demektir")
+
+    # Altındaki alan DÜZ RENK olmamalı — yansıma içerik taşımalı.
+    bant = [satir_ort(y) for y in range(foto_alt + 10, foto_alt + 160, 10)]
+    denetle(max(bant) - min(bant) > 3,
+            "fotoğrafın altındaki alan düz renk değil (yansıma var)",
+            "yansıma yoksa kenar çizgi gibi durur")
+
+    # Yansıma SONSUZA kadar gitmemeli — metin alanı temiz kalmalı.
+    denetle(satir_ort(1700) < satir_ort(foto_alt + 20),
+            "yansıma aşağı doğru soluyor",
+            "sabit opaklıkta ayna görüntüsü yapay durur ve metni bozar")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1263,6 +1319,7 @@ def main() -> int:
         test_gorsel_kunyesi_zorunlu,
         test_gorsel_brief_dort_yerde_tanimli,
         test_foto_ile_yazi_arasinda_olu_bant_yok,
+        test_fotograf_alt_kenari_keskin_degil,
     ):
         try:
             test()
