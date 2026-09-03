@@ -510,9 +510,43 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     )
 
 
+def _secimi_uygula(haber, atlanacak, haber_gorseli_atla):
+    """
+    Kullanıcının "başka fotoğraf" seçimini kayıttan okur.
+
+    ⚠️ NEDEN GEREKTİ (3 Eyl 2026): seçim `gorsel_deneme` kolonunda
+    saklanıyor ama slaytı yeniden üreten **20'den fazla çağrı yeri**
+    vardı ve çoğu bu kolonu okumuyordu. Sonuç: kullanıcı "başka
+    fotoğraf" diyor, sonra yayın anında (URL onarımı, video karesi
+    üretimi vb.) slayt yeniden üretiliyor ve ORİJİNAL fotoğraf geri
+    geliyor. Kullanıcı bildirdi: *"başka fotolarla yeniden üret dedim
+    ve onu paylaştığımda oluşturduğu videoları eski görüntülerle
+    oluşturdu"*.
+
+    Tek tek çağrı yerlerini yamalamak yerine seçim BURADA, tek kapıda
+    uygulanıyor — `aday.uygun_mu` ile aynı gerekçe: bu projedeki
+    kusurların çoğu "kural doğru ama bir yerde uygulanmamış" hatası.
+
+    `atlanacak=None` (varsayılan) = kayıttan oku.
+    `atlanacak=<sayı>`            = çağıran açıkça belirtti, o kazanır.
+    """
+    if atlanacak is None:
+        atlanacak = 0
+        try:
+            atlanacak = int(_alan(haber, "gorsel_deneme") or 0)
+        except (TypeError, ValueError):
+            atlanacak = 0
+        if atlanacak:
+            log.info("kayıtlı fotoğraf seçimi uygulanıyor (gorsel_deneme=%s)",
+                     atlanacak)
+    # Kullanıcı "başka fotoğraf" dediyse haberin kendi görseli de atlanır
+    # (yoksa düğme aynı og:image'i geri getirir).
+    return atlanacak, (haber_gorseli_atla or atlanacak > 0)
+
+
 def slayt_uret(haber, ayarlar: dict,
                zorla_ai: bool = False,
-               atlanacak: int = 0,
+               atlanacak: int | None = None,
                haber_gorseli_atla: bool = False,
                sira: int = 1,
                son_slayt: bool = False,
@@ -523,6 +557,8 @@ def slayt_uret(haber, ayarlar: dict,
     g = ayarlar["gorsel"]
     make_image.CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
+    atlanacak, haber_gorseli_atla = _secimi_uygula(
+        haber, atlanacak, haber_gorseli_atla)
     arkaplan, katman, atif = arkaplan_sec(
         haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
         haber_gorseli_atla=haber_gorseli_atla, con=con)
@@ -645,7 +681,7 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
 
 def son_dakika_uret(haber, ayarlar: dict, con=None,
                     zorla_ai: bool = False,
-                    atlanacak: int = 0,
+                    atlanacak: int | None = None,
                     haber_gorseli_atla: bool = False) -> list[dict]:
     """
     Son dakika postunun iki slaytını üretir.
@@ -664,6 +700,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     # lazım. `slayt_uret` yalnızca yazılmış slaytı döndürüyor; story'yi
     # ondan üretmeye kalkmak yazının üstüne yazı basmak oluyor —
     # 17 Ağu 2026'da yayınlanan story'de tam olarak bu oldu.
+    atlanacak, haber_gorseli_atla = _secimi_uygula(
+        haber, atlanacak, haber_gorseli_atla)
     ham_arkaplan, katman, atif = arkaplan_sec(
         haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
         haber_gorseli_atla=haber_gorseli_atla, con=con)

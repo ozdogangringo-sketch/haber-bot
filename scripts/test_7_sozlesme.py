@@ -1426,6 +1426,36 @@ def test_onaylanan_gorsel_videoya_giriyor() -> None:
             for f in (eski_yerel, eski_detay):
                 f.unlink(missing_ok=True)
 
+    # --- SEÇİM TEK KAPIDAN UYGULANMALI ---
+    #
+    # ⚠️ Slaytı yeniden üreten 20'den fazla çağrı yeri var (URL onarımı,
+    # video karesi, metin yenileme, arşiv paylaşımı...). Her birine
+    # `atlanacak=` eklemek bir gün unutulur — bu projedeki kusurların
+    # çoğu zaten "kural doğru ama bir yerde uygulanmamış" hatası.
+    # Bu yüzden seçim `_secimi_uygula` içinde, üretim fonksiyonunun
+    # KENDİSİNDE okunuyor.
+    from src import slaytlar as slayt_mod2
+    denetle(hasattr(slayt_mod2, "_secimi_uygula"),
+            "fotoğraf seçimi tek kapıdan uygulanıyor")
+    if hasattr(slayt_mod2, "_secimi_uygula"):
+        h_secim = {"id": 1, "gorsel_deneme": 2}
+        denetle(slayt_mod2._secimi_uygula(h_secim, None, False) == (2, True),
+                "çağrı belirtmezse seçim KAYITTAN okunuyor",
+                "okunmazsa yeniden üretim orijinal fotoğrafa döner")
+        denetle(slayt_mod2._secimi_uygula(h_secim, 5, False) == (5, True),
+                "çağıran açıkça belirtirse o kazanır",
+                "'başka fotoğraf' düğmesi sayacı artırıp geçiriyor")
+        denetle(slayt_mod2._secimi_uygula({"id": 1}, None, False) == (0, False),
+                "kolon yoksa/bozuksa güvenli varsayılan",
+                "eski kayıtlar bu kolonu taşımıyor")
+        import inspect
+        for ad in ("slayt_uret", "son_dakika_uret"):
+            par = inspect.signature(getattr(slayt_mod2, ad)).parameters["atlanacak"]
+            denetle(par.default is None,
+                    f"{ad}.atlanacak varsayılanı None (= kayıttan oku)",
+                    "varsayılan 0 olursa 'belirtilmedi' ile 'orijinali istiyorum' "
+                    "ayırt edilemez ve seçim sessizce yok sayılır")
+
     # Yeniden üretim yoluna düşülürse `gorsel_deneme` OKUNMALI —
     # yoksa "başka fotoğraf" seçimi yok sayılıp orijinal fotoğraf gelir.
     kaynak = (KOK / "src/video.py").read_text(encoding="utf-8")
