@@ -1559,6 +1559,54 @@ def test_vision_denetimi() -> None:
             "gorsel.vision_denetim config'de tanımlı")
 
 
+def test_db_yazan_workflow_commit_ediyor() -> None:
+    """
+    Veritabanına yazan her workflow onu COMMIT de etmeli.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): `gunluk-rapor.yml` `permissions:
+    contents: read` taşıyordu ve `db_kaydet` adımı YOKTU. Ama
+    `gunluk_rapor.py` her çalıştığında `db.eski_kayitlari_temizle`
+    çağırıyor. Silme runner'ın yerel kopyasında GERÇEKTEN oluyordu,
+    log'a "N eski kayıt silindi" yazıyordu — sonra commit edilmediği
+    için iş bitince buharlaşıyordu.
+
+    Ölçüldü: config `kayit_saklama_gun: 3` diyor ama veritabanında
+    **19 GÜNLÜK** kayıt ve 9107 satır birikmişti. Temizlik açıldığında
+    9107 → 2517 satır, 11.5 MB → 3.7 MB (yayınlanmış 277 kaydın hepsi
+    korunuyor).
+
+    ⚠️ Bu, CLAUDE.md'deki "SESSİZ BAŞARISIZLIK" desenin ders kitabı
+    örneği: kod `0` döndü, log başarı yazdı, iş yapılmadı.
+    """
+    wf = KOK / ".github/workflows"
+
+    # Veritabanına YAZAN workflow'lar — commit adımı ŞART
+    yazanlar = {
+        "gunluk-rapor.yml": "eski kayıtları siliyor",
+        "hazirla.yml": "tur kuruyor",
+        "hatirlat.yml": "tur durumunu değiştiriyor",
+        "son-dakika.yml": "öneri/aday işaretliyor",
+        "yayinla.yml": "yayın sonucunu yazıyor",
+        "piyasa-bulteni.yml": "bülten kaydı yazıyor",
+        "haftalik-ozet.yml": "özet kaydı yazıyor",
+    }
+    for ad, neden in yazanlar.items():
+        yol = wf / ad
+        if not yol.exists():
+            continue
+        icerik = yol.read_text(encoding="utf-8")
+        # Yorum satırlarını at — uyarı metinleri yanlış alarm veriyor
+        kod = "\n".join(l for l in icerik.splitlines()
+                         if not l.strip().startswith("#"))
+        denetle("db_kaydet" in kod,
+                f"{ad} veritabanını commit ediyor",
+                f"{neden} ama commit adımı yok — yapılan iş job bitince "
+                "buharlaşır ve kimse fark etmez")
+        denetle("contents: write" in kod,
+                f"{ad} yazma iznine sahip",
+                "contents: read ile db_kaydet sessizce başarısız olur")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1607,6 +1655,7 @@ def main() -> int:
         test_kardes_gorsel_havuzu,
         test_onaylanan_gorsel_videoya_giriyor,
         test_vision_denetimi,
+        test_db_yazan_workflow_commit_ediyor,
     ):
         try:
             test()

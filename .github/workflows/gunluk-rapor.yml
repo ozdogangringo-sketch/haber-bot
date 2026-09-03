@@ -26,7 +26,13 @@ jobs:
   rapor:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # ⚠️ 'read' İDİ VE TEMİZLİĞİ SESSİZCE ÇÖPE ATIYORDU (4 Eyl 2026).
+      # gunluk_rapor.py `db.eski_kayitlari_temizle` çağırıyor ve
+      # silme runner'da GERÇEKTEN oluyor — ama commit edilemediği için
+      # ertesi gün aynı kayıtlar geri geliyordu. Ölçüldü: config
+      # `kayit_saklama_gun: 3` diyor ama veritabanında 19 GÜNLÜK kayıt
+      # ve 9000 satır birikmişti; `.git` 1.5 GB'a çıkmıştı.
+      contents: write
       # Başarısız job'ları listelemek için gerekiyor.
       actions: read
 
@@ -62,3 +68,12 @@ jobs:
           # Kendi iş akışlarımızın durumunu okumak için; ek PAT gerekmiyor.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/gunluk_rapor.py
+
+      # ⚠️ BU ADIM OLMADAN TEMİZLİK ANLAMSIZ. Silme runner'ın yerel
+      # kopyasında yapılıyor; commit edilmezse iş bitince buharlaşıyor.
+      # ⚠️ HAM `git` KOMUTU YAZMA — `haber.db` ikili dosya ve çakışma
+      # kuraldır; db_kaydet.py `db_senkron` üzerinden çözüyor,
+      # çözemezse rebase'i iptal edip repoyu temiz bırakıyor (1d/1f).
+      - name: Veritabanını kaydet (temizlik kalıcı olsun)
+        if: always()
+        run: python scripts/db_kaydet.py "Günlük rapor ve eski kayıt temizliği" 
