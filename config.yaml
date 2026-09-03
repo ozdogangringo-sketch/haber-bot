@@ -411,6 +411,39 @@ gorsel:
   # demektir — Vision denetimi devreye girene kadar açma.
   web_gorsel_ara: false
 
+  # ⚠️ VISION DENETİMİ — fotoğrafın İÇİNE bakar (3 Eyl 2026).
+  #
+  # Bu projedeki bütün doğruluk denetimleri METNE bakıyordu
+  # (`dogrula.py`: sayı, isim, alıntı, suçlama dili). Görsel tarafında
+  # ölçülen her şey TEKNİKTİ: piksel, netlik, dosya boyutu. Sonuç:
+  # "ABD İran'a saldırdı" haberine gelen Fox News/Trump portresi
+  # 1200x675, keskin ve temizdi — teknik testin her sorusuna "evet"
+  # dedi, kimse "bu fotoğraf bu haberi mi anlatıyor" diye sormadı.
+  #
+  # ⚠️ METİN TABANLI KAPI DENENDİ VE ELENDİ: aday başlığı ile haber
+  # başlığının ortak özel isim taşıması şartı kondu, 6 haberin 6'sı
+  # geçti. Döngüsel — `gorsel_konu` "Donald Trump" olduğu için arama
+  # Trump'ı arıyor, her sonuçta Trump geçiyor.
+  #
+  # CANLI ÖLÇÜLDÜ (3 vaka, 3'ü de doğru):
+  #   Vlahovic + "Beşiktaş forması"  -> "mor Fiorentina antrenman üstü,
+  #                                      ACF Fiorentina logosu" -> RED
+  #   Vargas + "milli takım forması" -> "Fenerbahçe forması, 44 numara"
+  #                                     -> RED
+  #   Hakan Fidan, bağlam yok        -> KABUL
+  #
+  # MALİYET: çağrı başına ~5.4 sn ve ~600 token. Görsel 512px'e
+  # küçültülerek gönderiliyor.
+  #
+  # ⚠️ YALNIZCA BELİRLİ KİŞİ/KURUM İDDİASI TAŞIYAN KATMANLARDA çalışır
+  # (commons, commons_split, web_haber). og:image muaf — yayıncı o
+  # fotoğrafı o haber için koymuş. Pexels muaf — temsili olduğunu
+  # zaten söylüyor ve ARŞİV ibaresi basılıyor.
+  #
+  # ⚠️ DENETİM YAPILAMAZSA FOTOĞRAF KABUL EDİLİR (kota, ağ, anahtar
+  # yok). Bu bir EK güvence, ön şart değil.
+  vision_denetim: true
+
   # og:image bazen sitenin logosu ya da paylaşım rozeti oluyor; bu
   # genişliğin altındakiler eleniyor, yoksa büyütülünce bulanık çıkıyor.
   # ⚠️ ESKİDEN 600'DÜ VE YÜKSEKLİK HİÇ DENETLENMİYORDU.

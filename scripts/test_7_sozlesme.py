@@ -1471,6 +1471,94 @@ def test_onaylanan_gorsel_videoya_giriyor() -> None:
                 "okunmazsa kullanıcının 'başka fotoğraf' seçimi yok sayılır")
 
 
+def test_vision_denetimi() -> None:
+    """
+    Görselin İÇİNE bakan denetim doğru katmanlarda ve doğru politikayla.
+
+    ⚠️ NEDEN GEREKTİ (3 Eyl 2026): projedeki bütün doğruluk denetimleri
+    METNE bakıyordu (`dogrula.py`). Görsel tarafında ölçülen her şey
+    TEKNİKTİ — piksel, netlik, dosya boyutu. "ABD İran'a saldırdı"
+    haberine gelen Fox News/Trump portresi 1200x675, keskin ve temizdi;
+    teknik testin her sorusuna "evet" dedi.
+
+    ⚠️ METİN TABANLI KAPI ELENDİ: 6 haberin 6'sı geçti (arama kendi
+    sonucunu onaylıyordu). Ancak görselin içine bakan bir denetim çözer.
+
+    Canlı ölçüldü, 3/3 doğru:
+      Vlahovic + "Beşiktaş forması"  -> "ACF Fiorentina eşofmanı" -> RED
+      Vargas + "milli takım forması" -> "Fenerbahçe forması"      -> RED
+      Hakan Fidan, bağlam yok                                    -> KABUL
+    """
+    sys.path.insert(0, str(KOK))
+    from src import slaytlar as sm, gorsel_denetim as gd
+
+    # --- 1) Hangi katmanlar denetleniyor ---
+    denetle(set(sm.VISION_DENETLENEN) >= {"commons", "web_haber"},
+            "belirli kişi/kurum iddiası taşıyan katmanlar denetleniyor")
+    denetle("haber" not in sm.VISION_DENETLENEN,
+            "og:image Vision denetiminden MUAF",
+            "yayıncı o fotoğrafı o haber için koymuş; konuya bağlılığı "
+            "yapı gereği garanti, 5 sn harcamaya değmez")
+    denetle("pexels" not in sm.VISION_DENETLENEN,
+            "Pexels Vision denetiminden MUAF",
+            "temsili olduğunu zaten söylüyor ve ARŞİV ibaresi basılıyor")
+
+    # --- 2) Deneme sayısı sınırlı ---
+    denetle(sm.VISION_AZAMI_DENEME <= 2,
+            "Vision yeniden denemesi sınırlı",
+            f"={sm.VISION_AZAMI_DENEME} — Commons adayları çoğu zaman aynı "
+            "çekimden geliyor, her deneme ~7 sn yiyor")
+
+    # --- 3) DENETİM YAPILAMAZSA KABUL (ön şart değil, ek güvence) ---
+    # Kota dolduğunda/ağ patladığında post görselsiz kalmamalı.
+    class _Sahte(dict):
+        pass
+    sahte = _Sahte({"ig_baslik": "x", "gorsel_konu": "y", "gorsel_baglam": ""})
+    eski_fn = gd.gorseli_denetle
+    try:
+        gd.gorseli_denetle = lambda *a, **k: None          # "soramadık"
+        uygun, _ = sm._vision_onayi(None, sahte, {"gorsel": {"vision_denetim": True}})
+        denetle(uygun,
+                "denetim yapılamazsa fotoğraf KABUL ediliyor",
+                "soramadık diye postu görselsiz bırakmak, denetimden "
+                "geçmemiş fotoğraf basmaktan kötü")
+
+        gd.gorseli_denetle = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("patladı"))
+        uygun, _ = sm._vision_onayi(None, sahte, {"gorsel": {"vision_denetim": True}})
+        denetle(uygun, "denetim PATLARSA da fotoğraf kabul ediliyor")
+
+        # --- 4) Net RED kararına uyulmalı ---
+        gd.gorseli_denetle = lambda *a, **k: {
+            "fotografta_ne_var": "Fiorentina eşofmanı",
+            "konuyu_gosteriyor_mu": True, "baglam_uyuyor_mu": False,
+            "sebep": "forma uyuşmuyor"}
+        uygun, sebep = sm._vision_onayi(None, sahte, {"gorsel": {"vision_denetim": True}})
+        denetle(not uygun and "bağlam" in sebep,
+                "bağlam uymuyorsa fotoğraf reddediliyor",
+                "Vlahovic/Vargas vakalarının çözümü bu")
+
+        gd.gorseli_denetle = lambda *a, **k: {
+            "fotografta_ne_var": "kale manzarası",
+            "konuyu_gosteriyor_mu": False, "baglam_uyuyor_mu": True,
+            "sebep": "alakasız"}
+        uygun, _ = sm._vision_onayi(None, sahte, {"gorsel": {"vision_denetim": True}})
+        denetle(not uygun, "konuyu göstermiyorsa fotoğraf reddediliyor")
+
+        # --- 5) Config'den kapatılabilmeli ---
+        gd.gorseli_denetle = lambda *a, **k: {
+            "fotografta_ne_var": "", "konuyu_gosteriyor_mu": False,
+            "baglam_uyuyor_mu": False, "sebep": ""}
+        uygun, _ = sm._vision_onayi(None, sahte, {"gorsel": {"vision_denetim": False}})
+        denetle(uygun, "vision_denetim=false iken denetim çalışmıyor",
+                "config'de duran ama okunmayan ayar ÖLÜ AYARDIR")
+    finally:
+        gd.gorseli_denetle = eski_fn
+
+    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    denetle("vision_denetim" in (cfg.get("gorsel") or {}),
+            "gorsel.vision_denetim config'de tanımlı")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1518,6 +1606,7 @@ def main() -> int:
         test_fotograf_alt_kenari_keskin_degil,
         test_kardes_gorsel_havuzu,
         test_onaylanan_gorsel_videoya_giriyor,
+        test_vision_denetimi,
     ):
         try:
             test()

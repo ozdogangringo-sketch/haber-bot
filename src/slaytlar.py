@@ -320,6 +320,67 @@ def _en_iyi_haber_gorseli(haber, g: dict, con=None):
     return en_iyi, (en_iyi_kaynak if en_iyi is not None else None)
 
 
+# ⚠️ VISION DENETİMİ HANGİ KATMANLARDA ÇALIŞIR (3 Eyl 2026)
+#
+# Yalnızca BELİRLİ BİR KİŞİ/KURUM İDDİASI TAŞIYAN katmanlar denetleniyor.
+#   commons / commons_split : "bu fotoğraf X kişisidir" diyor
+#   web_haber               : internetten aranmış, hiçbir güvencesi yok
+#
+# `haber` (og:image) MUAF: yayıncı o fotoğrafı o haber için koymuş,
+# konuya bağlılığı yapı gereği garanti. `pexels` de MUAF: temsili
+# olduğunu zaten söylüyor (ARŞİV GÖRSELİ ibaresi basılıyor) ve belirli
+# bir kişi iddiası taşımıyor — denetlemek 5 sn'yi boşa harcamak olur.
+VISION_DENETLENEN = ("commons", "commons_split", "web_haber")
+
+# Reddedilen adaydan sonra kaç alternatif denensin.
+#
+# ⚠️ 3 DEĞİL 2 — yani yalnızca BİR yeniden deneme. Ölçüldü: Commons'ta
+# aynı kişinin adayları çoğu zaman AYNI ÇEKİMDEN geliyor (Melissa
+# Vargas'ın dört fotoğrafı da aynı Fenerbahçe maçından), yani bağlam
+# uymuyorsa sıradaki de uymuyor. Her deneme ~2 sn Commons + ~5 sn
+# Vision; üçüncü deneme nadiren kazandırıp her seferinde 7 sn yiyor.
+VISION_AZAMI_DENEME = 2
+
+
+def _vision_onayi(foto, haber, ayarlar: dict) -> tuple[bool, str]:
+    """
+    Fotoğrafın içine bakıp habere uygun olup olmadığını sorar.
+
+    Döner: (kullanılabilir_mi, sebep).
+
+    ⚠️ DENETİM YAPILAMAZSA KABUL EDİLİR. Kota dolmuş, ağ patlamış ya da
+    anahtar yoksa fotoğraf kullanılır. Gerekçe: denetim bir EK güvence,
+    ön şart değil; soramadık diye postu görselsiz bırakmak, denetimden
+    geçmemiş bir fotoğraf basmaktan kötü. (`otomatik_onay`daki "şüphede
+    reddet" kuralının tersi — orada insan onayı olmadan YAYIN yapılıyor,
+    burada yalnızca fotoğraf seçiliyor ve zaten insan onayına gidiyor.)
+    """
+    g = ayarlar.get("gorsel", {}) or {}
+    if not g.get("vision_denetim"):
+        return True, ""
+    try:
+        from . import gorsel_denetim
+        sonuc = gorsel_denetim.gorseli_denetle(
+            foto,
+            _alan(haber, "ig_baslik") or _alan(haber, "baslik_orj"),
+            konu=_alan(haber, "gorsel_konu"),
+            baglam=_alan(haber, "gorsel_baglam"),
+            ayarlar=ayarlar,
+        )
+    except Exception as e:                            # noqa: BLE001
+        log.warning("görsel denetimi patladı, fotoğraf kabul ediliyor: %s", e)
+        return True, ""
+
+    if sonuc is None:
+        return True, ""                               # soramadık -> kabul
+
+    if not sonuc.get("konuyu_gosteriyor_mu", True):
+        return False, "konuyu göstermiyor: " + (sonuc.get("sebep") or "")[:90]
+    if not sonuc.get("baglam_uyuyor_mu", True):
+        return False, "güncel bağlama uymuyor: " + (sonuc.get("sebep") or "")[:90]
+    return True, ""
+
+
 def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                  atlanacak: int = 0,
                  haber_gorseli_atla: bool = False,
@@ -422,17 +483,28 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     konu = _alan(haber, "gorsel_konu")
     if konu and not commons_atla:
         try:
-            sonuc = fetch_photo.konu_icin_fotograf(
-                konu, atlanacak=atlanacak,
-                baglam=_alan(haber, "gorsel_baglam"))
-            if sonuc:
+            # ⚠️ Reddedilen aday varsa SIRADAKİNİ dene, doğrudan alt
+            # katmana düşme: Commons'ta aynı kişinin başka bağlamda
+            # fotoğrafı olabiliyor (Hakan Fidan'da 2024 yerine 2026
+            # karesi bulunmuştu).
+            for ek in range(VISION_AZAMI_DENEME):
+                sonuc = fetch_photo.konu_icin_fotograf(
+                    konu, atlanacak=atlanacak + ek,
+                    baglam=_alan(haber, "gorsel_baglam"))
+                if not sonuc:
+                    if ek == 0:
+                        log.info("Commons'ta bulunamadı: %s", konu)
+                    break
                 foto, kayit = sonuc
-                return (
-                    make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
-                    "commons",
-                    fetch_photo.atif_metni(kayit),
-                )
-            log.info("Commons'ta bulunamadı: %s", konu)
+                uygun, sebep = _vision_onayi(foto, haber, ayarlar)
+                if uygun:
+                    return (
+                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                        "commons",
+                        fetch_photo.atif_metni(kayit),
+                    )
+                log.info("Commons adayı #%d Vision denetiminden geçemedi (%s)",
+                         atlanacak + ek, sebep)
         except Exception as e:
             log.warning("Commons katmanı patladı (%s): %s", konu, e)
 
@@ -479,7 +551,11 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                 atif = fetch_web_image.atif_metni(web_kayit)
                 # Atıf üretilemiyorsa BASMIYORUZ. Kaynağı bilinmeyen bir
                 # fotoğrafı yayınlamak, hiç fotoğraf koymamaktan kötü.
-                if atif:
+                uygun, sebep = _vision_onayi(foto, haber, ayarlar)
+                if not uygun:
+                    log.info("internet görseli Vision denetiminden geçemedi (%s)",
+                             sebep)
+                elif atif:
                     log.info("arka plan: internet aramasi (son çare) — %s", atif)
                     return (
                         make_image.fotograftan_arkaplan(
