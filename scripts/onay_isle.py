@@ -37,7 +37,7 @@ import requests
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    aday, android_bridge, android_otomasyon, ayar, caption, db, db_senkron, dogrula, facebook, fetch_news,
+    aday, ayar, caption, db, db_senkron, dogrula, facebook, fetch_news,
     filtre,
     hata_bildir,
     instagram,

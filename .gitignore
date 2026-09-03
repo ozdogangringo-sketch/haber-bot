@@ -32,3 +32,11 @@ data/haber.db-shm
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# --- 3 Eylül 2026 temizliği ---
+# APK/ikili dağıtım dosyaları: 33 MB'lık termux.apk .git'i şişirmişti.
+*.apk
+# Deneme/hata ayıklama çıktıları — data/output zaten ignore'da ama
+# kök dizine düşenler için:
+debug_*.jpg
+test_*.jpg
