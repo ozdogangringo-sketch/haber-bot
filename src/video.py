@@ -96,32 +96,33 @@ def reels_dikey_gorselleri_uret(
 
     from src import slaytlar
 
-    # 1. Tekil haber için doğrudan güncel yerel dosyaları veya URL'leri topla
-    if haberler and len(haberler) == 1:
-        h0 = dict(haberler[0])
-        h_id = h0.get("id")
+    # ⚠️ SIRA ÖNEMLİ — ONAYLANAN GÖRSEL YAYINA ÇIKAN GÖRSEL OLMALI.
+    #
+    # 3 Eyl 2026, kullanıcı bildirdi: *"başka fotolarla yeniden üret
+    # dedim ve onu paylaştığımda oluşturduğu videoları eski görüntülerle
+    # oluşturdu"*.
+    #
+    # Eski sırada YEREL DOSYA birinciydi ve dosya yoksa slayt SIFIRDAN
+    # yeniden üretiliyordu — üstelik `gorsel_deneme` okunmadan, yani
+    # kullanıcının "başka fotoğraf" seçimi yok sayılarak ORİJİNAL
+    # fotoğrafla. Yayın job'ı ayrı bir runner'da çalışıyor ve
+    # `data/output` .gitignore'da olduğu için dosya HİÇBİR ZAMAN yoktu;
+    # yani bu yol her seferinde çalışıyordu.
+    #
+    # `gorsel_kaynaklari` ise onay mesajında GÖSTERİLEN ve kullanıcının
+    # ONAYLADIĞI imgbb URL'leri. Doğrusu onları kullanmak: yeniden
+    # üretim, onaylanandan farklı bir sonuç verebilir (fotoğraf
+    # katmanları deterministik değil — Pexels tekrar engeli, Commons
+    # aday sırası, kardeş havuzu hepsi çalıştırma anına bağlı).
+    #
+    # Bu, CLAUDE.md'deki "Onaylanan metin ≠ yayınlanan metin" hatasının
+    # görsel kardeşi.
 
-        kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
-        detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
-
-        # Eğer yerel dosyalar yoksa sıfırdan üret
-        if not kapak_story.exists() or not detay_storyler:
-            try:
-                log.info("Native 9:16 story dosyaları diskte yok, sıfırdan üretiliyor (Haber #%s)", h_id)
-                slaytlar.son_dakika_uret(h0, ayarlar or {})
-                detay_storyler = sorted(list(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg")), key=lambda p: p.name)
-            except Exception as e:
-                log.warning("Native story üretimi hatası: %s", e)
-
-        if kapak_story.exists():
-            kaynak_listesi.append(kapak_story)
-        kaynak_listesi.extend(detay_storyler)
-
-    # 2. Eğer yukarıdaki çalışmadıysa gorsel_kaynaklari üzerinden devam et
-    if not kaynak_listesi and gorsel_kaynaklari:
+    # 1. ONAYLANAN URL'ler — varsa her zaman bunlar
+    if gorsel_kaynaklari:
         kaynak_listesi = list(gorsel_kaynaklari)
 
-    # 3. Eğer hâlâ boşsa haberler içindeki URL'leri topla
+    # 2. Yoksa veritabanındaki yayın URL'leri
     if not kaynak_listesi and haberler:
         for h_raw in haberler:
             h_d = dict(h_raw)
@@ -136,6 +137,34 @@ def reels_dikey_gorselleri_uret(
                         kaynak_listesi.extend(detay_listesi)
                 except Exception:
                     pass
+
+    # 3. SON ÇARE: yerel dosya, o da yoksa sıfırdan üret.
+    #    ⚠️ `gorsel_deneme` BURADA OKUNMAK ZORUNDA — kullanıcının
+    #    "başka fotoğraf" seçimi o kolonda duruyor. Okunmazsa yeniden
+    #    üretim orijinal fotoğrafa döner ve bildirilen hata tekrarlar.
+    if not kaynak_listesi and haberler and len(haberler) == 1:
+        h0 = dict(haberler[0])
+        h_id = h0.get("id")
+        kapak_story = CIKTI_KLASORU / f"story-{h_id}.jpg"
+        detay_storyler = sorted(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg"),
+                                key=lambda p: p.name)
+        if not kapak_story.exists() or not detay_storyler:
+            try:
+                deneme = int(h0.get("gorsel_deneme") or 0)
+                log.info("story dosyaları diskte yok, üretiliyor "
+                         "(#%s, gorsel_deneme=%s)", h_id, deneme)
+                slaytlar.son_dakika_uret(
+                    h0, ayarlar or {},
+                    atlanacak=deneme,
+                    haber_gorseli_atla=deneme > 0,
+                )
+                detay_storyler = sorted(CIKTI_KLASORU.glob(f"story-{h_id}-detay*.jpg"),
+                                        key=lambda p: p.name)
+            except Exception as e:                    # noqa: BLE001
+                log.warning("story üretimi hatası: %s", e)
+        if kapak_story.exists():
+            kaynak_listesi.append(kapak_story)
+        kaynak_listesi.extend(detay_storyler)
 
     # 4. Toplanan tüm kaynakları sırayla 1080x1920 dikey video karelerine dönüştür
     for idx, kaynak in enumerate(kaynak_listesi, start=1):

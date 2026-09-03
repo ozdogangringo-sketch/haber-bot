@@ -1364,6 +1364,83 @@ def test_kardes_gorsel_havuzu() -> None:
                 "sessizce devre dışı kalır")
 
 
+def test_onaylanan_gorsel_videoya_giriyor() -> None:
+    """
+    Videoda ONAYLANAN görseller kullanılmalı, eski/yeniden üretilen değil.
+
+    ⚠️ NEDEN GEREKTİ (3 Eyl 2026, kullanıcı): *"başka fotolarla yeniden
+    üret dedim ve onu paylaştığımda oluşturduğu videoları eski
+    görüntülerle oluşturdu"*.
+
+    Kök sebep: `reels_dikey_gorselleri_uret` önce YEREL DOSYAYA bakıyor,
+    yoksa slaytı SIFIRDAN üretiyordu — üstelik `gorsel_deneme` okumadan,
+    yani "başka fotoğraf" seçimi yok sayılarak. Yayın job'ı ayrı runner'da
+    çalışıyor ve `data/output` .gitignore'da olduğu için yerel dosya
+    HİÇBİR ZAMAN yoktu; bu yol her seferinde devreye giriyordu.
+
+    Onaylanan imgbb URL'leri ise parametre olarak GELİYOR ama 2. sıradaydı
+    ve hiç ulaşılmıyordu.
+
+    ⚠️ Bu, CLAUDE.md'deki "Onaylanan metin ≠ yayınlanan metin" hatasının
+    görsel kardeşi: gözden geçirdiğin şey yayına çıkan şey değil.
+
+    Test DAVRANIŞA bakıyor: onaylanan görsel KIRMIZI, yereldeki eski
+    dosya MAVİ. Çıkan karenin rengi hangisi?
+    """
+    sys.path.insert(0, str(KOK))
+    import pathlib as _pathlib
+    import tempfile
+    from PIL import Image
+    from src import video
+
+    with tempfile.TemporaryDirectory() as gecici:
+        gecici = _pathlib.Path(gecici)
+        # Onaylanan görsel — KIRMIZI
+        onaylanan = gecici / "onaylanan.jpg"
+        Image.new("RGB", (1080, 1920), (220, 30, 30)).save(onaylanan)
+
+        # Yereldeki ESKİ dosya — MAVİ (eski fotoğrafı temsil ediyor)
+        h_id = 999777
+        video.CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
+        eski_yerel = video.CIKTI_KLASORU / f"story-{h_id}.jpg"
+        eski_detay = video.CIKTI_KLASORU / f"story-{h_id}-detay-1.jpg"
+        Image.new("RGB", (1080, 1920), (30, 30, 220)).save(eski_yerel)
+        Image.new("RGB", (1080, 1920), (30, 30, 220)).save(eski_detay)
+
+        try:
+            kareler = video.reels_dikey_gorselleri_uret(
+                [str(onaylanan)],
+                cikti_dizini=gecici / "kareler",
+                haberler=[{"id": h_id, "gorsel_deneme": 2}],
+                ayarlar={},
+            )
+            denetle(len(kareler) >= 1, "video karesi üretildi")
+            if kareler:
+                r, g_, b = Image.open(kareler[0]).convert("RGB").getpixel((540, 960))
+                denetle(r > 150 and b < 100,
+                        "video ONAYLANAN görseli kullanıyor",
+                        f"kare rengi ({r},{g_},{b}) — mavi ise yereldeki ESKİ "
+                        "dosya kullanılmış demektir; kullanıcının onayladığı "
+                        "görsel yayına çıkmıyor")
+        finally:
+            for f in (eski_yerel, eski_detay):
+                f.unlink(missing_ok=True)
+
+    # Yeniden üretim yoluna düşülürse `gorsel_deneme` OKUNMALI —
+    # yoksa "başka fotoğraf" seçimi yok sayılıp orijinal fotoğraf gelir.
+    kaynak = (KOK / "src/video.py").read_text(encoding="utf-8")
+    fn = next((d for d in ast.walk(ast.parse(kaynak))
+               if isinstance(d, ast.FunctionDef)
+               and d.name == "reels_dikey_gorselleri_uret"), None)
+    denetle(fn is not None, "reels_dikey_gorselleri_uret bulundu")
+    if fn is not None:
+        sabitler = {d.value for d in ast.walk(fn)
+                    if isinstance(d, ast.Constant) and isinstance(d.value, str)}
+        denetle("gorsel_deneme" in sabitler,
+                "yeniden üretim gorsel_deneme'yi okuyor",
+                "okunmazsa kullanıcının 'başka fotoğraf' seçimi yok sayılır")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1410,6 +1487,7 @@ def main() -> int:
         test_foto_ile_yazi_arasinda_olu_bant_yok,
         test_fotograf_alt_kenari_keskin_degil,
         test_kardes_gorsel_havuzu,
+        test_onaylanan_gorsel_videoya_giriyor,
     ):
         try:
             test()
