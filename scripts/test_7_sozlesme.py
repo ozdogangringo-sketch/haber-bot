@@ -984,6 +984,101 @@ def test_commons_tukenince_katman_degisiyor() -> None:
             "liste başa dönüyor, katman hiç değişmiyor")
 
 
+def test_gorsel_kunyesi_zorunlu() -> None:
+    """
+    Yayınlanan her GERÇEK FOTOĞRAF künyeli olmak zorunda.
+
+    ⚠️ NEDEN GEREKTİ (3 Eyl 2026): 28 Ağustos'ta `fetch_web_image`
+    katmanı eklendi ve `arkaplan_sec` içinde atıf yerine boş string
+    dönüyordu. Yayınlanan 10 web_haber postunun 10'u da ATIFSIZ ve
+    "ARŞİV GÖRSELİ" ibaresi olmadan çıktı — yani fotoğrafın nereden
+    geldiği hiçbir yerde kayıtlı değildi ve görsel, olayın belgesiymiş
+    gibi duruyordu. Telif şikayeti gelse kaynağı bulmanın yolu yoktu.
+
+    ⚠️ Katman aynı zamanda zincirin BİRİNCİ sırasındaydı — haberin
+    kendi og:image'inin bile önünde. og:image konuya garantili bağlı
+    (yayıncı o haber için koymuş), internet araması değil. Ölçüldü:
+    3 gerçek haberin 3'ünde de yanlış fotoğraf geldi (İran saldırısı
+    haberine Fox News'ten Trump portresi).
+
+    Denetim AST ile yapılıyor: düz metin araması `return ... ""`
+    kalıbını kaçırıyor, çünkü atıf bir değişkende de gelebilir.
+    """
+    kaynak = (KOK / "src/slaytlar.py").read_text(encoding="utf-8")
+    agac = ast.parse(kaynak)
+
+    fn = next((d for d in ast.walk(agac)
+               if isinstance(d, ast.FunctionDef) and d.name == "arkaplan_sec"), None)
+    denetle(fn is not None, "arkaplan_sec bulundu")
+    if fn is None:
+        return
+
+    # `return (gorsel, "katman", atif)` biçimindeki dönüşleri sırayla topla
+    donusler = []            # [(katman_adi, atif_bos_mu)]
+    for dugum in ast.walk(fn):
+        if not isinstance(dugum, ast.Return) or not isinstance(dugum.value, ast.Tuple):
+            continue
+        ogeler = dugum.value.elts
+        if len(ogeler) != 3:
+            continue
+        katman = ogeler[1]
+        if not (isinstance(katman, ast.Constant) and isinstance(katman.value, str)):
+            continue
+        atif = ogeler[2]
+        bos = isinstance(atif, ast.Constant) and atif.value == ""
+        donusler.append((katman.value, bos))
+
+    denetle(len(donusler) >= 5,
+            "arkaplan_sec katman dönüşleri okunabildi",
+            f"yalnızca {len(donusler)} dönüş bulundu")
+
+    # --- 1) Gerçek fotoğraf basan katman ATIFSIZ dönemez ---
+    # `ai` ve `gradyan` üretilen görseller — atıf verecek kimse yok.
+    kunyesiz_muaf = {"ai", "gradyan"}
+    for katman, atif_bos in donusler:
+        if katman in kunyesiz_muaf:
+            continue
+        denetle(not atif_bos,
+                f"'{katman}' katmanı atıf döndürüyor",
+                "gerçek fotoğraf basan katman boş atıf dönemez — "
+                "görselin kaynağı kayıt altına alınmadan yayınlanır")
+
+    # --- 2) İnternet araması og:image'den SONRA gelmeli ---
+    sira = [k for k, _ in donusler]
+    if "web_haber" in sira and "haber" in sira:
+        denetle(sira.index("web_haber") > sira.index("haber"),
+                "internet araması og:image katmanından SONRA çalışıyor",
+                "internet araması haberin kendi fotoğrafını eziyor — "
+                "og:image konuya garantili bağlı, arama değil")
+
+    # --- 3) Doğrulanmamış fotoğraf ARŞİV ibaresi taşımalı ---
+    denetle('"web_haber"' in kaynak.split("ARSIV_KATMANLARI")[1][:200]
+            if "ARSIV_KATMANLARI" in kaynak else False,
+            "web_haber ARSIV_KATMANLARI içinde",
+            "internetten aranan fotoğrafın olayın belgesi olduğuna dair "
+            "güvencemiz yok; 'ARŞİV GÖRSELİ' ibaresi basılmalı")
+
+    # --- 4) Katman config'den kapatılabilir olmalı ---
+    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    g = cfg.get("gorsel") or {}
+    denetle("web_gorsel_ara" in g,
+            "gorsel.web_gorsel_ara config'de tanımlı")
+    # ⚠️ DÜZ METİN ARAMASI BURADA YETMİYOR — kasten bozularak ölçüldü:
+    # `if g.get("web_gorsel_ara")` şartı silindiğinde test TEMİZ geçti,
+    # çünkü aynı dosyadaki `#` yorumunda o kelime hâlâ yazılıydı.
+    # AST'de yorumlar HİÇ bulunmuyor, o yüzden gerçek okumayı yalnızca
+    # AST görüyor. (Aynı tuzak `test_ertelemede_menu_kaliyor`da da
+    # yaşanmıştı: docstring'deki uyarı yanlış alarm veriyordu.)
+    okunuyor = any(
+        isinstance(d, ast.Constant) and d.value == "web_gorsel_ara"
+        for d in ast.walk(agac)
+    )
+    denetle(okunuyor,
+            "slaytlar.py web_gorsel_ara ayarını GERÇEKTEN okuyor",
+            "config'de duran ama okunmayan ayar ÖLÜ AYARDIR — "
+            "kullanıcı false yapar, katman yine çalışır")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1025,6 +1120,7 @@ def main() -> int:
         test_etki_dogrulamasi,
         test_hatirlatma_tum_turlari_isliyor,
         test_commons_tukenince_katman_degisiyor,
+        test_gorsel_kunyesi_zorunlu,
     ):
         try:
             test()

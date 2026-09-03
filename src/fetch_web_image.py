@@ -158,6 +158,36 @@ def fotograf_ara(
     return None
 
 
+def atif_metni(kayit: dict[str, Any] | None) -> str:
+    """
+    Web aramasından gelen fotoğraf için atıf satırı üretir.
+
+    ⚠️ NEDEN ZORUNLU (3 Eyl 2026): bu katman 28 Ağustos'ta eklendiğinde
+    `arkaplan_sec` atıf yerine boş string dönüyordu. Yayınlanan 10
+    web_haber postunun 10'u da ATIFSIZ çıktı — yani görselin nereden
+    geldiği hiçbir yerde kayıtlı değildi, ne caption'da ne veritabanında.
+    Telif şikayeti gelse kaynağı bulmanın yolu yoktu.
+
+    Atıf üretilemiyorsa çağıran taraf fotoğrafı BASMIYOR: kaynağı
+    bilinmeyen bir fotoğrafı yayınlamak, hiç fotoğraf koymamaktan kötü.
+
+    Alan adı yeterli — tam URL caption'da 100+ karakter yiyor ve
+    takipçiye bir şey söylemiyor.
+    """
+    if not kayit:
+        return ""
+    url = (kayit.get("image") or kayit.get("url") or "").strip()
+    if not url:
+        return ""
+    m = re.match(r"https?://(?:www\.)?([^/:]+)", url)
+    if not m:
+        return ""
+    alan = m.group(1).strip()
+    if not alan or "." not in alan:
+        return ""
+    return f"Foto: {alan}"
+
+
 def haber_icin_fotograf(
     haber: Any,
     atlanacak: int = 0,

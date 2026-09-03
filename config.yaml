@@ -366,6 +366,51 @@ gorsel:
   # false yapılırsa eski davranışa dönülür: Commons -> Pexels -> gradyan.
   haber_gorseli_kullan: true
 
+  # ⚠️ İNTERNETTE GÖRSEL ARAMA (DuckDuckGo) — 3 EYLÜL 2026'DA KAPATILDI.
+  #
+  # 28 Ağu 2026'da `fetch_web_image` eklendi ve zincirin BİRİNCİ sırasına
+  # kondu — yani haberin kendi og:image'inin bile ÖNÜNE. Yaptığı iş:
+  # başlığın ilk 6 kelimesiyle DuckDuckGo görsel araması yapıp,
+  # çözünürlük + netlik testinden geçen İLK fotoğrafı basmak.
+  #
+  # ⚠️ ALAKA DENETİMİ YOKTU. Test yalnızca piksel ve netlik ölçüyor,
+  # fotoğrafın haberi anlatıp anlatmadığını DEĞİL. 3 gerçek haberle
+  # ölçüldü (3 Eyl 2026), üçü de yanlış fotoğraf getirdi:
+  #   "ABD İran'da Devrim Muhafızları'na saldırdı"
+  #      -> a57.foxnews.com'dan Trump portresi (başlığı: "Trump tells
+  #         The Atlantic that he runs the country")
+  #   "Milli Hızlı Tren 250 km/s hıza ulaştı"
+  #      -> 5G ihalesi haberinin görseli
+  #   "Akdeniz Oyunları'nda 10 madalya"
+  #      -> halter e-ticaret blogundan profil fotoğrafı
+  # Üçü de teknik testi GEÇTİ — çünkü test doğru soruyu sormuyor.
+  #
+  # ⚠️ METİN TABANLI ALAKA KAPISI BU KUSURU ÇÖZMÜYOR. Denendi ve
+  # ölçüldü: aday başlığı ile haber başlığının ortak özel isim taşıması
+  # şartı kondu, 6 haberin 6'sı da GEÇTİ — Fox News/Trump dahil. Sebep
+  # döngüsel: `gorsel_konu` "Donald Trump" olduğu için arama Trump'ı
+  # arıyor, dolayısıyla her sonuçta "Trump" geçiyor. Kapı kendi kendini
+  # onaylıyor. Bunu ancak GÖRSELİN İÇİNE bakan bir denetim çözebilir
+  # (Gemini Vision — ayrı bir iş olarak planlandı).
+  #
+  # ⚠️ TELİF: `YASAKLI_STOK_SITELERI` listesi YANLIŞ TARAFI engelliyordu.
+  # Shutterstock/Getty engelli (sana lisans SATACAK siteler), ama
+  # foxnews.com / haber ajansı CDN'leri serbest (sana DMCA GÖNDERECEK
+  # olanlar). Yayınlanan 10 web_haber postunun 10'u da ATIFSIZ ve
+  # "ARŞİV GÖRSELİ" ibaresi olmadan çıktı.
+  #
+  # KAPATMANIN BEDELİ ÖLÇÜLDÜ: yayınlanmış 10 web_haber postu tek tek
+  # denendi — 4'ü haberin KENDİ fotoğrafını bulurdu (daha iyi: konuya
+  # garantili bağlı), 6'sı Pexels'e düşerdi (genel ama dürüst ve
+  # hukuken temiz). Yani 10 doğrulanamaz fotoğraf yerine 4 doğru +
+  # 6 temsili. Net kazanç.
+  #
+  # true yapılırsa katman ZİNCİRİN SONUNA çalışır (og:image, Commons ve
+  # Pexels'in hepsi başarısız olursa), atıf ZORUNLU basılır ve slayta
+  # "ARŞİV GÖRSELİ" ibaresi konur. Yine de doğrulanmamış fotoğraf
+  # demektir — Vision denetimi devreye girene kadar açma.
+  web_gorsel_ara: false
+
   # og:image bazen sitenin logosu ya da paylaşım rozeti oluyor; bu
   # genişliğin altındakiler eleniyor, yoksa büyütülünce bulanık çıkıyor.
   # ⚠️ ESKİDEN 600'DÜ VE YÜKSEKLİK HİÇ DENETLENMİYORDU.

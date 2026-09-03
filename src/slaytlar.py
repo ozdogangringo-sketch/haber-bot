@@ -56,7 +56,10 @@ def _kalite(g: dict, katman: str) -> int:
 
 # Bunlardan hangilerinde "ARŞİV GÖRSELİ" ibaresi basılsın?
 # `haber` katmanı HARİÇ: o görsel olayın kendi fotoğrafı, arşiv değil.
-ARSIV_KATMANLARI = ("commons", "pexels")
+# ⚠️ `web_haber` BURADA OLMAK ZORUNDA: internetten aranan fotoğrafın
+# olayın kendi belgesi olduğuna dair hiçbir güvencemiz yok. 28 Ağu -
+# 3 Eyl 2026 arasında bu ibare basılmadan 10 post çıktı.
+ARSIV_KATMANLARI = ("commons", "pexels", "web_haber")
 
 
 def _alan(haber, ad: str) -> str:
@@ -226,20 +229,6 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
         except Exception as e:                        # noqa: BLE001
             log.warning("AI görsel hatası (%s), normal zincire düşülüyor", e)
 
-    # --- 0) Web HD Haber Fotoğrafı (Canlı Basın & Olay Fotoğrafı Arama) ---
-    if not haber_gorseli_atla:
-        try:
-            web_sonuc = fetch_web_image.haber_icin_fotograf(haber, atlanacak=atlanacak)
-            if web_sonuc:
-                foto, web_kayit = web_sonuc
-                return (
-                    make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
-                    "web_haber",
-                    "",
-                )
-        except Exception as e:
-            log.warning("Web haber görseli katmanı patladı: %s", e)
-
     # --- 0.5) Haberin kendi görseli (og:image) ---
     if (not haber_gorseli_atla and atlanacak == 0
             and g.get("haber_gorseli_kullan") and haber["link"]):
@@ -312,7 +301,41 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
         except Exception as e:
             log.warning("Pexels katmanı patladı (%s): %s", terim, e)
 
-    # --- 2.5) Gemini AI Görsel Üretimi (Fotoğraf bulunamazsa AI ile özel editoryal görsel üret) ---
+    # --- 2.5) SON ÇARE: internette görsel arama ---
+    #
+    # ⚠️ VARSAYILAN OLARAK KAPALI (`gorsel.web_gorsel_ara`). Gerekçe ve
+    # ölçümler config.yaml'de. Kısaca: bu katmanın döndürdüğü fotoğrafın
+    # haberi anlattığına dair hiçbir güvencemiz yok ve metin tabanlı
+    # alaka kapısı bu kusuru ÇÖZMÜYOR (ölçüldü: 6/6 yanlış aday geçti).
+    #
+    # ⚠️ ESKİDEN ZİNCİRİN BİRİNCİ SIRASINDAYDI — yani haberin kendi
+    # og:image'inin bile önünde. 3 Eyl 2026'da sona alındı: og:image
+    # konuya garantili bağlı, bu değil.
+    #
+    # Açılırsa iki şey ZORUNLU: atıf (kaynak alan adı) ve slaytta
+    # "ARŞİV GÖRSELİ" ibaresi (bkz. ARSIV_KATMANLARI).
+    if g.get("web_gorsel_ara") and not haber_gorseli_atla:
+        try:
+            web_sonuc = fetch_web_image.haber_icin_fotograf(
+                haber, atlanacak=atlanacak)
+            if web_sonuc:
+                foto, web_kayit = web_sonuc
+                atif = fetch_web_image.atif_metni(web_kayit)
+                # Atıf üretilemiyorsa BASMIYORUZ. Kaynağı bilinmeyen bir
+                # fotoğrafı yayınlamak, hiç fotoğraf koymamaktan kötü.
+                if atif:
+                    log.info("arka plan: internet aramasi (son çare) — %s", atif)
+                    return (
+                        make_image.fotograftan_arkaplan(
+                            foto, genislik, yukseklik),
+                        "web_haber",
+                        atif,
+                    )
+                log.warning("web görseli atıfsız geldi, basılmıyor")
+        except Exception as e:                        # noqa: BLE001
+            log.warning("internet görsel araması patladı: %s", e)
+
+    # --- 2.6) Gemini AI: hiçbir gerçek fotoğraf bulunamadıysa üret ---
     try:
         gorsel_ai = make_image.arkaplan_uret_ai(_alan(haber, "kategori") or "turkiye", ayarlar)
         if gorsel_ai is not None:
