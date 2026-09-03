@@ -1296,7 +1296,7 @@ def test_kardes_gorsel_havuzu() -> None:
     hatayı yakalar: eşleşen kardeş DÜŞÜK AĞIRLIKLI.
     """
     sys.path.insert(0, str(KOK))
-    from src import slaytlar as sl
+    from src import slaytlar as slayt_mod
 
     con = gecici_db()
     con.executescript("""
@@ -1322,7 +1322,7 @@ def test_kardes_gorsel_havuzu() -> None:
            'http://e/5', datetime('now', '-5 day'));
     """)
     hedef = con.execute("SELECT * FROM haberler WHERE id = 1").fetchone()
-    linkler = sl.kardes_linkler(con, hedef, azami=5)
+    linkler = slayt_mod.kardes_linkler(con, hedef, azami=5)
 
     denetle("http://b/2" in linkler,
             "düşük ağırlıklı kardeş de bulunuyor",
@@ -1344,20 +1344,20 @@ def test_kardes_gorsel_havuzu() -> None:
                 "kardeşler ağırlığa göre sıralı deneniyor")
 
     # Üst sınır olmalı — her aday 0.7-3.8 sn maliyetli
-    denetle(sl.KARDES_AZAMI <= 5,
+    denetle(slayt_mod.KARDES_AZAMI <= 5,
             "kardeş taraması sınırlı",
-            f"KARDES_AZAMI={sl.KARDES_AZAMI} — sınırsız tarama turu yavaşlatır")
-    denetle(len(sl.kardes_linkler(con, hedef)) <= sl.KARDES_AZAMI,
+            f"KARDES_AZAMI={slayt_mod.KARDES_AZAMI} — sınırsız tarama turu yavaşlatır")
+    denetle(len(slayt_mod.kardes_linkler(con, hedef)) <= slayt_mod.KARDES_AZAMI,
             "varsayılan çağrı sınıra uyuyor")
 
     # `con` zinciri: DB olmadan eski davranış sürmeli, patlamamalı
-    denetle(sl.kardes_linkler(None, hedef) == [],
+    denetle(slayt_mod.kardes_linkler(None, hedef) == [],
             "con verilmezse kardeş taraması yapılmıyor (eski davranış)")
 
     # con dört fonksiyonda da taşınmalı
     import inspect
     for ad in ("arkaplan_sec", "slayt_uret", "tur_uret", "son_dakika_uret"):
-        fn = getattr(sl, ad, None)
+        fn = getattr(slayt_mod, ad, None)
         denetle(fn is not None and "con" in inspect.signature(fn).parameters,
                 f"{ad} con parametresi taşıyor",
                 "zincirin bir halkası con'u düşürürse kardeş havuzu "
