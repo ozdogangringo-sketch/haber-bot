@@ -109,6 +109,19 @@ CEVAP_SEMASI = {
         "vurgu_etiket": {"type": "string"},
         "alinti": {"type": "string"},
         "alinti_sahibi": {"type": "string"},
+        # ⚠️ GÖRSEL YÖNLENDİRME (3 Eyl 2026). Ölçüldü: bugünkü prompt
+        # `gorsel_konu`yu DOĞRU üretiyor (6/6), ama 6 briefin 5'i yine
+        # genel Pexels stoğunda bitiyordu — çünkü her brief aynı sabit
+        # zincire sokuluyor ve "bu tarifi hangi kaynak karşılayabilir"
+        # diye sorulmuyordu. Bu alan o soruyu cevaplıyor.
+        "gorsel_ozne_tipi": {"type": "string",
+                             "enum": ["kisi", "kurum", "urun", "olay"]},
+        # ⚠️ GÜNCELLİK (3 Eyl 2026, kullanıcı uyarısı). Doğru kişinin
+        # ESKİ fotoğrafı da yanlıştır: Vlahovic bu sezon Beşiktaş'ta ama
+        # gelen fotoğraf Juventus formalıydı; Melissa Vargas milli takım
+        # haberinde kulüp formasıyla çıkmıştı. Modelin hafızası bayat,
+        # MAKALE METNİ güncel — bu alan yalnızca makaleden doldurulur.
+        "gorsel_baglam": {"type": "string"},
         # Commons araması için kişi/kurum. Yoksa boş string.
         "gorsel_konu": {"type": "string"},
         # Pexels araması için İngilizce temsili terim.
@@ -135,7 +148,8 @@ CEVAP_SEMASI = {
     "required": [
         "baslik_alternatifleri", "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
         "slayt_ozet", "detay_metni", "vurgu_sayi", "vurgu_etiket",
-        "alinti", "alinti_sahibi", "gorsel_konu", "gorsel_temsili",
+        "alinti", "alinti_sahibi", "gorsel_ozne_tipi", "gorsel_baglam",
+        "gorsel_konu", "gorsel_temsili",
         "kategori", "ulke_kodu", "ulke_adi", "neden_onemli",
         "sirada_ne_var", "sana_etkisi", "etkilesim_sorusu",
         "veri_karti_etiket", "veri_karti_eski", "veri_karti_yeni",
@@ -206,6 +220,25 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
 - alinti / alinti_sahibi: Haberde geçen doğrudan söz (en fazla 18 kelime, tırnaksız) ve sahibi. Kaynakta kelimesi kelimesine geçmeli.
 - ig_caption: Haberin tüm detaylarını, arka planını ve nedenlerini anlatan 3-5 cümlelik ferah, akıcı ve bilgilendirici bülten açıklaması. Paragrafları ferah tut, okuyucunun konuyu tam anlamasını sağla. Asla markdown yıldız (**) kullanma. Kaynak adı yazma.
 - ig_hashtag: 5-8 adet konuyla ilgili Türkçe etiket, '#' işareti OLMADAN.
+- gorsel_ozne_tipi: Bu haberin fotoğrafında NE görünmeli? Sırayla dene, İLK tutanı seç:
+    "urun"  = Haber somut bir ürün, araç, uçak, gemi veya yapının KENDİSİ hakkında (HÜRJET, iPhone 16, Marmaray, FİLOJET feribotu).
+    "kisi"  = Haber BİR KİŞİNİN KENDİSİ hakkında: transferi, istifası, ödülü, rekoru, vefatı, hakkındaki soruşturma.
+              ⚠️ Haberi DUYURAN, AÇIKLAYAN, YORUMLAYAN veya TAZİYE EDEN kişi ÖZNE DEĞİLDİR.
+              Bakan projeyi duyurduysa özne PROJE'dir; başbakan kazaya üzüldüyse özne KAZA'dır.
+    "kurum" = Haber bir kulüp, şirket, belediye, parti veya kurumun KENDİSİ hakkında VE o kurumun fotoğraflanabilir bir stadı, binası ya da tesisi var.
+    "olay"  = Yukarıdakilerin hiçbiri tutmuyorsa: yangın, sel, kaza, deprem, zam, mevzuat, hava durumu, sınav, istatistik, piyasa beklentisi. Bunların tek bir görsel öznesi YOKTUR ve temsili fotoğraf DOĞRU olandır. "olay" bir başarısızlık değildir, çekinmeden yaz.
+
+- gorsel_baglam: Fotoğrafın GÜNCEL olması için gereken bağlam. En fazla 6 kelime.
+  ⚠️ SADECE MAKALE METNİNDE YAZANI KULLAN. Kendi bildiğini yazma — hafızan
+  eski olabilir, makale güncel.
+  Örnekler:
+    Futbolcu haberi -> "Beşiktaş forması, 2026 sezonu"   (makale hangi kulüpte diyorsa O)
+    Siyasetçi       -> "YENİ Parti genel başkanı"        (makale hangi görevde diyorsa O)
+    Milli takım     -> "milli takım forması"             (kulüp forması YANLIŞ olur)
+  Bağlam gerekmiyorsa (olay haberi, ürün) boş string "" bırak.
+  ⚠️ NEDEN: doğru kişinin ESKİ fotoğrafı da yanlıştır. Oyuncu takım
+  değiştirmiş olabilir, bakan görevden ayrılmış olabilir.
+
 - gorsel_konu: Haberin ana somut öznesi, markası, modeli veya aktörü (örn: "Volkswagen Passat Pro", "Apple iPhone 16", "Hakan Fidan", "Beşiktaş", "Silivri gemi kazası", "Boeing 737", "Lionel Messi"). Asla boş veya soyut bırakma; haberin odaklandığı asıl varlığı net olarak yaz.
 - gorsel_ikili: Zirve veya ikili diplomatik görüşme ise iki aktörün adı: ["Recep Tayyip Erdoğan", "İlham Aliyev"]. Yoksa boş liste [].
 - gorsel_temsili: Konuyu temsil eden İNGİLİZCE somut arama terimi (örn: "Volkswagen Passat sedan car", "Apple iPhone smartphone", "commercial passenger jet airplane", "gold bullion bars vault"). EĞER HABER BİR MARKA, MODEL VEYA KİŞİ İLE İLGİLİ İSE MARKA/ÜRÜN ADINI KORU (örn: Passat Pro için "Volkswagen Passat car", iPhone için "Apple iPhone smartphone"). ASLA başka bir markanın çıkmasına yol açacak genel veya yanıltıcı terimler isteme.

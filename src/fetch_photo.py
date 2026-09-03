@@ -182,7 +182,7 @@ def _isim_tutuyor_mu(baslik: str, konu: str) -> bool:
 
 
 def _aday_puani(baslik: str, genislik: int, yukseklik: int,
-                konu: str = "") -> int:
+                konu: str = "", baglam: str = "") -> int:
     """
     Aday fotoğrafı puanlar. Yüksek puan = daha iyi haber görseli.
     Negatif dönerse aday elenir.
@@ -199,6 +199,28 @@ def _aday_puani(baslik: str, genislik: int, yukseklik: int,
         return -1
 
     puan = 0
+
+    # --- GÜNCELLİK BAĞLAMI (3 Eyl 2026, kullanıcı uyarısı) ---
+    #
+    # ⚠️ DOĞRU KİŞİNİN ESKİ FOTOĞRAFI DA YANLIŞTIR. Kullanıcı bildirdi:
+    # Vlahovic bu sezon Beşiktaş'ta ama gelen fotoğraf Juventus
+    # formalıydı. Aynı kusur daha önce Melissa Vargas'ta yaşanmıştı —
+    # milli takım haberi, kulüp forması.
+    #
+    # `gorsel_baglam` makaleden çıkarılıyor ("Beşiktaş forması"), yani
+    # MODELİN HAFIZASINDAN DEĞİL. Hafıza bayat, makale güncel.
+    #
+    # ⚠️ POZİTİF SEÇİM, NEGATİF ELEME DEĞİL. Bağlamı tutan adaya puan
+    # veriyoruz; tutmayanı ELEMİYORUZ. Sebep: arşivde o bağlamda hiç
+    # fotoğraf olmayabilir (yeni transfer olmuş oyuncunun yeni forma
+    # fotoğrafı Commons'a henüz düşmemiş olabilir) ve o zaman eski
+    # fotoğraf, hiç fotoğraf olmamasından iyidir. Eleme yapsaydık
+    # gradyana düşerdik.
+    if baglam:
+        _b = _sadelestir(baslik)
+        for kelime in _sadelestir(baglam).split():
+            if len(kelime) >= 4 and kelime in _b:
+                puan += 45
 
     # Tek kişilik kare tercih ediliyor
     puan += sum(35 for iyi in TEK_KISI if iyi in b)
@@ -256,7 +278,8 @@ def _aday_puani(baslik: str, genislik: int, yukseklik: int,
 AZAMI_AYNI_KISI = 3
 
 
-def aday_listesi_ara(konu: str, aday_sayisi: int = 20) -> list[dict]:
+def aday_listesi_ara(konu: str, aday_sayisi: int = 20,
+                     baglam: str = "") -> list[dict]:
     """Commons'ta arar, uygun lisanslı ve kaliteli tüm adayları döner."""
     konu = (konu or "").strip()
     if not konu:
@@ -308,7 +331,7 @@ def aday_listesi_ara(konu: str, aday_sayisi: int = 20) -> list[dict]:
             continue
 
         baslik = (sayfa.get("title") or "")[5:]      # "File:" önekini at
-        puan = _aday_puani(baslik, genislik, yukseklik, konu)
+        puan = _aday_puani(baslik, genislik, yukseklik, konu, baglam)
         if puan < 0:
             continue
 
@@ -377,11 +400,12 @@ def atif_metni(kayit: dict) -> str:
 
 
 def konu_icin_fotograf(konu: str,
-                       atlanacak: int = 0) -> tuple[Image.Image, dict] | None:
+                       atlanacak: int = 0,
+                       baglam: str = "") -> tuple[Image.Image, dict] | None:
     """
     Tek adımda: ara + kalite denetimli indir.
     """
-    adaylar = aday_listesi_ara(konu)
+    adaylar = aday_listesi_ara(konu, baglam=baglam)
     if not adaylar:
         return None
 

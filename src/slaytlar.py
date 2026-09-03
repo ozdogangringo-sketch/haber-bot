@@ -246,9 +246,36 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
         except Exception as e:
             log.warning("haber görseli alınamadı: %s", e)
 
+    # --- YÖNLENDİRME: brief hangi kaynağı işaret ediyor? (3 Eyl 2026) ---
+    #
+    # ⚠️ NEDEN GEREKTİ: ölçüldü, bugünkü prompt `gorsel_konu`yu DOĞRU
+    # üretiyor (6 haberin 6'sı), ama 6 briefin 5'i yine genel Pexels
+    # stoğunda bitiyordu. Sebep brief değil, brief'in KULLANILMAMASIydı:
+    # her haber aynı sabit zincire sokuluyor, "bu tarifi hangi kaynak
+    # karşılayabilir" diye hiç sorulmuyordu.
+    #
+    # `olay` tipinde (yangın, sel, kaza, zam, sınav, mevzuat) ortada
+    # aranacak bir kişi ya da kurum YOKTUR. Commons'a sormak iki
+    # zarar veriyor: ~5-10 saniye boşa gidiyor VE gevşek eşleşme yanlış
+    # fotoğraf getirebiliyor ("İSKİ" -> Macar sanatçı portresi vakası).
+    # Doğrusu doğrudan temsili fotoğrafa gitmek.
+    #
+    # ⚠️ og:image bundan MUAF — yangının haberinde yayıncının koyduğu
+    # fotoğraf gerçekten o yangının fotoğrafı. Yönlendirme yalnızca
+    # Commons katmanını atlıyor.
+    #
+    # Tip bilinmiyorsa (eski kayıtlar, model şemayı ihlal etti) eski
+    # davranış sürüyor: her katman sırayla denenir. Sessizce yanlış
+    # kaynağa gitmektense fazladan denemek yeğdir.
+    ozne_tipi = _alan(haber, "gorsel_ozne_tipi")
+    commons_atla = ozne_tipi == "olay"
+    if commons_atla:
+        log.info("brief 'olay' diyor -> Commons atlanıyor, temsili fotoğrafa gidiliyor (#%s)",
+                 _alan(haber, "id"))
+
     # --- 1) Commons: İkili Aktör (Split-Screen) veya Tek Kişi ---
     ikili = _alan(haber, "gorsel_ikili")
-    if ikili and atlanacak == 0:
+    if ikili and atlanacak == 0 and not commons_atla:
         try:
             import json
             if isinstance(ikili, str):
@@ -266,9 +293,11 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             log.warning("ikili portre katmanı patladı: %s", e)
 
     konu = _alan(haber, "gorsel_konu")
-    if konu:
+    if konu and not commons_atla:
         try:
-            sonuc = fetch_photo.konu_icin_fotograf(konu, atlanacak=atlanacak)
+            sonuc = fetch_photo.konu_icin_fotograf(
+                konu, atlanacak=atlanacak,
+                baglam=_alan(haber, "gorsel_baglam"))
             if sonuc:
                 foto, kayit = sonuc
                 return (

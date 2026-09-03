@@ -1079,6 +1079,79 @@ def test_gorsel_kunyesi_zorunlu() -> None:
             "kullanıcı false yapar, katman yine çalışır")
 
 
+def test_gorsel_brief_dort_yerde_tanimli() -> None:
+    """
+    Görsel brief alanları DÖRT ayrı yerde yaşıyor; dördü de olmalı.
+
+    ⚠️ BU PROJENİN EN SIK TEKRARLAYAN HATA SINIFI: bir alan şemaya
+    eklenir, `metin_kaydet`in SQL'ine eklenmeyi unutulur ve alan
+    SESSİZCE HİÇ KAYDEDİLMEZ. Hata vermez — model değeri üretir, kod
+    onu atar, veritabanında NULL kalır ve kimse fark etmez.
+    (`kategori` alanı üç yerde yaşıyordu ve aynı denetim yazılmıştı.)
+
+    Dört yer:
+      1. CEVAP_SEMASI.properties  — model üretsin diye
+      2. CEVAP_SEMASI.required    — model ATLAMASIN diye
+      3. PROMPT                   — model NE yazacağını bilsin diye
+      4. db.EK_KOLONLAR + metin_kaydet SQL — değer SAKLANSIN diye
+
+    3 Eyl 2026'da eklendi (İş 2 — görsel brief).
+    """
+    sys.path.insert(0, str(KOK))
+    from src import generate_text as gt, db as _db
+
+    alanlar = ("gorsel_ozne_tipi", "gorsel_baglam")
+    kaydet_kaynak = (KOK / "src/db.py").read_text(encoding="utf-8")
+
+    for alan in alanlar:
+        denetle(alan in gt.CEVAP_SEMASI["properties"],
+                f"{alan} CEVAP_SEMASI.properties içinde")
+        denetle(alan in gt.CEVAP_SEMASI["required"],
+                f"{alan} CEVAP_SEMASI.required içinde",
+                "required değilse model alanı atlayabilir")
+        denetle(alan in gt.PROMPT,
+                f"{alan} PROMPT'ta anlatılıyor",
+                "şemada olup promptta olmayan alan rastgele dolar")
+        denetle(alan in _db.EK_KOLONLAR,
+                f"{alan} db.EK_KOLONLAR içinde",
+                "kolon yoksa migration çalışmaz")
+        # ⚠️ ASIL DENETİM BU: SQL'de gerçekten yazılıyor mu?
+        denetle(f"{alan}" in kaydet_kaynak.split("def metin_kaydet")[1][:4000],
+                f"{alan} metin_kaydet SQL'inde yazılıyor",
+                "şemada var ama kaydedilmiyorsa alan SESSİZCE kaybolur")
+
+    # --- Beyaz liste: şemadaki enum tek başına yetmiyor ---
+    denetle(hasattr(_db, "_gecerli_ozne_tipi"),
+            "db._gecerli_ozne_tipi beyaz listesi var",
+            "model şemayı ihlal edebiliyor; `kategori` alanında da iki "
+            "katman gerekmişti")
+    if hasattr(_db, "_gecerli_ozne_tipi"):
+        denetle(_db._gecerli_ozne_tipi("yok") is None
+                and _db._gecerli_ozne_tipi("kisi") == "kisi",
+                "beyaz liste tanınmayan değeri eliyor")
+        sema_enum = set(gt.CEVAP_SEMASI["properties"]["gorsel_ozne_tipi"]["enum"])
+        denetle(sema_enum == set(_db.OZNE_TIPLERI),
+                "şema enum'u ile beyaz liste AYNI",
+                f"şema={sorted(sema_enum)} beyaz liste={sorted(_db.OZNE_TIPLERI)} "
+                "— ayrışırsa geçerli bir değer sessizce elenir")
+
+    # --- Yönlendirme yalnızca Commons'ı atlamalı ---
+    sl = (KOK / "src/slaytlar.py").read_text(encoding="utf-8")
+    denetle("commons_atla" in sl,
+            "slaytlar.py brief'e göre yönlendirme yapıyor")
+    agac = ast.parse(sl)
+    fn = next((d for d in ast.walk(agac)
+               if isinstance(d, ast.FunctionDef) and d.name == "arkaplan_sec"), None)
+    if fn is not None:
+        govde = ast.get_source_segment(sl, fn) or ""
+        # og:image bloğu `commons_atla` ile KOŞULLANMAMALI — yangının
+        # haberinde yayıncının koyduğu fotoğraf gerçekten o yangındır.
+        og_blok = govde.split("0.5)")[1].split("--- YÖNLENDİRME")[0] if "0.5)" in govde else ""
+        denetle("commons_atla" not in og_blok,
+                "yönlendirme og:image katmanını ATLAMIYOR",
+                "'olay' haberinde bile yayıncının kendi fotoğrafı doğrudur")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1121,6 +1194,7 @@ def main() -> int:
         test_hatirlatma_tum_turlari_isliyor,
         test_commons_tukenince_katman_degisiyor,
         test_gorsel_kunyesi_zorunlu,
+        test_gorsel_brief_dort_yerde_tanimli,
     ):
         try:
             test()

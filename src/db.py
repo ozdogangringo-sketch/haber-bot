@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # --- GÖRSEL BRIEF (3 Eyl 2026) ---
+    # Görselin hangi kaynaktan aranacağını belirler: kisi/kurum/urun/olay.
+    # ⚠️ Ölçüldü: `gorsel_konu` doğru üretiliyordu ama 6 briefin 5'i yine
+    # genel Pexels stoğunda bitiyordu — her brief aynı sabit zincire
+    # sokuluyor ve "bu tarifi hangi kaynak karşılayabilir" sorulmuyordu.
+    "gorsel_ozne_tipi": "TEXT",
+    # Fotoğrafın GÜNCEL olması için gereken bağlam ("Beşiktaş forması").
+    # ⚠️ Doğru kişinin ESKİ fotoğrafı da yanlıştır — kullanıcı uyarısı
+    # (3 Eyl 2026): Vlahovic bu sezon Beşiktaş'ta ama gelen fotoğraf
+    # Juventus formalıydı. Yalnızca MAKALE METNİNDEN doldurulur.
+    "gorsel_baglam": "TEXT",
     # Kullanılan stok fotoğrafın kaynaktaki id'si (Pexels).
     # Aynı fotoğrafın tekrar tekrar seçilmesini engellemek için
     # saklanıyor — bkz. fetch_stock.fotograf_ara(kullanilmis=...).
@@ -312,6 +323,23 @@ def durum_guncelle(con, haber_id: int, durum: str, hata: str | None = None):
     )
 
 
+OZNE_TIPLERI = ("kisi", "kurum", "urun", "olay")
+
+
+def _gecerli_ozne_tipi(deger) -> str | None:
+    """
+    Görsel özne tipini beyaz listeden geçirir.
+
+    ⚠️ ŞEMADAKİ `enum` TEK BAŞINA YETMİYOR — `_gecerli_kategori` ile aynı
+    gerekçe: model şemayı ihlal edebiliyor ve eski kayıtlar başka
+    yollardan geliyor. Tanınmayan değer None kalır; `arkaplan_sec` o
+    durumda eski (tip bilmeyen) davranışına düşer, yani sessizce yanlış
+    kaynağa gitmez.
+    """
+    d = (deger or "").strip().lower()
+    return d if d in OZNE_TIPLERI else None
+
+
 def _gecerli_kategori(deger) -> str | None:
     """
     Modelin verdiği kategoriyi doğrular.
@@ -360,6 +388,8 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
                vurgu_etiket      = ?,
                alinti            = ?,
                alinti_sahibi     = ?,
+               gorsel_ozne_tipi  = ?,
+               gorsel_baglam     = ?,
                gorsel_konu       = ?,
                gorsel_temsili    = ?,
                kategori          = COALESCE(?, kategori),
@@ -390,6 +420,8 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
             (uretilen.get("vurgu_etiket") or "").strip() or None,
             (uretilen.get("alinti") or "").strip() or None,
             (uretilen.get("alinti_sahibi") or "").strip() or None,
+            _gecerli_ozne_tipi(uretilen.get("gorsel_ozne_tipi")),
+            (uretilen.get("gorsel_baglam") or "").strip() or None,
             (uretilen.get("gorsel_konu") or "").strip() or None,
             (uretilen.get("gorsel_temsili") or "").strip() or None,
             _gecerli_kategori(uretilen.get("kategori")),
