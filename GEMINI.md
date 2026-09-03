@@ -1,6 +1,18 @@
 # GEMINI.md — Daily Brief Instagram & Sosyal Medya Haber Botu
 
-Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir. Tüm mimari kararlar, yapılan geliştirmeler, çalışma kuralları ve sistemin güncel durumu bu rehberde toplanmıştır.
+Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
+
+> ⚠️ **BU DOSYA TEK BAŞINA GÜNCEL DEĞİL — önce `CLAUDE.md` bölüm 4b'yi oku.**
+>
+> 4 Eylül 2026'da bu dosyadaki iddialar kod üzerinde tek tek doğrulandı.
+> Çoğu geçerli ve `CLAUDE.md`'ye taşındı, ama **dördü yanlış çıktı**:
+> `STORY_GUVENLI_PAY` 285 değil **330** · GitHub `schedule:` cron'ları
+> "kaldırıldı" deniyor ama `son-dakika.yml`'de **duruyor** (aynı iş iki
+> kaynaktan tetikleniyor) · `src/handlers/` tamamlanmış gibi anlatılıyor
+> ama **hiçbir yerden import edilmiyor** · görsel hiyerarşisinin 1. katmanı
+> olan internet araması **3 Eyl'de kapatıldı ve zincirin sonuna alındı**.
+>
+> Gerekçeleriyle birlikte `CLAUDE.md` → "GEMINI.md YANILIYOR" tablosunda. Tüm mimari kararlar, yapılan geliştirmeler, çalışma kuralları ve sistemin güncel durumu bu rehberde toplanmıştır.
 
 ---
 

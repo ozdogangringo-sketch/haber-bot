@@ -56,6 +56,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | ~~Kapak slaytı~~ | **DENENDİ VE ELENDİ (15 Ağu 2026).** Kapak+9 haber düzeni üretilip gösterildi; kullanıcı 10 haberi tercih etti. `kapak_ciz`/`kapak_uret` kodu `make_image.py`'de DURUYOR — fikir değişirse `kapak_var: true` yeterli, yeniden yazma. |
 | Slayt oranı | **4:5 dikey (1080x1350)**. Carousel'de tüm slaytlar aynı oranda olmak zorunda. |
 | Güvenli alan | `dikey_guvenli_pay: 150`. Feed'de 4:5 tam görünüyor; risk profil ızgarasının kareye kırpması (üst/alt 135px). Instagram ızgarayı 2025'te dikey yaptı ama bayrak ve kaynak satırı tam sınırdaydı, içeri alındı. |
+| ~~Post sıklığı: günde 2 tur~~ | ⚠️ **GEÇERSİZ (Ağu sonu).** Akşam çoklu tur cron'u `hazirla.yml`'de yorum satırına alındı. Yeni model: gün boyu **saat başı 5 haber önerisi**, seçilen haber 1 kapak + 2-3 detay slaytı. Aşağıdaki eski satır tarihsel kayıt olarak duruyor. |
 | Post sıklığı | **Günde 2 tur (TR 08:07 + 20:07) + en fazla 10 tekil post** (`son_dakika_gunluk_azami: 10`) = günde en çok 12 post. 19 Ağu 2026'da tek tur + 2 tekil'den çıkıldı; havuzda yayınlanmayı bekleyen 100+ haber birikiyordu. |
 | ★ Kategori bazlı tekil post eşiği | ⚠️ **TEK EŞİK SPOR VE EKONOMİYİ TAMAMEN DIŞLIYORDU.** Ölçüldü (son 3 gün): ekonomide 8+ puan alan haber **sıfır** (en yükseği 7), sporda **sıfır** (en yükseği 7). Eşik 8 iken o kategorilerden tekil post çıkması matematiksel olarak imkânsızdı. Önem puanı kategoriye göre farklı dağılıyor — "ülke gündemi" haberleri doğaları gereği yüksek alıyor. Çözüm `son_dakika_kategori_esikleri`: turkiye/dunya 8, diğerleri 7; gece hepsine +1. Ayrıca `son_dakika_kategori_azami: 3` — tek kategori günü domine etmesin, yoksa bütün tekil postlar yine "turkiye"den çıkardı. |
 | ★ Actions GERÇEK harcama (20 Ağu 2026) | ⚠️ **"%88" bir TAHMİNDİ, harcama değil.** 1 Ağustos'tan 20 Ağustos'a gerçek harcama **616 dk / 3000 (%21)**. Ama 616'nın **615'i son 7 günde** oldu (proje 14 Ağu'da yoğunlaştı), yani güncel hız **88 dk/gün** → tam ay 2640 dk (%88). Ağustos rahat biter (~1584 dk); risk Eylül'dü. ⚠️ Ölçerken **7 günlük hızı aylığa çevirmek** ile **ay başından beri harcananı okumak** iki farklı sorudur; ikisini karıştırma. |
@@ -205,7 +206,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 
 ## 4. ŞU ANKİ DURUM
 
-### 🟢 BOT YAYINDA — son güncelleme 20 Ağustos 2026
+### 🟢 BOT YAYINDA — son güncelleme 4 Eylül 2026
 
 Tüm adımlar bitti. Sistem kendi başına çalışıyor ve **gerçek postlar
 yayınlandı**:
@@ -262,6 +263,77 @@ Günlük rapora eklenmeli.
 kotası 2000 dk/ay → şu an **$0**, ama pay yalnızca %32. Aşım
 Linux'ta $0.008/dk. Sıkışırsa `son-dakika.yml` cron'u 2 saatte bire
 çekilir (bkz. 1b).
+
+---
+
+### 4b. GEMINI.md'DEN DEVRALINAN MİMARİ (4 Eyl 2026'da doğrulandı)
+
+Proje bir dönem Gemini ile geliştirildi ve o oturum kendi notlarını
+`GEMINI.md`'ye yazdı. Aşağısı o dosyadan alınıp **kod üzerinde tek tek
+doğrulanmış** kısımdır. ⚠️ Doğrulanmayan iddialar da vardı, onlar
+"GEMINI.md YANILIYOR" başlığı altında.
+
+**YAYIN MODELİ DEĞİŞTİ — akşam çoklu tur KALDIRILDI.**
+`hazirla.yml`'in `schedule:` cron'u yorum satırına alınmış. Artık gün
+boyu saat başı Telegram'a **5 haber önerisi** düşüyor, seçilen haber
+**1 kapak + 2-3 detay slaytı** olarak üretiliyor. ⚠️ Bu, CLAUDE.md'nin
+üst kısmındaki "günde 2 tur" satırlarını GEÇERSİZ kılıyor; `secim.py`,
+`caption.py` ve `cesitlendir()` artık yalnızca elle tetiklenen turlarda
+çalışıyor.
+
+**CLOUDFLARE EDGE CRON — asıl zamanlayıcı artık Worker.**
+`worker/wrangler.toml` → `crons = ["8 7 * * 1-5", "20 15 * * 1-5",
+"12 5-20 * * *", "12 23,2 * * *"]`. Worker `scheduled()` içinde
+`repository_dispatch` atıyor: ilk iki cron `piyasa_bulteni`
+(açılış/kapanış), kalanlar `son_dakika_calistir`.
+⚠️ **Ölçüldü (4 Eyl 2026) — Cloudflare GitHub'dan ÇOK daha dakik:**
+22 dispatch'in hepsi saat başı `:12:55`'te; GitHub'ın kendi
+`schedule:`'ı ise 01:05, 07:08, 09:41, 14:28, 18:34, 21:40'ta —
+**90 dakikaya varan gecikme**.
+
+**PİYASA BÜLTENİ ALT SİSTEMİ** (CLAUDE.md'de hiç yoktu):
+`src/piyasa.py` (Yahoo Finance canlı veri), `src/piyasa_kart.py`
+(ısı haritası), `src/piyasa_tablo.py` (30 varlık karnesi),
+`src/sparkline.py` (trend grafiği), `scripts/piyasa_otomatik.py`.
+Hafta içi iki bülten. ⚠️ **Saat penceresi kodda sabit**
+(`piyasa_otomatik.py:84-88`): açılış **09:55-11:30**, kapanış
+**18:15-20:00** TR. Bu pencerelerin dışında yayın reddediliyor.
+
+**ÖZEL HABER MOTORU** — `src/ozel_haber.py`: `/dosya`, `/kronoloji`,
+`/link`, `/arastir`, `/ozel`. Verilen konunun kronolojisini derinlemesine
+bültene çeviriyor.
+
+**GÖRSEL KALİTE DENETİMİ** — `src/gorsel_kalite.py`: çözünürlük eşiği
+(800x450 / 600x600), Laplacian netlik varyansı (≥35), taranmış
+belge/PDF filtresi (doygunluk ≤15 **ve** parlaklık ≥175),
+`kristal_netlestir` (UnsharpMask).
+
+**VİDEO HATTI** — `src/video.py` + `youtube.py` + `tiktok.py`.
+TikTok doğrudan profile yayınlıyor (Inbox'a düşmüyor). Sessiz videoya
+**stereo AAC ses izi** gömülüyor (yoksa platformlar ikincil transcode
+kuyruğuna atıp bildirimi geciktiriyor), 2 sn'lik sabit GOP
+(`-g 60 -keyint_min 30 -sc_threshold 0`) ve `+faststart` moov atomu.
+⚠️ **Hiçbir workflow video/youtube/tiktok çağırmıyor** — yalnızca
+`onay_isle` üzerinden, yayın anında tetikleniyor.
+
+**Alan adı:** `ozbornstudio.com` projeye ait; alt alan adları
+(webhook, CDN, görsel barındırma) Cloudflare DNS'ten açılabilir.
+
+---
+
+### ⚠️ GEMINI.md YANILIYOR — kodla ölçülüp düzeltilen iddialar
+
+| GEMINI.md ne diyor | Gerçek (4 Eyl 2026 ölçümü) |
+|---|---|
+| `STORY_GUVENLI_PAY = 285px` | **330.** `make_image.py:1288` ve `config.yaml:325`. |
+| *"GitHub Actions'ın kendi `schedule:` cron'ları tamamen kaldırılmıştır"* | **KALDIRILMAMIŞ.** `son-dakika.yml` hâlâ `"12 5-20 * * *"` ve `"12 23,2 * * *"` taşıyor — Worker'ın cron'larıyla **birebir aynı**. Sonuç: aynı iş iki kaynaktan tetikleniyor, son 30 çalışmanın 8'i GitHub'dan gelmiş. Fazladan ~8 çalışma/gün. |
+| *"Modüler Handler Katmanı (`src/handlers/`)"* tamamlanmış gibi anlatılıyor | **TERK EDİLMİŞ REFACTOR.** `slayt_yonetimi.py` 26 satır, `tur_yonetimi.py` 28 satır — ikisinde de **hiç fonksiyon yok**, sadece docstring ve import. `yayin_yonetimi.py` 158 satır ama **hiçbir yerden import edilmiyor**. `onay_isle.py` (3815 satır) hâlâ her işi kendi yapıyor. |
+| 4 katmanlı görsel hiyerarşisinde **1. katman `fetch_web_image`** | **DEĞİŞTİ (3 Eyl 2026).** DuckDuckGo araması varsayılan olarak KAPALI ve zincirin SONUNA alındı. Gerekçe yukarıdaki "★ İNTERNET GÖRSEL ARAMASI KAPATILDI" satırında. |
+| *"`gorsel_konu` … `Beşiktaş`, `Boeing 737`, `Silivri gemi kazası`"* | Kısmen geçerli ama artık `gorsel_ozne_tipi` ile birlikte çalışıyor; olay haberlerinde `konu` boş bırakılıp doğrudan temsili fotoğrafa gidiliyor. |
+
+⚠️ **DERS:** iki ayrı yapay zeka oturumu iki ayrı doküman tutmuş ve
+ikisi de kendi bildiğini "güncel" sanıyor. **Doküman iddiası kanıt
+değildir** — bir davranışa bel bağlamadan önce kodda doğrula.
 
 ---
 
@@ -1193,67 +1265,138 @@ container → sonra `media_type=CAROUSEL` + `children=[id1,id2,...]` → publish
 
 ## 5. Mevcut dosyalar
 
+⚠️ **Bu liste 4 Eyl 2026'da gerçek dosya sisteminden yeniden üretildi.**
+Önceki hâli 43 dosyayı (76'nın yarısından fazlası) hiç içermiyordu —
+piyasa alt sistemi, video hattı, Vision denetimi ve 20+ script listede yoktu.
+
 ```
-haber-bot/
-├── CLAUDE.md                      # bu dosya
-├── config.yaml                    # RSS listesi + ayarlar (key YOK, git'e girer)
-├── requirements.txt               # requests, PyYAML, bs4, python-dateutil, python-dotenv
-├── .env.example                   # doldurulacak key şablonu
-├── .gitignore                     # .env, __pycache__, data/output/, logs/
-│                                  #   NOT: data/haber.db BİLEREK ignore edilmedi
-├── .github/workflows/
-│   └── test-kaynak-erisim.yml     # ✅ elle tetiklenir (workflow_dispatch)
-├── worker/                        # ✅ Cloudflare Worker (Adım 5)
-│   ├── index.js                   #   buton + /komut → GitHub dispatch
-│   ├── wrangler.toml              #   secret YOK, git'e girer
-│   └── KURULUM.md                 #   sıfırdan kurulum adımları
-├── src/
-│   ├── db.py                      # ✅ 31 kolon, otomatik migration
-│   ├── dogrula.py                 # ✅ DOĞRULUK DENETİMİ (aşağıda anlatıldı)
-│   ├── instagram.py               # ✅ carousel yayınlama + hesap koruması
-│   ├── telegram_bot.py            # ✅ onay mesajı, özet tablo, menüler
-│   ├── refresh_token.py           # ✅ jeton ömrü (artık süresiz sayfa jetonu)
-│   ├── fetch_news.py              # ✅ RSS/Atom
-│   ├── fetch_article.py           # ✅ makale gövdesi çekici (Adım 2'nin kalbi)
-│   ├── generate_text.py           # ✅ Gemini ile IG metni + görsel alanları
-│   ├── secim.py                   # ✅ iki aşamalı haber seçimi
-│   ├── make_image.py              # ✅ slayt çizimi (+ kullanılmayan kapak kodu)
-│   ├── fetch_photo.py             # ✅ Commons katmanı (4 kat filtreli)
-│   ├── fetch_stock.py             # ✅ Pexels katmanı
-│   ├── fetch_flag.py              # ✅ ülke + kuruluş bayrağı, önbellekli
-│   ├── slaytlar.py                # ✅ katman seçici + tur üretici
-│   ├── caption.py                 # ✅ carousel'in tek açıklaması
-│   ├── filtre.py                  # ✅ shadowban kelime/etiket filtresi
-│   └── upload_image.py            # ✅ imgbb (Adım 4a)
-├── scripts/
-│   ├── hazirla.py                 # ✅ TURUN TAMAMI (RSS→metin→slayt→Telegram)
-│   │                              #    --kuru: Telegram'a göndermez, DB'ye yazmaz
-│   │                              #    --metinsiz: Gemini'ye hiç gitmez
-│   ├── onay_isle.py               # ✅ Telegram buton/komut işleyici
-│   ├── hatirlat.py                # ✅ onaylanmayan turu hatırlat / havuza dön
-│   ├── jeton_yenile.py            # ✅ jeton ömrü kontrolü (--sadece-bak zararsız)
-│   ├── webhook_kur.py             # ✅ Telegram webhook kur/kaldır/durum
-│   ├── test_0_butunluk.py         # ✅ ÖNCE BUNU ÇALIŞTIR (aşağıda anlatıldı)
-│   ├── test_1_rss.py              # ✅ RSS + veritabanı
-│   ├── test_2_makale_metni.py     # ✅ gövde çekme ölçümü (DB'ye dokunmaz)
-│   ├── test_3_metin_uret.py       # ✅ Gemini metin (DB'yi DEĞİŞTİRİR, kota yer)
-│   ├── test_4_gorsel.py           # ✅ tek slayt
-│   ├── test_5_instagram_baglanti.py # ✅ jeton + hesap doğrulama
-│   ├── test_6_tur_gorsel.py       # ✅ BİR TURUN TAMAMI — maliyeti sıfır
-│   ├── test_kaynak_erisim.py      # ✅ IP engeli teşhisi (DB'ye dokunmaz)
-│   ├── anahtar_ekle.py            # ✅ .env'e anahtar ekler (gizli giriş)
-│   ├── jeton_uzat.py              # ✅ IG jetonunu 60 güne çevirir
-│   └── telegram_chat_id_bul.py    # ✅ (webhook kurulunca ÇALIŞMAZ)
-├── assets/fonts/Inter-Variable.ttf  # ✅ Türkçe karakterler test edildi
-├── assets/flags/                  # ✅ indirilen bayrak önbelleği (repoya girer)
-├── data/output/                   # üretilen slaytlar (.gitignore'da)
-└── logs/
+instabot/
+├── CLAUDE.md         # bu dosya — kararların ve ölçümlerin kaydı
+├── GEMINI.md         # Gemini oturumunun notları ⚠️ bazı iddiaları YANLIŞ (bkz. 4b)
+├── config.yaml       # RSS + eşikler + görsel ayarları (anahtar YOK)
+├── .env              # ⚠️ git'te DEĞİL — tüm API anahtarları burada
+├── .github/workflows/  # 11 workflow
+├── worker/           # Cloudflare Worker: webhook + EDGE CRON
+├── assets/           # font, logo, bayrak önbelleği
+├── data/haber.db     # ⚠️ git'te İZLENİYOR — sahibi GitHub, yerel değil
+└── data/output/      # üretilen görseller (.gitignore'da)
 ```
 
-Dokümanlar (kullanıcıya gönderildi, referans): `00-YOL-HARITASI.md`,
-`TASARIM-onay-akisi.md`, `ADIM-1-NASIL-CALISTIRILIR.md`, `NASIL-CALISIYOR.html`
+**`src/` — çekirdek ve altyapı**
 
----
+| Dosya | Satır | Görevi |
+|---|---|---|
+| `src/db.py` | 523 | SQLite şeması + otomatik migration (EK_KOLONLAR). ORM YOK, düz SQL. |
+| `src/db_senkron.py` | 196 | DB'yi git'e commit/push eder; ikili dosya çakışmasını çözer. |
+| `src/zaman.py` | 105 | TR saati yardımcıları (UTC+3 sabit, DST yok). |
+| `src/ayar.py` | 202 | Telegram'dan değiştirilebilen ayarlar (BEYAZ LİSTE zorunlu). |
+| `src/hata_bildir.py` | 281 | Patlayan job'ı Telegram'a bildirir + düzeltme düğmeleri. |
+
+**`src/` — haber**
+
+| Dosya | Satır | Görevi |
+|---|---|---|
+| `src/fetch_news.py` | 337 | RSS/Atom çekimi. feedparser YOK, bilinçli tercih. |
+| `src/fetch_article.py` | 415 | Makale gövdesi + og:image + HD URL çözümü. |
+| `src/generate_text.py` | 878 | Gemini metin üretimi. 27 alanlık tek şema, ~17k karakter prompt. |
+| `src/secim.py` | 555 | İki aşamalı haber seçimi (ön eleme + asıl skor). |
+| `src/aday.py` | 388 | ⭐ Seçim kurallarının TEK KAPISI. Yeni akış buradan geçmeli. |
+| `src/dogrula.py` | 375 | Uydurma sayı/isim, içi boş başlık, suçlama dili denetimi. |
+| `src/filtre.py` | 147 | Shadowban kelime/etiket filtresi. |
+| `src/otomatik_onay.py` | 335 | Gece otomatik yayın — dört katmanlı denetim. |
+| `src/ozel_haber.py` | 529 | /dosya /kronoloji /link /arastir — derin konu bülteni. |
+
+**`src/` — görsel**
+
+| Dosya | Satır | Görevi |
+|---|---|---|
+| `src/slaytlar.py` | 923 | ⭐ Görsel KATMAN SEÇİCİ + tur üretici. Zincirin kalbi. |
+| `src/make_image.py` | 2340 | Pillow çizim motoru (2200+ satır): tipografi, perde, yansıma. |
+| `src/gorsel_kalite.py` | 142 | Çözünürlük, Laplacian netlik, taranmış belge filtresi. |
+| `src/gorsel_denetim.py` | 184 | ⭐ Gemini Vision — fotoğrafın İÇİNE bakan tek katman. |
+| `src/fetch_photo.py` | 444 | Wikimedia Commons (4 kat filtreli). |
+| `src/fetch_stock.py` | 274 | Pexels temsili fotoğraf + tekrar engeli. |
+| `src/fetch_web_image.py` | 252 | DuckDuckGo görsel arama. ⚠️ VARSAYILAN KAPALI. |
+| `src/fetch_flag.py` | 128 | Ülke ve kuruluş bayrakları, önbellekli. |
+
+**`src/` — piyasa**
+
+| Dosya | Satır | Görevi |
+|---|---|---|
+| `src/piyasa.py` | 342 | Yahoo Finance canlı veri: BİST, döviz, emtia, kripto. |
+| `src/piyasa_kart.py` | 670 | Piyasa ısı haritası slaytı (1080x1920). |
+| `src/piyasa_tablo.py` | 382 | 30 varlık piyasa karnesi slaytı. |
+| `src/sparkline.py` | 339 | Trend grafiği. ⚠️ Yalnızca finans haberlerinde basılır. |
+| `src/makro_kart.py` | 360 | Makro emtia/gösterge kartı. |
+| `src/haftalik_bulten.py` | 252 | Haftalık özet bülteni üretimi. |
+
+**`src/` — yayın kanalları**
+
+| Dosya | Satır | Görevi |
+|---|---|---|
+| `src/instagram.py` | 409 | Graph API carousel + story + kota + hesap koruması. |
+| `src/facebook.py` | 167 | Aynı jetonla FB sayfa albümü + story. |
+| `src/threads.py` | 524 | Zincir yayını (carousel DEĞİL). 60 günlük jeton. |
+| `src/twitter.py` | 348 | X API v2. ⚠️ ÜCRETLİ, kredi gerekiyor. |
+| `src/x_paylas.py` | 141 | Eski X paylaşım modülü (280 karakter kurulumu). |
+| `src/youtube.py` | 185 | Shorts yükleme (Data API v3). |
+| `src/tiktok.py` | 324 | TikTok Content Posting API, doğrudan profil yayını. |
+| `src/video.py` | 325 | Slaytlardan 9:16 MP4. AAC ses izi + faststart. |
+| `src/upload_image.py` | 261 | imgbb + catbox/uguu yedek barındırıcı. |
+| `src/refresh_token.py` | 160 | Jeton ömrü kontrolü. |
+
+**`src/` — Telegram**
+
+| Dosya | Satır | Görevi |
+|---|---|---|
+| `src/telegram_bot.py` | 1041 | Onay mesajı, albüm, menüler, sonuç bildirimi. |
+| `src/komutlar.py` | 115 | Komut sözlüğü, alias, mesajsız komutlar (tek merkez). |
+| `src/yonetim.py` | 392 | /yonetim paneli. |
+| `src/caption.py` | 633 | Carousel açıklaması (2200 kr / 30 hashtag yönetimi). |
+| `src/handlers/` | — | ⚠️ TERK EDİLMİŞ REFACTOR — hiçbir yerden import edilmiyor. |
+
+**`scripts/` — üretim ve bakım**
+
+| Dosya | Satır | Görevi |
+|---|---|---|
+| `scripts/son_dakika.py` | 1048 | ⭐ ASIL AKIŞ: saatlik öneri + tekil post + gece yayını. |
+| `scripts/onay_isle.py` | 3815 | ⚠️ 3815 satır. Telegram buton/komut işleyici — her iş burada. |
+| `scripts/hazirla.py` | 290 | Çoklu haber turu. ⚠️ Cron'u KAPALI, elle tetikleniyor. |
+| `scripts/piyasa_otomatik.py` | 273 | Piyasa bülteni. ⚠️ Saat penceresi kodda sabit. |
+| `scripts/hatirlat.py` | 187 | Onaylanmayan turu hatırlat / havuza döndür. |
+| `scripts/gunluk_rapor.py` | 242 | Sabah durum raporu + eski kayıt temizliği. |
+| `scripts/haftalik_ozet.py` | 193 | Pazar haftalık özeti. |
+| `scripts/hafta_sonu_raporu.py` | 122 | ⚠️ Hiçbir workflow çağırmıyor. |
+| `scripts/db_kaydet.py` | 69 | DB commit+push. ⚠️ Workflow'da HAM git komutu yazma, bunu çağır. |
+| `scripts/jeton_yenile.py` | 204 | Haftalık jeton tazeleme (IG + Threads). |
+| `scripts/gecmisi_paylas.py` | 241 | Eski turları Threads'e taşır. |
+| `scripts/haber_disa_aktar.py` | 180 | Excel dışa aktarım (insan puanlaması için). |
+| `scripts/kaynak_dogrula.py` | 188 | ⭐ Kaynak eklemeden ÖNCE çalıştır. |
+| `scripts/sessiz_basarisizlik_tara.py` | 88 | 'return 0 ama iş yapılmadı' desenini arar. |
+| `scripts/webhook_kur.py` | 131 | Telegram webhook kur/kaldır/durum. |
+| `scripts/anahtar_ekle.py` | 73 | '.env'e gizli girişle anahtar ekler. |
+| `scripts/logo_indir.py` | 124 | Marka logosu indirme. |
+| `scripts/tiktok_auth.py` | 188 | TikTok OAuth (tek seferlik). |
+| `scripts/youtube_auth.py` | 173 | YouTube OAuth (tek seferlik). |
+| `scripts/jeton_uzat.py` | 110 | IG jetonunu 60 güne çevirir. |
+| `scripts/telegram_chat_id_bul.py` | 159 | ⚠️ Webhook kuruluyken ÇALIŞMAZ. |
+| `scripts/varyasyon_uret.py` | 545 | Piyasa kartı renk varyasyonu üretici (tek seferlik araç). |
+| `scripts/ton_varyasyon_uret.py` | 332 | Şerit tonu varyasyonu üretici (tek seferlik araç). |
+
+**`scripts/` — testler**
+
+| Dosya | Satır | Görevi |
+|---|---|---|
+| `scripts/test_0_butunluk.py` | 288 | ⭐ ÖNCE BUNU ÇALIŞTIR — çağrı/imza doğrulaması. |
+| `scripts/test_7_sozlesme.py` | 1636 | ⭐ 238 denetim — kuralların HER YERDE uygulandığını denetler. |
+| `scripts/test_1_rss.py` | 85 | RSS + veritabanı. |
+| `scripts/test_2_makale_metni.py` | 86 | Gövde çekme ölçümü. |
+| `scripts/test_3_metin_uret.py` | 84 | Gemini metin (DB'yi DEĞİŞTİRİR, kota yer). |
+| `scripts/test_4_gorsel.py` | 78 | Tek slayt. |
+| `scripts/test_5_instagram_baglanti.py` | 233 | Jeton + hesap doğrulama. |
+| `scripts/test_6_tur_gorsel.py` | 87 | Bir turun tamamı, maliyet sıfır. |
+| `scripts/test_kaynak_erisim.py` | 159 | IP engeli teşhisi. |
+| `scripts/test_barindirici.py` | 103 | Görsel barındırıcı testi. |
 
 ## 6. Teknik notlar — `src/`
 
