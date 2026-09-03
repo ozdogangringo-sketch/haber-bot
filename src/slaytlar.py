@@ -187,9 +187,143 @@ def _slayt_metni(haber, alan: str, ayarlar: dict) -> str:
     return filtre.metni_yumusat(ham, f.get("yumusatilacak", []))
 
 
+# ⚠️ AYNI OLAYIN BAŞKA KAYNAKLARDAKİ FOTOĞRAFLARI (3 Eyl 2026).
+#
+# Ölçüldü: yayınladığımız haber başına ortalama 3.9 ek kayıt aynı olayı
+# işliyor ve her birinin KENDİ fotoğrafı var — hepsi gerçekten o olaydan.
+# Dağılım çok anlamlı: rutin haberde 0 ek kaynak, ama BÜYÜK OLAYDA 6-12.
+# Yani tam da en çok erişim alan postlarda en çok aday boşta duruyordu.
+#
+# Ek adayların gerçekten daha iyi olduğu ölçüldü:
+#   Silivri gemi çarpışması : seçilen 1200x708, havuzda 1920x1080 vardı
+#   Voleybol milli takım    : seçilen 1200x675, havuzda 6000x3375 vardı
+KARDES_AZAMI = 3
+
+# Bu genişliğin üstündeki bir og:image zaten yeterince iyi — kardeşleri
+# taramaya gerek yok. Fetch başına 0.7-3.8 sn ödüyoruz, bedavaya değil.
+MUKEMMEL_GENISLIK = 1600
+
+
+def kardes_linkler(con, haber, azami: int = KARDES_AZAMI) -> list[str]:
+    """
+    Aynı olayı işleyen DİĞER kayıtların linkleri, kaynak ağırlığına göre.
+
+    Mükerrer denetiminde kullanılan imza karşılaştırmasının aynısı
+    (`secim.konu_imzasi` + ortak özel isim şartı). Orada amaç aynı olayı
+    İKİ KEZ YAYINLAMAMAK; burada amaç aynı olayın FOTOĞRAFLARINI
+    toplamak. Aynı ölçüt iki işi de görüyor.
+
+    ⚠️ Ortak özel isim ŞART — yalnızca kelime saymak yanlış pozitif
+    veriyor ("Resmi Gazete'de yayımlandı" iki alakasız mevzuat haberini
+    eşleştiriyordu, bkz. 1j).
+    """
+    if con is None:
+        return []
+    try:
+        from . import secim
+        baslik = haber["baslik_orj"] if "baslik_orj" in haber.keys() else ""
+    except Exception:
+        return []
+    if not baslik:
+        return []
+
+    k1, i1 = secim.konu_imzasi(baslik)
+    if not i1:
+        return []
+    # ⚠️ ÖNCE EŞLEŞTİR, SONRA SIRALA — tersi çalışmıyor.
+    # İlk yazımda sorgu `ORDER BY agirlik DESC LIMIT 400` idi: en yüksek
+    # ağırlıklı 400 satır alınıp içinde eşleşme aranıyordu. Aynı olayın
+    # haberleri o dilimin DIŞINDA kalabiliyor. Ölçüldü — Silivri gemi
+    # çarpışmasında havuzda 1920x1080 fotoğraf vardı ama bulunamadı,
+    # yalnızca 1280x720'ye ulaşılabildi.
+    try:
+        satirlar = con.execute(
+            """SELECT baslik_orj, link, agirlik FROM haberler
+               WHERE id != ? AND COALESCE(link,'') != ''
+                 AND cekilme_zamani > datetime('now', '-2 day')""",
+            (haber["id"],),
+        ).fetchall()
+    except Exception as e:                            # noqa: BLE001
+        log.warning("kardeş haber sorgusu patladı: %s", e)
+        return []
+
+    esler = []
+    for r in satirlar:
+        k2, i2 = secim.konu_imzasi(r["baslik_orj"] or "")
+        if len(secim.ortak_kelime(k1, k2)) >= 3 and (i1 & i2):
+            esler.append((r["agirlik"] or 0, r["link"]))
+
+    # Ağırlık sıralaması EŞLEŞENLER arasında yapılır. Yüksek ağırlıklı
+    # kaynak (AA, TRT, Habertürk) daha büyük fotoğraf koyuyor.
+    esler.sort(key=lambda x: -x[0])
+    linkler = [link for _, link in esler[:azami]]
+    if linkler:
+        log.info("aynı olayın %d ek kaynağı bulundu (#%s)", len(linkler), haber["id"])
+    return linkler
+
+
+def _en_iyi_haber_gorseli(haber, g: dict, con=None):
+    """
+    og:image adayları arasından EN İYİSİNİ seçer (ilkini değil).
+
+    ⚠️ ESKİ DAVRANIŞ: yalnızca haberin KENDİ og:image'i deneniyordu; o
+    kalite testini geçemezse doğrudan Commons/Pexels'e düşülüyordu.
+    Oysa aynı olayın başka kaynaklardaki haberleri havuzda duruyor ve
+    fotoğrafları çoğu zaman daha iyi (ölçüldü: 1200x675 yerine
+    6000x3375 mevcuttu).
+
+    ⚠️ HIZLI YOL KORUNUYOR: birincil fotoğraf zaten yeterince büyükse
+    (MUKEMMEL_GENISLIK) kardeşler hiç taranmıyor. Her kardeş 0.7-3.8 sn
+    maliyetli; rutin haberlerde zaten kardeş de yok, yani ek maliyet 0.
+
+    Döner: (foto, atif_kaynak) ya da (None, None).
+    """
+    if not (g.get("haber_gorseli_kullan") and haber["link"]):
+        return None, None
+
+    en_iyi = en_iyi_alan = None
+    en_iyi_kaynak = haber["kaynak"]
+
+    try:
+        url = fetch_article.og_gorseli_cek(haber["link"])
+        if url:
+            foto = _gorseli_indir(url, g)
+            if foto is not None:
+                en_iyi, en_iyi_alan = foto, foto.width * foto.height
+                if foto.width >= MUKEMMEL_GENISLIK:
+                    log.info("og:image zaten yüksek çözünürlüklü (%dx%d), "
+                             "kardeşler taranmıyor", foto.width, foto.height)
+                    return en_iyi, en_iyi_kaynak
+    except Exception as e:                            # noqa: BLE001
+        log.warning("haber görseli alınamadı: %s", e)
+
+    for link in kardes_linkler(con, haber):
+        try:
+            url = fetch_article.og_gorseli_cek(link)
+            if not url:
+                continue
+            foto = _gorseli_indir(url, g)
+            if foto is None:
+                continue
+            alan = foto.width * foto.height
+            if en_iyi is None or alan > en_iyi_alan:
+                en_iyi, en_iyi_alan = foto, alan
+                log.info("daha iyi kardeş görseli: %dx%d", foto.width, foto.height)
+                # Yeterince iyi bulunduysa kalanları tarama — her aday
+                # 0.7-3.8 sn maliyetli ve 1600px üstü zaten fazlasıyla
+                # yeterli (slayt 1080 basılıyor).
+                if foto.width >= MUKEMMEL_GENISLIK:
+                    break
+        except Exception as e:                        # noqa: BLE001
+            log.debug("kardeş görseli alınamadı: %s", e)
+
+    return en_iyi, (en_iyi_kaynak if en_iyi is not None else None)
+
+
 def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                  atlanacak: int = 0,
-                 haber_gorseli_atla: bool = False) -> tuple[Image.Image, str, str]:
+                 haber_gorseli_atla: bool = False,
+                 con=None) -> tuple[Image.Image, str, str]:
     """
     Habere arka plan bulur. (görüntü, katman_adı, atıf_metni) döner.
 
@@ -230,21 +364,14 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             log.warning("AI görsel hatası (%s), normal zincire düşülüyor", e)
 
     # --- 0.5) Haberin kendi görseli (og:image) ---
-    if (not haber_gorseli_atla and atlanacak == 0
-            and g.get("haber_gorseli_kullan") and haber["link"]):
-        try:
-            url = fetch_article.og_gorseli_cek(haber["link"])
-            if url:
-                foto = _gorseli_indir(url, g)
-                if foto:
-                    return (
-                        make_image.fotograftan_arkaplan(
-                            foto, genislik, yukseklik),
-                        "haber",
-                        f"Foto: {haber['kaynak']}",
-                    )
-        except Exception as e:
-            log.warning("haber görseli alınamadı: %s", e)
+    if not haber_gorseli_atla and atlanacak == 0:
+        foto, foto_kaynak = _en_iyi_haber_gorseli(haber, g, con)
+        if foto is not None:
+            return (
+                make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                "haber",
+                f"Foto: {foto_kaynak}",
+            )
 
     # --- YÖNLENDİRME: brief hangi kaynağı işaret ediyor? (3 Eyl 2026) ---
     #
@@ -388,7 +515,8 @@ def slayt_uret(haber, ayarlar: dict,
                atlanacak: int = 0,
                haber_gorseli_atla: bool = False,
                sira: int = 1,
-               son_slayt: bool = False) -> tuple[Path, str, str]:
+               son_slayt: bool = False,
+               con=None) -> tuple[Path, str, str]:
     """
     Tek bir haberin slaytını üretip diske yazar.
     """
@@ -397,7 +525,7 @@ def slayt_uret(haber, ayarlar: dict,
 
     arkaplan, katman, atif = arkaplan_sec(
         haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
-        haber_gorseli_atla=haber_gorseli_atla)
+        haber_gorseli_atla=haber_gorseli_atla, con=con)
 
     # Veri Kartı / Mini İnfografik Rozeti
     veri_karti = None
@@ -477,7 +605,8 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
     for idx, haber in enumerate(haberler[: g["slayt_sayisi"]], start=1):
         try:
             is_son = (idx == toplam_slayt)
-            yol, katman, atif = slayt_uret(haber, ayarlar, sira=idx, son_slayt=is_son)
+            yol, katman, atif = slayt_uret(
+                haber, ayarlar, sira=idx, son_slayt=is_son, con=con)
         except Exception as e:
             log.error("slayt üretilemedi #%s: %s", haber["id"], e)
             continue
@@ -537,7 +666,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     # 17 Ağu 2026'da yayınlanan story'de tam olarak bu oldu.
     ham_arkaplan, katman, atif = arkaplan_sec(
         haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
-        haber_gorseli_atla=haber_gorseli_atla)
+        haber_gorseli_atla=haber_gorseli_atla, con=con)
 
     veri_karti = None
     v_etiket = _alan(haber, "veri_karti_etiket")

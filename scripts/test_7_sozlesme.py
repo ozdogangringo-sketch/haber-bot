@@ -1275,6 +1275,95 @@ def test_fotograf_alt_kenari_keskin_degil() -> None:
             "sabit opaklıkta ayna görüntüsü yapay durur ve metni bozar")
 
 
+def test_kardes_gorsel_havuzu() -> None:
+    """
+    Aynı olayın DİĞER kaynaklarındaki fotoğraflar da aday olmalı.
+
+    ⚠️ NEDEN GEREKTİ (3 Eyl 2026): her kaynaktan yalnızca TEK aday
+    alınıyordu. Ölçüldü — yayınladığımız haber başına ortalama 3.9 ek
+    kayıt aynı olayı işliyor ve dağılım şöyle: rutin haberde 0 ek
+    kaynak, BÜYÜK OLAYDA 6-12. Yani en çok erişim alan postlarda en çok
+    aday boşta duruyordu.
+
+    Ek adayların gerçekten daha iyi olduğu ölçüldü:
+      Voleybol : seçilen 1200x675  -> havuzda 5877x3306 vardı (24x piksel)
+      Silivri  : seçilen 1200x708  -> havuzda 1280x720
+
+    ⚠️ ÖNCE EŞLEŞTİR, SONRA SIRALA. İlk yazımda sorgu
+    `ORDER BY agirlik DESC LIMIT 400` idi — yani önce en yüksek
+    ağırlıklı 400 satır alınıp içinde eşleşme aranıyordu ve aynı olayın
+    haberleri o dilimin DIŞINDA kalabiliyordu. Bu test tam olarak o
+    hatayı yakalar: eşleşen kardeş DÜŞÜK AĞIRLIKLI.
+    """
+    sys.path.insert(0, str(KOK))
+    from src import slaytlar as sl
+
+    con = gecici_db()
+    con.executescript("""
+        INSERT INTO haberler (id, kaynak, agirlik, baslik_orj, link, cekilme_zamani)
+        VALUES
+          -- hedef haber
+          (1, 'Borsa Gündem', 5, 'Silivri açıklarında iki Türk gemisi çarpıştı',
+           'http://a/1', datetime('now')),
+          -- AYNI OLAY, DÜŞÜK ağırlıklı kaynak (ön-limitleme hatasını yakalar)
+          (2, 'Küçük Ajans', 1, 'Silivri açıklarında Türk bayraklı 2 gemi çarpıştı',
+           'http://b/2', datetime('now')),
+          -- AYNI OLAY, yüksek ağırlıklı
+          (3, 'Anadolu Ajansı', 10, 'Silivri açıklarında iki gemi çarpıştı, arama sürüyor',
+           'http://c/3', datetime('now')),
+          -- ⚠️ BAŞKA BİR OLAY ama 3 ORTAK KELİME taşıyor
+          -- (açıklarında + gemisi + çarpıştı). Ortak ÖZEL İSİM yok:
+          -- hedefte {silivri, türk}, burada {marmara}. Yalnızca kelime
+          -- sayan bir denetim bunu kardeş sanar — 1j'deki yanlış pozitif.
+          (4, 'TRT Haber', 10, 'Marmara açıklarında yolcu gemisi kayalıklara çarpıştı',
+           'http://d/4', datetime('now')),
+          -- AYNI OLAY ama ÇOK ESKİ (2 günlük pencere dışında)
+          (5, 'AA Dünya', 10, 'Silivri açıklarında iki Türk gemisi çarpıştı',
+           'http://e/5', datetime('now', '-5 day'));
+    """)
+    hedef = con.execute("SELECT * FROM haberler WHERE id = 1").fetchone()
+    linkler = sl.kardes_linkler(con, hedef, azami=5)
+
+    denetle("http://b/2" in linkler,
+            "düşük ağırlıklı kardeş de bulunuyor",
+            "sorgu ağırlığa göre ÖN-LİMİTLEME yapıyorsa eşleşen kardeşler "
+            "o dilimin dışında kalır — Silivri'de 1920x1080 bu yüzden "
+            "bulunamamıştı")
+    denetle("http://c/3" in linkler, "yüksek ağırlıklı kardeş bulunuyor")
+    denetle("http://d/4" not in linkler,
+            "alakasız haber kardeş sayılmıyor",
+            "ortak özel isim şartı olmadan yanlış pozitif verir (bkz. 1j)")
+    denetle("http://e/5" not in linkler,
+            "2 günden eski kayıt kardeş sayılmıyor",
+            "eski haberin fotoğrafı o olayın güncel karesi değil")
+    denetle("http://a/1" not in linkler, "haberin kendisi listeye girmiyor")
+
+    # Sıralama: yüksek ağırlıklı kaynak önce denenmeli (daha büyük foto koyuyor)
+    if "http://c/3" in linkler and "http://b/2" in linkler:
+        denetle(linkler.index("http://c/3") < linkler.index("http://b/2"),
+                "kardeşler ağırlığa göre sıralı deneniyor")
+
+    # Üst sınır olmalı — her aday 0.7-3.8 sn maliyetli
+    denetle(sl.KARDES_AZAMI <= 5,
+            "kardeş taraması sınırlı",
+            f"KARDES_AZAMI={sl.KARDES_AZAMI} — sınırsız tarama turu yavaşlatır")
+    denetle(len(sl.kardes_linkler(con, hedef)) <= sl.KARDES_AZAMI,
+            "varsayılan çağrı sınıra uyuyor")
+
+    # `con` zinciri: DB olmadan eski davranış sürmeli, patlamamalı
+    denetle(sl.kardes_linkler(None, hedef) == [],
+            "con verilmezse kardeş taraması yapılmıyor (eski davranış)")
+
+    # con dört fonksiyonda da taşınmalı
+    import inspect
+    for ad in ("arkaplan_sec", "slayt_uret", "tur_uret", "son_dakika_uret"):
+        fn = getattr(sl, ad, None)
+        denetle(fn is not None and "con" in inspect.signature(fn).parameters,
+                f"{ad} con parametresi taşıyor",
+                "zincirin bir halkası con'u düşürürse kardeş havuzu "
+                "sessizce devre dışı kalır")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1320,6 +1409,7 @@ def main() -> int:
         test_gorsel_brief_dort_yerde_tanimli,
         test_foto_ile_yazi_arasinda_olu_bant_yok,
         test_fotograf_alt_kenari_keskin_degil,
+        test_kardes_gorsel_havuzu,
     ):
         try:
             test()
