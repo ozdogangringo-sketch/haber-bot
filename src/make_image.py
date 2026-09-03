@@ -307,6 +307,9 @@ def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
     if not metin:
         return []
 
+    from . import filtre
+    metin = filtre.tipografi_temizle(metin)
+
     # 1. Regex ile metni (**bold** ve düz) parçala
     pattern = re.compile(r"(\*\*[^*]+\*\*)")
     parts = pattern.split(metin)

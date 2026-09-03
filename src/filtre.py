@@ -94,6 +94,36 @@ def hashtaglari_ele(etiketler: list[str], yasakli: list[str]) -> list[str]:
     ]
 
 
+def tipografi_temizle(metin: str) -> str:
+    """
+    Türkçe tipografi ve sayı standartlarını otomatik temizler:
+      * 'bin 410' -> '1.410', '2 bin 410' -> '2.410', 'bin 257' -> '1.257'
+      * 'yüzde 25' / 'Yüzde 2,5' -> '%25' / '%2,5'
+      * '7,76 TL' -> '7,76 ₺', '90 TL' -> '90 ₺'
+      * Bozuk/eksik markdown yıldızlarını ('**95-96 *') düzeltir veya öksüz tek yıldızları temizler.
+    """
+    if not metin or not isinstance(metin, str):
+        return ""
+
+    # 1. 4 basamaklı sayıları rakama dönüştür: '2 bin 410' -> '2.410', 'bin 410' -> '1.410'
+    metin = re.sub(r"\b(\d+)\s+bin\s+(\d{3})\b", r"\1.\2", metin)
+    metin = re.sub(r"\bbin\s+(\d{3})\b", r"1.\1", metin)
+
+    # 2. Yüzde ifadeleri: 'yüzde 25' -> '%25', 'Yüzde 2,5' -> '%2,5'
+    metin = re.sub(r"\b[yY]üzde\s+(\d+(?:,\d+)?)\b", r"%\1", metin)
+
+    # 3. Türk Lirası simgesi: '7,76 TL' -> '7,76 ₺', '90 TL'yi' -> '90 ₺'yi'
+    metin = re.sub(r"(\d+(?:,\d+)?)\s*TL\b", r"\1 ₺", metin)
+
+    # 4. Kapanmamış markdown kalıpları: '**95-96 *' -> '**95-96**'
+    metin = re.sub(r"\*\*([^*]+)\s*\*(?!\*)", r"**\1**", metin)
+
+    # 5. Öksüz tek yıldızları temizle
+    metin = re.sub(r"(?<!\*)\*(?!\*)", "", metin)
+
+    return metin
+
+
 def markdown_temizle(metin: str) -> str:
     """
     Metindeki markdown kalın (**metin**) veya italik (*metin* / _metin_) işaretlerini temizler.
@@ -102,6 +132,8 @@ def markdown_temizle(metin: str) -> str:
     """
     if not metin or not isinstance(metin, str):
         return ""
+    # Önce genel tipografiyi düzelt
+    metin = tipografi_temizle(metin)
     # **kalın** -> kalın
     metin = re.sub(r"\*\*(.*?)\*\*", r"\1", metin)
     # __kalın__ -> kalın
