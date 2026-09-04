@@ -2165,6 +2165,13 @@ def test_her_dugme_workerda_karsilaniyor() -> None:
         metin = (KOK / dosya).read_text(encoding="utf-8")
         ham |= set(_re.findall(r'callback_data"\s*:\s*f?"([^"]+)"', metin))
 
+    # ⚠️ WORKER'IN KENDİ DÜĞMELERİ DE DENETLENMELİ. `/menu` panelini
+    # Worker basıyor; `sondakika` düğmesi yalnızca Python'da da tanımlı
+    # olduğu için ŞANS ESERİ yakalandı. Worker'a özel bir düğme
+    # eklenirse (örn. `makro_yardim:`) bu tarama olmadan görünmez kalır.
+    js_metin = (KOK / "worker/index.js").read_text(encoding="utf-8")
+    ham |= set(_re.findall(r'callback_data:\s*"([^"$]+)"', js_metin))
+
     def _ornekle(s: str) -> str:
         s = (s.replace("{mesaj_id}", "777").replace("{mid}", "777")
               .replace("{sira}", "3").replace("{adet}", "10"))
@@ -2293,6 +2300,94 @@ def test_worker_komutlari_python_tarafinda_var() -> None:
                 "None döndürüp çıkış kodunu 0 yapıyor (SESSİZ BAŞARISIZLIK)")
 
 
+def test_komut_menusu_tutarli() -> None:
+    """
+    Slash menüsü · Worker'ın tanıdığı komutlar · `/yardim` metni — üçü
+    de aynı komut kümesini anlatmalı.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): üçü de ayrışmıştı. Worker **33 asıl
+    slash komutu** tanıyordu, `KOMUT_MENUSU` yalnızca **21**'ini
+    gösteriyordu — `/haber`, `/tamamla`, `/arsiv`, `/video`, `/fed`,
+    `/makro`, `/menu`, `/haftalik`, `/ayar`, `/tur` çalışıyor ama
+    hiçbir yerde YAZMIYORDU. `/yardim` metni de menüyle tutmuyordu:
+    yardımda `/haber` vardı menüde yoktu, menüde `hisse`/`kripto`/
+    `faiz`/`bulten` vardı yardımda yoktu.
+
+    ⚠️ Menüde OLUP Worker'ın tanımadığı komut daha kötü: kullanıcı
+    resmi menüden seçiyor ve hiçbir şey olmuyor.
+    """
+    import re as _re
+    from src.komutlar import KOMUT_MENUSU
+
+    js = (KOK / "worker/index.js").read_text(encoding="utf-8")
+    taninan = set()
+    for satir in js.splitlines():
+        if ".includes(komutMetni)" in satir:
+            taninan |= set(_re.findall(r'"/([a-z_]+)"', satir))
+    taninan |= set(_re.findall(r'komutMetni === "/([a-z_]+)"', js))
+
+    menu = [d["command"] for d in KOMUT_MENUSU]
+    denetle(len(taninan) > 20, "worker slash listesi okunabildi",
+            f"yalnızca {len(taninan)} komut — ayrıştırma bozuk")
+
+    eksik = sorted(k for k in menu if k not in taninan)
+    denetle(not eksik,
+            "menüdeki her komutu Worker tanıyor",
+            f"resmi menüden seçilip hiçbir şey olmayacak komutlar: {eksik}")
+
+    denetle(len(menu) == len(set(menu)),
+            "menüde tekrar eden komut yok",
+            "aynı komut iki kez listelenmiş")
+
+    # --- Gruplama: her açıklama bir grup simgesiyle başlamalı ---
+    #
+    # ⚠️ Telegram'da gerçek "grup" YOK; menü düz bir liste. Gruplama
+    # SIRA + açıklamanın başındaki simge ile yapılıyor. Simge düşerse
+    # liste 31 satırlık okunamaz bir yığına dönüyor.
+    simgeler = {"✍️", "📰", "📈", "🎛", "❓"}
+    simgesiz = [d["command"] for d in KOMUT_MENUSU
+                if not any(d["description"].startswith(s) for s in simgeler)]
+    denetle(not simgesiz,
+            "menüdeki her komut bir gruba ait",
+            f"grup simgesi taşımayan komutlar: {simgesiz}")
+
+    # --- /yardim metni menüyle aynı komutları anlatmalı ---
+    yardim = js[js.index("Daily Brief Bot"):]
+    yardim = yardim[:yardim.index('return new Response("ok");')]
+    yardimdakiler = set(_re.findall(r"/([a-z_]+)", yardim))
+    anlatilmayan = sorted(k for k in menu if k not in yardimdakiler)
+    denetle(not anlatilmayan,
+            "/yardim menüdeki her komutu anlatıyor",
+            f"menüde olup yardımda geçmeyen: {anlatilmayan}")
+
+    # --- Menü GERÇEKTEN Telegram'a gönderiliyor mu ---
+    #
+    # ⚠️ 4 Eyl 2026: `KOMUT_MENUSU` özenle tutuluyordu ama
+    # `telegram_bot.komut_menusu_kaydet()` fonksiyonunu **hiçbir kod
+    # çağırmıyordu**. Telegram'daki menü bir zamanlar elle gönderilmiş
+    # ve donmuştu; listeye komut eklemek hiçbir şeyi değiştirmiyordu.
+    # "Yazılıp okunmayan kayıt" deseninin menü hâli — dosya duruyor,
+    # bakımı yapılıyor, kimse okumuyor.
+    import ast as _ast
+    cagiran = []
+    for klasor in ("src", "scripts"):
+        for yol in sorted((KOK / klasor).rglob("*.py")):
+            try:
+                agac = _ast.parse(yol.read_text(encoding="utf-8"))
+            except SyntaxError:
+                continue
+            for n in _ast.walk(agac):
+                if (isinstance(n, _ast.Call)
+                        and isinstance(n.func, _ast.Attribute)
+                        and n.func.attr == "komut_menusu_kaydet"):
+                    cagiran.append(yol.name)
+    denetle(bool(cagiran),
+            "komut menüsü Telegram'a gönderiliyor",
+            "komut_menusu_kaydet() hiçbir yerden çağrılmıyor — menü ölü "
+            "konfigürasyon, listeyi değiştirmek Telegram'da hiçbir şeyi "
+            "değiştirmiyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -2350,6 +2445,7 @@ def main() -> int:
         test_metin_uretimi_icerik_sinyaline_bakiyor,
         test_her_dugme_workerda_karsilaniyor,
         test_worker_komutlari_python_tarafinda_var,
+        test_komut_menusu_tutarli,
     ):
         try:
             test()

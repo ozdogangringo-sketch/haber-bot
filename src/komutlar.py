@@ -78,28 +78,62 @@ MESAJSIZ_KOMUTLAR: set[str] = {
 }
 
 # Telegram resmi açılır menüsünde (setMyCommands) listelenen komutlar
+# ⚠️ TELEGRAM MENÜSÜ DÜZ BİR LİSTE — gerçek "grup" desteği YOK.
+# Gruplama iki şeyle yapılıyor: (1) SIRA (Telegram verdiğimiz sırayı
+# koruyor), (2) açıklamanın başındaki grup simgesi. Kullanıcı "/" yazınca
+# komutlar bu blokta göründüğü sırayla, simgeleriyle listeleniyor.
+#
+# ⚠️ 4 Eyl 2026'da ölçüldü: Worker 33 asıl slash komutu tanıyordu ama bu
+# liste yalnızca 21'ini gösteriyordu — `/haber`, `/tamamla`, `/arsiv`,
+# `/video`, `/fed`, `/makro`, `/menu`, `/haftalik`, `/ayar`, `/tur`
+# çalışıyor ama hiçbir yerde YAZMIYORDU. Ayrıca Worker'daki `/yardim`
+# metni bu listeyle TUTMUYORDU (yardımda `/haber` vardı menüde yoktu;
+# menüde `hisse`/`kripto`/`faiz`/`bulten` vardı yardımda yoktu).
+# `test_komut_menusu_tutarli` üçünü birden denetliyor.
+#
+# ⚠️ YENİ KOMUT EKLERKEN ÜÇ YERİ birden güncelle: bu liste · Worker'ın
+# tanıdığı slash listesi · Worker'daki `/yardim` metni.
 KOMUT_MENUSU: list[dict[str, str]] = [
-    {"command": "dosya", "description": "📁 A'dan Z'ye Kronolojik Dosya Haberi Üret"},
-    {"command": "kronoloji", "description": "⏳ Olay, Dava veya Teftiş Sürecini Özetle"},
-    {"command": "link", "description": "🌐 Web Sitesi / Haber Linkinden Tam Post Üret"},
-    {"command": "arastir", "description": "🔍 Konuyu Webde Araştırıp Posta Dönüştür"},
-    {"command": "ozel", "description": "📢 Kendi Duyuru veya Bülten Metninden Post Üret"},
-    {"command": "sondakika", "description": "⚡ Saatlik Taze Haber Önerileri & Son Dakika Tara"},
-    {"command": "piyasa", "description": "📈 Canlı Borsa, Isı Haritası, Döviz & Altın Tablosu"},
-    {"command": "ekonomi", "description": "📊 Sabah Ekonomi & Finans Bülteni Başlat"},
-    {"command": "faiz", "description": "🏦 Faiz Kararı İnfografik Kartı Üret"},
-    {"command": "enflasyon", "description": "📉 TÜİK / Küresel Enflasyon İnfografiği"},
-    {"command": "hisse", "description": "🏢 Canlı BİST Hisse Senedi Sorgula (/hisse THYAO)"},
-    {"command": "kripto", "description": "🪙 Canlı Kripto Para Sorgula (/kripto BTC)"},
-    {"command": "bulten", "description": "☕ Taze Haberlerle Anlık Kahve Bülteni Derle"},
-    {"command": "yonetim", "description": "🎛️ Ana Yönetim Paneli ve API Sağlık Testleri"},
-    {"command": "durum", "description": "📊 Canlı Havuz, Kota ve Sistem Raporu"},
-    {"command": "temizle", "description": "🧹 Askıda Kalan Onay Turlarını Sıfırla"},
-    {"command": "guncelle", "description": "🔄 20+ RSS ve Finans Kaynağını Şimdi Tara"},
-    {"command": "sonpostlar", "description": "📰 Son Yayınlanan Postlar ve Sosyal Linkler"},
-    {"command": "durdur", "description": "⏸️ Botu Geçici Süreyle Duraklat"},
-    {"command": "devam", "description": "▶️ Duraklatılmış Botu Tekrar Başlat"},
-    {"command": "yardim", "description": "❓ Tüm Komutlar ve Kullanım Rehberi"},
+    # ── ✍️ İÇERİK ÜRET ────────────────────────────────────────────
+    {"command": "haber", "description": "✍️ Havuzdaki haberlerde ara (/haber asgari ücret)"},
+    {"command": "link", "description": "✍️ Haber linkinden post üret (/link <url>)"},
+    {"command": "dosya", "description": "✍️ Konunun A'dan Z'ye kronolojik dosyası (/dosya <konu>)"},
+    {"command": "kronoloji", "description": "✍️ Olay veya dava sürecini özetle (/kronoloji <konu>)"},
+    {"command": "arastir", "description": "✍️ Konuyu webde araştırıp posta dönüştür (/arastir <konu>)"},
+    {"command": "ozel", "description": "✍️ Kendi duyuru metninden post üret (/ozel <metin>)"},
+
+    # ── 📰 GÜNDEM & AKIŞ ──────────────────────────────────────────
+    {"command": "sondakika", "description": "📰 Taze haberleri tara, öneri getir"},
+    {"command": "guncelle", "description": "📰 RSS kaynaklarını ŞİMDİ tara (metin üretmez)"},
+    {"command": "tur", "description": "📰 10 haberlik gündem turu hazırla"},
+    {"command": "bulten", "description": "📰 Taze haberlerden kahve bülteni derle"},
+    {"command": "haftalik", "description": "📰 Haftalık pazar özeti hazırla"},
+    {"command": "sonpostlar", "description": "📰 Son yayınlanan postlar ve linkleri"},
+
+    # ── 📈 PİYASA & MAKRO ─────────────────────────────────────────
+    {"command": "piyasa", "description": "📈 Canlı borsa, döviz, altın, kripto tablosu"},
+    {"command": "ekonomi", "description": "📈 Canlı piyasa özeti + yayın düğmeleri"},
+    {"command": "hisse", "description": "📈 BİST hissesi sorgula (/hisse THYAO)"},
+    {"command": "kripto", "description": "📈 Kripto para sorgula (/kripto BTC)"},
+    {"command": "faiz", "description": "📈 Faiz kararı kartı (/faiz 47.5 TCMB faizi sabit)"},
+    {"command": "enflasyon", "description": "📈 Enflasyon kartı (/enflasyon 33.2 TÜİK açıkladı)"},
+    {"command": "fed", "description": "📈 Fed kararı kartı (/fed 4.25 FOMC 25 bp indirdi)"},
+    {"command": "makro", "description": "📈 Serbest makro veri kartı (/makro <veri>)"},
+
+    # ── 🎛 YÖNETİM & BAKIM ────────────────────────────────────────
+    {"command": "durum", "description": "🎛 Havuz, kota ve askıda kalan turlar"},
+    {"command": "menu", "description": "🎛 Düğmeli kontrol merkezi"},
+    {"command": "yonetim", "description": "🎛 Yönetim paneli ve API sağlık testleri"},
+    {"command": "ayar", "description": "🎛 Çalışma ayarlarını değiştir"},
+    {"command": "temizle", "description": "🎛 Askıda kalan onay turlarını sıfırla"},
+    {"command": "tamamla", "description": "🎛 Yarım kalan Threads zincirini tamamla"},
+    {"command": "arsiv", "description": "🎛 Eski turları Threads'e taşı (3'er 3'er)"},
+    {"command": "video", "description": "🎛 Son turdan 9:16 Reels videosu üret"},
+    {"command": "durdur", "description": "🎛 Botu geçici süreyle duraklat"},
+    {"command": "devam", "description": "🎛 Duraklatılmış botu yeniden başlat"},
+
+    # ── ❓ ────────────────────────────────────────────────────────
+    {"command": "yardim", "description": "❓ Tüm komutlar ve kullanım rehberi"},
 ]
 
 

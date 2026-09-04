@@ -367,6 +367,21 @@ def main() -> int:
 
     telegram_bot.mesaj_gonder(metin)
     log.info("günlük rapor gönderildi")
+
+    # ⚠️ SLASH MENÜSÜ HİÇBİR YERDEN GÖNDERİLMİYORDU (4 Eyl 2026).
+    # `komutlar.KOMUT_MENUSU` özenle tutuluyordu ama
+    # `telegram_bot.komut_menusu_kaydet()` fonksiyonunu **hiçbir kod
+    # çağırmıyordu** — Telegram'daki 21 komutluk menü bir zamanlar elle
+    # gönderilmiş ve orada donmuştu. Listeye komut eklemek menüyü
+    # değiştirmiyordu; "yazılıp okunmayan kayıt" deseninin menü hâli.
+    #
+    # Günlük raporda çağrılıyor: fikri sabit, ucuz (tek HTTP isteği) ve
+    # KENDİNİ ONARAN — menü elle bozulsa bile ertesi gün düzeliyor.
+    try:
+        telegram_bot.komut_menusu_kaydet()
+    except Exception as e:                            # noqa: BLE001
+        log.warning("komut menüsü gönderilemedi: %s", e)
+
     return 0
 
 

@@ -613,25 +613,49 @@ export default {
             // Yardım metni Worker'da duruyor: GitHub'ı uyandırmak 40+
             // saniye sürüyor, sabit bir metin için buna değmez.
             await mesajGonder(env, sohbet,
-                "🤖 Daily Brief Bot Komutları\n\n" +
-                "📋 ÖZEL HABER & DOSYA ÜRETİMİ (Havuz Dışı):\n" +
-                "• /dosya <konu> — Olayın başından sonuna kronolojik dosya haberi üretir\n" +
-                "• /kronoloji <konu> — Dava, teftiş veya olay sürecini özetler\n" +
-                "• /link <url> — Herhangi bir haber linkinden tam post üretir\n" +
-                "• /arastir <konu> — Konuyu webde araştırıp doğrulanmış haber yapar\n" +
-                "• /ozel <metin> — Kendi bülten veya duyuru metninden post üretir\n\n" +
-                "⚙️ YÖNETİM & TUR KONTROLÜ:\n" +
-                "• /sondakika — Saatlik taze haber taramasını başlat\n" +
-                "• /piyasa — Canlı borsa & emtia tablosunu çek\n" +
-                "• /durum — Canlı kota, havuz ve bekleyen tur durumu\n" +
-                "• /yonetim — Botu duraklatma, API sağlık testleri\n" +
-                "• /haber <kelime> — Havuzdaki taze haberlerde ara\n" +
-                "• /guncelle — RSS kaynaklarını hemen tara\n" +
-                "• /ayar — Gece otomatik yayın ve kategori eşikleri\n" +
+                "🤖 <b>Daily Brief Bot — Komut Rehberi</b>\n\n" +
+
+                "<b>✍️ İÇERİK ÜRET</b>\n" +
+                "• /haber &lt;kelime&gt; — Havuzdaki haberlerde ara\n" +
+                "• /link &lt;url&gt; — Haber linkinden post üret\n" +
+                "• /dosya &lt;konu&gt; — Konunun A'dan Z'ye kronolojik dosyası\n" +
+                "• /kronoloji &lt;konu&gt; — Olay veya dava sürecini özetle\n" +
+                "• /arastir &lt;konu&gt; — Konuyu webde araştırıp posta dönüştür\n" +
+                "• /ozel &lt;metin&gt; — Kendi duyuru metninden post üret\n\n" +
+
+                "<b>📰 GÜNDEM &amp; AKIŞ</b>\n" +
+                "• /sondakika — Taze haberleri tara, öneri getir\n" +
+                "• /guncelle — RSS kaynaklarını ŞİMDİ tara (metin üretmez)\n" +
+                "• /tur — 10 haberlik gündem turu hazırla\n" +
+                "• /bulten — Taze haberlerden kahve bülteni derle\n" +
+                "• /haftalik — Haftalık pazar özeti\n" +
+                "• /sonpostlar — Son yayınlanan postlar ve linkleri\n\n" +
+
+                "<b>📈 PİYASA &amp; MAKRO</b>\n" +
+                "• /piyasa — Canlı borsa, döviz, altın, kripto tablosu\n" +
+                "• /ekonomi — Canlı piyasa özeti + yayın düğmeleri\n" +
+                "• /hisse &lt;sembol&gt; — BİST hissesi sorgula\n" +
+                "• /kripto &lt;sembol&gt; — Kripto para sorgula\n" +
+                "• /faiz &lt;oran&gt; &lt;açıklama&gt; — Faiz kararı kartı\n" +
+                "• /enflasyon &lt;oran&gt; &lt;açıklama&gt; — Enflasyon kartı\n" +
+                "• /fed &lt;oran&gt; &lt;açıklama&gt; — Fed kararı kartı\n" +
+                "• /makro &lt;veri&gt; — Serbest makro veri kartı\n\n" +
+
+                "<b>🎛 YÖNETİM &amp; BAKIM</b>\n" +
+                "• /durum — Havuz, kota ve askıda kalan turlar\n" +
+                "• /menu — Düğmeli kontrol merkezi\n" +
+                "• /yonetim — Yönetim paneli ve API sağlık testleri\n" +
+                "• /ayar — Çalışma ayarlarını değiştir\n" +
+                "• /temizle — Askıda kalan onay turlarını sıfırla\n" +
                 "• /tamamla — Yarım kalan Threads zincirini tamamla\n" +
-                "• /yardim — Bu yardım menüsü\n\n" +
-                "Onay mesajındaki butonlarla yayınlayabilir, slaytları " +
-                "değiştirebilir veya turu atlayabilirsin.");
+                "• /arsiv — Eski turları Threads'e taşı\n" +
+                "• /video — Son turdan 9:16 Reels videosu üret\n" +
+                "• /durdur — Botu geçici duraklat · /devam — Yeniden başlat\n\n" +
+
+                "❓ /yardim — Bu rehber\n\n" +
+                "<i>⚠️ Makro kartlarında oranı SEN yazıyorsun; bot rakam "
+                "uydurmaz. Örn: /faiz 47.5 TCMB politika faizini sabit tuttu</i>",
+                "HTML");
             return new Response("ok");
         }
 
@@ -750,8 +774,8 @@ export default {
                     { text: "📈 Canlı Piyasa & Borsa", callback_data: "piyasa_ozet" },
                 ],
                 [
-                    { text: "🏦 Faiz Kartı (TCMB)", callback_data: "faiz:45 TCMB politika faizini yüzde 45 seviyesinde sabit bıraktı." },
-                    { text: "📉 Enflasyon Kartı", callback_data: "enflasyon:61.78 TÜİK yıllık TÜFE enflasyonunu açıkladı." },
+                    { text: "🏦 Faiz Kartı (TCMB)", callback_data: "makro_yardim:faiz" },
+                    { text: "📉 Enflasyon Kartı", callback_data: "makro_yardim:enflasyon" },
                 ],
                 [
                     { text: "☕ Kahve Bülteni", callback_data: "bulten" },
@@ -1074,6 +1098,33 @@ export default {
       await mesajGonder(env, sohbetId,
         ham ? `🔍 HAM HATA METNİ\n\n${ham.slice(0, 3500)}`
             : "Kayıtlı ham hata metni bulunamadı.");
+      await butonuDurdur(env, cb.id, "");
+      return new Response("ok");
+    }
+
+    // --- Makro kartı: ORANI KULLANICI YAZAR ---
+    //
+    // ⚠️ 4 Eyl 2026'ya kadar bu iki düğme callback_data'sında UYDURMA
+    // RAKAM taşıyordu: "faiz:45 TCMB politika faizini yüzde 45
+    // seviyesinde sabit bıraktı." O metin doğrudan Gemini prompt'una
+    // GİRDİ olarak giriyor ve yayınlanabilir bir infografiğe dönüşüyordu
+    // — yani düğmeye basan kişi, hiçbir kaynaktan gelmeyen bir merkez
+    // bankası faizi yayınlıyordu. Projenin en temel kuralına aykırı:
+    // "yalnızca kaynak metinde yazanı kullan".
+    //
+    // Düğme artık post ÜRETMİYOR, komutun nasıl yazılacağını gösteriyor.
+    if (komut.startsWith("makro_yardim:")) {
+      const tip = komut.split(":")[1];
+      const ornek = {
+        faiz: "/faiz 47.5 TCMB politika faizini yüzde 47,5'te sabit tuttu",
+        enflasyon: "/enflasyon 33.2 TÜİK yıllık TÜFE'yi yüzde 33,2 açıkladı",
+        fed: "/fed 4.25 Fed politika faizini 25 baz puan indirdi",
+      }[tip] || "/makro <veri ve açıklama>";
+      await mesajGonder(env, sohbetId,
+        `📊 <b>Makro kartı için oranı SEN yazmalısın.</b>\n\n` +
+        `Bot rakam uydurmaz — açıklanan veriyi komutla ver:\n\n` +
+        `<code>${ornek}</code>\n\n` +
+        `<i>Kart bu girdiden üretilir.</i>`, "HTML");
       await butonuDurdur(env, cb.id, "");
       return new Response("ok");
     }
