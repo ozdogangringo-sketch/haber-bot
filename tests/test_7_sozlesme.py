@@ -2523,6 +2523,100 @@ def test_kardes_havuzu_cagrilarda_da_acik() -> None:
             f"con geçmeyen çağrılar — kardeş havuzu SESSİZCE kapalı: {eksik}")
 
 
+def test_gorsel_aday_secimi() -> None:
+    """
+    "Başka fotoğraf" üç aday sunmalı ve seçim güvenli olmalı.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026, kullanıcı isteği): eskiden TEK
+    görsel üretilip "kullan / başka dene" soruluyordu. Beğenilmezse
+    job baştan uyanıyordu — Actions'ı uyandırmak 40-90 sn ve üç kez
+    basmak üç ayrı job demekti. Üçünü tek job'da üretmek hem hızlı
+    hem de KARŞILAŞTIRMA imkânı veriyor; tek tek gösterilince
+    "bu mu daha iyiydi" diye geri dönülemiyordu.
+
+    ⚠️ Aday numarası KULLANICIDAN geliyor — aralık denetimi şart.
+    Liste bayatlamış (tur yenilenmiş) olabilir; o durumda sessizce
+    yanlış görsel uygulamak yerine açıkça söylemek gerekiyor.
+    """
+    import json as _json
+    import logging as _logging
+    import sqlite3 as _sqlite3
+
+    sys.path.insert(0, str(KOK))
+    import scripts.onay_isle as _oi
+    from src import telegram_bot as _tb
+
+    # --- Kolon ve ayar tanımlı mı ---
+    from src import db as _db
+    denetle("gorsel_adaylari" in _db.EK_KOLONLAR,
+            "gorsel_adaylari kolonu tanımlı",
+            "aday listesi saklanamaz, seçim çalışmaz")
+    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    adet = (cfg.get("gorsel") or {}).get("gorsel_aday_adedi")
+    denetle(isinstance(adet, int) and adet >= 1,
+            "gorsel_aday_adedi ayarı var",
+            f"okunan değer: {adet!r}")
+
+    # --- DAVRANIŞ: seçim uygulanıyor, aralık dışı reddediliyor ---
+    eski_gonder, eski_kabul, eski_menu, eski_tur = (
+        _tb.mesaj_gonder, _oi.gorseli_kabul_et,
+        _oi.menuyu_geri_koy, _oi.turu_getir)
+    _logging.disable(_logging.CRITICAL)
+    try:
+        mesajlar, kabuller = [], []
+        _tb.mesaj_gonder = lambda t, *a, **k: mesajlar.append(t)
+        _oi.telegram_bot = _tb
+        _oi.menuyu_geri_koy = lambda *a, **k: None
+        _oi.turu_getir = lambda con, mid: None
+        _oi.gorseli_kabul_et = lambda con, ay, hs, s, mid: (
+            kabuller.append(s), 0)[1]
+
+        con = _sqlite3.connect(":memory:")
+        con.row_factory = _sqlite3.Row
+        con.execute("""CREATE TABLE haberler (id INTEGER PRIMARY KEY,
+            gorsel_adaylari TEXT, gorsel_url_aday TEXT, story_url_aday TEXT,
+            gorsel_kaynagi_aday TEXT, gorsel_atif_aday TEXT,
+            gorsel_yolu_aday TEXT, gorsel_deneme INTEGER)""")
+        adaylar = [{"url": f"http://x/{i}", "story_url": f"http://s/{i}",
+                    "katman": "pexels", "atif": f"atif{i}",
+                    "yol": f"/tmp/{i}.jpg", "deneme": i - 1} for i in (1, 2, 3)]
+        con.execute("INSERT INTO haberler (id, gorsel_adaylari) VALUES (1, ?)",
+                    (_json.dumps(adaylar),))
+        con.commit()
+        hs = list(con.execute("SELECT * FROM haberler"))
+
+        _oi.gorsel_adayini_sec(con, {}, hs, 2, 1, 999)
+        secilen = con.execute(
+            "SELECT gorsel_url_aday FROM haberler WHERE id=1").fetchone()[0]
+        denetle(secilen == "http://x/2" and kabuller,
+                "seçilen aday uygulanıyor",
+                f"yazılan url: {secilen}, kabul çağrıldı mı: {bool(kabuller)}")
+
+        for gecersiz in (0, 9):
+            mesajlar.clear(); kabuller.clear()
+            _oi.gorsel_adayini_sec(con, {}, hs, gecersiz, 1, 999)
+            denetle(not kabuller and mesajlar,
+                    f"aralık dışı aday reddediliyor ({gecersiz})",
+                    "geçersiz numara sessizce kabul edildi")
+
+        # Bayat liste: tur yenilenmiş, aday listesi silinmiş
+        con.execute("UPDATE haberler SET gorsel_adaylari = NULL WHERE id=1")
+        con.commit()
+        hs2 = list(con.execute("SELECT * FROM haberler"))
+        mesajlar.clear(); kabuller.clear()
+        _oi.gorsel_adayini_sec(con, {}, hs2, 1, 1, 999)
+        denetle(not kabuller and mesajlar,
+                "aday listesi yoksa açıkça söyleniyor",
+                "sessizce geçildi — kullanıcı düğmeye basıp cevap alamaz")
+        con.close()
+    finally:
+        _logging.disable(_logging.NOTSET)
+        _tb.mesaj_gonder = eski_gonder
+        _oi.gorseli_kabul_et = eski_kabul
+        _oi.menuyu_geri_koy = eski_menu
+        _oi.turu_getir = eski_tur
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -2582,6 +2676,7 @@ def main() -> int:
         test_worker_komutlari_python_tarafinda_var,
         test_komut_menusu_tutarli,
         test_kardes_havuzu_cagrilarda_da_acik,
+        test_gorsel_aday_secimi,
     ):
         try:
             test()

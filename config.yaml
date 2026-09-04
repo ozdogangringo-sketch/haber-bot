@@ -442,6 +442,18 @@ gorsel:
   #
   # ⚠️ DENETİM YAPILAMAZSA FOTOĞRAF KABUL EDİLİR (kota, ağ, anahtar
   # yok). Bu bir EK güvence, ön şart değil.
+  # "Başka fotoğraf" düğmesine basınca kaç aday sunulsun?
+  #
+  # ⚠️ NEDEN ÇOKLU (4 Eyl 2026): eskiden tek görsel üretilip
+  # "kullan / başka dene" soruluyordu. Beğenilmezse job baştan
+  # uyanıyordu — Actions'ı uyandırmak 40-90 sn ve kullanıcı üç kez
+  # basınca üç ayrı job açılıyordu. Üçünü TEK job'da üretmek
+  # (~90 sn) üç ayrı uyanmadan (~210 sn + bekleme) ucuz.
+  #
+  # ⚠️ Her aday ~8-11 sn (slayt + Vision + imgbb). 3'ten fazlası
+  # hem job'ı uzatıyor hem Telegram albümünü okunmaz yapıyor.
+  gorsel_aday_adedi: 3
+
   vision_denetim: true
 
   # og:image bazen sitenin logosu ya da paylaşım rozeti oluyor; bu

@@ -2095,56 +2095,125 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     # bir kez bile çağrılmamıştı.
     zorla_ai = (komut == "slayt_ai")
     deneme = (taze["gorsel_deneme"] or 0) + 1 if komut == "slayt_foto" else 0
-    # ⚠️ "Başka fotoğraf" düğmesinde haber görseli (og:image) her zaman ATLANIYOR.
-    # og:image deterministik: her seferinde aynı URL → aynı sonuç.
-    # Kullanıcı "başka" deyince Commons/Pexels'e geçiyoruz.
+    # ⚠️ "Başka fotoğraf"ta og:image'ın KENDİSİ atlanıyor ama kardeşleri
+    # ATLANMIYOR — `slaytlar._haber_gorseli_alternatifi` aynı olayın
+    # diğer kaynaklardaki fotoğraflarını sırayla veriyor.
     foto_atla = (komut == "slayt_foto" or deneme > 0)
-    yol, katman, atif = slaytlar.slayt_uret(
-        taze, ayarlar, zorla_ai=zorla_ai, atlanacak=deneme,
-        haber_gorseli_atla=foto_atla, con=con)
 
-    yukleme = upload_image.gorsel_yukle(yol, ayarlar)
-    story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
-    story_url_aday = None
-    if story_yol.exists():
+    # ── ÜÇ ADAY ÜRET, KULLANICI SEÇSİN ────────────────────────────
+    #
+    # ⚠️ NEDEN (4 Eyl 2026, kullanıcı isteği): eskiden TEK görsel
+    # üretilip "kullan / başka dene" soruluyordu. Beğenilmezse job
+    # baştan uyanıyordu; Actions'ı uyandırmak 40-90 sn ve üç kez
+    # basmak üç ayrı job demekti. Üçünü tek job'da üretmek hem hızlı
+    # hem de kullanıcıya KARŞILAŞTIRMA imkânı veriyor — tek tek
+    # gösterilince "bu mu daha iyiydi" diye geri dönülemiyordu.
+    #
+    # AI (`slayt_ai`) çoklu üretmiyor: her aday ~$0.04 ve kullanıcı
+    # zaten belirli bir şey istiyor.
+    aday_adedi = 1 if zorla_ai else int(
+        (ayarlar.get("gorsel") or {}).get("gorsel_aday_adedi", 3))
+
+    adaylar: list[dict] = []
+    for ek in range(aday_adedi):
         try:
-            story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
-            story_url_aday = story_yukleme.get("url")
-        except Exception as e:
-            log.warning("Story görseli yüklenemedi: %s", e)
+            yol, katman, atif = slaytlar.slayt_uret(
+                taze, ayarlar, zorla_ai=zorla_ai, atlanacak=deneme + ek,
+                haber_gorseli_atla=foto_atla, con=con)
+            yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+        except Exception as e:                        # noqa: BLE001
+            log.warning("aday #%d üretilemedi: %s", deneme + ek, e)
+            continue
+
+        story_url_aday = None
+        story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+        if story_yol.exists():
+            try:
+                story_url_aday = upload_image.gorsel_yukle(
+                    story_yol, ayarlar).get("url")
+            except Exception as e:                    # noqa: BLE001
+                log.warning("Story görseli yüklenemedi: %s", e)
+
+        # Aynı görselin tekrarı listeyi şişirmesin: zincir tükendiğinde
+        # aynı Pexels fotoğrafı iki kez gelebiliyor.
+        if any(a["url"] == yukleme["url"] for a in adaylar):
+            log.info("aday #%d öncekiyle aynı, atlanıyor", deneme + ek)
+            continue
+        adaylar.append({
+            "url": yukleme["url"],
+            "story_url": story_url_aday or yukleme["url"],
+            "katman": katman,
+            "atif": atif,
+            "yol": str(yol),
+            "deneme": deneme + ek,
+        })
+
+    if not adaylar:
+        telegram_bot.mesaj_gonder(
+            f"⚠️ {sira}. slayt için yeni görsel üretilemedi, "
+            "slayt eski görselle kalıyor.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
 
     # ⚠️ ADAY ALANLARA YAZILIYOR, ASIL ALANLARA DEĞİL.
     # Önce `gorsel_url` doğrudan güncelleniyordu: kullanıcı yeni görseli
     # beğenmese bile geri dönüş yoktu ve eski dosya da üzerine
     # yazıldığı için diskte kalmıyordu. Artık onay bekliyor.
+    ilk = adaylar[0]
     con.execute(
         "UPDATE haberler SET gorsel_url_aday = ?, story_url_aday = ?, "
         "gorsel_kaynagi_aday = ?, gorsel_atif_aday = ?, gorsel_yolu_aday = ?, "
-        "gorsel_deneme = ? WHERE id = ?",
-        (yukleme["url"], story_url_aday or yukleme["url"], katman, atif, str(yol), deneme, haber["id"]),
+        "gorsel_adaylari = ?, gorsel_deneme = ? WHERE id = ?",
+        (ilk["url"], ilk["story_url"], ilk["katman"], ilk["atif"], ilk["yol"],
+         json.dumps(adaylar, ensure_ascii=False),
+         adaylar[-1]["deneme"], haber["id"]),
     )
     con.commit()
 
-    # Yeni görseli GÖSTERİYORUZ, link vermiyoruz: beğenip beğenmediğine
-    # karar vermek için tarayıcı açmak gerekmemeli.
-    simge = telegram_bot.KATMAN_SIMGE.get(katman, "▫️")
-    telegram_bot.foto_gonder(
-        yukleme["url"],
-        f"{simge} {sira}. slayt için yeni görsel — {katman}\n"
+    if len(adaylar) == 1:
+        # Tek aday: eski akış — göster, kabul et ya da başkasını iste.
+        a = adaylar[0]
+        simge = telegram_bot.KATMAN_SIMGE.get(a["katman"], "▫️")
+        telegram_bot.foto_gonder(
+            a["url"],
+            f"{simge} {sira}. slayt için yeni görsel — {a['katman']}\n"
+            f"{taze['ig_baslik'] or ''}\n\n"
+            f"Beğendiysen onayla; onaylamazsan slayt eski görselle kalır.",
+            butonlar=[[
+                {"text": "✅ Bunu kullan",
+                 "callback_data": f"gorsel_kabul:{sira}:{mesaj_id}"},
+                {"text": "🔄 Başka dene",
+                 "callback_data": f"gorsel_yeni:{sira}:{mesaj_id}"},
+            ]],
+        )
+        return 0
+
+    # Çoklu aday: albüm + numaralı seçim düğmeleri.
+    #
+    # ⚠️ `sendMediaGroup` INLINE BUTON KABUL ETMİYOR — albüm ayrı,
+    # düğmeler ayrı mesajda. Bu Telegram'ın kısıtı, tasarım tercihi değil.
+    basliklar = [
+        f"{telegram_bot.KATMAN_SIMGE.get(a['katman'], '▫️')} {a['katman']}"
+        f" — {a['atif']}"
+        for a in adaylar
+    ]
+    telegram_bot.slaytlari_gonder([a["url"] for a in adaylar], basliklar)
+
+    # ⚠️ TUR MESAJ ID'Sİ DÜĞMEYE GÖMÜLÜ. Bu önizleme AYRI bir mesajda
+    # duruyor ve Worker basılan düğmenin BULUNDUĞU mesajın id'sini
+    # gönderiyor. 21 Ağu 2026: kullanıcı "🔄 Başka dene"ye bastı, job
+    # "mesaj_id=657 artık geçerli değil" dedi — tur 656, önizleme 657'ydi.
+    secim = [{"text": f"{i}️⃣", "callback_data": f"gorsel_sec:{i}:{sira}:{mesaj_id}"}
+             for i in range(1, len(adaylar) + 1)]
+    telegram_bot.mesaj_gonder(
+        f"🎨 <b>{sira}. slayt için {len(adaylar)} aday</b>\n"
         f"{taze['ig_baslik'] or ''}\n\n"
-        f"Beğendiysen onayla; onaylamazsan slayt eski görselle kalır.",
-        # ⚠️ TUR MESAJ ID'Sİ DÜĞMEYE GÖMÜLÜ. Bu önizleme AYRI bir
-        # mesajda duruyor ve Worker basılan düğmenin BULUNDUĞU mesajın
-        # id'sini gönderiyor. 21 Ağu 2026: kullanıcı "🔄 Başka dene"ye
-        # bastı, job "mesaj_id=657 artık geçerli değil" dedi — tur 656,
-        # önizleme mesajı 657'ydi.
-        # Aynı tuzak `kaldir` ve `haber_sec` düğmelerinde de yaşandı.
-        butonlar=[[
-            {"text": "✅ Bunu kullan",
-             "callback_data": f"gorsel_kabul:{sira}:{mesaj_id}"},
-            {"text": "🔄 Başka dene",
-             "callback_data": f"gorsel_yeni:{sira}:{mesaj_id}"},
-        ]],
+        f"Beğendiğin numaraya bas. Hiçbiri olmadıysa yenilerini isteyebilirsin; "
+        f"seçim yapmazsan slayt eski görselle kalır.",
+        html=True,
+        butonlar=[secim,
+                  [{"text": "🔄 Başka adaylar",
+                    "callback_data": f"gorsel_yeni:{sira}:{mesaj_id}"}]],
     )
     return 0
 
@@ -2629,6 +2698,56 @@ def haberi_degistir_uygula(con, ayarlar, haberler, eski_id: int, yeni_id: int,
         "Eski haber elenmedi, havuza döndü.")
     log.info("slayt %s: %s -> %s", sira, eski["id"], yeni_id)
     return 0
+
+
+def gorsel_adayini_sec(con, ayarlar, haberler, aday_no: int,
+                       sira: int, mesaj_id: int) -> int:
+    """
+    Kullanıcının seçtiği adayı aday alanlarına yazıp kabul akışına verir.
+
+    ⚠️ SEÇİM SONRASI DOĞRUDAN KABUL EDİLİYOR. Kullanıcı zaten üç
+    fotoğrafı yan yana görüp karar verdi; ikinci bir "emin misin"
+    adımı eklemek onay akışını uzatmaktan başka işe yaramaz.
+    """
+    if sira < 1 or sira > len(haberler):
+        telegram_bot.mesaj_gonder(f"⚠️ {sira}. slayt bulunamadı.")
+        return 1
+    haber = haberler[sira - 1]
+
+    ham = None
+    try:
+        ham = haber["gorsel_adaylari"]
+    except Exception:                                 # noqa: BLE001
+        pass
+    if not ham:
+        telegram_bot.mesaj_gonder(
+            "⚠️ Aday listesi bulunamadı — muhtemelen tur yenilendi. "
+            "Görsel menüsünden tekrar dene.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
+
+    try:
+        adaylar = json.loads(ham)
+    except (ValueError, TypeError):
+        adaylar = []
+    if not 1 <= aday_no <= len(adaylar):
+        telegram_bot.mesaj_gonder(
+            f"⚠️ {aday_no}. aday listede yok ({len(adaylar)} aday var).")
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
+
+    a = adaylar[aday_no - 1]
+    con.execute(
+        "UPDATE haberler SET gorsel_url_aday = ?, story_url_aday = ?, "
+        "gorsel_kaynagi_aday = ?, gorsel_atif_aday = ?, gorsel_yolu_aday = ?, "
+        "gorsel_deneme = ? WHERE id = ?",
+        (a["url"], a.get("story_url") or a["url"], a["katman"], a["atif"],
+         a.get("yol"), a.get("deneme", 0), haber["id"]),
+    )
+    con.commit()
+    log.info("aday #%d seçildi (slayt %d, katman %s)", aday_no, sira, a["katman"])
+    return gorseli_kabul_et(con, ayarlar, turu_getir(con, mesaj_id) or haberler,
+                            sira, mesaj_id)
 
 
 def gorseli_kabul_et(con, ayarlar, haberler, sira: int, mesaj_id: int) -> int:
@@ -3300,6 +3419,19 @@ def main() -> int:
     # ⚠️ Görsel önizleme düğmeleri tur id'sini KOMUTTA taşıyor
     # ("gorsel_kabul:3:656"); Worker'ın gönderdiği mesaj_id önizleme
     # mesajına ait ve turu göstermiyor.
+    # ⚠️ ÜÇ ADAYDAN SEÇİM (4 Eyl 2026). "gorsel_sec:2:3:656" =
+    # 2. adayı, 3. slayt için, 656 numaralı turda kullan.
+    # Tur id'si KOMUTA GÖMÜLÜ: düğmeler ayrı bir mesajda duruyor ve
+    # Worker'ın gönderdiği mesaj_id o mesajı gösteriyor, turu değil.
+    if komut.startswith("gorsel_sec:") and komut.count(":") == 3:
+        _, aday_no, sira, tur_mid = komut.split(":")
+        tur = turu_getir(con, int(tur_mid))
+        if not tur:
+            telegram_bot.mesaj_gonder("⚠️ Görseli değiştirilecek tur bulunamadı.")
+            return 0
+        return gorsel_adayini_sec(con, ayarlar, tur, int(aday_no),
+                                  int(sira), int(tur_mid))
+
     if (komut.startswith("gorsel_kabul:")
             or komut.startswith("gorsel_yeni:")) and komut.count(":") == 2:
         ad, sira, tur_mid = komut.split(":")

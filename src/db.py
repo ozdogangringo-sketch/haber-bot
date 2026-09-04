@@ -118,6 +118,9 @@ EK_KOLONLAR = {
     # Değiştirilen görselin ADAY URL'si — kullanıcı onaylayana kadar
     # `gorsel_url` üzerine yazılmıyor.
     "gorsel_url_aday": "TEXT",
+    # "Başka fotoğraf" üç aday sunuyor; seçilene kadar hepsi burada
+    # JSON listesi olarak duruyor (url, story_url, katman, atif, yol).
+    "gorsel_adaylari": "TEXT",
     "story_url_aday": "TEXT",
     "gorsel_yolu_aday": "TEXT",
     "gorsel_kaynagi_aday": "TEXT",

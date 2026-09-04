@@ -83,6 +83,10 @@ const YENIDEN_YAYINLA = /^yeniden_yayinla:\d{1,12}$/;
 const RETRY_KANAL = /^retry_kanal:(story|facebook|threads|twitter|youtube|tiktok|ig|reels|hepsi):\d{1,12}$/;
 const KURTAR = /^kurtar:\d{1,12}$/;
 
+// Üç adaydan seçim: "gorsel_sec:2:3:656" = 2. aday, 3. slayt, tur 656.
+// ⚠️ Tur id'si komuta GÖMÜLÜ — düğmeler ayrı bir mesajda duruyor.
+const GORSEL_SEC = /^gorsel_sec:[1-9]:([1-9]|10):\d{1,12}$/;
+
 // Durum panelindeki kurtarma düğmeleri: "yayinla:656" / "iptal:656".
 // ⚠️ Bu düğmeler AYRI bir mesajda (durum paneli) duruyor, o yüzden tur
 // id'sini KOMUTUN İÇİNDE taşıyorlar — Worker'ın gönderdiği mesaj_id
@@ -156,7 +160,7 @@ function eylemMi(veri) {
     || RETRY_KANAL.test(veri) || KURTAR.test(veri)
     || GORSEL_ONAY.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
-    || TUR_EYLEM.test(veri)
+    || TUR_EYLEM.test(veri) || GORSEL_SEC.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
     || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
     || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri);
