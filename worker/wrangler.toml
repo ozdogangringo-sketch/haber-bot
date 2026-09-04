@@ -23,4 +23,27 @@ preview_urls = false
 GITHUB_REPO = "ozdogangringo-sketch/haber-bot"
 
 [triggers]
-crons = ["8 7 * * 1-5", "20 15 * * 1-5", "12 5-20 * * *", "12 23,2 * * *"]
+# ⚠️ "*/10 * * * *" ZAMANLANMIŞ YAYIN İÇİN — GitHub'ı UYANDIRMIYOR.
+# Worker KV'deki "çalar saat"e bakıyor; yalnızca zamanı gelmiş bir
+# plan varsa `planli_yayin` dispatch'i atıyor. Cloudflare cron'u
+# ücretsiz (günde 144 tetikleme, limit 100.000).
+#
+# ⚠️ NEDEN GEREKTİ: zamanlanmış yayın saatlik `son_dakika` cron'una
+# bağlıydı; "30 dk sonra" gerçekte 0-60+ dakika demekti ve UTC
+# 0,1,3,4,21,22 kapsanmadığı için TR gece yarısı planlanan yayın
+# 1.5-2 saat bekleyebiliyordu. Sıklığı artırmak kotayı patlatırdı
+# (ölçüldü: +1620 dk/ay, kota 3000 ve 1260'ı zaten dolu).
+# ⚠️ CLOUDFLARE ÜCRETSİZ PLAN: HESAP BAŞINA 5 CRON. Beşinciyi
+# eklerken sınıra çarptık (`code: 10072`). İki `son_dakika` satırı
+# BİRLEŞTİRİLDİ — saat listesi virgülle yazılabiliyor, davranış
+# birebir aynı: "12 5-20" + "12 23,2" = "12 2,5-20,23".
+crons = ["8 7 * * 1-5", "20 15 * * 1-5", "12 2,5-20,23 * * *", "*/10 * * * *"]
+
+# Planlanmış yayınların "çalar saati". Anahtar: plan:<mesaj_id>,
+# değer: ISO zaman damgası. ⚠️ GERÇEĞİN KAYNAĞI DEĞİL — veritabanı
+# öyle. KV yalnızca "şu an bakmaya değer mi" sorusunu ucuza
+# cevaplıyor; bayat bir anahtar en fazla boş bir çalışma üretir,
+# `planli_yayinlari_isle` zaten DB'den doğruluyor.
+[[kv_namespaces]]
+binding = "PLANLAR"
+id = "722dfcafca7a4903a85345386ec29ae6"

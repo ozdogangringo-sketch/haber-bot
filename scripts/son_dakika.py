@@ -839,6 +839,28 @@ def main(zorla_haber_id: int | None = None) -> int:
         planli_yayinlari_isle(con, ayarlar)
         suresi_gecmisi_iptal_et(con, ayarlar)
 
+        # ⚠️ HAFİF MOD: yalnızca planlı yayınları işle ve çık.
+        #
+        # NEDEN (5 Eyl 2026, kullanıcı isteği): zamanlanmış yayın
+        # `son_dakika`nın SAATLİK cron'una bağlıydı, yani "30 dk sonra"
+        # seçeneği gerçekte 0-60+ dakika demekti; TR gece yarısı
+        # planlanan bir yayın cron boşluğuna denk gelip 1.5-2 saat
+        # bekleyebiliyordu (Worker cron'u UTC 0,1,3,4,21,22'yi
+        # kapsamıyor).
+        #
+        # ⚠️ SIKLIĞI ARTIRMAK ÇÖZÜM DEĞİL — ölçüldü: son_dakika günde
+        # 21 kez ve job başına 63 sn (dakikaya yuvarlanınca 2 dk) =
+        # ~1260 dk/ay, kotanın %42'si. 30 dakikaya çekmek +1620 dk/ay
+        # getirir ve 3000'lik kotayı patlatır.
+        #
+        # Çözüm: Cloudflare KV'de "çalar saat" tutuluyor, Worker 10
+        # dakikada bir BEDAVA kontrol ediyor ve GitHub yalnızca gerçekten
+        # zamanı gelince uyanıyor — o zaman da bu hafif moda giriyor.
+        # Tam akış birkaç SELECT; haber taraması, Gemini, görsel YOK.
+        if "--sadece-planli" in sys.argv:
+            log.info("hafif mod: yalnızca planlı yayınlar işlendi, çıkılıyor")
+            return 0
+
         # --- 2) Zaten onay bekleyen son dakika varsa yenisini kurma ---
         #
         # ⚠️ KULLANICI SEÇİMİNDE BU KURAL UYGULANMIYOR. Öneri

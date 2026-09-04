@@ -54,8 +54,14 @@ on:
   # Telegram'daki "🔄 Son dakika kontrolünü tekrar çalıştır" düğmesi
   # buraya geliyor. Önce böyle bir yol yoktu ve son dakika hatasındaki
   # düğme akşam turunu tetikliyordu.
+  # ⚠️ `planli_yayin` AYRI BİR OLAY (5 Eyl 2026). Cloudflare 10
+  # dakikada bir KV'deki "çalar saat"e bakıyor ve yalnızca zamanı
+  # gelmiş bir plan varsa bunu atıyor. Aynı workflow çalışıyor ama
+  # `--sadece-planli` ile: birkaç SELECT, haber taraması yok.
+  # Sıklığı `son_dakika_calistir` ile artırmak kotayı patlatırdı
+  # (+1620 dk/ay; ölçüm CLAUDE.md'de).
   repository_dispatch:
-    types: [son_dakika_calistir]
+    types: [son_dakika_calistir, planli_yayin]
 
   workflow_dispatch:
     inputs:
@@ -119,7 +125,10 @@ jobs:
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
           TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
         run: |
-          if [ "${{ inputs.kuru }}" = "true" ]; then
+          if [ "${{ github.event.action }}" = "planli_yayin" ]; then
+            # Hafif mod: yalnızca zamanı gelen planlı yayınlar.
+            python scripts/son_dakika.py --sadece-planli
+          elif [ "${{ inputs.kuru }}" = "true" ]; then
             python scripts/son_dakika.py --kuru
           else
             python scripts/son_dakika.py

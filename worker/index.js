@@ -1163,6 +1163,40 @@ export default {
     const kanallarStr = seciliKanallar ? seciliKanallar.join(",") : "";
     const iletildi = await githubaIlet(env, gonderilecek, hedefMesajId, basan, kanallarStr);
 
+    // ⚠️ ÇALAR SAATİ KUR. "2 saat sonra yayınla" seçildiğinde GitHub
+    // veritabanına `planlanan_yayin` yazıyor; ama o zamanın GELDİĞİNİ
+    // fark edecek olan taraf burası. KV'ye bir uyandırma kaydı
+    // bırakılıyor ve 10 dakikalık cron ona bakıyor.
+    //
+    // ⚠️ SIRA ÖNEMLİ: yalnızca dispatch BAŞARILIYSA alarm kuruluyor.
+    // Aksi hâlde veritabanında plan olmayan bir alarm kalır ve
+    // GitHub boş yere uyanır.
+    //
+    // ⚠️ TTL: plan süresi + 6 saat. Anahtar kendiliğinden temizleniyor,
+    // yani iptal edilen bir plan sonsuza kadar KV'de kalmıyor. Zaten
+    // bayat alarm zararsız — `planli_yayinlari_isle` DB'den doğruluyor
+    // ve 4 saatten geç planı iptal ediyor.
+    const sonraEslesme = YAYINLA_SONRA.exec(komut);
+    if (iletildi && sonraEslesme && env.PLANLAR) {
+      const dakika = Number(sonraEslesme[1]);
+      const an = new Date(Date.now() + dakika * 60000).toISOString();
+      try {
+        await env.PLANLAR.put(`plan:${hedefMesajId}`, an,
+          { expirationTtl: dakika * 60 + 21600 });
+      } catch (e) {
+        // KV yazılamazsa saatlik `son_dakika` yedek yol olarak planı
+        // yine de işler — yalnızca daha geç. Sessiz kalmak doğru:
+        // kullanıcıya "yayın planlandı" denmesi gereken an burası değil.
+      }
+    }
+
+    // Plan iptal edilirse alarmı da kaldır — yoksa GitHub boş uyanır.
+    if (iletildi && komut === "plan_iptal" && env.PLANLAR) {
+      try {
+        await env.PLANLAR.delete(`plan:${hedefMesajId}`);
+      } catch (e) { /* bayat alarm zararsız */ }
+    }
+
     if (iletildi) {
       // Önce görsel geri bildirim, sonra buton halkasını durdur.
       // Sıra önemli: kullanıcı butona bastıktan sonra ilk gördüğü şey
@@ -1186,6 +1220,54 @@ export default {
     // Cloudflare Edge üzerinden sıfır gecikmeli cron tetikleyici
     if (!env.GITHUB_PAT || !env.GITHUB_REPO) return;
     const url = `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`;
+
+    // 0. ZAMANLANMIŞ YAYIN ÇALAR SAATİ (her 10 dakikada bir)
+    //
+    // ⚠️ GITHUB'I HER SEFERİNDE UYANDIRMIYOR. KV'de zamanı gelmiş bir
+    // plan yoksa hiçbir şey yapmadan çıkıyor — Cloudflare tarafı
+    // ücretsiz, GitHub Actions yalnızca gerçek iş varken çalışıyor.
+    // Sıklığı `son_dakika` cron'uyla artırmak +1620 dk/ay getirirdi
+    // ve 3000'lik kotayı patlatırdı (ölçüm CLAUDE.md'de).
+    //
+    // ⚠️ KV GERÇEĞİN KAYNAĞI DEĞİL, yalnızca çalar saat. Veritabanı
+    // asıl kayıt; `planli_yayinlari_isle` zaten oradan doğruluyor.
+    // Bayat bir anahtar en fazla boş bir çalışma üretir — bu yüzden
+    // KV ile DB'nin ayrışması TEHLİKESİZ (projede "aynı veri iki
+    // yerde" tuzağının zararsız olduğu nadir yerlerden biri).
+    if (event.cron === "*/10 * * * *") {
+      if (!env.PLANLAR) return;
+      const simdi = Date.now();
+      let zamaniGelen = 0;
+      try {
+        const liste = await env.PLANLAR.list({ prefix: "plan:" });
+        for (const anahtar of liste.keys) {
+          const deger = await env.PLANLAR.get(anahtar.name);
+          if (!deger) continue;
+          if (Date.parse(deger) <= simdi) {
+            zamaniGelen++;
+            await env.PLANLAR.delete(anahtar.name);
+          }
+        }
+      } catch (e) {
+        // KV okunamazsa sessiz kal: saatlik `son_dakika` yedek yol
+        // olarak planlı yayınları zaten işliyor, yalnızca daha geç.
+        return;
+      }
+      if (!zamaniGelen) return;
+      await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${env.GITHUB_PAT}`,
+          "User-Agent": "HaberBot-CloudflareWorker",
+        },
+        body: JSON.stringify({
+          event_type: "planli_yayin",
+          client_payload: { adet: zamaniGelen, tetikleyen: "cloudflare_cron" },
+        }),
+      });
+      return;
+    }
 
     // 1. Hafta içi Borsa Açılış Bülteni (TR 10:08 / UTC 07:08)
     if (event.cron === "8 7 * * 1-5") {

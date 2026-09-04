@@ -2784,6 +2784,86 @@ def test_veri_karti_ve_vurgu_kapilari() -> None:
             f"yalnızca {sayac} yerde — biri unutulmuş (tekil slayt / son dakika)")
 
 
+def test_planli_yayin_cloudflareden_tetikleniyor() -> None:
+    """
+    Zamanlanmış yayın Cloudflare "çalar saati" ile tetiklenmeli.
+
+    ⚠️ NEDEN GEREKTİ (5 Eyl 2026, kullanıcı isteği): plan `son_dakika`nın
+    SAATLİK cron'una bağlıydı. Menüdeki "30 dk" seçeneği gerçekte
+    0-60+ dakika demekti ve Worker cron'u UTC 0,1,3,4,21,22'yi
+    kapsamadığı için TR gece yarısı planlanan yayın **1.5-2 saat**
+    bekleyebiliyordu.
+
+    ⚠️ SIKLIĞI ARTIRMAK ÇÖZÜM DEĞİL — ölçüldü: son_dakika günde 21 kez,
+    job başına 63 sn (dakikaya yuvarlanınca 2 dk) = ~1260 dk/ay,
+    3000'lik kotanın %42'si. 30 dakikaya çekmek +1620 dk/ay getirir.
+    Çözüm: KV'de çalar saat + 10 dakikalık Cloudflare cron'u (ücretsiz);
+    GitHub yalnızca gerçekten zamanı gelince uyanıyor.
+
+    ⚠️ KV GERÇEĞİN KAYNAĞI DEĞİL. Veritabanı asıl kayıt; bayat bir
+    alarm en fazla boş bir çalışma üretir. Bu yüzden "aynı veri iki
+    yerde" tuzağı burada ZARARSIZ — ve saatlik `son_dakika` yolu
+    YEDEK olarak duruyor (KV patlarsa plan yine işlenir, geç de olsa).
+    """
+    import json as _json
+    import re as _re
+    import shutil
+    import subprocess
+
+    toml = (KOK / "worker/wrangler.toml").read_text(encoding="utf-8")
+    kod = "\n".join(l for l in toml.splitlines()
+                    if not l.strip().startswith("#"))
+
+    denetle('"*/10 * * * *"' in kod,
+            "10 dakikalık çalar saat cron'u tanımlı",
+            "zamanlanmış yayın yine saatlik cron'a düşer")
+    denetle("PLANLAR" in kod and "kv_namespaces" in kod,
+            "PLANLAR KV alanı bağlı",
+            "Worker alarmı saklayamaz, çalar saat çalışmaz")
+
+    # ⚠️ CLOUDFLARE ÜCRETSİZ PLAN: HESAP BAŞINA 5 CRON (code 10072).
+    # Beşinciyi eklerken sınıra çarpıldı; iki son_dakika satırı
+    # birleştirildi. Sayı tekrar 5'e çıkarsa deploy SESSİZCE yarım
+    # kalıyor — kod gidiyor, cron gitmiyor.
+    cronlar = _re.search(r"crons\s*=\s*\[([^\]]*)\]", kod)
+    adet = len(_re.findall(r'"', cronlar.group(1))) // 2 if cronlar else 0
+    denetle(0 < adet <= 5,
+            f"cron sayısı ücretsiz plan sınırında ({adet}/5)",
+            "5'i aşarsa wrangler deploy cron'ları YAZAMIYOR ve bunu "
+            "yalnızca uyarı olarak söylüyor")
+
+    yml = (KOK / ".github/workflows/son-dakika.yml").read_text(encoding="utf-8")
+    denetle("planli_yayin" in yml,
+            "workflow planli_yayin olayını dinliyor",
+            "Worker dispatch atıyor ama karşılayan yok")
+    # ⚠️ VARLIK DEĞİL, ÇAĞRI ARANMALI. İlk yazımda yalnızca
+    # `"--sadece-planli" in yml` bakılıyordu; bayrak dosyada İKİ kez
+    # geçiyor (biri yorumda) ve komuttan silinince test TEMİZ geçti.
+    denetle("son_dakika.py --sadece-planli" in yml,
+            "workflow hafif modu çağırıyor",
+            "tam son_dakika akışı çalışır: haber taraması + Gemini, "
+            "oysa yalnızca birkaç SELECT gerekiyor")
+
+    sd = (KOK / "scripts/son_dakika.py").read_text(encoding="utf-8")
+    denetle("--sadece-planli" in sd,
+            "son_dakika hafif modu tanıyor",
+            "bayrak workflow'da var ama script görmezden geliyor")
+
+    # --- DAVRANIŞ: Worker gerçekten yükleniyor ve doğru dispatch atıyor ---
+    if not shutil.which("node"):
+        return
+    sonuc = subprocess.run(["node", str(KOK / "tests/cron_kapsam.js")],
+                           capture_output=True, text=True, timeout=30,
+                           cwd=str(KOK))
+    cikti = sonuc.stdout
+    denetle(sonuc.returncode == 0 and "planli_yayin" in cikti,
+            "çalar saat zamanı gelince dispatch atıyor",
+            (sonuc.stderr or cikti)[:200])
+    denetle("KV boş" in cikti and cikti.split("KV boş")[1].split("\n")[0].count("YOK"),
+            "KV boşken GitHub uyandırılmıyor",
+            "her tetiklemede Actions çalışırsa kota patlar")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -2846,6 +2926,7 @@ def main() -> int:
         test_gorsel_aday_secimi,
         test_slaytta_eksik_glif_yok,
         test_veri_karti_ve_vurgu_kapilari,
+        test_planli_yayin_cloudflareden_tetikleniyor,
     ):
         try:
             test()
