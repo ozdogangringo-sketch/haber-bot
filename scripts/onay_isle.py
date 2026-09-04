@@ -914,7 +914,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
                     sonuclar.append(
                         "🎵 <b>TikTok:</b> TASLAK olarak yüklendi — "
                         "uygulamadan elle yayınlaman gerekiyor "
-                        "(<i>video.publish izni yok</i>)")
+                        "(<i>TikTok app audit bekliyor</i>)")
                 else:
                     sonuclar.append("🎵 <b>TikTok Videosu:</b> Yayınlandı!")
             else:

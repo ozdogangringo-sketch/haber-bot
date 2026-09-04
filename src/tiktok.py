@@ -175,7 +175,17 @@ def video_yukle(
                 r_init = requests.post(TIKTOK_INIT_URL, headers=headers, json=payload_publish, timeout=15)
                 veri_init = r_init.json()
 
-        # Eğer scope hatası alınırsa (video.publish izni yoksa video.upload ile Inbox/Taslak moduna geç)
+        # ⚠️ SEBEP "video.publish İZNİ YOK" DEĞİL — ÖLÇÜLDÜ (4 Eyl 2026).
+        # Taze jetonun izinleri: video.upload, user.info.basic,
+        # **video.publish** — yani izin ZATEN VAR. Doğrudan yayın
+        # denendiğinde gelen cevap:
+        #     HTTP 403 unaudited_client_can_only_post_to_private_accounts
+        # Yani engel APP AUDIT: TikTok'un denetiminden geçmemiş
+        # uygulamalar yalnızca GİZLİ hesaplara post atabiliyor,
+        # @DailyBrief.co ise herkese açık. Jetonu tazelemek bunu
+        # DEĞİŞTİRMİYOR — denendi, aynı 403 geldi.
+        # Kalıcı çözüm: developers.tiktok.com üzerinden app audit
+        # başvurusu. Kod tarafında yapılabilecek bir şey yok.
         if r_init.status_code != 200 or veri_init.get("error", {}).get("code") != "ok":
             hata_mesaji = veri_init.get("error", {}).get("message", "")
             log.info("Direct publish scope kısıtlı (%s), Inbox/Taslak moduna geçiliyor...", hata_mesaji)
