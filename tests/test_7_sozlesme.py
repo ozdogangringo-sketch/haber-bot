@@ -2129,6 +2129,80 @@ def test_metin_uretimi_icerik_sinyaline_bakiyor() -> None:
             "saatte 1 puandı (B varyantı) — 3 olsaydı gelişen haberler düşer")
 
 
+def test_her_dugme_workerda_karsilaniyor() -> None:
+    """
+    Python'un ürettiği HER `callback_data` Worker tarafından karşılanmalı.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): `/durum` askıda kalan her tur için
+    DÖRT düğme basıyor. İkisi (`kurtar:{id}`, `yayin_kontrol:{id}`)
+    çalışıyordu ama **`yayinla:{id}` ve `iptal:{id}` Worker'ın beyaz
+    listesinde YOKTU** — basılınca Telegram "Tanınmayan komut" deyip
+    susuyordu. Yani tur takıldığında açılan KURTARMA panelinde,
+    kurtaracak iki düğmenin ikisi de ölüydü. Ayrıca Worker'ın kendi
+    menüsündeki "🚨 Son Dakika Tara" (`sondakika`) düğmesi de listede
+    değildi: Worker kendi bastığı düğmeyi reddediyordu.
+
+    ⚠️ BU TESTİ DÜZ METİNLE YAZMA. `eylemMi` bir REGEX listesi
+    (`GORSEL_ONAY`, `KURTAR`, `MENU_GEZINME`…); `worker/index.js`
+    içinde "gorsel_yeni" diye aramak onları göremez ve üç ayrı yanlış
+    envanter üretir — bu oturumda tam olarak bu yaşandı. Test Worker'ı
+    **gerçekten yükleyip** `eylemMi`'yi çağırıyor.
+
+    ⚠️ "Worker reddediyor" TEK BAŞINA kusur değil: menü gezinme
+    komutları (`slayt_menu:`, `kanal:`, `sec:`…) bilerek GitHub'a
+    gitmiyor, Worker onları yerel karşılıyor. Bu yüzden ölçüt
+    `eylemMi` DEĞİL, "herhangi bir yerde karşılanıyor mu".
+    """
+    import json as _json
+    import re as _re
+    import shutil
+    import subprocess
+    if not shutil.which("node"):
+        return                                   # node yoksa atla
+
+    ham = set()
+    for dosya in ("src/telegram_bot.py", "scripts/onay_isle.py"):
+        metin = (KOK / dosya).read_text(encoding="utf-8")
+        ham |= set(_re.findall(r'callback_data"\s*:\s*f?"([^"]+)"', metin))
+
+    def _ornekle(s: str) -> str:
+        s = (s.replace("{mesaj_id}", "777").replace("{mid}", "777")
+              .replace("{sira}", "3").replace("{adet}", "10"))
+        return _re.sub(r"\{[^}]+\}", "1", s)
+
+    adaylar = sorted({_ornekle(x) for x in ham})
+    denetle(len(adaylar) > 50,
+            "düğme biçimleri okunabildi",
+            f"yalnızca {len(adaylar)} biçim bulundu — ayrıştırma bozuk olabilir")
+
+    sonuc = subprocess.run(
+        ["node", str(KOK / "tests/dugme_kapsam.js"),
+         str(KOK / "worker/index.js"), _json.dumps(adaylar)],
+        capture_output=True, text=True, timeout=30)
+    if sonuc.returncode != 0:
+        denetle(False, "worker düğme kapsamı ölçülebildi",
+                (sonuc.stderr or "")[:200])
+        return
+
+    kapsam = _json.loads(sonuc.stdout)
+    olu = sorted(a for a in adaylar if not kapsam[a])
+    denetle(not olu,
+            "Python'un ürettiği her düğme Worker'da karşılanıyor",
+            f"basılınca 'Tanınmayan komut' alacak düğmeler: {olu}")
+
+    # ⚠️ ARACIN KENDİSİ ÇALIŞIYOR MU — uydurma bir düğme kabul
+    # edilmemeli, yoksa yukarıdaki denetim her şeye "temiz" der.
+    dogrulama = subprocess.run(
+        ["node", str(KOK / "tests/dugme_kapsam.js"), str(KOK / "worker/index.js"),
+         _json.dumps(["asdfqwer_yok", "yayinla:abc", "../../etc/passwd"])],
+        capture_output=True, text=True, timeout=30)
+    if dogrulama.returncode == 0:
+        d = _json.loads(dogrulama.stdout)
+        denetle(not any(d.values()),
+                "kapsam ölçer uydurma düğmeyi reddediyor",
+                f"ölçer her şeye 'karşılanıyor' diyor: {d}")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -2184,6 +2258,7 @@ def main() -> int:
         test_kanal_jetonlari_denetleniyor,
         test_video_etiketleri_habere_ozel,
         test_metin_uretimi_icerik_sinyaline_bakiyor,
+        test_her_dugme_workerda_karsilaniyor,
     ):
         try:
             test()

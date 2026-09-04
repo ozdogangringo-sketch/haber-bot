@@ -3229,6 +3229,34 @@ def main() -> int:
         log.error("KOMUT eksik")
         return 1
 
+    # ⚠️ KURTARMA PANELİNİN İKİ DÜĞMESİ ÖLÜYDÜ (4 Eyl 2026).
+    # `/durum` askıda kalan her tur için dört düğme basıyor; ikisi
+    # (`kurtar:{id}`, `yayin_kontrol:{id}`) çalışıyordu ama
+    # **`yayinla:{id}` ve `iptal:{id}` hem Worker'ın beyaz listesinde
+    # hem burada YOKTU** — basılınca Telegram "Tanınmayan komut" deyip
+    # susuyordu. Yani tur takıldığında açılan kurtarma panelinde,
+    # kurtaracak iki düğmenin ikisi de işe yaramıyordu.
+    #
+    # ⚠️ ID KOMUTTAN OKUNUR, MESAJDAN DEĞİL. Bu düğmeler AYRI bir
+    # mesajda (durum panelinde) duruyor; Worker basılan düğmenin
+    # BULUNDUĞU mesajın id'sini gönderiyor ve o id turu göstermiyor.
+    # Aynı tuzak projede dört kez tekrarladı (kaldir · haber_sec ·
+    # gorsel_kabul · gorsel_yeni).
+    #
+    # ⚠️ NEDEN AYRI DAL DEĞİL DE NORMALİZASYON: komutu düz adına
+    # çevirip `mesaj_id`yi turunkiyle değiştirmek, akışın geri kalanını
+    # olduğu gibi çalıştırıyor — yayınlanmış-tur koruması (1u),
+    # `turu_getir`, kanal seçimi hepsi kendiliğinden devreye giriyor.
+    # Ayrı bir dal yazmak o kuralları İKİNCİ KEZ yazmak demekti ve bu
+    # projenin en sık hatası tam olarak bu.
+    for _on in ("yayinla", "iptal"):
+        if komut.startswith(f"{_on}:"):
+            _hedef = komut.split(":", 1)[1]
+            if _hedef.isdigit():
+                komut, mesaj_id = _on, int(_hedef)
+                log.info("kurtarma paneli: %s -> tur #%s", _on, mesaj_id)
+            break
+
     # ⚠️ `/durum` bir onay mesajına BAĞLI DEĞİL, dolayısıyla `mesaj_id`
     # taşımıyor. Eskiden kontrol ikisini birden şart koşuyordu ve komut
     # aşağıdaki kendi dalına HİÇ ULAŞAMIYORDU — `/durum` yazınca Worker

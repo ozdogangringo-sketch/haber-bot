@@ -26,7 +26,11 @@
 
 // GitHub'a iletilecek gerçek eylemler. İş yapan komutlar.
 // "durum" ve "tur" butondan değil, yazılı komuttan geliyor.
+// ⚠️ "sondakika" 4 Eyl 2026'ya kadar bu listede YOKTU ama Worker'ın
+// kendi menüsünde "🚨 Son Dakika Tara" düğmesi onu gönderiyordu —
+// yani Worker kendi bastığı düğmeyi reddediyordu.
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele", "durum", "tur",
+                  "sondakika",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak", "cope_at",
                   "plan_iptal", "havuz_guncelle", "havuzdan_ekle", "android_muzikli",
                   "manuel_paket", "yayinla_diger", "manuel_tamam",
@@ -78,6 +82,16 @@ const YAYIN_KONTROL = /^yayin_kontrol:\d{1,12}$/;
 const YENIDEN_YAYINLA = /^yeniden_yayinla:\d{1,12}$/;
 const RETRY_KANAL = /^retry_kanal:(story|facebook|threads|twitter|youtube|tiktok|ig|reels|hepsi):\d{1,12}$/;
 const KURTAR = /^kurtar:\d{1,12}$/;
+
+// Durum panelindeki kurtarma düğmeleri: "yayinla:656" / "iptal:656".
+// ⚠️ Bu düğmeler AYRI bir mesajda (durum paneli) duruyor, o yüzden tur
+// id'sini KOMUTUN İÇİNDE taşıyorlar — Worker'ın gönderdiği mesaj_id
+// paneli gösteriyor, turu değil.
+// ⚠️ 4 Eyl 2026: panel dört düğme basıyordu ama yalnızca ikisi
+// (kurtar, yayin_kontrol) beyaz listedeydi; diğer ikisi "Tanınmayan
+// komut" alıyordu. Tur takıldığında açılan panelde, kurtaracak iki
+// düğmenin ikisi de ölüydü.
+const TUR_EYLEM = /^(yayinla|iptal):\d{1,12}$/;
 
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
@@ -142,6 +156,7 @@ function eylemMi(veri) {
     || RETRY_KANAL.test(veri) || KURTAR.test(veri)
     || GORSEL_ONAY.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
+    || TUR_EYLEM.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
     || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
     || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri);
