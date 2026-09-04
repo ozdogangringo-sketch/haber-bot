@@ -100,6 +100,35 @@ def _kategori_katsayilari(ayarlar: dict) -> dict:
     return (ayarlar.get("secim", {}) or {}).get("kategori_katsayilari", {}) or {}
 
 
+def on_skor(haber) -> float:
+    """
+    "Bu haber metin üretmeye değer mi?" sorusunun TEK cevabı.
+
+        ağırlık × 10  −  yaş(saat)  +  içerik sinyali
+
+    ⚠️ NEDEN ORTAK FONKSİYON (4 Eyl 2026): bu formül `on_eleme`de vardı
+    ama günlük asıl akış olan `son_dakika.taze_adaylar` onu HİÇ
+    kullanmıyordu — orada sıralama düpedüz `ORDER BY agirlik DESC,
+    yayin_tarihi DESC` idi. ÖLÇÜLDÜ: tazelik penceresine giren 60
+    haberin **54'ünün ağırlığı 10**, yani ağırlık neredeyse hep
+    berabere bitiyor ve sıralamayı fiilen SAF TAZELİK belirliyordu.
+
+    Sonuç somut: *"Yaz bitti, işbaşı sendromunu nasıl atlatabilirsiniz"*
+    (içerik puanı 0) metin alırken *"Girne'deki gemide can kaybı 12'ye
+    yükseldi"* (içerik puanı 20) **45. sırada** bekliyordu. `on_eleme`ye
+    yıllar içinde eklenen bütün içerik sinyali mekanizması, günde ~20
+    kez çalışan yolda hiç devrede değildi; `on_eleme` ise cron'u kapalı
+    `hazirla.py`den günde ~1 kez çağrılıyor.
+
+    ⚠️ Bu, projenin en sık tekrarlayan hatası: **kural doğru ama bir
+    kod yolunda uygulanmamış** (1j · 1p · 1f · tazelik sabiti). Formül
+    artık tek yerde; yeni bir akış eklerken burayı çağır.
+    """
+    return ((haber["agirlik"] or 1) * 10
+            - _yas_saat(haber)
+            + _icerik_puani(haber["baslik_orj"]))
+
+
 def on_eleme(con, ayarlar: dict, kac: int | None = None) -> list:
     """
     Metin üretilecek adayları seçer. LLM ÇAĞIRMAZ, bedavadır.
@@ -151,9 +180,7 @@ def on_eleme(con, ayarlar: dict, kac: int | None = None) -> list:
         yas = _yas_saat(haber)
         if yas > sinir_saat:
             continue
-        ham = ((haber["agirlik"] or 1) * 10
-               - yas
-               + _icerik_puani(haber["baslik_orj"]))
+        ham = on_skor(haber)
         kategoriler.setdefault(haber["kategori"] or "diger", []).append((ham, haber))
 
     # --- KATMAN 2: kategori katsayısı ile ağırlıklandır ---

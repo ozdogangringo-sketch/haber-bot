@@ -2020,6 +2020,115 @@ def test_video_etiketleri_habere_ozel() -> None:
             f"TAMAMEN düşmeli, yarım kalmamalı. Çıkan: {bulunan}")
 
 
+def test_metin_uretimi_icerik_sinyaline_bakiyor() -> None:
+    """
+    Günlük akış hangi habere metin üreteceğine İÇERİK SİNYALİNE bakarak
+    karar vermeli — yalnızca kaynak ağırlığına ve tazeliğe değil.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): `son_dakika.taze_adaylar` düpedüz
+    `ORDER BY agirlik DESC, yayin_tarihi DESC` diyordu. ÖLÇÜLDÜ:
+    tazelik penceresine giren 60 haberin **54'ünün ağırlığı 10**, yani
+    ağırlık neredeyse hep berabere bitiyor ve sıralamayı fiilen SAF
+    TAZELİK belirliyordu.
+
+    Somut sonuç: *"Yaz bitti, işbaşı sendromunu nasıl atlatabilirsiniz"*
+    (içerik puanı 0) Gemini metni alırken *"Girne'deki gemide can kaybı
+    12'ye yükseldi"* (içerik puanı 20) **45. sırada** bekliyordu.
+
+    ⚠️ İKİ AYRI SIRALAMA KURALI VARDI. `secim.on_eleme` içerik
+    sinyalini yıllardır kullanıyor ama o, cron'u KAPALI `hazirla.py`den
+    günde ~1 kez çağrılıyor; günde ~20 kez çalışan `taze_adaylar` ise
+    hiç kullanmıyordu. Formül artık `secim.on_skor`'da, tek yerde.
+    Projenin en sık tekrarlayan hatası: kural doğru, bir kod yolunda
+    uygulanmamış (1j · 1p · 1f).
+    """
+    import ast as _ast
+    from src import secim as _secim
+    import scripts.son_dakika as _sd
+
+    simdi = datetime.now(timezone.utc)
+
+    def _ekle(con, hid, baslik, agirlik, yas_saat):
+        con.execute(
+            "INSERT INTO haberler (id, kaynak, kategori, agirlik, baslik_orj,"
+            " link, ozet_orj, yayin_tarihi, durum) VALUES (?,?,?,?,?,?,?,?,?)",
+            (hid, "K", "turkiye", agirlik, baslik, f"http://x/{hid}", "",
+             (simdi - timedelta(hours=yas_saat)).isoformat(), "yeni"))
+
+    con = gecici_db()
+    # DAHA TAZE ama içi boş (açıklama kalıbı, içerik puanı düşük)
+    _ekle(con, 1, "Bakan konuyu değerlendirdi ve mesaj yayımladı", 10, 0.5)
+    # DAHA ESKİ ama olay haberi (rakam + olay fiili)
+    _ekle(con, 2, "Gemide can kaybı 12'ye yükseldi, 3 kişi tutuklandı", 10, 3.0)
+    con.commit()
+
+    ayarlar = {"genel": {"son_dakika_tazelik_saat": 8}}
+    secilen = _sd.taze_adaylar(con, ayarlar, 1)
+    denetle(bool(secilen) and secilen[0]["id"] == 2,
+            "metin üretimi içerik sinyaline bakıyor",
+            "3 saatlik olay haberi, 0.5 saatlik açıklama haberine yenildi — "
+            "sıralama yine saf tazelik demektir")
+
+    # ⚠️ ÖNCE PUANLA SONRA SINIRLA. SQL'de LIMIT kalırsa düşük ağırlıklı
+    # ama yüksek içerik sinyalli haber dilimin DIŞINDA kalır ve hiç
+    # puanlanmaz — kardeş görsel havuzunda birebir bu yaşandı.
+    # ⚠️ VERİ TUZAĞI — ilk yazımda dolgular ağırlık 10, olay haberi
+    # ağırlık 5 idi ve test HAKLI OLARAK kırmızı verdi: ağırlık ×10
+    # çarpanıyla giriyor, yani 50 puanlık farkı en fazla 20 puanlık
+    # içerik sinyali kapatamaz. Test, tasarımın hiç vaat etmediği bir
+    # şeyi ölçüyordu. Doğru kurgu: AYNI ağırlık, olay haberi DAHA ESKİ.
+    # Eski SQL (`ORDER BY agirlik, yayin_tarihi DESC LIMIT 3`) onu hiç
+    # çekmezdi; yeni kod puanlayıp öne alıyor.
+    con2 = gecici_db()
+    for i in range(30):                      # taze ama içi boş dolgu
+        _ekle(con2, 100 + i,
+              "Bakan konuyu değerlendirdi ve mesaj yayımladı", 10, 0.5)
+    _ekle(con2, 999, "Fabrikada yangın çıktı, dört kişi tutuklandı", 10, 3.0)
+    con2.commit()
+    s2 = _sd.taze_adaylar(con2, ayarlar, 3)
+    denetle(any(h["id"] == 999 for h in s2),
+            "eski ama önemli haber dilimin dışında kalmıyor",
+            "SQL'de puanlamadan önce LIMIT var demektir; haber hiç "
+            "değerlendirilmeden eleniyor (ÖNCE EŞLEŞTİR SONRA SIRALA)")
+
+    # --- Kural TEK YERDE mi (AST) ---
+    kaynak = (KOK / "scripts/son_dakika.py").read_text(encoding="utf-8")
+    agac = _ast.parse(kaynak)
+    fonk = next((n for n in _ast.walk(agac)
+                 if isinstance(n, _ast.FunctionDef) and n.name == "taze_adaylar"),
+                None)
+    denetle(fonk is not None, "taze_adaylar bulundu", "fonksiyon yok")
+    if fonk is not None:
+        on_skor_var = any(
+            isinstance(d, _ast.Attribute) and d.attr == "on_skor"
+            for d in _ast.walk(fonk))
+        denetle(on_skor_var,
+                "taze_adaylar secim.on_skor kullanıyor",
+                "formül yerel olarak yeniden yazılırsa iki sıralama kuralı "
+                "doğar ve biri gün gelir unutulur")
+
+    secim_agac = _ast.parse((KOK / "src/secim.py").read_text(encoding="utf-8"))
+    oe = next((n for n in _ast.walk(secim_agac)
+               if isinstance(n, _ast.FunctionDef) and n.name == "on_eleme"), None)
+    if oe is not None:
+        denetle(any(isinstance(d, _ast.Name) and d.id == "on_skor"
+                    for d in _ast.walk(oe)),
+                "on_eleme de aynı kapıdan geçiyor",
+                "iki akış farklı formül kullanırsa 'aynı kural iki yerde' "
+                "hatası geri gelir")
+
+    # --- Formül B: yaş cezası saatte 1 puan (kullanıcı kararı) ---
+    a = {"agirlik": 10, "baslik_orj": "test",
+         "yayin_tarihi": (simdi - timedelta(hours=0)).isoformat()}
+    b = {"agirlik": 10, "baslik_orj": "test",
+         "yayin_tarihi": (simdi - timedelta(hours=10)).isoformat()}
+    fark = _secim.on_skor(a) - _secim.on_skor(b)
+    denetle(9.0 <= fark <= 11.0,
+            "yaş cezası saatte ~1 puan",
+            f"10 saatlik fark {fark:.1f} puan getirdi; kullanıcı kararı "
+            "saatte 1 puandı (B varyantı) — 3 olsaydı gelişen haberler düşer")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -2074,6 +2183,7 @@ def main() -> int:
         test_cagrilan_script_var_mi,
         test_kanal_jetonlari_denetleniyor,
         test_video_etiketleri_habere_ozel,
+        test_metin_uretimi_icerik_sinyaline_bakiyor,
     ):
         try:
             test()

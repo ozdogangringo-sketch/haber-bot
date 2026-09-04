@@ -326,12 +326,21 @@ def taze_adaylar(con, ayarlar: dict, kac: int) -> list:
     """
     sinir = (datetime.now(timezone.utc)
              - timedelta(hours=_tazelik_saat(ayarlar))).isoformat()
-    return list(con.execute(
+
+    # ⚠️ ÖNCE PUANLA, SONRA SINIRLA. Eski sorgu `ORDER BY agirlik DESC,
+    # yayin_tarihi DESC LIMIT ?` diyordu ve içerik sinyaline hiç
+    # bakmıyordu. `LIMIT`i SQL'de bırakıp puanlamayı sonra yapmak aynı
+    # hatayı üretirdi: yüksek içerik sinyalli ama sıradan bir kaynaktan
+    # gelen haber dilimin DIŞINDA kalırdı (kardeş görsel havuzunda
+    # birebir bu yaşandı). Pencere zaten tazelikle sınırlı — ölçüldü,
+    # 8 saatte 433 satır; hepsini puanlamak önemsiz bir maliyet.
+    pencere = list(con.execute(
         """SELECT * FROM haberler
-           WHERE durum = 'yeni' AND yayin_tarihi >= ?
-           ORDER BY agirlik DESC, yayin_tarihi DESC LIMIT ?""",
-        (sinir, kac),
+           WHERE durum = 'yeni' AND yayin_tarihi >= ?""",
+        (sinir,),
     ))
+    pencere.sort(key=secim.on_skor, reverse=True)
+    return pencere[:kac]
 
 
 
