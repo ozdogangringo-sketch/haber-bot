@@ -40,3 +40,9 @@ data/haber.db-shm
 # kök dizine düşenler için:
 debug_*.jpg
 test_*.jpg
+
+# OAuth akışının geçici artıkları — tek seferlik yetkilendirme
+# sırasında üretilir, sonrasında hiçbir kod okumaz. 4 Eyl 2026'da
+# git'te bulundu; PKCE doğrulayıcısı depoda durmamalı.
+data/*_pkce_verifier.txt
+data/*_verifier.txt

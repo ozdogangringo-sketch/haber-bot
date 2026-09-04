@@ -1696,6 +1696,56 @@ def test_olu_modul_yok() -> None:
                     "tarama bozuksa YAŞAYAN modülü ölü sanıp sildirir")
 
 
+def test_yazilan_durum_dosyasi_okunuyor() -> None:
+    """
+    `data/` altına YAZILAN her durum dosyası bir yerde OKUNMALI.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): `data/hata_kayitlari.jsonl`
+    23 Ağustos'tan beri yazılıyordu ama **hiçbir kod okumuyordu**.
+    `hata_bildir.KATALOG` ile eşleştirilmiş teşhis (ne oldu / neden)
+    orada birikiyor, kimse bakmıyordu. **Yazılıp okunmayan kayıt, hiç
+    tutulmamış kayıttan kötüdür** — yer kaplar ve "kaydediliyor" diye
+    yanlış güven verir. Günlük rapora son 24 saatin özeti eklendi.
+
+    Aynı taramada `data/tiktok_pkce_verifier.txt` bulundu: tek seferlik
+    OAuth akışının geçici artığı, hiçbir kod okumuyor ve **git'te
+    duruyordu**. Silindi, `.gitignore`'a kondu.
+    """
+    kaynaklar = ""
+    for klasor in ("src", "scripts"):
+        for dosya in (KOK / klasor).glob("*.py"):
+            kaynaklar += dosya.read_text(encoding="utf-8")
+
+    # Yazan modülden BAŞKA bir yerde de geçmeli
+    from src import hata_bildir
+    denetle(hasattr(hata_bildir, "HATA_LOG_YOLU"),
+            "hata günlüğü yolu tanımlı")
+
+    rapor = (KOK / "scripts/gunluk_rapor.py").read_text(encoding="utf-8")
+    denetle("HATA_LOG_YOLU" in rapor,
+            "teşhisli hata günlüğü günlük raporda OKUNUYOR",
+            "yazılıp okunmayan kayıt, hiç tutulmamış kayıttan kötüdür")
+
+    # ⚠️ Okuma kodu GERÇEKTEN çalışıyor mu? Sadece adı geçmesi yetmez —
+    # ilk yazımda `json` import edilmemişti ve geniş bir
+    # `except Exception` NameError'ı SESSİZCE YUTUYORDU: rapor tertemiz
+    # görünüyor, bölüm hiç basılmıyordu. Ancak taze bir kayıt eklenip
+    # elle sınanınca fark edildi.
+    agac = ast.parse(rapor)
+    ithal = {a.name for d in ast.walk(agac) if isinstance(d, ast.Import)
+             for a in d.names}
+    denetle("json" in ithal,
+            "gunluk_rapor json'u import ediyor",
+            "jsonl okunuyor ama json import edilmemişse NameError geniş "
+            "except tarafından yutulur ve bölüm sessizce hiç basılmaz")
+
+    # Geçici OAuth artıkları depoda durmamalı
+    gitignore = (KOK / ".gitignore").read_text(encoding="utf-8")
+    denetle("verifier" in gitignore,
+            "OAuth geçici artıkları .gitignore'da",
+            "PKCE doğrulayıcısı depoda durmamalı")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1746,6 +1796,7 @@ def main() -> int:
         test_vision_denetimi,
         test_db_yazan_workflow_commit_ediyor,
         test_olu_modul_yok,
+        test_yazilan_durum_dosyasi_okunuyor,
     ):
         try:
             test()

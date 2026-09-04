@@ -22,6 +22,7 @@ NE ANLATIYOR:
     python scripts/gunluk_rapor.py --kuru    (ekrana basar, göndermez)
 """
 
+import json
 import logging
 import os
 import sys
@@ -182,6 +183,55 @@ def rapor_kur(con, ayarlar: dict, repo: str) -> str:
     else:
         satirlar.append("· Başarısız iş yok")
     satirlar.append("")
+
+    # --- Teşhisli hata kayıtları (son 24 saat) ---
+    #
+    # ⚠️ `data/hata_kayitlari.jsonl` 23 Ağustos'tan beri YAZILIYOR ama
+    # HİÇ OKUNMUYORDU (4 Eyl 2026'da bulundu). Yukarıdaki "başarısız iş"
+    # satırı GitHub Actions API'sinden geliyor ve yalnızca job ADINI
+    # veriyor; bu dosya ise `hata_bildir.KATALOG` ile eşleştirilmiş
+    # TEŞHİSİ (ne oldu / neden) taşıyor. Yazılıp okunmayan kayıt, hiç
+    # tutulmamış kayıttan kötüdür — yer kaplar ve güven verir.
+    try:
+        # ⚠️ `from src import hata_bildir` biçimi — `from src.hata_bildir
+        # import HATA_LOG_YOLU` DEĞİL. Bütünlük testinin çözümleyicisi
+        # ikinci biçimde sabiti MODÜL sanıp `src.HATA_LOG_YOLU` diye
+        # çözmeye çalışıyor ve yanlış alarm veriyor.
+        from src import hata_bildir
+        gunluk_yolu = hata_bildir.HATA_LOG_YOLU
+        if gunluk_yolu.exists():
+            from datetime import datetime, timedelta, timezone
+            sinir = datetime.now(timezone.utc) - timedelta(hours=24)
+            taze = []
+            for satir in gunluk_yolu.read_text(encoding="utf-8").splitlines():
+                satir = satir.strip()
+                if not satir:
+                    continue
+                try:
+                    kayit = json.loads(satir)
+                    t = datetime.fromisoformat(kayit.get("tarih", ""))
+                    if t.tzinfo is None:
+                        t = t.replace(tzinfo=timezone.utc)
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    continue          # bozuk satır raporu düşürmesin
+                if t >= sinir:
+                    taze.append(kayit)
+            if taze:
+                satirlar.append(f"🧾 SON 24 SAATTE {len(taze)} TEŞHİSLİ HATA")
+                for kayit in taze[-3:]:
+                    satirlar.append(
+                        f"· {kayit.get('nerede', '?')}: "
+                        f"{(kayit.get('baslik') or '')[:60]}")
+                satirlar.append("")
+    except (OSError, ImportError) as e:
+        # ⚠️ BİLEREK DAR. İlk yazımda `except Exception` vardı ve
+        # `json` import edilmediği için oluşan NameError'ı SESSİZCE
+        # YUTTU — rapor tertemiz göründü, bölüm hiç basılmadı ve
+        # ancak taze bir kayıt eklenip elle sınanınca fark edildi.
+        # Bu, CLAUDE.md'deki "SESSİZ BAŞARISIZLIK" sınıfının ta kendisi.
+        # Rapor asıl iş; dosya okunamazsa rapor yine gitsin, ama
+        # KOD hatası yutulmasın.
+        log.warning("hata günlüğü okunamadı: %s", e)
 
     # --- Ayarlar varsayılandan farklıysa ---
     # Sessizce kapalı kalmış bir kanal en sinsi arıza türü: bot çalışıyor
