@@ -112,11 +112,35 @@ def access_token_al(con=None) -> str | None:
     return token or None
 
 
+TIKTOK_AZAMI_BASLIK = 150
+
+
+def baslik_kur(baslik: str, etiketler: list[str] | None = None) -> str:
+    """
+    TikTok başlığını kurar: manşet + sığdığı kadar etiket.
+
+    ⚠️ AĞA ÇIKMAYAN SAF FONKSİYON — `video_yukle` içindeyken davranışı
+    sınamanın tek yolu jeton ve gerçek dosyaydı, yani hiç sınanmıyordu.
+    """
+    temiz = (baslik or "").strip()
+    ham = [str(e).strip().lstrip("#") for e in (etiketler or []) if str(e).strip()]
+    if not ham:
+        ham = ["DailyBrief", "Haber", "SonDakika"]
+
+    for etiket in ham:
+        aday = f"{temiz} #{etiket}".strip()
+        if len(aday) > TIKTOK_AZAMI_BASLIK:
+            break
+        temiz = aday
+    return temiz
+
+
 def video_yukle(
     video_yolu: str | Path,
     baslik: str,
     gizlilik: str = "PUBLIC_TO_EVERYONE",
     ayarlar: dict | None = None,
+    etiketler: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     1080x1920 MP4 videosunu TikTok Content Posting API v2 ile yükler.
@@ -132,11 +156,19 @@ def video_yukle(
 
     dosya_boyutu = yol.stat().st_size
 
-    # TikTok başlığı (maksimum 150 karakter, hashtaglerle zenginleştirilmiş)
-    temiz_baslik = baslik.strip()
-    if "#dailybrief" not in temiz_baslik.lower():
-        if len(temiz_baslik) <= 120:
-            temiz_baslik = f"{temiz_baslik} #DailyBrief #Haber #SonDakika"
+    # TikTok başlığı — TikTok'ta ayrı açıklama alanı YOK, etiketler
+    # başlığın içinde yaşıyor. Sınır 150 karakter.
+    #
+    # ⚠️ ESKİDEN SABİT ÜÇ ETİKET BASILIYORDU (#DailyBrief #Haber
+    # #SonDakika) — haber ne olursa olsun aynısı. YouTube/Reels'teki
+    # "hep aynı 5 etiket" kusurunun TikTok'taki kardeşi; `caption`
+    # habere özel etiketleri üretiyor ve `etiketler` ile geliyor.
+    #
+    # ⚠️ BAŞLIK ASLA KIRPILMAZ, ETİKET DÜŞER. Ölçüldü (8 gerçek başlık):
+    # başlık + 5 etiket en fazla 142 karakter, hepsi sığıyor. Yine de
+    # uzun bir başlık gelirse manşeti kesmek etiketi kesmekten kötü —
+    # okuyucu için değerli olan manşet.
+    temiz_baslik = baslik_kur(baslik, etiketler)
 
     headers = {
         "Authorization": f"Bearer {token}",

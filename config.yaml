@@ -888,6 +888,29 @@ sosyal:
   # ⚠️ .env'de YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN gerekiyor.
   youtube_a_da_at: true
 
+  # Video açıklamasındaki 5. etiket — "etkileşim etiketi".
+  #
+  # ⚠️ NEDEN VİDEO AYRI: video platformları açıklamadaki YALNIZCA İLK 5
+  # etiketi sayıyor, sonrakiler düz metin olarak basılıyor (4 Eyl 2026,
+  # kullanıcı Reels'te fark etti). Carousel caption'ı 30 etiket taşıyor
+  # ve sabit/jenerik olanlar başta duruyor — o sıralama carousel için
+  # DOĞRU (kırpma sondan olsun diye) ama videoda haberin kendi
+  # etiketlerini tamamen dışarıda bırakıyordu. Ölçüldü: dört gerçek
+  # yayında da ilk 5 aynıydı; 'derbi', 'gemikazasi', 'organnakli' hiç
+  # sayılmadı ve ABD'deki tıp haberine '#türkiye' basıldı.
+  #
+  # Video artık 4 habere özel + 1 etkileşim etiketi alıyor.
+  #
+  # ⚠️ PLATFORMA GÖRE FARKLI: tek etiket üç yerde aynı işi görmüyor.
+  # '#Shorts' YouTube'da gerçek bir format/dağıtım sinyali, Instagram'da
+  # hiçbir anlamı yok.
+  # ⚠️ HİÇBİRİ ÖLÇÜLMEDİ — bunlar inanç, veri değil. Değiştirmek serbest;
+  # tek doğru yol bir süre çalıştırıp erişimi karşılaştırmak.
+  video_etiketleri:
+    youtube: Shorts
+    reels: keşfet
+    tiktok: keşfet
+
   # TikTok Content Posting API v2 üzerinden video paylaşılsın mı?
   # ⚠️ .env'de TIKTOK_ACCESS_TOKEN gerekiyor.
   tiktoka_da_at: true

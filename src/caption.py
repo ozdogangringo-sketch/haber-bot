@@ -69,6 +69,131 @@ def _hashtaglari_birlestir(haberler: list, azami: int = AZAMI_HASHTAG) -> list[s
     return sonuc
 
 
+# ⚠️ VİDEO PLATFORMLARI YALNIZCA İLK 5 ETİKETİ SAYIYOR (4 Eyl 2026).
+# Kullanıcı Reels'te fark etti: sonraki etiketler düz metin olarak
+# basılıyor. Carousel için doğru olan sıralama (önce SABIT_HASHTAGLER,
+# kırpma sondan) videoda TAM TERSİ sonuç veriyordu — ölçüldü, dört
+# gerçek yayında da ilk 5 aynıydı ve haberin kendi etiketleri
+# ('derbi', 'gemikazasi', 'organnakli') hiç sayılmadı. Üstelik ABD'deki
+# bir tıp haberine '#türkiye' basılıyordu: etkisiz değil, YANLIŞ.
+VIDEO_HASHTAG_ADEDI = 5
+
+
+def _etiket_anahtari(etiket: str) -> str:
+    """
+    Etiket karşılaştırması için Türkçe karakterleri sadeleştirir.
+
+    ⚠️ `casefold()` TEK BAŞINA YETMİYOR — ölçüldü: haberin etiketi
+    'kesfet', etkileşim etiketi 'keşfet' olduğunda ikisi farklı sayılıp
+    yan yana basılıyordu (`#kesfet #keşfet`). Gemini aynı kelimeyi bazen
+    şapkalı bazen şapkasız üretiyor; okuyucu için ikisi aynı etiket.
+    ⚠️ Bu YALNIZCA karşılaştırma anahtarı — basılan etiket orijinal
+    yazımını koruyor.
+    """
+    cevrim = str.maketrans("çğıöşüâîû", "cgiosuaiu")
+    return etiket.casefold().translate(cevrim)
+
+# Etkileşim etiketi platforma göre değişir — tek bir etiket üç platformda
+# aynı işi görmüyor. '#Shorts' YouTube'da gerçek bir format/dağıtım
+# sinyali, Instagram'da hiçbir anlamı yok. Varsayılanlar config.yaml →
+# sosyal.video_etiketleri ile ezilebilir.
+# ⚠️ HİÇBİRİ ÖLÇÜLMEDİ — bunlar inanç, veri değil. Bu yüzden koda
+# gömülmedi: ayarı değiştirmek tek satır.
+VIDEO_ETIKETLERI = {"youtube": "Shorts", "reels": "keşfet", "tiktok": "keşfet"}
+
+
+def video_etiketleri(
+    haberler: list,
+    kanal: str = "reels",
+    ayarlar: dict | None = None,
+) -> list[str]:
+    """
+    Video platformları için TAM `VIDEO_HASHTAG_ADEDI` etiket seçer.
+
+    Kural (kullanıcı isteği, 4 Eyl 2026): 4 tanesi habere özel,
+    1 tanesi etkileşim etiketi.
+
+    ⚠️ SABİT ETİKETLER ATLANIYOR. `_hashtaglari_birlestir` onları başa
+    koyuyor ve videoda sayılan tek yer orası — jenerik etiketler haberin
+    kendi etiketlerini kapının önünde bırakıyordu.
+
+    ⚠️ Havuz darsa (haberin 4'ten az etiketi varsa) eksik kalan yer
+    SABİT_HASHTAGLER'dan dolduruluyor: 5 jenerik etiket, 2 etiketten
+    iyidir. Boş bırakmak yerine tamamlamak bilinçli tercih.
+    """
+    s = (ayarlar or {}).get("sosyal", {}) or {}
+    ozel = (s.get("video_etiketleri") or {})
+    etkilesim = (ozel.get(kanal) or VIDEO_ETIKETLERI.get(kanal) or "gündem")
+    etkilesim = etkilesim.strip().lstrip("#")
+
+    sabit = {_etiket_anahtari(e) for e in SABIT_HASHTAGLER}
+    hepsi = _hashtaglari_birlestir(haberler)
+
+    f = (ayarlar or {}).get("icerik_filtresi", {}) or {}
+    if f.get("acik"):
+        hepsi = filtre.hashtaglari_ele(hepsi, f.get("yasakli_hashtagler", []))
+
+    # Habere özel olanlar: sabit listede OLMAYANLAR.
+    habere_ozel = [e for e in hepsi if _etiket_anahtari(e) not in sabit]
+
+    secilen = habere_ozel[: VIDEO_HASHTAG_ADEDI - 1]
+
+    # Yetmezse sabit etiketlerle tamamla (etkileşim etiketini tekrarlama).
+    if len(secilen) < VIDEO_HASHTAG_ADEDI - 1:
+        goruldu = {_etiket_anahtari(e) for e in secilen} | {_etiket_anahtari(etkilesim)}
+        for e in SABIT_HASHTAGLER:
+            if len(secilen) >= VIDEO_HASHTAG_ADEDI - 1:
+                break
+            if _etiket_anahtari(e) not in goruldu:
+                goruldu.add(_etiket_anahtari(e))
+                secilen.append(e)
+
+    # Etkileşim etiketi EN SONA değil, listeye eklenir; zaten seçilmişse
+    # tekrarlanmaz ve yerine bir haber etiketi daha alınır.
+    if _etiket_anahtari(etkilesim) not in {_etiket_anahtari(e) for e in secilen}:
+        secilen.append(etkilesim)
+    else:
+        for e in habere_ozel[VIDEO_HASHTAG_ADEDI - 1:]:
+            if _etiket_anahtari(e) not in {_etiket_anahtari(x) for x in secilen}:
+                secilen.append(e)
+                break
+
+    return secilen[:VIDEO_HASHTAG_ADEDI]
+
+
+def video_aciklamasi(
+    metin: str,
+    haberler: list,
+    kanal: str = "reels",
+    ayarlar: dict | None = None,
+) -> str:
+    """
+    Carousel caption'ını video açıklamasına çevirir.
+
+    ⚠️ ONAYLANAN METİN KORUNUYOR — yalnızca hashtag kuyruğu değişiyor.
+    Gövde (manşetler, kaynaklar, atıf) Telegram'da onaylanan metnin
+    aynısı kalır; atıf satırları hukuken zorunlu (CC BY) ve
+    kırpılamaz.
+    """
+    etiketler = video_etiketleri(haberler, kanal=kanal, ayarlar=ayarlar)
+
+    # Mevcut hashtag kuyruğunu (yalnızca etiketlerden oluşan satırları) at.
+    satirlar = (metin or "").splitlines()
+    while satirlar:
+        s = satirlar[-1].strip()
+        if not s:
+            satirlar.pop()
+            continue
+        if s.startswith("#") and all(p.startswith("#") for p in s.split()):
+            satirlar.pop()
+            continue
+        break
+
+    govde = "\n".join(satirlar).rstrip()
+    kuyruk = " ".join(f"#{e}" for e in etiketler)
+    return f"{govde}\n\n{kuyruk}" if govde else kuyruk
+
+
 def atif_bloku(sonuclar: list[dict]) -> str:
     """
     Fotoğraf atıflarını hazırlar.

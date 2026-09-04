@@ -464,7 +464,14 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 from src import youtube
                 h0 = dict(haberler[0]) if haberler else {}
                 baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-                yt_res = youtube.shorts_yukle(paylasilan_video_yolu, baslik=baslik_yt, aciklama=metin, ayarlar=ayarlar)
+                # ⚠️ CAROUSEL METNİ VİDEOYA OLDUĞU GİBİ GİTMEZ — video
+                # platformları açıklamadaki yalnızca ilk 5 etiketi sayıyor
+                # ve carousel'in sabit/jenerik etiketleri başta duruyor.
+                # Gövde (manşet, kaynak, atıf) onaylandığı gibi kalıyor,
+                # yalnızca hashtag kuyruğu habere özel hale getiriliyor.
+                aciklama_yt = caption.video_aciklamasi(
+                    metin, haberler, kanal="youtube", ayarlar=ayarlar)
+                yt_res = youtube.shorts_yukle(paylasilan_video_yolu, baslik=baslik_yt, aciklama=aciklama_yt, ayarlar=ayarlar)
                 if yt_res.get("durum"):
                     yt_url = yt_res.get("url")
                     yt_notu = "\n▶️ YouTube Shorts yayınlandı"
@@ -486,7 +493,9 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 from src import tiktok
                 h0 = dict(haberler[0]) if haberler else {}
                 baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-                tt_res = tiktok.video_yukle(paylasilan_video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
+                etiket_tt = caption.video_etiketleri(
+                    haberler, kanal="tiktok", ayarlar=ayarlar)
+                tt_res = tiktok.video_yukle(paylasilan_video_yolu, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
                 if tt_res.get("durum"):
                     tt_publish_id = tt_res.get("publish_id")
                     # ⚠️ TASLAK İLE YAYINI AYIRT ET — bkz. telafi
@@ -848,7 +857,9 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
             video_url = upload_image.video_yukle(video_yolu, ayarlar)
             kapak_url = urller[0] if urller else None
-            post_id = instagram.reels_yayinla(video_url, metin, ayarlar, kapak_url=kapak_url)
+            aciklama_reels = caption.video_aciklamasi(
+                metin, haberler, kanal="reels", ayarlar=ayarlar)
+            post_id = instagram.reels_yayinla(video_url, aciklama_reels, ayarlar, kapak_url=kapak_url)
             con.execute("UPDATE haberler SET ig_post_id = ? WHERE telegram_message_id = ?", (post_id, mesaj_id))
             con.commit()
             ig_url = instagram.post_baglantisi(post_id, ayarlar)
@@ -874,7 +885,9 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
             h0 = dict(haberler[0]) if haberler else {}
             baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-            yt_res = youtube.shorts_yukle(video_yolu, baslik=baslik_yt, aciklama=metin, ayarlar=ayarlar)
+            aciklama_yt = caption.video_aciklamasi(
+                metin, haberler, kanal="youtube", ayarlar=ayarlar)
+            yt_res = youtube.shorts_yukle(video_yolu, baslik=baslik_yt, aciklama=aciklama_yt, ayarlar=ayarlar)
             if yt_res.get("durum"):
                 con.execute("UPDATE haberler SET youtube_post_id = ? WHERE telegram_message_id = ?", (yt_res.get("url"), mesaj_id))
                 con.commit()
@@ -895,7 +908,9 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
             h0 = dict(haberler[0]) if haberler else {}
             baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-            tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
+            etiket_tt = caption.video_etiketleri(
+                haberler, kanal="tiktok", ayarlar=ayarlar)
+            tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
             if tt_res.get("durum"):
                 con.execute("UPDATE haberler SET tiktok_post_id = ? WHERE telegram_message_id = ?", (tt_res.get("publish_id"), mesaj_id))
                 con.commit()

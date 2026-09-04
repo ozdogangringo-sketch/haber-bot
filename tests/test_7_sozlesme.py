@@ -1854,6 +1854,172 @@ def test_kanal_jetonlari_denetleniyor() -> None:
                 "bağlantı yok")
 
 
+def test_video_etiketleri_habere_ozel() -> None:
+    """
+    Video kanalları carousel caption'ını OLDUĞU GİBİ kullanmamalı.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): kullanıcı Reels'te fark etti —
+    video platformları açıklamadaki YALNIZCA İLK 5 etiketi sayıyor,
+    sonrakiler düz metin olarak basılıyor. `caption.SABIT_HASHTAGLER`
+    tam 5 etiket taşıyor ve `_hashtaglari_birlestir` onları BAŞA
+    koyuyor — o sıralama carousel için DOĞRU (30 etiket sığıyor,
+    kırpma sondan olsun diye) ama videoda haberin kendi etiketlerini
+    tamamen kapının önünde bırakıyordu.
+
+    ÖLÇÜLDÜ (4 gerçek yayın): dördünde de sayılan 5 etiket aynıydı —
+    gündem · haber · türkiye · sondakika · gününhaberleri. 'derbi',
+    'gemikazasi', 'organnakli' hiç sayılmadı. Üstelik ABD'deki bir tıp
+    haberine '#türkiye' basılıyordu: etkisiz değil, YANLIŞ.
+
+    ⚠️ AST ŞART, düz metin araması DEĞİL — bu dosyada ve
+    `onay_isle.py`'de 'video_aciklamasi' kelimesi yorumlarda da geçiyor
+    ve düz arama denetimi sahte geçiriyor (projede üç kez yaşandı).
+    """
+    import ast as _ast
+    from src import caption as _caption
+
+    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+
+    # --- 1) DAVRANIŞ: tam 5 etiket, jenerik olan yalnızca 1 tane ---
+    haber = {"ig_hashtag": "fenerbahce, besiktas, derbi, superlig, kadikoy"}
+    for kanal in ("reels", "youtube", "tiktok"):
+        e = _caption.video_etiketleri([haber], kanal=kanal, ayarlar=cfg)
+        denetle(len(e) == _caption.VIDEO_HASHTAG_ADEDI,
+                f"video etiketi sayısı 5 ({kanal})",
+                f"platform ilk 5'i sayıyor; {len(e)} etiket üretildi")
+
+        anahtar = [_caption._etiket_anahtari(x) for x in e]
+        denetle(len(anahtar) == len(set(anahtar)),
+                f"video etiketlerinde tekrar yok ({kanal})",
+                "aynı etiket iki kez basılıyor")
+
+        # ⚠️ TEKRAR DENETİMİ AYRI VERİ İSTİYOR. Yukarıdaki haberin
+        # etiketleri zaten benzersiz, yani kural orada hiç SINANMIYOR
+        # (negatif test verisi tuzağı — CLAUDE.md'de kayıtlı). Gerçek
+        # vaka: haberin etiketi 'kesfet' (ş'siz), etkileşim etiketi
+        # 'keşfet' (ş'li). `casefold()` ikisini farklı sayıyor ve
+        # '#kesfet #keşfet' yan yana basılıyordu.
+        # ⚠️ TEST KENDİ ÖLÇÜTÜNÜ KULLANMALI. İlk yazımda tekrar denetimi
+        # `_caption._etiket_anahtari` ile yapılıyordu — yani ölçtüğü
+        # kuralı uygulayan fonksiyonun ta kendisiyle. O fonksiyon
+        # bozulunca test de aynı körlükle bakıp TEMİZ geçiyordu
+        # (kasten bozularak görüldü: 306/306). Aşağıdaki normalizasyon
+        # `unicodedata` ile bağımsız kuruluyor.
+        def _bagimsiz_anahtar(s: str) -> str:
+            import unicodedata
+            s = s.replace("ı", "i").replace("I", "i").replace("İ", "i")
+            s = unicodedata.normalize("NFD", s.casefold())
+            return "".join(c for c in s if not unicodedata.combining(c))
+
+        capraz = _caption.video_etiketleri(
+            [{"ig_hashtag": "kesfet, shorts, deprem, izmir, afad, ege"}],
+            kanal=kanal, ayarlar=cfg)
+        c_anahtar = [_bagimsiz_anahtar(x) for x in capraz]
+        denetle(len(c_anahtar) == len(set(c_anahtar)),
+                f"Türkçe karakter varyantı tekrar saymıyor ({kanal})",
+                f"'kesfet'/'keşfet' ayrı sayılıp yan yana basıldı: {capraz}")
+
+        sabit = {_caption._etiket_anahtari(x)
+                 for x in _caption.SABIT_HASHTAGLER}
+        jenerik = [x for x in anahtar if x in sabit]
+        denetle(not jenerik,
+                f"habere özel etiketler jeneriğe yenilmiyor ({kanal})",
+                f"haberin 5 etiketi varken jenerik etiket girdi: {jenerik}")
+
+    # --- 2) DAVRANIŞ: etkileşim etiketi platforma göre değişiyor ---
+    yt = _caption.video_etiketleri([haber], kanal="youtube", ayarlar=cfg)
+    rl = _caption.video_etiketleri([haber], kanal="reels", ayarlar=cfg)
+    denetle(yt[-1] != rl[-1],
+            "etkileşim etiketi platforma göre değişiyor",
+            "'#Shorts' YouTube'da format sinyali, Instagram'da anlamsız; "
+            "tek etiket üç platformda aynı işi görmüyor")
+
+    # --- 3) DAVRANIŞ: havuz darsa 5'e tamamlanıyor ---
+    az = _caption.video_etiketleri([{"ig_hashtag": "deprem"}],
+                                   kanal="reels", ayarlar=cfg)
+    denetle(len(az) == _caption.VIDEO_HASHTAG_ADEDI,
+            "etiket havuzu darsa jenerikle tamamlanıyor",
+            "5 jenerik etiket, 2 etiketten iyidir; eksik bırakmak tercih "
+            "edilmedi")
+
+    # --- 4) DAVRANIŞ: gövde ve ATIF korunuyor ---
+    ham = ("Manşet burada\n\nFoto: Jane Doe (CC BY-SA 4.0)"
+           "\n\n#gündem #haber #türkiye #sondakika #gününhaberleri")
+    cikti = _caption.video_aciklamasi(ham, [haber], kanal="reels", ayarlar=cfg)
+    denetle("CC BY-SA 4.0" in cikti,
+            "video açıklamasında atıf korunuyor",
+            "Commons atıfları CC BY gereği HUKUKEN zorunlu, kırpılamaz")
+    denetle(cikti.count("#") == _caption.VIDEO_HASHTAG_ADEDI,
+            "eski hashtag kuyruğu atılıyor",
+            "eski kuyruk kalırsa etiket sayısı 5'i aşar ve sorun sürer")
+
+    # --- 5) BAĞLANTI (AST): üç kanal da caption'dan geçiyor mu ---
+    agac = _ast.parse((KOK / "scripts/onay_isle.py").read_text(encoding="utf-8"))
+    ham_metin = {"youtube": 0, "reels": 0, "tiktok": 0}
+    gecen = {"youtube": 0, "reels": 0, "tiktok": 0}
+
+    def _caption_cagrisi(d) -> bool:
+        """`caption.video_aciklamasi(...)` / `video_etiketleri(...)` mı?"""
+        return (isinstance(d, _ast.Call)
+                and isinstance(d.func, _ast.Attribute)
+                and d.func.attr in ("video_aciklamasi", "video_etiketleri"))
+
+    for n in _ast.walk(agac):
+        if not (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)):
+            continue
+        adi = n.func.attr
+        if adi == "shorts_yukle":
+            kanal = "youtube"
+            hedef = [k.value for k in n.keywords if k.arg == "aciklama"]
+        elif adi == "reels_yayinla":
+            kanal = "reels"
+            hedef = [n.args[1]] if len(n.args) > 1 else []
+        elif adi == "video_yukle" and isinstance(n.func.value, _ast.Name) \
+                and n.func.value.id == "tiktok":
+            kanal = "tiktok"
+            hedef = [k.value for k in n.keywords if k.arg == "etiketler"]
+        else:
+            continue
+
+        if not hedef:
+            ham_metin[kanal] += 1
+            continue
+        d = hedef[0]
+        # Doğrudan çağrı ya da caption çıktısını tutan değişken
+        if _caption_cagrisi(d):
+            gecen[kanal] += 1
+        elif isinstance(d, _ast.Name) and d.id.startswith(
+                ("aciklama_", "etiket_")):
+            gecen[kanal] += 1
+        else:
+            ham_metin[kanal] += 1
+
+    for kanal in ("youtube", "reels", "tiktok"):
+        denetle(gecen[kanal] > 0 and ham_metin[kanal] == 0,
+                f"{kanal} açıklaması caption.video_* üzerinden geçiyor",
+                f"{ham_metin[kanal]} çağrı ham carousel metnini kullanıyor — "
+                "'aynı kural bir kod yolunda uygulanmamış' hatası (1j/1p/1f)")
+
+    # --- 6) TikTok başlığı manşeti KIRPMIYOR ---
+    from src import tiktok as _tiktok
+    # ⚠️ "manşet bozulmadı mı" DİYE BAKMAK YETMİYOR. 140 karakterlik
+    # manşet, sondan kırpan bozuk bir sürümde de sağlam kalıyor —
+    # kesilen şey ETİKETİN ORTASI oluyor ('#besikt' gibi) ve test sahte
+    # geçiyor. İlk yazımda tam bu oldu, kasten bozulunca 303/303 dedi.
+    # Doğru ölçüt: çıktıdaki her etiket TAM ve listedeki etiketlerden
+    # biri olmalı.
+    verilen = ["fenerbahce", "besiktas", "derbi"]
+    uzun = "Ç" * 140
+    s = _tiktok.baslik_kur(uzun, verilen)
+    bulunan = re.findall(r"#(\S+)", s)
+    denetle(uzun in s
+            and len(s) <= _tiktok.TIKTOK_AZAMI_BASLIK
+            and all(e in verilen for e in bulunan),
+            "TikTok başlığı manşeti değil etiketi kırpıyor",
+            f"okuyucu için değerli olan manşet; sınır aşılınca etiket "
+            f"TAMAMEN düşmeli, yarım kalmamalı. Çıkan: {bulunan}")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1907,6 +2073,7 @@ def main() -> int:
         test_yazilan_durum_dosyasi_okunuyor,
         test_cagrilan_script_var_mi,
         test_kanal_jetonlari_denetleniyor,
+        test_video_etiketleri_habere_ozel,
     ):
         try:
             test()
