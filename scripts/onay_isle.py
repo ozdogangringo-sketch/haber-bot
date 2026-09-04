@@ -489,7 +489,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 tt_res = tiktok.video_yukle(paylasilan_video_yolu, baslik=baslik_tt, ayarlar=ayarlar)
                 if tt_res.get("durum"):
                     tt_publish_id = tt_res.get("publish_id")
-                    tt_notu = "\n🎵 TikTok videosu yüklendi"
+                    # ⚠️ TASLAK İLE YAYINI AYIRT ET — bkz. telafi
+                    # akışındaki uzun not. `video.publish` izni yoksa
+                    # video TASLAK kutusuna düşüyor ve elle yayınlanması
+                    # gerekiyor; "yüklendi" demek yanıltıcı.
+                    if tt_res.get("mod") == "inbox_draft":
+                        tt_notu = ("\n🎵 TikTok: TASLAK olarak yüklendi "
+                                   "— uygulamadan elle yayınla")
+                    else:
+                        tt_notu = "\n🎵 TikTok videosu yayınlandı"
                 else:
                     hata_tt = tt_res.get("hata", "")[:60]
                     tt_notu = f"\n⚠️ TikTok gitmedi: {hata_tt}"
@@ -891,7 +899,24 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             if tt_res.get("durum"):
                 con.execute("UPDATE haberler SET tiktok_post_id = ? WHERE telegram_message_id = ?", (tt_res.get("publish_id"), mesaj_id))
                 con.commit()
-                sonuclar.append("🎵 <b>TikTok Videosu:</b> Başarıyla yüklendi!")
+                # ⚠️ TASLAK İLE YAYINI AYIRT ET (4 Eyl 2026).
+                # `tiktok.video_yukle` önce doğrudan yayını deniyor,
+                # `video.publish` izni yoksa TASLAK kutusuna düşüyor ve
+                # `mod` alanında hangisi olduğunu söylüyor. Mesaj bunu
+                # yok sayıp her durumda "Başarıyla yüklendi!" diyordu —
+                # oysa taslak modunda video TikTok uygulamasında
+                # BEKLİYOR ve elle yayınlanması gerekiyor.
+                # Ölçüldü: yayınlanmış TÜM kayıtların publish_id'si
+                # `v_inbox_file~` ile başlıyor, yani doğrudan yayın HİÇ
+                # çalışmamış. (CLAUDE.md'deki "Yarım zinciri başarı
+                # sayma" dersinin aynısı.)
+                if tt_res.get("mod") == "inbox_draft":
+                    sonuclar.append(
+                        "🎵 <b>TikTok:</b> TASLAK olarak yüklendi — "
+                        "uygulamadan elle yayınlaman gerekiyor "
+                        "(<i>video.publish izni yok</i>)")
+                else:
+                    sonuclar.append("🎵 <b>TikTok Videosu:</b> Yayınlandı!")
             else:
                 sonuclar.append(f"⚠️ <b>TikTok:</b> Başarısız ({tt_res.get('hata', '')[:80]})")
         except Exception as e:

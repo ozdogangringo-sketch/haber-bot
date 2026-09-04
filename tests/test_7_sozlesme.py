@@ -1812,6 +1812,26 @@ def test_kanal_jetonlari_denetleniyor() -> None:
     cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
     kanallar = set((cfg.get("sosyal") or {}).get("kanallar") or [])
 
+    # --- TikTok TASLAK ile YAYIN ayırt edilmeli ---
+    #
+    # ⚠️ `tiktok.video_yukle` önce doğrudan yayını deniyor; `video.publish`
+    # izni yoksa TASLAK kutusuna düşüyor ve dönüşte `mod: "inbox_draft"`
+    # diyor. Mesajlar bunu YOK SAYIP her durumda "yüklendi" yazıyordu —
+    # oysa taslak modunda video TikTok uygulamasında BEKLİYOR ve elle
+    # yayınlanması gerekiyor. Ölçüldü (4 Eyl 2026): yayınlanmış TÜM
+    # kayıtların publish_id'si `v_inbox_file~` ile başlıyor, yani
+    # doğrudan yayın HİÇ çalışmamış — kullanıcı 68 postun tamamında
+    # "yüklendi" gördü ama hiçbiri yayınlanmadı.
+    #
+    # Bu, "Yarım zinciri başarı sayma" dersinin (Threads) TikTok
+    # karşılığı: yapılmamış işi başarı diye raporlamak, hatayı hiç
+    # görmemekten kötü.
+    oi = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    denetle(oi.count('tt_res.get("mod")') >= 2,
+            "TikTok taslak/yayın ayrımı HER İKİ akışta da yapılıyor",
+            "asıl yayın ve telafi akışı ayrı kod yolları — birine "
+            "eklenip diğerine unutulursa kullanıcı yine yanlış bilgi alır")
+
     denetle("saglik_testi" in rapor,
             "günlük rapor kanal sağlık testlerini çağırıyor",
             "jeton ölünce kimse fark etmiyor; yayın job'ı yalnızca "
