@@ -2444,6 +2444,16 @@ def test_komut_menusu_tutarli() -> None:
                         and isinstance(n.func, _ast.Attribute)
                         and n.func.attr == "komut_menusu_kaydet"):
                     cagiran.append(yol.name)
+    # ⚠️ GRUP KAPSAMI AYRICA YAZILMALI. Telegram komut listesini
+    # "scope"lara göre çözüyor; `default` teorik olarak hepsini kapsıyor
+    # ama istemciler grup sohbetinde `all_group_chats`i ayrıca sorguluyor.
+    # 4 Eyl 2026: default'ta 31 komut yazılıydı, `getMyCommands`
+    # doğruluyordu, kullanıcı grupta "/" yazınca ESKİ menüyü görüyordu.
+    tb = (KOK / "src/telegram_bot.py").read_text(encoding="utf-8")
+    denetle("all_group_chats" in tb,
+            "komut menüsü grup kapsamına da yazılıyor",
+            "yalnızca varsayılan kapsama yazılırsa grup menüsü bayat kalır")
+
     denetle(bool(cagiran),
             "komut menüsü Telegram'a gönderiliyor",
             "komut_menusu_kaydet() hiçbir yerden çağrılmıyor — menü ölü "

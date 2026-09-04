@@ -1021,21 +1021,45 @@ def kontrol_merkezi_menusu() -> list[list[dict]]:
 
 def komut_menusu_kaydet() -> bool:
     """
-    Telegram Botunun resmi komut açılır menüsünü (setMyCommands) kaydeder.
-    Kullanıcı Telegram'da '/' yazdığında Türkçe ve emojili komut listesi açılır.
-    """
-    from src.komutlar import KOMUT_MENUSU
-    komutlar = KOMUT_MENUSU
-    try:
-        url = TABAN.format(jeton=_jeton(), metot="setMyCommands")
-        r = requests.post(url, json={"commands": komutlar}, timeout=15)
-        res = r.json() if r.content else {}
-        if res.get("ok"):
-            log.info("Telegram komut menüsü başarıyla kaydedildi.")
-            return True
-        log.warning("Telegram komut menüsü kaydedilemedi: %s", res)
-        return False
-    except Exception as e:
-        log.warning("setMyCommands isteği başarısız: %s", e)
-        return False
+    Telegram komut açılır menüsünü (`setMyCommands`) kaydeder.
 
+    ⚠️ ÜÇ KAPSAMA BİRDEN YAZILIYOR. Telegram komut listesini "scope"lara
+    göre çözüyor. `default` teorik olarak hepsini kapsıyor ama
+    istemciler grup sohbetinde `all_group_chats` kapsamını ayrıca
+    sorguluyor; orası boşken menü geç tazeleniyor. 4 Eyl 2026:
+    `default`ta 31 komut yazılıydı, `getMyCommands` doğruluyordu, ama
+    kullanıcı grupta "/" yazınca ESKİ menüyü görüyordu.
+
+    ⚠️ TEK KAYNAK YİNE `KOMUT_MENUSU` — üç kapsam da AYNI listeyi
+    alıyor. Kapsam eklemek listeyi çoğaltmak değil, aynı listeyi birden
+    fazla rafa koymak; "aynı kural iki yerde" tuzağı doğmuyor.
+    """
+    import json as _json
+    from src.komutlar import KOMUT_MENUSU
+
+    kapsamlar = [
+        None,                                  # varsayılan
+        {"type": "all_private_chats"},
+        {"type": "all_group_chats"},
+    ]
+    basarili = 0
+    for kapsam in kapsamlar:
+        govde: dict = {"commands": KOMUT_MENUSU}
+        if kapsam:
+            govde["scope"] = _json.dumps(kapsam)
+        try:
+            url = TABAN.format(jeton=_jeton(), metot="setMyCommands")
+            r = requests.post(url, json=govde, timeout=15)
+            res = r.json() if r.content else {}
+            if res.get("ok"):
+                basarili += 1
+            else:
+                log.warning("komut menüsü kaydedilemedi (%s): %s",
+                            kapsam or "varsayılan", res)
+        except Exception as e:                        # noqa: BLE001
+            log.warning("setMyCommands isteği başarısız (%s): %s",
+                        kapsam or "varsayılan", e)
+
+    log.info("Telegram komut menüsü %d/%d kapsama yazıldı.",
+             basarili, len(kapsamlar))
+    return basarili == len(kapsamlar)
