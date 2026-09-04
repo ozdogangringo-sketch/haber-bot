@@ -2414,6 +2414,18 @@ def test_komut_menusu_tutarli() -> None:
             "menüdeki her komut bir gruba ait",
             f"grup simgesi taşımayan komutlar: {simgesiz}")
 
+    # ⚠️ AÇIKLAMA TELEFONDA KESİLİYOR. Ölçüldü (4 Eyl 2026, gerçek
+    # ekran görüntüsü): ~40 karakterden sonrası "…" ile gidiyor ve
+    # sondaki kullanım ipucu HİÇ görünmüyordu — "/dosya ✍️ Konunun
+    # A'dan Z'ye kronolojik do…" gibi. 31 açıklamanın 13'ü sınırı
+    # aşıyordu. Çözüm: parametre ipucu BAŞA alındı (`<konu>`) ve
+    # hepsi 38 karakterin altına indirildi.
+    uzunlar = [(d["command"], len(d["description"])) for d in KOMUT_MENUSU
+               if len(d["description"]) > 38]
+    denetle(not uzunlar,
+            "menü açıklamaları telefonda kesilmiyor",
+            f"38 karakteri aşan (sonu görünmeyecek): {uzunlar}")
+
     # --- /yardim metni menüyle aynı komutları anlatmalı ---
     yardim = js[js.index("Daily Brief Bot"):]
     yardim = yardim[:yardim.index('return new Response("ok");')]
