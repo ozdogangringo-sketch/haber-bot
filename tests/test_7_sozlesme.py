@@ -1887,7 +1887,7 @@ def test_video_etiketleri_habere_ozel() -> None:
     haberine '#türkiye' basılıyordu: etkisiz değil, YANLIŞ.
 
     ⚠️ AST ŞART, düz metin araması DEĞİL — bu dosyada ve
-    `onay_isle.py`'de 'video_aciklamasi' kelimesi yorumlarda da geçiyor
+    `onay_isle.py`'de 'aciklamayi_kur' kelimesi yorumlarda da geçiyor
     ve düz arama denetimi sahte geçiriyor (projede üç kez yaşandı).
     """
     import ast as _ast
@@ -1898,8 +1898,8 @@ def test_video_etiketleri_habere_ozel() -> None:
     # --- 1) DAVRANIŞ: tam 5 etiket, jenerik olan yalnızca 1 tane ---
     haber = {"ig_hashtag": "fenerbahce, besiktas, derbi, superlig, kadikoy"}
     for kanal in ("reels", "youtube", "tiktok"):
-        e = _caption.video_etiketleri([haber], kanal=kanal, ayarlar=cfg)
-        denetle(len(e) == _caption.VIDEO_HASHTAG_ADEDI,
+        e = _caption.etiketleri_sec([haber], kanal=kanal, ayarlar=cfg)
+        denetle(len(e) == _caption.HASHTAG_ADEDI,
                 f"video etiketi sayısı 5 ({kanal})",
                 f"platform ilk 5'i sayıyor; {len(e)} etiket üretildi")
 
@@ -1926,7 +1926,7 @@ def test_video_etiketleri_habere_ozel() -> None:
             s = unicodedata.normalize("NFD", s.casefold())
             return "".join(c for c in s if not unicodedata.combining(c))
 
-        capraz = _caption.video_etiketleri(
+        capraz = _caption.etiketleri_sec(
             [{"ig_hashtag": "kesfet, shorts, deprem, izmir, afad, ege"}],
             kanal=kanal, ayarlar=cfg)
         c_anahtar = [_bagimsiz_anahtar(x) for x in capraz]
@@ -1942,17 +1942,17 @@ def test_video_etiketleri_habere_ozel() -> None:
                 f"haberin 5 etiketi varken jenerik etiket girdi: {jenerik}")
 
     # --- 2) DAVRANIŞ: etkileşim etiketi platforma göre değişiyor ---
-    yt = _caption.video_etiketleri([haber], kanal="youtube", ayarlar=cfg)
-    rl = _caption.video_etiketleri([haber], kanal="reels", ayarlar=cfg)
+    yt = _caption.etiketleri_sec([haber], kanal="youtube", ayarlar=cfg)
+    rl = _caption.etiketleri_sec([haber], kanal="reels", ayarlar=cfg)
     denetle(yt[-1] != rl[-1],
             "etkileşim etiketi platforma göre değişiyor",
             "'#Shorts' YouTube'da format sinyali, Instagram'da anlamsız; "
             "tek etiket üç platformda aynı işi görmüyor")
 
     # --- 3) DAVRANIŞ: havuz darsa 5'e tamamlanıyor ---
-    az = _caption.video_etiketleri([{"ig_hashtag": "deprem"}],
+    az = _caption.etiketleri_sec([{"ig_hashtag": "deprem"}],
                                    kanal="reels", ayarlar=cfg)
-    denetle(len(az) == _caption.VIDEO_HASHTAG_ADEDI,
+    denetle(len(az) == _caption.HASHTAG_ADEDI,
             "etiket havuzu darsa jenerikle tamamlanıyor",
             "5 jenerik etiket, 2 etiketten iyidir; eksik bırakmak tercih "
             "edilmedi")
@@ -1960,13 +1960,61 @@ def test_video_etiketleri_habere_ozel() -> None:
     # --- 4) DAVRANIŞ: gövde ve ATIF korunuyor ---
     ham = ("Manşet burada\n\nFoto: Jane Doe (CC BY-SA 4.0)"
            "\n\n#gündem #haber #türkiye #sondakika #gününhaberleri")
-    cikti = _caption.video_aciklamasi(ham, [haber], kanal="reels", ayarlar=cfg)
+    cikti = _caption.aciklamayi_kur(ham, [haber], kanal="reels", ayarlar=cfg)
     denetle("CC BY-SA 4.0" in cikti,
             "video açıklamasında atıf korunuyor",
             "Commons atıfları CC BY gereği HUKUKEN zorunlu, kırpılamaz")
-    denetle(cikti.count("#") == _caption.VIDEO_HASHTAG_ADEDI,
+    denetle(cikti.count("#") == _caption.HASHTAG_ADEDI,
             "eski hashtag kuyruğu atılıyor",
             "eski kuyruk kalırsa etiket sayısı 5'i aşar ve sorun sürer")
+
+    # --- 4b) TELEGRAM'A DÜŞEN METİN de aynı kuralda ---
+    #
+    # ⚠️ NEDEN GEREKTİ: kural önce YALNIZCA videoya uygulandı, çünkü
+    # postun bot tarafından yayınlandığı varsayılmıştı. Kullanıcı
+    # *"telegrama düşen açıklama metnini ben paylaşırken manuel
+    # düzenliyorum"* deyince görüldü ki asıl metin BU — onay mesajı
+    # 11-12 etiketle gidiyordu ve her postta ilk beş jenerik etiket elle
+    # siliniyordu. Bu denetim UÇTAN UCA: gerçek caption üretiliyor.
+    import re as _re2
+    from src import filtre as _filtre
+    sahte = {
+        "id": 1, "ig_baslik": "Test başlığı", "ig_caption": "Gövde metni.",
+        "ig_hashtag": "alfa, beta, gama, delta, epsilon, zeta",
+        "kaynak": "TRT Haber", "onem_puani": 7, "son_dakika": 1,
+        "gorsel_kaynagi": "pexels", "gorsel_atif": "", "detay_metni": "",
+        "vurgu_sayi": "", "vurgu_etiket": "", "alinti": "", "alinti_sahibi": "",
+        "sana_etkisi": "", "etkilesim_sorusu": "", "ulke_kodu": "",
+    }
+    sonuclar = [{"id": 1, "katman": "pexels", "atif": ""}]
+    metin_sd = _filtre.markdown_temizle(
+        _caption.son_dakika_caption(sahte, sonuclar, cfg))
+    t_sd = _re2.findall(r"#(\w+)", metin_sd)
+    denetle(len(t_sd) == _caption.HASHTAG_ADEDI,
+            "Telegram'a düşen tekil metinde tam 5 etiket",
+            f"{len(t_sd)} etiket üretildi: {t_sd}")
+    sabit_kume = {_caption._etiket_anahtari(x)
+                  for x in _caption.SABIT_HASHTAGLER}
+    denetle(sum(1 for x in t_sd
+                if _caption._etiket_anahtari(x) in sabit_kume) == 0,
+            "Telegram metninde jenerik etiket habere özeli ezmiyor",
+            f"jenerik etiket girdi: {t_sd}")
+
+    # --- 4c) ÇOK HABERLİ TURDA SIRAYLA ---
+    #
+    # ⚠️ `_hashtaglari_birlestir` etiketleri HABER HABER sıralıyor;
+    # düz dilim dördünü de İLK haberden alıyordu ve 10 haberlik tur
+    # yalnızca ilk haberin etiketleriyle çıkıyordu.
+    coklu = [
+        {"ig_hashtag": "birinci, birinciek, birinciek2"},
+        {"ig_hashtag": "ikinci, ikinciek"},
+        {"ig_hashtag": "ucuncu, ucuncuek"},
+        {"ig_hashtag": "dorduncu, dorduncuek"},
+    ]
+    e_coklu = _caption.etiketleri_sec(coklu, kanal="instagram", ayarlar=cfg)
+    denetle(set(e_coklu[:4]) == {"birinci", "ikinci", "ucuncu", "dorduncu"},
+            "çok haberli turda her haberden birer etiket",
+            f"dördü de ilk haberden geliyor olabilir: {e_coklu}")
 
     # --- 5) BAĞLANTI (AST): üç kanal da caption'dan geçiyor mu ---
     agac = _ast.parse((KOK / "scripts/onay_isle.py").read_text(encoding="utf-8"))
@@ -1974,10 +2022,10 @@ def test_video_etiketleri_habere_ozel() -> None:
     gecen = {"youtube": 0, "reels": 0, "tiktok": 0}
 
     def _caption_cagrisi(d) -> bool:
-        """`caption.video_aciklamasi(...)` / `video_etiketleri(...)` mı?"""
+        """`caption.aciklamayi_kur(...)` / `etiketleri_sec(...)` mı?"""
         return (isinstance(d, _ast.Call)
                 and isinstance(d.func, _ast.Attribute)
-                and d.func.attr in ("video_aciklamasi", "video_etiketleri"))
+                and d.func.attr in ("aciklamayi_kur", "etiketleri_sec"))
 
     for n in _ast.walk(agac):
         if not (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)):

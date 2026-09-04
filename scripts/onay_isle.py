@@ -469,7 +469,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 # ve carousel'in sabit/jenerik etiketleri başta duruyor.
                 # Gövde (manşet, kaynak, atıf) onaylandığı gibi kalıyor,
                 # yalnızca hashtag kuyruğu habere özel hale getiriliyor.
-                aciklama_yt = caption.video_aciklamasi(
+                aciklama_yt = caption.aciklamayi_kur(
                     metin, haberler, kanal="youtube", ayarlar=ayarlar)
                 yt_res = youtube.shorts_yukle(paylasilan_video_yolu, baslik=baslik_yt, aciklama=aciklama_yt, ayarlar=ayarlar)
                 if yt_res.get("durum"):
@@ -493,7 +493,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 from src import tiktok
                 h0 = dict(haberler[0]) if haberler else {}
                 baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-                etiket_tt = caption.video_etiketleri(
+                etiket_tt = caption.etiketleri_sec(
                     haberler, kanal="tiktok", ayarlar=ayarlar)
                 tt_res = tiktok.video_yukle(paylasilan_video_yolu, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
                 if tt_res.get("durum"):
@@ -857,7 +857,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
             video_url = upload_image.video_yukle(video_yolu, ayarlar)
             kapak_url = urller[0] if urller else None
-            aciklama_reels = caption.video_aciklamasi(
+            aciklama_reels = caption.aciklamayi_kur(
                 metin, haberler, kanal="reels", ayarlar=ayarlar)
             post_id = instagram.reels_yayinla(video_url, aciklama_reels, ayarlar, kapak_url=kapak_url)
             con.execute("UPDATE haberler SET ig_post_id = ? WHERE telegram_message_id = ?", (post_id, mesaj_id))
@@ -885,7 +885,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
             h0 = dict(haberler[0]) if haberler else {}
             baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-            aciklama_yt = caption.video_aciklamasi(
+            aciklama_yt = caption.aciklamayi_kur(
                 metin, haberler, kanal="youtube", ayarlar=ayarlar)
             yt_res = youtube.shorts_yukle(video_yolu, baslik=baslik_yt, aciklama=aciklama_yt, ayarlar=ayarlar)
             if yt_res.get("durum"):
@@ -908,7 +908,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
             h0 = dict(haberler[0]) if haberler else {}
             baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-            etiket_tt = caption.video_etiketleri(
+            etiket_tt = caption.etiketleri_sec(
                 haberler, kanal="tiktok", ayarlar=ayarlar)
             tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
             if tt_res.get("durum"):

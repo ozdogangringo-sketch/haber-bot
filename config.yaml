@@ -906,10 +906,11 @@ sosyal:
   # hiçbir anlamı yok.
   # ⚠️ HİÇBİRİ ÖLÇÜLMEDİ — bunlar inanç, veri değil. Değiştirmek serbest;
   # tek doğru yol bir süre çalıştırıp erişimi karşılaştırmak.
-  video_etiketleri:
+  etkilesim_etiketleri:
     youtube: Shorts
     reels: keşfet
     tiktok: keşfet
+    instagram: keşfet
 
   # TikTok Content Posting API v2 üzerinden video paylaşılsın mı?
   # ⚠️ .env'de TIKTOK_ACCESS_TOKEN gerekiyor.

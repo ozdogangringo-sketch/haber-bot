@@ -76,7 +76,7 @@ def _hashtaglari_birlestir(haberler: list, azami: int = AZAMI_HASHTAG) -> list[s
 # gerçek yayında da ilk 5 aynıydı ve haberin kendi etiketleri
 # ('derbi', 'gemikazasi', 'organnakli') hiç sayılmadı. Üstelik ABD'deki
 # bir tıp haberine '#türkiye' basılıyordu: etkisiz değil, YANLIŞ.
-VIDEO_HASHTAG_ADEDI = 5
+HASHTAG_ADEDI = 5
 
 
 def _etiket_anahtari(etiket: str) -> str:
@@ -96,19 +96,19 @@ def _etiket_anahtari(etiket: str) -> str:
 # Etkileşim etiketi platforma göre değişir — tek bir etiket üç platformda
 # aynı işi görmüyor. '#Shorts' YouTube'da gerçek bir format/dağıtım
 # sinyali, Instagram'da hiçbir anlamı yok. Varsayılanlar config.yaml →
-# sosyal.video_etiketleri ile ezilebilir.
+# sosyal.etkilesim_etiketleri ile ezilebilir.
 # ⚠️ HİÇBİRİ ÖLÇÜLMEDİ — bunlar inanç, veri değil. Bu yüzden koda
 # gömülmedi: ayarı değiştirmek tek satır.
-VIDEO_ETIKETLERI = {"youtube": "Shorts", "reels": "keşfet", "tiktok": "keşfet"}
+ETKILESIM_ETIKETLERI = {"youtube": "Shorts", "reels": "keşfet", "tiktok": "keşfet"}
 
 
-def video_etiketleri(
+def etiketleri_sec(
     haberler: list,
     kanal: str = "reels",
     ayarlar: dict | None = None,
 ) -> list[str]:
     """
-    Video platformları için TAM `VIDEO_HASHTAG_ADEDI` etiket seçer.
+    Video platformları için TAM `HASHTAG_ADEDI` etiket seçer.
 
     Kural (kullanıcı isteği, 4 Eyl 2026): 4 tanesi habere özel,
     1 tanesi etkileşim etiketi.
@@ -122,8 +122,8 @@ def video_etiketleri(
     iyidir. Boş bırakmak yerine tamamlamak bilinçli tercih.
     """
     s = (ayarlar or {}).get("sosyal", {}) or {}
-    ozel = (s.get("video_etiketleri") or {})
-    etkilesim = (ozel.get(kanal) or VIDEO_ETIKETLERI.get(kanal) or "gündem")
+    ozel = (s.get("etkilesim_etiketleri") or {})
+    etkilesim = (ozel.get(kanal) or ETKILESIM_ETIKETLERI.get(kanal) or "gündem")
     etkilesim = etkilesim.strip().lstrip("#")
 
     sabit = {_etiket_anahtari(e) for e in SABIT_HASHTAGLER}
@@ -136,13 +136,42 @@ def video_etiketleri(
     # Habere özel olanlar: sabit listede OLMAYANLAR.
     habere_ozel = [e for e in hepsi if _etiket_anahtari(e) not in sabit]
 
-    secilen = habere_ozel[: VIDEO_HASHTAG_ADEDI - 1]
+    # ⚠️ ÇOK HABERLİ TURDA SIRAYLA AL. `_hashtaglari_birlestir` etiketleri
+    # HABER HABER sıralıyor (önce 1. haberin hepsi, sonra 2.'nin…), yani
+    # düz `[:4]` dilimi dördünü de İLK haberden alıyordu: 10 haberlik bir
+    # tur yalnızca "#skoda #skodapeaq #elektrikliarac #otomobil" ile
+    # etiketleniyor, kalan 9 haber hiç temsil edilmiyordu.
+    # Sırayla alınca her haberden birer etiket geliyor.
+    # Tek haberde davranış DEĞİŞMİYOR — tek liste var, sıra korunuyor.
+    if len(haberler) > 1:
+        gruplar = []
+        for haber in haberler:
+            ham = (haber["ig_hashtag"] if not isinstance(haber, dict)
+                   else haber.get("ig_hashtag")) or ""
+            grup = []
+            for etiket in re.split(r"[,\s]+", ham):
+                etiket = re.sub(r"[^0-9A-Za-zÇĞİÖŞÜçğıöşü]", "",
+                                etiket.strip().lstrip("#"))
+                if etiket and etiket in habere_ozel and etiket not in grup:
+                    grup.append(etiket)
+            if grup:
+                gruplar.append(grup)
+        sirali, goruldu = [], set()
+        for sira in range(max((len(g) for g in gruplar), default=0)):
+            for grup in gruplar:
+                if sira < len(grup) and grup[sira] not in goruldu:
+                    goruldu.add(grup[sira])
+                    sirali.append(grup[sira])
+        if sirali:
+            habere_ozel = sirali
+
+    secilen = habere_ozel[: HASHTAG_ADEDI - 1]
 
     # Yetmezse sabit etiketlerle tamamla (etkileşim etiketini tekrarlama).
-    if len(secilen) < VIDEO_HASHTAG_ADEDI - 1:
+    if len(secilen) < HASHTAG_ADEDI - 1:
         goruldu = {_etiket_anahtari(e) for e in secilen} | {_etiket_anahtari(etkilesim)}
         for e in SABIT_HASHTAGLER:
-            if len(secilen) >= VIDEO_HASHTAG_ADEDI - 1:
+            if len(secilen) >= HASHTAG_ADEDI - 1:
                 break
             if _etiket_anahtari(e) not in goruldu:
                 goruldu.add(_etiket_anahtari(e))
@@ -153,15 +182,15 @@ def video_etiketleri(
     if _etiket_anahtari(etkilesim) not in {_etiket_anahtari(e) for e in secilen}:
         secilen.append(etkilesim)
     else:
-        for e in habere_ozel[VIDEO_HASHTAG_ADEDI - 1:]:
+        for e in habere_ozel[HASHTAG_ADEDI - 1:]:
             if _etiket_anahtari(e) not in {_etiket_anahtari(x) for x in secilen}:
                 secilen.append(e)
                 break
 
-    return secilen[:VIDEO_HASHTAG_ADEDI]
+    return secilen[:HASHTAG_ADEDI]
 
 
-def video_aciklamasi(
+def aciklamayi_kur(
     metin: str,
     haberler: list,
     kanal: str = "reels",
@@ -175,7 +204,7 @@ def video_aciklamasi(
     aynısı kalır; atıf satırları hukuken zorunlu (CC BY) ve
     kırpılamaz.
     """
-    etiketler = video_etiketleri(haberler, kanal=kanal, ayarlar=ayarlar)
+    etiketler = etiketleri_sec(haberler, kanal=kanal, ayarlar=ayarlar)
 
     # Mevcut hashtag kuyruğunu (yalnızca etiketlerden oluşan satırları) at.
     satirlar = (metin or "").splitlines()
@@ -244,11 +273,16 @@ def son_dakika_caption(
         govde = filtre.metni_yumusat(govde, kelimeler)
         sana_etkisi = filtre.metni_yumusat(sana_etkisi, kelimeler)
 
-    etiketler = _hashtaglari_birlestir([h_dict])
-    if f.get("aktif") and f.get("captionda", True):
-        etiketler = filtre.hashtaglari_ele(
-            etiketler, f.get("yasakli_hashtagler", [])
-        )
+    # ⚠️ TELEGRAM'A DÜŞEN METİN, KULLANICININ ELLE PAYLAŞTIĞI METİNDİR.
+    # 4 Eyl 2026: etiket kuralı önce YALNIZCA videoya uygulandı, çünkü
+    # postun bot tarafından yayınlandığı varsayılmıştı. Kullanıcı
+    # *"telegrama düşen açıklama metnini ben paylaşırken manuel
+    # düzenliyorum"* deyince görüldü ki asıl metin BU. Onay mesajı
+    # 11-12 etiketle gidiyordu ve ilk beşi jenerikti; kullanıcı her
+    # postta o beşini elle siliyordu — üç yayında da birebir aynı
+    # düzeltmeyi yapmış (gündem/haber/türkiye/sondakika/gününhaberleri
+    # atılmış, habere özel etiketler bırakılmış).
+    etiketler = etiketleri_sec([h_dict], kanal="instagram", ayarlar=ayarlar)
 
     # "SON DAKİKA" ibaresi yalnızca gerçekten olağanüstü olaylarda (9+ puan)
     etiket_esigi = ((ayarlar or {}).get("genel", {})
@@ -423,7 +457,12 @@ def caption_kur(
             kaynaklar.append(ad)
     kaynak_satiri = "Kaynaklar: " + ", ".join(kaynaklar)
 
-    ham_etiketler = _hashtaglari_birlestir(haberler)
+    # ⚠️ 10 HABERLİK TURDA DA AYNI SINIR. Platform ilk 5 etiketi
+    # sayıyor; 30 etiket basmak carousel'de de kalanları düz metne
+    # çeviriyor. Turda etiketler haberler arasında paylaşılıyor —
+    # `etiketleri_sec` sırayı koruduğu için ilk (en önemli) haberlerin
+    # etiketleri öne geçiyor.
+    ham_etiketler = etiketleri_sec(haberler, kanal="instagram", ayarlar=ayarlar)
 
     # İçerik filtresi: kısıtlı etiketleri at, riskli kelimeleri yumuşat.
     # Atıf bloğuna DOKUNULMUYOR — orada fotoğrafçı adı ve lisans var,
