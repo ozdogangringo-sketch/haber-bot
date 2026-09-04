@@ -1,0 +1,82 @@
+/* Daily Brief — ortak stil.
+   Renkler slaytlardaki marka paletinden alındı:
+   petrol #04181C zemin, kehribar #E2AA58 vurgu, turkuaz #06B6D4 ikincil. */
+:root{
+  --petrol:#04181C; --petrol-2:#07222a;
+  --kehribar:#E2AA58; --turkuaz:#06B6D4;
+  --metin:#dbe4e6; --soluk:#8ba0a5; --baslik:#f4f8f8;
+  --cizgi:rgba(226,170,88,.16); --kart:rgba(255,255,255,.028);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; padding:0 20px 64px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  font-size:16px; line-height:1.7; color:var(--metin);
+  background:var(--petrol);
+  background-image:
+    radial-gradient(1100px 520px at 50% -12%, rgba(226,170,88,.10), transparent 62%),
+    radial-gradient(760px 420px at 88% 6%, rgba(6,182,212,.07), transparent 60%);
+  background-repeat:no-repeat;
+}
+.sayfa{max-width:720px;margin:0 auto}
+
+/* --- üst şerit --- */
+.ust{display:flex;align-items:center;gap:11px;padding:26px 0 4px}
+.rozet{
+  width:38px;height:38px;border-radius:11px;flex:none;
+  display:grid;place-items:center;
+  background:linear-gradient(145deg,#0d2f38,#061e24);
+  border:1px solid var(--cizgi);
+  color:var(--kehribar);font-weight:800;font-size:14px;letter-spacing:.5px;
+}
+.ust b{color:var(--baslik);font-size:15px;font-weight:650;letter-spacing:.2px}
+.ust span{color:var(--soluk);font-size:13px}
+
+h1{color:var(--baslik);font-size:30px;line-height:1.25;margin:26px 0 6px;letter-spacing:-.4px}
+h2{color:var(--kehribar);font-size:16px;margin:34px 0 8px;letter-spacing:.2px}
+h3{color:var(--baslik);font-size:16px;margin:0 0 6px}
+p{margin:0 0 14px}
+a{color:var(--kehribar);text-decoration:none;border-bottom:1px solid rgba(226,170,88,.32)}
+a:hover{border-bottom-color:var(--kehribar)}
+strong{color:var(--baslik);font-weight:650}
+code{background:rgba(255,255,255,.06);padding:1px 6px;border-radius:5px;font-size:.9em}
+ul{padding-left:20px;margin:0 0 14px}
+li{margin:5px 0}
+.updated{color:var(--soluk);font-size:13.5px;margin:0 0 22px}
+
+/* --- dil sekmeleri --- */
+.tabs{display:flex;gap:4px;margin:22px 0 26px;
+  border-bottom:1px solid rgba(255,255,255,.07)}
+.tab{padding:9px 16px;background:none;border:0;border-bottom:2px solid transparent;
+  color:var(--soluk);font-size:13.5px;font-weight:650;cursor:pointer;
+  font-family:inherit;transition:color .15s}
+.tab:hover{color:var(--metin)}
+.tab.active{color:var(--kehribar);border-bottom-color:var(--kehribar)}
+.lang{display:none}
+.lang.active{display:block}
+
+/* --- kanal düğmeleri --- */
+.kanallar{display:flex;flex-wrap:wrap;gap:9px;margin:24px 0 6px}
+.kanallar a{
+  padding:9px 17px;border-radius:999px;border:1px solid var(--cizgi);
+  background:var(--kart);color:var(--metin);font-size:13.5px;font-weight:650;
+  transition:border-color .16s, color .16s, background .16s}
+.kanallar a:hover{border-color:var(--kehribar);color:var(--kehribar);
+  background:rgba(226,170,88,.07)}
+
+/* --- kartlar --- */
+.kart{border:1px solid rgba(255,255,255,.075);border-radius:14px;
+  background:var(--kart);padding:20px 22px;margin:14px 0}
+.kart p{color:var(--soluk);font-size:14.5px;margin:0}
+
+footer{margin-top:52px;padding-top:20px;border-top:1px solid rgba(255,255,255,.07);
+  color:var(--soluk);font-size:13px}
+footer a{color:var(--soluk);border-bottom-color:rgba(255,255,255,.14)}
+footer a:hover{color:var(--kehribar)}
+footer p{margin:0 0 6px}
+
+@media (max-width:560px){
+  h1{font-size:25px}
+  body{padding:0 16px 48px}
+}

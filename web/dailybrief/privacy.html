@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Daily Brief — Gizlilik Politikası / Privacy Policy</title>
+<style>
+/* Daily Brief — ortak stil.
+   Renkler slaytlardaki marka paletinden alındı:
+   petrol #04181C zemin, kehribar #E2AA58 vurgu, turkuaz #06B6D4 ikincil. */
+:root{
+  --petrol:#04181C; --petrol-2:#07222a;
+  --kehribar:#E2AA58; --turkuaz:#06B6D4;
+  --metin:#dbe4e6; --soluk:#8ba0a5; --baslik:#f4f8f8;
+  --cizgi:rgba(226,170,88,.16); --kart:rgba(255,255,255,.028);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; padding:0 20px 64px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  font-size:16px; line-height:1.7; color:var(--metin);
+  background:var(--petrol);
+  background-image:
+    radial-gradient(1100px 520px at 50% -12%, rgba(226,170,88,.10), transparent 62%),
+    radial-gradient(760px 420px at 88% 6%, rgba(6,182,212,.07), transparent 60%);
+  background-repeat:no-repeat;
+}
+.sayfa{max-width:720px;margin:0 auto}
+
+/* --- üst şerit --- */
+.ust{display:flex;align-items:center;gap:11px;padding:26px 0 4px}
+.rozet{
+  width:38px;height:38px;border-radius:11px;flex:none;
+  display:grid;place-items:center;
+  background:linear-gradient(145deg,#0d2f38,#061e24);
+  border:1px solid var(--cizgi);
+  color:var(--kehribar);font-weight:800;font-size:14px;letter-spacing:.5px;
+}
+.ust b{color:var(--baslik);font-size:15px;font-weight:650;letter-spacing:.2px}
+.ust span{color:var(--soluk);font-size:13px}
+
+h1{color:var(--baslik);font-size:30px;line-height:1.25;margin:26px 0 6px;letter-spacing:-.4px}
+h2{color:var(--kehribar);font-size:16px;margin:34px 0 8px;letter-spacing:.2px}
+h3{color:var(--baslik);font-size:16px;margin:0 0 6px}
+p{margin:0 0 14px}
+a{color:var(--kehribar);text-decoration:none;border-bottom:1px solid rgba(226,170,88,.32)}
+a:hover{border-bottom-color:var(--kehribar)}
+strong{color:var(--baslik);font-weight:650}
+code{background:rgba(255,255,255,.06);padding:1px 6px;border-radius:5px;font-size:.9em}
+ul{padding-left:20px;margin:0 0 14px}
+li{margin:5px 0}
+.updated{color:var(--soluk);font-size:13.5px;margin:0 0 22px}
+
+/* --- dil sekmeleri --- */
+.tabs{display:flex;gap:4px;margin:22px 0 26px;
+  border-bottom:1px solid rgba(255,255,255,.07)}
+.tab{padding:9px 16px;background:none;border:0;border-bottom:2px solid transparent;
+  color:var(--soluk);font-size:13.5px;font-weight:650;cursor:pointer;
+  font-family:inherit;transition:color .15s}
+.tab:hover{color:var(--metin)}
+.tab.active{color:var(--kehribar);border-bottom-color:var(--kehribar)}
+.lang{display:none}
+.lang.active{display:block}
+
+/* --- kanal düğmeleri --- */
+.kanallar{display:flex;flex-wrap:wrap;gap:9px;margin:24px 0 6px}
+.kanallar a{
+  padding:9px 17px;border-radius:999px;border:1px solid var(--cizgi);
+  background:var(--kart);color:var(--metin);font-size:13.5px;font-weight:650;
+  transition:border-color .16s, color .16s, background .16s}
+.kanallar a:hover{border-color:var(--kehribar);color:var(--kehribar);
+  background:rgba(226,170,88,.07)}
+
+/* --- kartlar --- */
+.kart{border:1px solid rgba(255,255,255,.075);border-radius:14px;
+  background:var(--kart);padding:20px 22px;margin:14px 0}
+.kart p{color:var(--soluk);font-size:14.5px;margin:0}
+
+footer{margin-top:52px;padding-top:20px;border-top:1px solid rgba(255,255,255,.07);
+  color:var(--soluk);font-size:13px}
+footer a{color:var(--soluk);border-bottom-color:rgba(255,255,255,.14)}
+footer a:hover{color:var(--kehribar)}
+footer p{margin:0 0 6px}
+
+@media (max-width:560px){
+  h1{font-size:25px}
+  body{padding:0 16px 48px}
+}
+</style>
+</head>
+<body>
+<div class="sayfa">
+<div class="ust">
+  <div class="rozet">DB</div>
+  <div><b>Daily Brief</b><br><span>Ozborn Studio</span></div>
+</div>
+<div class="tabs">
+  <button class="tab active" onclick="switchLang('tr')" id="tab-tr">Türkçe</button>
+  <button class="tab" onclick="switchLang('en')" id="tab-en">English</button>
+</div>
+<section class="lang active" id="lang-tr">
+<h1>Daily Brief Gizlilik Politikası</h1>
+<p class="updated">Son güncelleme: 4 Eylül 2026</p>
+
+<h2>1. Daily Brief nedir</h2>
+<p>Daily Brief, Ozborn Studio tarafından işletilen <strong>otomatik bir haber
+yayıncılığı aracıdır</strong>. Kamuya açık haber kaynaklarını (RSS) tarar,
+haberleri özetleyip görselleştirir ve Ozborn Studio'ya ait sosyal medya
+hesaplarında yayınlar. Son kullanıcıya sunulan bir uygulama, web sitesi ya da
+hesap açılabilen bir hizmet <em>değildir</em>.</p>
+
+<h2>2. Sizden TOPLANMAYAN veriler</h2>
+<p>Daily Brief'in ziyaretçilerden veya takipçilerden topladığı hiçbir kişisel
+veri yoktur. Somut olarak:</p>
+<ul>
+  <li>Hesap oluşturma, giriş veya kayıt <strong>yoktur</strong>.</li>
+  <li>Çerez, piksel veya reklam takibi <strong>kullanılmaz</strong>.</li>
+  <li>Konum, kişiler, cihaz kimliği veya kullanım analitiği
+      <strong>toplanmaz</strong>.</li>
+  <li>Sosyal medya takipçilerinin profil bilgileri <strong>okunmaz ve
+      saklanmaz</strong>.</li>
+</ul>
+
+<h2>3. İşlenen tek veri: kamuya açık haberler</h2>
+<p>Sistem yalnızca yayıncı kuruluşların kamuya açık RSS beslemelerinden gelen
+haber başlığı, özeti, bağlantısı ve yayın tarihini işler. Bu veriler özel bir
+veritabanında saklanır ve yalnızca yayın üretmek için kullanılır.</p>
+
+<h2>4. Kullanılan üçüncü taraf servisler</h2>
+<ul>
+  <li><strong>Google Gemini</strong> — haber metninden başlık, özet ve görsel
+      tarifi üretimi. Gönderilen içerik yalnızca kamuya açık haber metnidir.</li>
+  <li><strong>Wikimedia Commons</strong> ve <strong>Pexels</strong> — lisansı
+      uygun fotoğraf temini.</li>
+  <li><strong>imgbb</strong> — yayın öncesi görsel barındırma.</li>
+  <li><strong>Meta (Instagram, Facebook, Threads)</strong>,
+      <strong>X</strong>, <strong>YouTube</strong>, <strong>TikTok</strong> —
+      yalnızca Ozborn Studio'ya ait hesaplara <em>yayın yapmak</em> için.
+      Bu platformlardan kullanıcı verisi çekilmez.</li>
+  <li><strong>Telegram</strong> — yalnızca işletmecinin kendi onay akışı için.
+      Dışarıya kapalıdır.</li>
+</ul>
+<p>Bu servislerin kendi gizlilik politikaları geçerlidir.</p>
+
+<h2>5. Google hesabı erişimi</h2>
+<p>Uygulama, YouTube'a video yükleyebilmek için Ozborn Studio'nun <strong>kendi
+YouTube kanalına</strong> yükleme izni ister (<code>youtube.upload</code>).
+Bu izin yalnızca kendi kanalımıza içerik yüklemek için kullanılır; başka bir
+kullanıcının hesabına erişilmez, kanal verisi okunmaz ve üçüncü taraflarla
+paylaşılmaz. Erişim
+<a href="https://myaccount.google.com/permissions">Google Hesap İzinleri</a>
+sayfasından dilediğiniz an kaldırılabilir.</p>
+
+<h2>6. Saklama süresi</h2>
+<p>Yayınlanmamış haber kayıtları <strong>3 gün</strong> sonra otomatik silinir.
+Yayınlanmış içeriğin kaydı, aynı haberin ikinci kez paylaşılmasını önlemek için
+saklanır.</p>
+
+<h2>7. İletişim</h2>
+<p>Sorularınız ve talepleriniz için:
+<a href="mailto:support@ozbornstudio.com">support@ozbornstudio.com</a></p>
+</section>
+
+<section class="lang" id="lang-en">
+<h1>Daily Brief Privacy Policy</h1>
+<p class="updated">Last updated: 4 September 2026</p>
+
+<h2>1. What Daily Brief is</h2>
+<p>Daily Brief is an <strong>automated news publishing tool</strong> operated by
+Ozborn Studio. It reads public news feeds (RSS), summarises and illustrates
+them, and publishes to social media accounts owned by Ozborn Studio. It is
+<em>not</em> a consumer application, website, or a service you can sign up
+for.</p>
+
+<h2>2. Data we do NOT collect</h2>
+<p>Daily Brief collects no personal data from visitors or followers.
+Specifically:</p>
+<ul>
+  <li>There is <strong>no</strong> account creation, login, or registration.</li>
+  <li>We use <strong>no</strong> cookies, pixels, or advertising trackers.</li>
+  <li>We collect <strong>no</strong> location, contacts, device identifiers, or
+      usage analytics.</li>
+  <li>We do <strong>not</strong> read or store follower profile data.</li>
+</ul>
+
+<h2>3. The only data processed: public news</h2>
+<p>The system processes only the headline, summary, link and publication date
+provided by publishers' public RSS feeds. This is stored in a private database
+and used solely to produce posts.</p>
+
+<h2>4. Third-party services used</h2>
+<ul>
+  <li><strong>Google Gemini</strong> — generating headlines, summaries and image
+      briefs from news text. Only public news text is sent.</li>
+  <li><strong>Wikimedia Commons</strong> and <strong>Pexels</strong> —
+      appropriately licensed photographs.</li>
+  <li><strong>imgbb</strong> — image hosting prior to publication.</li>
+  <li><strong>Meta (Instagram, Facebook, Threads)</strong>,
+      <strong>X</strong>, <strong>YouTube</strong>, <strong>TikTok</strong> —
+      solely to <em>publish</em> to accounts owned by Ozborn Studio. No user
+      data is retrieved from these platforms.</li>
+  <li><strong>Telegram</strong> — the operator's internal approval flow only.
+      It is not open to the public.</li>
+</ul>
+<p>Those services' own privacy policies apply.</p>
+
+<h2>5. Google account access</h2>
+<p>To upload videos, the application requests permission to upload to Ozborn
+Studio's <strong>own YouTube channel</strong> (<code>youtube.upload</code>).
+This permission is used only to upload our own content; no other user's account
+is accessed, no channel data is read, and nothing is shared with third parties.
+Access can be revoked at any time from
+<a href="https://myaccount.google.com/permissions">Google Account
+Permissions</a>.</p>
+
+<h2>6. Retention</h2>
+<p>Unpublished news records are deleted automatically after <strong>3
+days</strong>. Records of published items are kept to prevent the same story
+being posted twice.</p>
+
+<h2>7. Contact</h2>
+<p>Questions and requests:
+<a href="mailto:support@ozbornstudio.com">support@ozbornstudio.com</a></p>
+</section>
+<footer>
+  <p>Daily Brief · <a href="https://ozbornstudio.com">Ozborn Studio</a></p>
+  <p><a href="/">Ana sayfa</a> · <a href="/privacy">Gizlilik Politikası</a> ·
+     <a href="/terms">Kullanım Koşulları</a> ·
+     <a href="mailto:support@ozbornstudio.com">support@ozbornstudio.com</a></p>
+</footer>
+</div>
+<script>
+function switchLang(k){
+  document.querySelectorAll('.lang').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById('lang-'+k).classList.add('active');
+  document.getElementById('tab-'+k).classList.add('active');
+}
+</script>
+</body>
+</html>
