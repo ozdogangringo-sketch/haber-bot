@@ -2473,6 +2473,56 @@ def test_komut_menusu_tutarli() -> None:
             "değiştirmiyor")
 
 
+def test_kardes_havuzu_cagrilarda_da_acik() -> None:
+    """
+    `con` yalnızca İMZADA değil, ÇAĞRIDA da olmalı.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): sözleşme testi `slayt_uret` ·
+    `tur_uret` · `son_dakika_uret` · `arkaplan_sec` imzalarında `con`
+    var mı diye bakıyordu ve TEMİZ geçiyordu. Ama `con=None`
+    varsayılanı taşıyan bir imza, çağıranın onu GEÇTİĞİNİ göstermez:
+    ölçüldü, `onay_isle`'deki **10 `slayt_uret` çağrısının hiçbiri**
+    `con` geçmiyordu. Yani kardeş görsel havuzu — 3 Eyl'de kurulup
+    "voleybolda 24 kat piksel kazancı" diye ölçülen mekanizma — tekil
+    slayt üretiminde HİÇ ÇALIŞMIYORDU. Sessizce: `con is None` olunca
+    havuz atlanıyor, hata verilmiyor.
+
+    Belirtisi kullanıcıdan geldi: Galatasaray maçında og:image düşük
+    çözünürlüklüydü ve havuzda aynı maçın başka kaynaktan fotoğrafı
+    dururken kullanılmadı.
+
+    ⚠️ İMZA DENETİMİ İLE ÇAĞRI DENETİMİ AYRI ŞEYLERDİR. Biri "kapı
+    var mı", diğeri "kapıdan geçiliyor mu" diye soruyor.
+    """
+    import ast as _ast
+
+    agac = _ast.parse((KOK / "scripts/onay_isle.py").read_text(encoding="utf-8"))
+    con_alan = {n.name for n in _ast.walk(agac)
+                if isinstance(n, _ast.FunctionDef)
+                and any(a.arg == "con" for a in n.args.args)}
+    denetle(len(con_alan) > 5, "con alan fonksiyonlar bulundu",
+            f"yalnızca {len(con_alan)} bulundu — tarama bozuk olabilir")
+
+    eksik = []
+    for fn in [n for n in _ast.walk(agac) if isinstance(n, _ast.FunctionDef)]:
+        if fn.name not in con_alan:
+            continue
+        for n in _ast.walk(fn):
+            if not (isinstance(n, _ast.Call)
+                    and isinstance(n.func, _ast.Attribute)):
+                continue
+            if n.func.attr not in ("slayt_uret", "tur_uret", "son_dakika_uret"):
+                continue
+            # `con` ya anahtar kelimeyle ya da 3. konumsal argüman olarak
+            konumsal_con = len(n.args) >= 3
+            if not any(k.arg == "con" for k in n.keywords) and not konumsal_con:
+                eksik.append(f"{fn.name}:{n.end_lineno} {n.func.attr}")
+
+    denetle(not eksik,
+            "slayt üreten çağrılar con taşıyor (kardeş havuzu açık)",
+            f"con geçmeyen çağrılar — kardeş havuzu SESSİZCE kapalı: {eksik}")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -2531,6 +2581,7 @@ def main() -> int:
         test_her_dugme_workerda_karsilaniyor,
         test_worker_komutlari_python_tarafinda_var,
         test_komut_menusu_tutarli,
+        test_kardes_havuzu_cagrilarda_da_acik,
     ):
         try:
             test()

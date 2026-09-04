@@ -262,6 +262,61 @@ def kardes_linkler(con, haber, azami: int = KARDES_AZAMI) -> list[str]:
     return linkler
 
 
+def _haber_gorseli_alternatifi(haber, g, con, sira: int):
+    """
+    "Başka fotoğraf" için SIRADAKİ haber görseli.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): kullanıcı Galatasaray-Başakşehir
+    maçında düşük çözünürlüklü ama DOĞRU fotoğrafı görüp "başka
+    fotoğraf"a bastı; 2. denemede 2008 tarihli bir stadyum tifosu,
+    3. denemede **bambaşka bir kulübün** (Arjantin) fotoğrafı geldi.
+
+    Kök sebep: `atlanacak > 0` olduğunda og:image katmanı ATLANIYORDU
+    ve onunla birlikte **kardeş görsel havuzu** da atlanıyordu. Oysa
+    havuz tam bu iş için kurulmuştu: aynı olayı işleyen diğer
+    kaynakların fotoğrafları. Kullanıcı "bu yanlış" demiyor, "bu
+    kalitesiz" diyor — en iyi kaynağı terk etmek yanlış cevap.
+
+    Sıra: og:image → kardeş 1 → kardeş 2 → … tükenince Commons/Pexels.
+
+    ⚠️ Burada ÇÖZÜNÜRLÜĞE göre değil SIRAYA göre seçiliyor. `atlanacak=0`
+    yolundaki "en büyüğü al" davranışı değişmedi; alternatif isteyen
+    kullanıcıya her basışta FARKLI bir fotoğraf lazım, en büyüğü değil.
+    """
+    adaylar = [haber["link"]] + list(kardes_linkler(con, haber))
+    if sira >= len(adaylar):
+        log.info("haber görseli alternatifi tükendi (%d aday, %d. isteniyor)",
+                 len(adaylar), sira)
+        return None, None
+    link = adaylar[sira]
+    try:
+        url = fetch_article.og_gorseli_cek(link)
+        if not url:
+            return None, None
+        foto = _gorseli_indir(url, g)
+        if foto is None:
+            return None, None
+        kaynak = _kaynak_adi(con, link)
+        log.info("haber görseli alternatifi #%d: %dx%d (%s)",
+                 sira, foto.width, foto.height, kaynak)
+        return foto, kaynak
+    except Exception as e:                            # noqa: BLE001
+        log.warning("alternatif haber görseli alınamadı: %s", e)
+        return None, None
+
+
+def _kaynak_adi(con, link: str) -> str:
+    """Kardeş görselin geldiği yayın kuruluşu — atıf için."""
+    try:
+        r = con.execute("SELECT kaynak FROM haberler WHERE link = ?",
+                        (link,)).fetchone()
+        if r:
+            return make_image.kaynak_gosterim_adi(r[0], None)
+    except Exception:                                 # noqa: BLE001
+        pass
+    return "haber kaynağı"
+
+
 def _en_iyi_haber_gorseli(haber, g: dict, con=None):
     """
     og:image adayları arasından EN İYİSİNİ seçer (ilkini değil).
@@ -425,8 +480,23 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             log.warning("AI görsel hatası (%s), normal zincire düşülüyor", e)
 
     # --- 0.5) Haberin kendi görseli (og:image) ---
+    #
+    # ⚠️ "BAŞKA FOTOĞRAF" ARTIK ÖNCE KARDEŞLERİ GEZİYOR. Eskiden
+    # `atlanacak > 0` bu katmanı komple atlıyordu ve kullanıcı ikinci
+    # basışta doğrudan Commons/Pexels'e düşüyordu — ölçüldü (4 Eyl):
+    # doğru ama düşük çözünürlüklü fotoğraf → 2008 tarihli tifo →
+    # başka kulübün fotoğrafı. Kullanıcı "bu yanlış" demiyor, "bu
+    # kalitesiz" diyor; en iyi kaynağı terk etmek yanlış cevap.
     if not haber_gorseli_atla and atlanacak == 0:
         foto, foto_kaynak = _en_iyi_haber_gorseli(haber, g, con)
+        if foto is not None:
+            return (
+                make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                "haber",
+                f"Foto: {foto_kaynak}",
+            )
+    elif atlanacak > 0 and con is not None:
+        foto, foto_kaynak = _haber_gorseli_alternatifi(haber, g, con, atlanacak)
         if foto is not None:
             return (
                 make_image.fotograftan_arkaplan(foto, genislik, yukseklik),

@@ -224,7 +224,7 @@ def _urlleri_dogrula_ve_onar(con, ayarlar: dict, haberler: list[dict | sqlite3.R
 
         try:
             from src import slaytlar
-            slayt_sonuc = slaytlar.slayt_uret(h_d, ayarlar, sira=idx + 1)
+            slayt_sonuc = slaytlar.slayt_uret(h_d, ayarlar, sira=idx + 1, con=con)
             yol = slayt_sonuc.get("yol") if isinstance(slayt_sonuc, dict) else Path(h_d.get("gorsel_yolu", ""))
             if yol and Path(yol).exists():
                 yeni_yukleme = upload_image.gorsel_yukle(Path(yol), ayarlar)
@@ -1834,7 +1834,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         )
         con.commit()
         taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
-        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar, con=con)
         yukleme = upload_image.gorsel_yukle(yol, ayarlar)
         story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
         story_url = yukleme["url"]
@@ -1864,7 +1864,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         )
         con.commit()
         taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
-        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar, con=con)
         yukleme = upload_image.gorsel_yukle(yol, ayarlar)
         story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
         story_url = yukleme["url"]
@@ -1900,7 +1900,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
                 )
                 con.commit()
                 taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
-                yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+                yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar, con=con)
                 yukleme = upload_image.gorsel_yukle(yol, ayarlar)
                 story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
                 story_url = yukleme["url"]
@@ -1997,7 +1997,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
                         con.execute("UPDATE haberler SET ig_caption = ? WHERE id = ?", (yeni_cap, haber["id"]))
                         con.commit()
                     else:
-                        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+                        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar, con=con)
                         yukleme = upload_image.gorsel_yukle(yol, ayarlar)
                         story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
                         story_url = yukleme["url"]
@@ -2042,7 +2042,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
                     (haber["id"],))
         con.commit()
         taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
-        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar, con=con)
         yukleme = upload_image.gorsel_yukle(yol, ayarlar)
         story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
         story_url = yukleme["url"]
@@ -2101,7 +2101,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     foto_atla = (komut == "slayt_foto" or deneme > 0)
     yol, katman, atif = slaytlar.slayt_uret(
         taze, ayarlar, zorla_ai=zorla_ai, atlanacak=deneme,
-        haber_gorseli_atla=foto_atla)
+        haber_gorseli_atla=foto_atla, con=con)
 
     yukleme = upload_image.gorsel_yukle(yol, ayarlar)
     story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
@@ -2287,7 +2287,7 @@ def metin_duzenle(con, ayarlar: dict, haberler: list, mesaj_id: int, gelen_metin
     # Durum 2: Görsel Onayı Aşaması (Slayt üretilmiş durumda)
     # Slaytı yeni başlıkla yeniden çiziyoruz
     taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
-    yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar)
+    yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar, con=con)
     yukleme = upload_image.gorsel_yukle(yol, ayarlar)
     story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
     story_url = yukleme["url"]
@@ -2453,7 +2453,7 @@ def havuzdan_haber_ekle(con, ayarlar: dict, haberler: list, mesaj_id: int) -> in
         return 0
 
     # Durum 2: Görsel onayı aşaması (Slayt üretilmeli)
-    yol, katman, atif = slaytlar.slayt_uret(aday_haber, ayarlar)
+    yol, katman, atif = slaytlar.slayt_uret(aday_haber, ayarlar, con=con)
     yukleme = upload_image.gorsel_yukle(yol, ayarlar)
     story_yol = make_image.CIKTI_KLASORU / f"story-{aday_haber['id']}.jpg"
     story_url = yukleme["url"]
@@ -2588,7 +2588,7 @@ def haberi_degistir_uygula(con, ayarlar, haberler, eski_id: int, yeni_id: int,
             atif = sonuclar[0].get("atif", "")
             yol = sonuclar[0].get("yol", "")
         else:
-            yol, katman, atif = slaytlar.slayt_uret(dict(yeni), ayarlar)
+            yol, katman, atif = slaytlar.slayt_uret(dict(yeni), ayarlar, con=con)
             url = upload_image.gorsel_yukle(yol, ayarlar)["url"]
             story_yol = make_image.CIKTI_KLASORU / f"story-{yeni_id}.jpg"
             story_url = url
