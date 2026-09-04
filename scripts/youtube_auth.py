@@ -15,6 +15,7 @@ import os
 import socketserver
 import urllib.parse
 import webbrowser
+import sys
 from pathlib import Path
 
 import requests
@@ -162,10 +163,43 @@ def main():
     print("💾 .env dosyası güncellendi!")
 
     print("\n📌 GİTHUB ACTIONS SECRET EKLEME (Canlı Sunucu İçin):")
-    print("GitHub Deponuz -> Settings -> Secrets and variables -> Actions altından şu secret'ları ekleyin:")
-    print(f"  • YOUTUBE_CLIENT_ID = {client_id}")
-    print(f"  • YOUTUBE_CLIENT_SECRET = {client_secret}")
-    print(f"  • YOUTUBE_REFRESH_TOKEN = {refresh_token}")
+    # ⚠️ GITHUB SECRET'I DA YAZ — YOKSA BOT CANLIDA ÖLÜ JETONLA KALIR.
+    #
+    # 4 Eyl 2026: YouTube jetonu öldü ve post gitmedi. Script jetonu
+    # yalnızca `.env`'e yazıp kullanıcıya "şunları elle ekleyin" diyordu.
+    # O adım atlanırsa yerelde her şey çalışır, ama Actions eski jetonu
+    # kullanmaya devam eder ve arıza aynen sürer — üstelik "jetonu
+    # yeniledim" diye yanlış güvenle.
+    #
+    # `gh` CLI şifrelemeyi kendisi hallediyor; PAT'in "Secrets: write"
+    # izni zaten var (bkz. Adım 7).
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    yazildi = []
+    try:
+        from src.refresh_token import github_secret_guncelle
+        repo = os.getenv("GITHUB_REPOSITORY", "ozdogangringo-sketch/haber-bot")
+        for ad, deger in yeni_anahtarlar.items():
+            if github_secret_guncelle(deger, repo, ad):
+                yazildi.append(ad)
+    except Exception as e:                            # noqa: BLE001
+        print(f"⚠️  GitHub Secret yazılamadı: {type(e).__name__}: {e}")
+
+    if len(yazildi) == len(yeni_anahtarlar):
+        print("✅ GitHub Secrets OTOMATİK güncellendi:")
+        for ad in yazildi:
+            print(f"  • {ad}")
+    else:
+        eksik = [a for a in yeni_anahtarlar if a not in yazildi]
+        print("⚠️  GitHub Secrets ELLE eklenmeli (gh CLI çalışmadı):")
+        print("GitHub Deponuz -> Settings -> Secrets and variables -> Actions")
+        for ad in eksik:
+            print(f"  • {ad} = {yeni_anahtarlar[ad]}")
+
+    print()
+    print("⚠️  KALICI ÇÖZÜM İÇİN: Google Cloud Console -> OAuth consent")
+    print("    screen -> PUBLISH APP. 'Testing' modunda kalan uygulamaların")
+    print("    refresh jetonunu Google 7 GÜNDE iptal ediyor (4 Eyl 2026'da")
+    print("    tam olarak bu yaşandı). Yayınlanmazsa jeton her hafta ölür.")
     print("=" * 65)
 
 
