@@ -2693,6 +2693,97 @@ def test_gorsel_aday_secimi() -> None:
         _oi.turu_getir = eski_tur
 
 
+def test_slaytta_eksik_glif_yok() -> None:
+    """
+    Çizim koduna yazılan her karakter fontta BULUNMALI.
+
+    ⚠️ NEDEN GEREKTİ (5 Eyl 2026): kullanıcı ekran görüntüsü gönderdi —
+    üstteki veri rozetinde *"MOTORİN ÖTV TUTARI: 3 ₺ ▌13,9006 ₺"*
+    yazıyordu. O "▌" bir karakter değil, fontun `.notdef` KUTUSU.
+    Ölçüldü: `➔` (U+2794) ve `📈 📉 🎯 📌 👉` emojileri Inter'de YOK ve
+    hepsi aynı 18x32 boş kutuyu basıyor. Sekiz ayrı yerde kullanılmıştı.
+
+    ⚠️ TESPİT YÖNTEMİ: bilinen-yok bir karakterin (`🦄`) maske boyutu
+    `.notdef` imzasını veriyor; aynı boyutu veren her karakter kutudur.
+    Bu, "font bu karakteri destekliyor mu" sorusunun DAVRANIŞSAL
+    cevabı — tablo okumaya gerek yok.
+
+    ⚠️ Yorum satırları ve `⚠️` gibi işaretler taranmıyor: onlar çizilmiyor.
+    """
+    from PIL import ImageFont
+
+    font_yolu = KOK / "assets/fonts/Inter-Variable.ttf"
+    if not font_yolu.exists():
+        return
+    fnt = ImageFont.truetype(str(font_yolu), 28)
+    notdef = fnt.getmask("\U0001F984").size          # 🦄 — kesinlikle yok
+
+    denetle(notdef != fnt.getmask("A").size,
+            "notdef imzası ayırt edilebiliyor",
+            "font her karaktere aynı maskeyi veriyor — tarama anlamsız")
+
+    kusurlu = []
+    for dosya in ("src/make_image.py", "src/piyasa_kart.py",
+                  "src/piyasa_tablo.py", "src/makro_kart.py"):
+        yol = KOK / dosya
+        if not yol.exists():
+            continue
+        for no, satir in enumerate(yol.read_text(encoding="utf-8").splitlines(), 1):
+            if satir.strip().startswith("#"):
+                continue
+            for ch in set(satir):
+                # Latin ve noktalama güvenli; VS16 görünmez birleştirici
+                if ord(ch) < 0x2000 or ch == "\ufe0f":
+                    continue
+                if fnt.getmask(ch).size == notdef:
+                    kusurlu.append(f"{dosya}:{no} {ch!r}")
+
+    denetle(not kusurlu,
+            "çizilen metinlerde eksik glif yok",
+            f"slaytta boş kutu olarak basılacak: {kusurlu[:6]}")
+
+
+def test_veri_karti_ve_vurgu_kapilari() -> None:
+    """
+    Üst rozet ve vurgu rakamı için deterministik kapılar.
+
+    ⚠️ Kullanıcı: *"üst kısa özetin mantığını analiz edip geliştirelim,
+    bazen saçma bilgiler oluyor"*. Ölçüldü (gerçek kayıtlar):
+
+      • ÖNCESİ YOKKEN YÖN OKU: *"Etkilenen Bileşen: 19 (artış)"* —
+        19 neye göre arttı? Hiçbir şeye. `eski` boşken ▲/▼ basmak
+        olmayan bir değişimi iddia ediyor.
+      • YIL/TARİH VURGU: *"2023 / oluşum başlangıcı"*, *"5 Eylül /
+        Sırbistan maçı"*. Vurgu sayfanın en üstünde dev puntoyla
+        basılıyor; oraya tarih koymak büyüklük duygusu vermiyor.
+
+    ⚠️ Etiket-değer uyumsuzluğu (*"Açılan Dava: 10 şüpheli"*) ve konu
+    dışılık (*ABD haberinde TR istatistiği*) SEMANTİK kusurlar —
+    kodla yakalanamıyor, prompt'a ölçülmüş örnek olarak yazıldı.
+    """
+    import ast as _ast3
+    from src import slaytlar as _sl
+
+    for deger, beklenen in (("2023", True), ("1999", True), ("5 Eylül", True),
+                            ("12 Ağustos 2024", True), ("2023 kişi", False),
+                            ("%45", False), ("137", False), ("211,94 kg", False)):
+        denetle(_sl._yil_ya_da_tarih_mi(deger) is beklenen,
+                f"vurgu kapısı: {deger!r}",
+                f"{'atlanmalıydı' if beklenen else 'çizilmeliydi'}")
+
+    # Yön normalizasyonu HER İKİ slayt yolunda da olmalı
+    kaynak = (KOK / "src/slaytlar.py").read_text(encoding="utf-8")
+    agac = _ast3.parse(kaynak)
+    sayac = 0
+    for n in _ast3.walk(agac):
+        if (isinstance(n, _ast3.Compare) and isinstance(n.left, _ast3.Name)
+                and n.left.id == "v_yon"):
+            sayac += 1
+    denetle(sayac >= 2,
+            "yön normalizasyonu iki slayt yolunda da var",
+            f"yalnızca {sayac} yerde — biri unutulmuş (tekil slayt / son dakika)")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -2753,6 +2844,8 @@ def main() -> int:
         test_komut_menusu_tutarli,
         test_kardes_havuzu_cagrilarda_da_acik,
         test_gorsel_aday_secimi,
+        test_slaytta_eksik_glif_yok,
+        test_veri_karti_ve_vurgu_kapilari,
     ):
         try:
             test()

@@ -28,6 +28,7 @@ import io
 import logging
 from pathlib import Path
 
+import re
 import requests
 from PIL import Image, ImageOps
 
@@ -718,11 +719,23 @@ def slayt_uret(haber, ayarlar: dict,
         baslik = _alan(haber, "ig_baslik") or _alan(haber, "baslik_orj") or ""
         ozet = _alan(haber, "slayt_ozet") or ""
         if dogrula.veri_karti_dogrula(_alan(haber, "veri_karti_eski"), v_yeni, km):
+            v_eski = _alan(haber, "veri_karti_eski") or ""
+            v_yon = _alan(haber, "veri_karti_yon") or "artis"
+            # ⚠️ ÖNCESİ YOKSA YÖN OLMAZ (5 Eyl 2026). "artis"/"azalis"
+            # üçgen (▲/▼) bastırıyor ve bu bir DEĞİŞİM iddiasıdır; ama
+            # `eski` boşken kıyaslanacak bir şey yok. Ölçüldü: *"ChatGPT
+            # çöktü — Etkilenen Bileşen: → 19 (artış)"*. 19 bileşen
+            # neye göre artmış? Hiçbir şeye. Model yönü varsayılan
+            # olarak dolduruyor, kod düzeltiyor.
+            if not v_eski and v_yon in ("artis", "azalis"):
+                log.info("veri kartında öncesi yok, yön '%s' -> 'notr' (#%s)",
+                         v_yon, _alan(haber, "id"))
+                v_yon = "notr"
             gecici_kart = {
                 "etiket": v_etiket,
                 "yeni": v_yeni,
-                "eski": _alan(haber, "veri_karti_eski") or "",
-                "yon": _alan(haber, "veri_karti_yon") or "artis",
+                "eski": v_eski,
+                "yon": v_yon,
             }
             if not dogrula.veri_karti_baslikta_var_mi(gecici_kart, baslik, ozet):
                 veri_karti = gecici_kart
@@ -825,6 +838,29 @@ def tur_uret(haberler: list, ayarlar: dict, con=None) -> list[dict]:
     return sonuclar
 
 
+_AYLAR = ("ocak", "şubat", "mart", "nisan", "mayıs", "haziran", "temmuz",
+          "ağustos", "eylül", "ekim", "kasım", "aralık")
+
+
+def _yil_ya_da_tarih_mi(deger: str) -> bool:
+    """
+    Vurgu rakamı çıplak bir YIL ya da TARİH mi?
+
+    ⚠️ Ölçü/miktar taşıyan değerler ("2023 kişi", "%45") vurgu olabilir;
+    çıplak yıl ("2023") ve tarih ("5 Eylül") olamaz — büyük puntoda
+    basılınca okuyucuya bir büyüklük duygusu vermiyorlar.
+    """
+    s = (deger or "").strip()
+    if not s:
+        return False
+    if re.fullmatch(r"(19|20)\d{2}\.?", s):          # 2023, 1999.
+        return True
+    kucuk = s.casefold()
+    if any(ay in kucuk for ay in _AYLAR):             # "5 Eylül"
+        return True
+    return False
+
+
 def son_dakika_uret(haber, ayarlar: dict, con=None,
                     zorla_ai: bool = False,
                     atlanacak: int | None = None,
@@ -860,11 +896,23 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         baslik = _alan(haber, "ig_baslik") or _alan(haber, "baslik_orj") or ""
         ozet = _alan(haber, "slayt_ozet") or ""
         if dogrula.veri_karti_dogrula(_alan(haber, "veri_karti_eski"), v_yeni, km):
+            v_eski = _alan(haber, "veri_karti_eski") or ""
+            v_yon = _alan(haber, "veri_karti_yon") or "artis"
+            # ⚠️ ÖNCESİ YOKSA YÖN OLMAZ (5 Eyl 2026). "artis"/"azalis"
+            # üçgen (▲/▼) bastırıyor ve bu bir DEĞİŞİM iddiasıdır; ama
+            # `eski` boşken kıyaslanacak bir şey yok. Ölçüldü: *"ChatGPT
+            # çöktü — Etkilenen Bileşen: → 19 (artış)"*. 19 bileşen
+            # neye göre artmış? Hiçbir şeye. Model yönü varsayılan
+            # olarak dolduruyor, kod düzeltiyor.
+            if not v_eski and v_yon in ("artis", "azalis"):
+                log.info("veri kartında öncesi yok, yön '%s' -> 'notr' (#%s)",
+                         v_yon, _alan(haber, "id"))
+                v_yon = "notr"
             gecici_kart = {
                 "etiket": v_etiket,
                 "yeni": v_yeni,
-                "eski": _alan(haber, "veri_karti_eski") or "",
-                "yon": _alan(haber, "veri_karti_yon") or "artis",
+                "eski": v_eski,
+                "yon": v_yon,
             }
             if not dogrula.veri_karti_baslikta_var_mi(gecici_kart, baslik, ozet):
                 veri_karti = gecici_kart
@@ -886,6 +934,16 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         baslik_metni = haber["ig_baslik"] or haber["baslik_orj"] or ""
         if dogrula._sayilar(ham_vurgu) & dogrula._sayilar(baslik_metni):
             log.info("vurgu rakamı başlıkta zaten var, atlandı #%s", haber["id"])
+        elif _yil_ya_da_tarih_mi(ham_vurgu):
+            # ⚠️ YIL VE TARİH ÇARPICI SAYI DEĞİLDİR (5 Eyl 2026).
+            # Vurgu, sayfanın en üstünde 92 puntoya kadar çıkan görsel
+            # çapa; oraya "2023" ya da "5 Eylül" basmak okuyucuya
+            # hiçbir şey söylemiyor. Ölçüldü: 12 vurgunun 2'si böyleydi
+            # (Satürn haberinde "2023 / oluşum başlangıcı", voleybolda
+            # "5 Eylül / Sırbistan maçı"). Sayının kendisi doğru ama
+            # ÇARPICI değil — o alan ölçü/miktar için.
+            log.info("vurgu rakamı yıl/tarih (%s), atlandı #%s",
+                     ham_vurgu, haber["id"])
         else:
             vurgu = (ham_vurgu, _alan(haber, "vurgu_etiket"))
 

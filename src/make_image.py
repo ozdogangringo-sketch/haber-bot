@@ -831,7 +831,7 @@ def _veri_rozeti_ciz(
     renk_map = {
         "artis": ((16, 185, 129), "▲"),
         "azalis": ((244, 63, 94), "▼"),
-        "hedef": ((226, 170, 88), "🎯"),
+        "hedef": ((226, 170, 88), "◆"),
         "notr": ((148, 163, 184), "●"),
     }
     tema_renk, sembol = renk_map.get(yon or "artis", ((226, 170, 88), "●"))
@@ -918,6 +918,31 @@ def _kaynak_satiri_ciz(
     ciz.text((kenar + 18, alt_bilgi_y), metin, font=kucuk, fill=(198, 206, 222))
 
 
+def _son_dakika_rozeti(ciz, x: int, y: int) -> tuple[int, int]:
+    """
+    "SON DAKİKA" etiketini çizer, SAĞ ve ALT kenarını döner.
+
+    ⚠️ NEDEN ORTAK FONKSİYON (5 Eyl 2026): etiket İKİ yerde ayrı ayrı
+    çiziliyordu (`story_haber` ve `detay_slayti`) ve veri rozetini
+    çizen `yaziyi_bas` ikisinden de habersizdi. Rozet sağa yaslı,
+    etiket soldan başlıyor; ikisi genişleyince ÇAKIŞIYORLARDI.
+    ÖLÇÜLDÜ (gerçek slayt, piksel taraması): etiket x 186→421, rozet
+    x 372→890 — **49 piksel örtüşme**. Kullanıcı ekran görüntüsüyle
+    bildirdi.
+
+    Artık kutuyu tek fonksiyon üretiyor ve sınırlarını döndürüyor;
+    yerleşimi yapan taraf nereye kadar dolu olduğunu biliyor.
+    """
+    f = _font(24, EKSEN_KUCUK)
+    etiket = "SON DAKİKA"
+    metin_g = ciz.textlength(etiket, font=f)
+    sag = int(x + metin_g + 28)
+    alt = int(y + 46)
+    ciz.rounded_rectangle([x, y, sag, alt], radius=6, fill=(198, 60, 52))
+    ciz.text((x + 14, y + 10), etiket, font=f, fill=(255, 255, 255))
+    return sag, alt
+
+
 def yaziyi_bas(
     arkaplan: Image.Image, baslik: str, kaynak: str, ayarlar: dict,
     ozet: str | None = None,
@@ -927,6 +952,7 @@ def yaziyi_bas(
     kategori: str = "",
     son_slayt: bool = False,
     veri_karti: dict | None = None,
+    son_dakika: bool = False,
 ) -> Image.Image:
     """
     Arka planın üstüne başlığı, varsa özeti ve alt bilgiyi yazar.
@@ -1017,7 +1043,7 @@ def yaziyi_bas(
     # Son slayt Call-To-Action (CTA) etkileşim rozeti
     if son_slayt:
         cta_font = _font(24, EKSEN_KUCUK)
-        cta_metin = "📌 Günün özetini kaçırmamak için kaydet & takip et"
+        cta_metin = "★ Günün özetini kaçırmamak için kaydet & takip et"
         ciz.text((kenar, alt_bilgi_y - 36), cta_metin, font=cta_font, fill=(226, 170, 88))
 
     # Kaynak adı — şeffaflık ve gazetecilik atfı
@@ -1038,6 +1064,16 @@ def yaziyi_bas(
     if ulke_kodu:
         gorsel = _bayragi_bas(gorsel, ulke_kodu, ulke_adi, dikey_kenar)
 
+    # ⚠️ SON DAKİKA ETİKETİ ARTIK BURADA ÇİZİLİYOR. Eskiden çağıranlar
+    # (`story_haber`) `yaziyi_bas`tan SONRA kendileri çiziyordu ve veri
+    # rozetini yerleştiren kod etiketin varlığından habersizdi — ikisi
+    # çakışıyordu (ölçüldü: 49 px örtüşme). Tek fonksiyon sahiplenince
+    # yerleşim hesaplanabilir hale geliyor.
+    ciz = ImageDraw.Draw(gorsel)
+    sd_sag = sd_alt = 0
+    if son_dakika:
+        sd_sag, sd_alt = _son_dakika_rozeti(ciz, kenar + 162, dikey_kenar + 30)
+
     # Mini İnfografik Veri Kartı Rozeti (varsa üst sağ/orta bölgeye şık cam kutu)
     if veri_karti and (veri_karti.get("etiket") or veri_karti.get("yeni")):
         vk_etiket = (veri_karti.get("etiket") or "").strip().upper()
@@ -1046,8 +1082,8 @@ def yaziyi_bas(
         vk_yon = (veri_karti.get("yon") or "").strip()
 
         if vk_yeni:
-            ok = "➔" if vk_eski else ""
-            yon_simge = "📈" if vk_yon == "artis" else ("📉" if vk_yon == "azalis" else "🎯")
+            ok = "→" if vk_eski else ""
+            yon_simge = "▲" if vk_yon == "artis" else ("▼" if vk_yon == "azalis" else "◆")
             deger_metin = f"{vk_eski} {ok} {vk_yeni}".strip() if vk_eski else vk_yeni
             rozet_metin = f"{yon_simge} {vk_etiket}: {deger_metin}" if vk_etiket else f"{yon_simge} {deger_metin}"
 
@@ -1057,6 +1093,17 @@ def yaziyi_bas(
             vk_yuk = 48
             vk_x = int(genislik - kenar - vk_gen if not ulke_kodu else genislik - kenar - vk_gen - 110)
             vk_y = int(dikey_kenar + 10)
+
+            # ⚠️ SON DAKİKA ETİKETİYLE ÇAKIŞMA. Etiket soldan büyüyor,
+            # rozet sağa yaslı; ikisi de genişleyince üst üste biniyor.
+            # Sığmıyorsa rozet İKİNCİ SATIRA iniyor ve tam genişliği
+            # kullanıyor — bayrak flaması yukarıda kaldığı için o
+            # satırda sağa kadar yer var.
+            if sd_sag and vk_x < sd_sag + 16:
+                vk_y = int(sd_alt + 14)
+                vk_x = int(genislik - kenar - vk_gen)
+                log.info("veri rozeti SON DAKİKA etiketiyle çakışıyordu, "
+                         "ikinci satıra alındı")
 
             vk_overlay = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
             vk_ciz = ImageDraw.Draw(vk_overlay)
@@ -1391,7 +1438,7 @@ def story_kapak(
     ciz.line([(kenar, alt_bilgi_y - 20), (genislik - kenar, alt_bilgi_y - 20)], fill=(30, 41, 59), width=1)
     ciz.text((kenar, alt_bilgi_y), f"@{hesap}", font=_font(30, EKSEN_KUCUK), fill=(148, 163, 184))
 
-    kaydir_txt = "Detaylar gönderide 👉"
+    kaydir_txt = "Detaylar gönderide →"
     kw = ciz.textlength(kaydir_txt, font=_font(28, 700.0))
     ciz.text((genislik - kenar - kw, alt_bilgi_y), kaydir_txt, font=_font(28, 700.0), fill=(245, 158, 11))
 
@@ -1494,7 +1541,7 @@ def story_ekonomi_kapak(
     ciz.line([(kenar, alt_bilgi_y - 20), (genislik - kenar, alt_bilgi_y - 20)], fill=(24, 75, 85), width=1)
     ciz.text((kenar, alt_bilgi_y), f"@{hesap}", font=_font(30, EKSEN_KUCUK), fill=(140, 185, 195))
 
-    kaydir_txt = "Detaylar gönderide 👉"
+    kaydir_txt = "Detaylar gönderide →"
     kw = ciz.textlength(kaydir_txt, font=_font(28, 700.0))
     ciz.text((genislik - kenar - kw, alt_bilgi_y), kaydir_txt, font=_font(28, 700.0), fill=(6, 182, 212))
 
@@ -1541,18 +1588,12 @@ def story_haber(
         son_slayt=son_slayt,
         kategori=kategori,
         veri_karti=veri_karti,
+        son_dakika=son_dakika,
     )
 
-    if son_dakika:
-        ciz = ImageDraw.Draw(gorsel)
-        kenar = ayarlar["gorsel"]["kenar_bosluk"]
-        f = _font(24, EKSEN_KUCUK)
-        etiket = "SON DAKİKA"
-        metin_g = ciz.textlength(etiket, font=f)
-        x_bas = kenar + 162
-        y_bas = STORY_GUVENLI_PAY + 32
-        ciz.rounded_rectangle([x_bas, y_bas, x_bas + metin_g + 28, y_bas + 46], radius=6, fill=(198, 60, 52))
-        ciz.text((x_bas + 14, y_bas + 10), etiket, font=f, fill=(255, 255, 255))
+    # ⚠️ SON DAKİKA ETİKETİ ARTIK BURADA ÇİZİLMİYOR — `yaziyi_bas`
+    # çiziyor. Buradan çizilirken rozet yerleşimi ondan habersizdi ve
+    # ikisi çakışıyordu (49 px, ölçüldü).
 
     return gorsel
 

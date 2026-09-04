@@ -241,7 +241,7 @@ def _ciz_vektor_ikon(draw: ImageDraw.ImageDraw, icon: str, x: int, y: int, r: in
     elif icon == "nvda":
         draw.rounded_rectangle([(x - 10, y - 7), (x + 10, y + 7)], radius=4, fill=(34, 197, 94))
     elif icon == "aapl":
-        draw.text((x - 7, y - 15), "", font=_font(26, 900.0), fill=(226, 232, 240))
+        draw.text((x - 7, y - 15), "A", font=_font(26, 900.0), fill=(226, 232, 240))
     elif icon == "tsla":
         draw.text((x - 6, y - 15), "T", font=_font(26, 900.0), fill=(239, 68, 68))
     elif icon == "dxy":

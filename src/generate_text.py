@@ -216,7 +216,36 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
     veri_karti_eski   : "380 ₺" veya "%50" (varsa, yoksa "")
     veri_karti_yeni   : "450 ₺" veya "%45"
     veri_karti_yon    : "artis" | "azalis" | "hedef" | "notr" | ""
+
+    ⚠️ ÖLÇÜLMÜŞ KÖTÜ ÖRNEKLER (5 Eyl 2026, gerçek çıktılar):
+      KÖTÜ  "Açılan Dava: 10 şüpheli"
+            Etiket DAVA diyor, değer ŞÜPHELİ sayısı. Etiket ile değer
+            AYNI ŞEYİ ölçmeli; uymuyorsa alanları boş bırak.
+      KÖTÜ  ABD'deki domuz böbreği haberinde "TR Böbrek Nakli: 3.299"
+            Haber ABD'de, veri Türkiye'den. Kart HABERİN KENDİ
+            verisini göstermeli; ilgisiz arka plan istatistiği DEĞİL.
+      KÖTÜ  "Etkilenen Bileşen: 19" + yon="artis"
+            Öncesi yokken ARTIŞ diyemezsin. `veri_karti_eski` boşsa
+            yon "notr" olmalı.
+      KÖTÜ  "Gözlemlenen Kenar: 6 (Kuzey Kutbu) → 10 (Güney Kutbu)"
+            Ok ZAMANSAL değişim demek; bu iki yerin karşılaştırması.
+            Eski→yeni yalnızca AYNI ŞEYİN zaman içindeki değişimidir.
+      İYİ   "Resmi WLTP Menzili: 647 km → 936 km"
+      İYİ   "Motorin Ton Fiyatı: 1.257 $ → 1.410 $"
+      İYİ   "İş Arama Süresi: 5 saat → 2 dakika 51 saniye"
 - vurgu_sayi / vurgu_etiket: Başlıkta GEÇMEYEN ikinci en çarpıcı sayı ve etiketi (örn: "2.352 yıl" / "istenen ceza"). Yoksa boş bırak.
+
+  ⚠️ ÖLÇÜLMÜŞ KÖTÜ ÖRNEKLER (5 Eyl 2026, gerçek çıktılar):
+      KÖTÜ  "2023" / "oluşum başlangıcı"  ve  "5 Eylül" / "Sırbistan maçı"
+            Çıplak YIL ve TARİH çarpıcı sayı DEĞİLDİR. Bu alan
+            sayfanın en üstünde dev puntoyla basılıyor; oraya bir
+            tarih koymak okuyucuya büyüklük duygusu vermiyor.
+            Ölçü, miktar, süre, oran veya para yaz.
+      KÖTÜ  Türkiye akaryakıt zammı haberinde "%54 / ABD dizel fiyatı artışı"
+            Haber Türkiye'de, sayı ABD'den. Vurgu HABERİN KENDİ
+            verisinden gelmeli; ilgisiz arka plan istatistiği değil.
+      İYİ   "16" / "kayıp kişi"   ·   "69" / "genomik modifikasyon"
+      İYİ   "137" / "Fenerbahçe galibiyeti"   ·   "%45" / "menzil artışı"
 - alinti / alinti_sahibi: Haberde geçen doğrudan söz (en fazla 18 kelime, tırnaksız) ve sahibi. Kaynakta kelimesi kelimesine geçmeli.
 - ig_caption: Haberin tüm detaylarını, arka planını ve nedenlerini anlatan 3-5 cümlelik ferah, akıcı ve bilgilendirici bülten açıklaması. Paragrafları ferah tut, okuyucunun konuyu tam anlamasını sağla. Asla markdown yıldız (**) kullanma. Kaynak adı yazma.
 - ig_hashtag: 5-8 adet konuyla ilgili Türkçe etiket, '#' işareti OLMADAN.
