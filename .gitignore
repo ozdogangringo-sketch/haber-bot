@@ -46,3 +46,6 @@ test_*.jpg
 # git'te bulundu; PKCE doğrulayıcısı depoda durmamalı.
 data/*_pkce_verifier.txt
 data/*_verifier.txt
+
+# Yerel geliştirme ayarları — kişiye özel, depoya girmemeli
+.claude/

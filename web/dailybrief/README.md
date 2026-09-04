@@ -17,11 +17,34 @@ YouTube'a yükleme yapabilmek için Google'ın consent screen'i şunları istiyo
 
 ## Dosyalar
 
-- `index.html` — tanıtım sayfası, kanal bağlantıları
+**Yayına yüklenecekler (5 dosya):**
+
+- `index.html` — tanıtım sayfası, 6 kanal bağlantısı
 - `privacy.html` — gizlilik politikası (TR/EN)
 - `terms.html` — kullanım koşulları (TR/EN)
-- `_ortak.css` — kaynak stil; **HTML'lere gömülü** olduğu için yayına
-  kopyalanması gerekmez. Değiştirirsen sayfaları yeniden üret.
+- `logo.webp` — 256x256, **16 KB**
+- `favicon.png` — 64x64, sekme simgesi
+
+**Yüklenmeyecekler:** `_ortak.css` (HTML'lere gömülü) ve bu README.
+
+### ⚠️ Logo neden iki boyda
+
+Marka logosu ayrıntılı bir rozet (küre, RSS dalgaları, kabartma DB
+harfleri). **40px'te koyu zeminde lekeye dönüşüyor** — denendi ve
+görüldü. Bu yüzden:
+
+| yer | boy | sınıf |
+|---|---|---|
+| ana sayfa, ortalanmış | 104px | `.kahraman img` |
+| yasal sayfaların üst şeridi | 46px | `img.rozet` |
+
+### ⚠️ Neden WebP
+
+Aynı 256px logo: **PNG 106 KB → WebP 16 KB** (6,6 kat). Ölçüldü.
+Favicon PNG kaldı; sekme simgesinde WebP desteği daha dar.
+
+`_ortak.css` değiştirirsen üç HTML'in `<style>` bloğunu yeniden
+üretmeyi unutma — stil gömülü, ayrı dosya olarak sunulmuyor.
 
 ## Cloudflare Pages'e yayınlama
 
