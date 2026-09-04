@@ -1787,6 +1787,53 @@ def test_cagrilan_script_var_mi() -> None:
                     "düşer; kullanıcı düğmeye basar, hiçbir şey olmaz")
 
 
+def test_kanal_jetonlari_denetleniyor() -> None:
+    """
+    Açık her yayın kanalının jeton sağlığı günlük raporda görünmeli.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): YouTube refresh jetonu öldü
+    (`invalid_grant: Token has been expired or revoked`) ve post
+    YouTube'a gitmedi. Yayın job'ı bunu **yalnızca WARNING** olarak
+    loglayıp devam etti — bu DOĞRU davranış (bir kanal patlayınca post
+    yine çıkmalı) ama arıza görünmez oldu. Kullanıcı eksik postu
+    gözüyle görünce sordu.
+
+    ⚠️ **`saglik_testi` fonksiyonları ZATEN VARDI**, yalnızca hiç
+    çağrılmıyordu: rapor Instagram ve Threads'e bakıyor, video
+    kanallarına bakmıyordu. Yani kod yazılmış, bağlanmamıştı.
+
+    ⚠️ KÖK SEBEP AYRI: Google, OAuth ekranı **"Testing"** modundaki
+    uygulamaların refresh jetonunu **7 GÜNDE** iptal ediyor. Ölçüldü:
+    kurulum 28 Ağu, ilk yayın 28 Ağu 17:10, son başarılı 4 Eyl 06:44,
+    ilk başarısız 4 Eyl 08:44 — tam 7 gün. Kalıcı çözüm jetonu
+    yenilemek DEĞİL, OAuth ekranını "In production"a almak.
+    """
+    rapor = (KOK / "scripts/gunluk_rapor.py").read_text(encoding="utf-8")
+    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    kanallar = set((cfg.get("sosyal") or {}).get("kanallar") or [])
+
+    denetle("saglik_testi" in rapor,
+            "günlük rapor kanal sağlık testlerini çağırıyor",
+            "jeton ölünce kimse fark etmiyor; yayın job'ı yalnızca "
+            "WARNING loglayıp devam ediyor")
+
+    # Sağlık testi OLAN her açık kanal raporda anılmalı
+    for kanal in sorted(kanallar):
+        modul_yolu = KOK / "src" / f"{kanal}.py"
+        if kanal == "x":
+            modul_yolu = KOK / "src" / "twitter.py"
+        if not modul_yolu.exists():
+            continue
+        kaynak = modul_yolu.read_text(encoding="utf-8")
+        if "def saglik_testi" not in kaynak and "def api_saglik_testi" not in kaynak:
+            continue          # sağlık testi yoksa denetlenemez
+        ad = "twitter" if kanal == "x" else kanal
+        denetle(ad in rapor,
+                f"'{ad}' kanalı günlük raporda denetleniyor",
+                "sağlık testi yazılmış ama rapora bağlanmamış — kod var, "
+                "bağlantı yok")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1839,6 +1886,7 @@ def main() -> int:
         test_olu_modul_yok,
         test_yazilan_durum_dosyasi_okunuyor,
         test_cagrilan_script_var_mi,
+        test_kanal_jetonlari_denetleniyor,
     ):
         try:
             test()

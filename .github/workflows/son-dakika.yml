@@ -29,12 +29,28 @@
 name: Son Dakika Kontrolü
 
 on:
-  schedule:
-    # GÜNDÜZ: TR 08:12 - 23:12 arası HER SAAT BAŞI (16 kontrol)
-    # UTC 05:12, 06:12, ..., 20:12 = TR 08:12 - 23:12
-    - cron: "12 5-20 * * *"
-    # GECE: TR 02:12 ve TR 05:12 (UTC 23:12, 02:12)
-    - cron: "12 23,2 * * *"
+  # ⚠️ GITHUB `schedule:` CRON'LARI KALDIRILDI (4 Eyl 2026).
+  #
+  # Aynı cron'lar `worker/wrangler.toml` içinde de vardı
+  # (`"12 5-20 * * *"` ve `"12 23,2 * * *"`) ve Worker bunları
+  # `repository_dispatch: son_dakika_calistir` ile tetikliyor.
+  # Yani AYNI İŞ İKİ KAYNAKTAN çalışıyordu.
+  #
+  # ÖLÇÜLDÜ (son 30 çalışma): 22'si Cloudflare'den, 8'i GitHub'dan.
+  # Cloudflare dakikası dakikasına (hepsi :12:55); GitHub'ın kendi
+  # cron'u 01:05, 07:08, 09:41, 14:28, 18:34, 21:40'ta çalışmış —
+  # 90 DAKİKAYA VARAN GECİKME. Yani hem gereksiz hem güvenilmez olan
+  # taraf GitHub'dı.
+  #
+  # Kazanç: günde ~8 gereksiz çalışma. Ayrıca `veritabani` concurrency
+  # grubunda bir kuyruk yeri daha az işgal ediliyor (1ab: GitHub o
+  # grupta yalnızca BİR bekleyen job tutuyor, yenisi öncekini siliyor).
+  #
+  # ⚠️ YEDEK YOK ARTIK: Worker patlarsa saatlik kontrol HİÇ çalışmaz.
+  # Belirtisi — Telegram'a saat başı öneri düşmemesi. Teşhis sırası:
+  # (1) `npx wrangler tail` ile canlı Worker hatası,
+  # (2) `npx wrangler deployments status` ile canlı sürüm,
+  # (3) gerekirse bu bloğu geri açıp GitHub cron'unu yeniden kur.
   # Telegram'daki "🔄 Son dakika kontrolünü tekrar çalıştır" düğmesi
   # buraya geliyor. Önce böyle bir yol yoktu ve son dakika hatasındaki
   # düğme akşam turunu tetikliyordu.

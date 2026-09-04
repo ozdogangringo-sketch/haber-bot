@@ -100,6 +100,47 @@ def basarisiz_isler(repo: str) -> list[str]:
         return []
 
 
+def kalp_atisi_eksik_mi(repo: str, saat: int = 3) -> str | None:
+    """
+    Saatlik `son_dakika` kontrolü son `saat` içinde HİÇ çalıştı mı?
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): `son-dakika.yml`'in GitHub
+    `schedule:` cron'u kaldırıldı çünkü Cloudflare Worker'ın cron'uyla
+    BİREBİR AYNIYDI ve iş iki kez tetikleniyordu. Ama bu, yedeği de
+    kaldırdı: **Worker patlarsa saatlik kontrol hiç çalışmaz.**
+
+    ⚠️ `basarisiz_isler` bunu YAKALAYAMAZ — o "patlayan job" arıyor;
+    burada job hiç BAŞLAMIYOR. Yokluk, başarısızlıktan daha sessizdir.
+
+    Döner: uyarı metni, ya da sorun yoksa None.
+    """
+    jeton = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+    if not jeton:
+        return None
+    try:
+        cevap = requests.get(
+            f"https://api.github.com/repos/{repo}/actions/runs",
+            headers={"Authorization": f"Bearer {jeton}",
+                     "Accept": "application/vnd.github+json"},
+            params={"per_page": 30}, timeout=30,
+        )
+        if cevap.status_code != 200:
+            return None
+        sinir = datetime.now(timezone.utc) - timedelta(hours=saat)
+        for run in cevap.json().get("workflow_runs", []):
+            if "dakika" not in (run.get("name") or "").lower():
+                continue
+            baslangic = datetime.fromisoformat(
+                run["created_at"].replace("Z", "+00:00"))
+            if baslangic >= sinir:
+                return None                   # çalışmış, sorun yok
+        return (f"⚠️ Saatlik kontrol {saat} saattir HİÇ çalışmadı — "
+                "Cloudflare Worker'ı kontrol et (npx wrangler tail)")
+    except Exception as e:                            # noqa: BLE001
+        log.warning("kalp atışı okunamadı: %s", e)
+        return None
+
+
 def rapor_kur(con, ayarlar: dict, repo: str) -> str:
     simdi = _tr_simdi()
     satirlar = [f"📊 GÜNLÜK RAPOR — {simdi.strftime('%d.%m.%Y %H:%M')}", ""]
@@ -175,6 +216,47 @@ def rapor_kur(con, ayarlar: dict, repo: str) -> str:
             satirlar.append(f"· ⚠️ Threads erişilemedi ({type(e).__name__})")
     else:
         satirlar.append("· Threads: anahtar yok")
+
+    # --- Video kanallarının jeton sağlığı ---
+    #
+    # ⚠️ NEDEN GEREKTİ (4 Eyl 2026): YouTube refresh jetonu öldü
+    # ("invalid_grant: Token has been expired or revoked") ve post
+    # YouTube'a gitmedi. Yayın job'ı bunu yalnızca WARNING olarak
+    # loglayıp devam etti — doğru davranış (bir kanal patlayınca post
+    # yine çıkmalı) ama kimse fark etmedi. Kullanıcı eksik postu
+    # gözüyle görünce sordu.
+    #
+    # ⚠️ `saglik_testi` fonksiyonları ZATEN VARDI, yalnızca hiç
+    # çağrılmıyordu. Rapor Instagram ve Threads'e bakıyor, video
+    # kanallarına bakmıyordu.
+    kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar", []) or []
+    for kanal_adi, modul_adi, arguman in (
+        ("youtube", "youtube", True),
+        ("tiktok", "tiktok", True),
+        ("twitter", "twitter", False),
+    ):
+        if kanal_adi not in kanallar and not (
+                kanal_adi == "twitter" and "x" in kanallar):
+            continue
+        try:
+            modul = __import__(f"src.{modul_adi}", fromlist=[modul_adi])
+            fn = getattr(modul, "saglik_testi", None) or \
+                getattr(modul, "api_saglik_testi", None)
+            if fn is None:
+                continue
+            sonuc = fn(ayarlar) if arguman else fn()
+            if sonuc.get("durum"):
+                satirlar.append(f"· {sonuc.get('ad', kanal_adi)}: ✓")
+            else:
+                satirlar.append(
+                    f"· ⚠️ {sonuc.get('ad', kanal_adi)}: "
+                    f"{(sonuc.get('mesaj') or 'erişilemedi')[:70]}")
+        except Exception as e:                        # noqa: BLE001
+            satirlar.append(f"· ⚠️ {kanal_adi} denetlenemedi ({type(e).__name__})")
+
+    kalp = kalp_atisi_eksik_mi(repo)
+    if kalp:
+        satirlar.append("· " + kalp)
 
     hatalar = basarisiz_isler(repo)
     if hatalar:
