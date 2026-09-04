@@ -102,6 +102,10 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | ★ VISION DENETİMİ — görselin İÇİNE bakan tek katman (3 Eyl 2026) | `src/gorsel_denetim.py`. ⚠️ Projedeki bütün doğruluk denetimleri METNE bakıyordu (`dogrula.py`: sayı, isim, alıntı, suçlama dili); görsel tarafında ölçülen her şey TEKNİKTİ (piksel, netlik, dosya boyutu). Fox News/Trump portresi 1200x675, keskin, temizdi — teknik testin her sorusuna "evet" dedi. **CANLI ÖLÇÜLDÜ, 3/3 doğru:** Vlahovic + *"Beşiktaş forması"* → *"ACF Fiorentina eşofmanı"* RED · Vargas + *"milli takım forması"* → *"Fenerbahçe forması, 44 numara"* RED · Hakan Fidan (bağlamsız) KABUL. Uçtan uca doğrulandı: Commons reddedilince Pexels'e düşüyor. |
 | ★ GÜNLÜK TEMİZLİK 19 GÜNDÜR ÇÖPE GİDİYORDU (4 Eyl 2026) | `gunluk-rapor.yml` `permissions: contents: read` taşıyordu ve **`db_kaydet` adımı YOKTU**. Ama `gunluk_rapor.py` her çalıştığında `db.eski_kayitlari_temizle` çağırıyor: silme runner'da GERÇEKTEN oluyor, log'a *"N eski kayıt silindi"* yazıyor, sonra commit edilmediği için buharlaşıyordu. ⚠️ **SESSİZ BAŞARISIZLIK deseninin ders kitabı örneği** — kod `0` döndü, log başarı yazdı, iş yapılmadı. Belirtisi: config `kayit_saklama_gun: 3` diyor ama veritabanında **19 günlük** kayıt duruyor. Ölçüldü: temizlik açılınca **9107 → 2517 satır, 11.5 → 3.7 MB**, yayınlanmış 277 kaydın hepsi korunuyor. `test_7_sozlesme.test_db_yazan_workflow_commit_ediyor` yedi workflow'u birden denetliyor. |
 | ★ ÖLÜ KOD SİLİNDİ — `src/handlers/` ve `x_paylas.py` (4 Eyl 2026) | `src/handlers/` bir refactor denemesinden kalmıştı: `slayt_yonetimi.py` (26 satır) ve `tur_yonetimi.py` (28 satır) içinde **hiç fonksiyon yoktu**, `yayin_yonetimi.py` (158 satır) hiçbir yerden import edilmiyordu. Silmeden önce `onay_isle`'deki kopyalarla karşılaştırıldı: fark yalnızca **eklenen yorumlar ve `_` öneki** — kaybedilecek bir şey yok. `x_paylas.py` (141 satır) de `twitter.py` tarafından tamamen ikame edilmiş. Toplam **356 satır** silindi; `test_0` çağrı sayısı **773'te sabit kaldı** (yani hiçbir şeye katkıları yoktu). |
+| ★ TESTLER `tests/` KLASÖRÜNE AYRILDI (4 Eyl 2026) | `scripts/` 33 dosyaydı: 10 test + 23 üretim/araç. Testler ayrı klasöre alındı, `scripts/` 23'e indi. Kök yolu `Path(__file__).parent.parent` olduğu için derinlik aynı kaldı, kod değişikliği gerekmedi. Güncellenenler: 3 workflow, `testler.yml` paths filtresi (`tests/**`), `test_0`un tarama listesi (`src, scripts, tests`), ölü modül taraması ve CLAUDE.md'de 19 atıf. |
+| ★ TAŞIMA GİZLİ BİR HATAYI ORTAYA ÇIKARDI | Taşımadan sonra "ölü ayar" denetimi **`gorsel.haber_gorseli_asgari_genislik/yukseklik`** ikilisini yakaladı. Sebep: o ayarları **yalnızca `test_gorsel_cesitliligi` okuyordu**, üretim kodu hiç bakmıyordu — testler `scripts/` altındayken tarama onları "kullanılıyor" sayıyor ve denetim yıllarca TEMİZ geçiyordu. Boyut kapısı çoktan `gorsel_kalite.gorsel_kalite_denetle`e taşınmıştı. İki ayar kaldırıldı, test **gerçek kapıya** bağlandı. |
+| ⚠️ "Ölü ayar" denetimi `tests/`i TARAMAMALI | Bir testin bir config anahtarını anması o ayarı CANLI yapmaz — yukarıdaki vakanın kök sebebi tam olarak buydu. Tarama kapsamı bilerek `src` + `scripts`. ⚠️ Aynı mantık kod denetimleri için de geçerli: **testin kendisi kanıt üretemez.** |
+| ⚠️ Yeni kapı ESKİ KURALI koruyor — doğrulandı | `gorsel_kalite` düz genişlik/yükseklik yerine **kırpma sonrası piksel yoğunluğu** ölçüyor (`kirpma_olcegi_hesapla`); 1200x630 ile 630x1200 aynı piksel sayısına sahip ama dikey tuvale kırpıldığında bambaşka sonuç veriyor. CLAUDE.md'deki ölçülmüş kural yeni kapıda sınandı: **1280x720 ✓ · 1200x630 ✓ · 1920x1080 ✓ · 1200x675 ✓ · 864x486 ✗ · 640x360 ✗**. Sözleşme testi artık bunu ölçüyor. |
 | ⚠️ Ölü kodun asıl zararı YER değil, YANLIŞ HARİTA | Video "eski görsel kullanıyor" hatası aranırken `handlers/yayin_yonetimi.py` görülüp **"kod ikilemesi var" diye yanlış teşhis kondu**. Üstelik `GEMINI.md` o klasörü *tamamlanmış modüler mimari* olarak anlatıyordu. Ölü kod okuyanı yanlış yöne gönderiyor. `test_7_sozlesme.test_olu_modul_yok` artık `src/` altındaki her modülün en az bir yerden import edildiğini denetliyor. |
 | ⚠️ Ölü modül taraması `n.module`'A DA BAKMALI | Bu denetimin ilk yazımında yalnızca `a.name` inceleniyordu ve **`from src.komutlar import KOMUT_MENUSU`** biçimi kaçıyordu (`a.name` = "KOMUT_MENUSU", modül adı `n.module` içinde). Sonuç: `komutlar` ve `zaman` yanlışlıkla "ölü" raporlandı — gerçekte 2 ve 7 yerden kullanılıyorlar. **Az kalsın yaşayan iki modül silinecekti.** Test artık kendi taramasını da sınıyor: bilinen canlı modülleri (`db`, `komutlar`, `zaman`) görebiliyor mu? ⚠️ **Bir şeyi silmeden önce, silme kararını veren ARACIN doğru çalıştığını doğrula.** |
 | ⚠️ `.git` 1.6 GB → 85 MB — ama sorun YERELDİ | ⚠️ **İLK TEŞHİS YANILTICIYDI.** `.git` gerçekten 1.6 GB'tı ama `git count-objects -vH` gösterdi ki bunun tamamı **paketlenmemiş gevşek nesne** (`count: 6290, size: 1.60 GiB` · `in-pack: 569, size-pack: 18 MB`). Düz `git gc --prune=now` **85 MB**'a indirdi — geçmişi yeniden yazmadan, `filter-repo` gerekmeden. ⚠️ **UZAKTAKİ GitHub deposu zaten 86 MB'tı** (`gh api repos/... --jq .size`); GitHub kendi paketlemesini düzgün yapıyor. Yani bu bir klon/disk sorunuydu, GitHub kotası sorunu değil. |
@@ -1074,7 +1078,7 @@ edilmiş — bir kaynak patlarsa diğerleri etkilenmiyor, yani risk "bot çöker
 değil "o turda bir kaynak eksik olur". Yayına geçince ara ara
 `data/kaynak-erisim-raporu.txt`'ye bakmakta fayda var.
 
-Araçlar: `scripts/test_kaynak_erisim.py` (DB'ye dokunmaz) +
+Araçlar: `tests/test_kaynak_erisim.py` (DB'ye dokunmaz) +
 `.github/workflows/test-kaynak-erisim.yml`. Workflow raporu
 `data/kaynak-erisim-raporu.txt` olarak repo'ya geri commit ediyor —
 Adım 6'daki veritabanı commit deseninin çalışan provası bu.
@@ -1188,7 +1192,7 @@ Uçtan uca doğrulandı: 10 haber → metin → 10 slayt → caption. Görsel ma
 - `src/filtre.py` — Instagram shadowban kelime/etiket filtresi
 - `src/fetch_stock.py` — Pexels katmanı
 - `src/fetch_flag.py` — ülke + kuruluş bayrakları
-- `scripts/test_6_tur_gorsel.py` — bir turun tamamını üretir, maliyeti sıfır
+- `tests/test_6_tur_gorsel.py` — bir turun tamamını üretir, maliyeti sıfır
 - `scripts/anahtar_ekle.py` — `.env`'e anahtar ekler (getpass; terminal
   geçmişine sızmaz). `.env` gizli dosya olduğu için kullanıcı Finder'da bulamıyordu.
 
@@ -1389,20 +1393,20 @@ instabot/
 | `scripts/varyasyon_uret.py` | 545 | Piyasa kartı renk varyasyonu üretici (tek seferlik araç). |
 | `scripts/ton_varyasyon_uret.py` | 332 | Şerit tonu varyasyonu üretici (tek seferlik araç). |
 
-**`scripts/` — testler**
+**`tests/` — testler**
 
 | Dosya | Satır | Görevi |
 |---|---|---|
-| `scripts/test_0_butunluk.py` | 288 | ⭐ ÖNCE BUNU ÇALIŞTIR — çağrı/imza doğrulaması. |
-| `scripts/test_7_sozlesme.py` | 1636 | ⭐ 238 denetim — kuralların HER YERDE uygulandığını denetler. |
-| `scripts/test_1_rss.py` | 85 | RSS + veritabanı. |
-| `scripts/test_2_makale_metni.py` | 86 | Gövde çekme ölçümü. |
-| `scripts/test_3_metin_uret.py` | 84 | Gemini metin (DB'yi DEĞİŞTİRİR, kota yer). |
-| `scripts/test_4_gorsel.py` | 78 | Tek slayt. |
-| `scripts/test_5_instagram_baglanti.py` | 233 | Jeton + hesap doğrulama. |
-| `scripts/test_6_tur_gorsel.py` | 87 | Bir turun tamamı, maliyet sıfır. |
-| `scripts/test_kaynak_erisim.py` | 159 | IP engeli teşhisi. |
-| `scripts/test_barindirici.py` | 103 | Görsel barındırıcı testi. |
+| `tests/test_0_butunluk.py` | 288 | ⭐ ÖNCE BUNU ÇALIŞTIR — çağrı/imza doğrulaması. |
+| `tests/test_7_sozlesme.py` | 1636 | ⭐ 238 denetim — kuralların HER YERDE uygulandığını denetler. |
+| `tests/test_1_rss.py` | 85 | RSS + veritabanı. |
+| `tests/test_2_makale_metni.py` | 86 | Gövde çekme ölçümü. |
+| `tests/test_3_metin_uret.py` | 84 | Gemini metin (DB'yi DEĞİŞTİRİR, kota yer). |
+| `tests/test_4_gorsel.py` | 78 | Tek slayt. |
+| `tests/test_5_instagram_baglanti.py` | 233 | Jeton + hesap doğrulama. |
+| `tests/test_6_tur_gorsel.py` | 87 | Bir turun tamamı, maliyet sıfır. |
+| `tests/test_kaynak_erisim.py` | 159 | IP engeli teşhisi. |
+| `tests/test_barindirici.py` | 103 | Görsel barındırıcı testi. |
 
 ## 6. Teknik notlar — `src/`
 
@@ -1527,8 +1531,8 @@ değil, **incelenecek adaylar**.
 ### İKİ TEST KATMANI — kod değiştirdikten sonra ikisini de çalıştır
 
 ```bash
-python scripts/test_0_butunluk.py    # çağrılar ve imzalar geçerli mi
-python scripts/test_7_sozlesme.py    # kurallar her yerde uygulanmış mı
+python tests/test_0_butunluk.py    # çağrılar ve imzalar geçerli mi
+python tests/test_7_sozlesme.py    # kurallar her yerde uygulanmış mı
 ```
 
 `.github/workflows/testler.yml` ikisini de her push'ta çalıştırıyor —
@@ -1652,7 +1656,7 @@ Türkçe karakterler, tarih normalizasyonu, yaş filtresi, tekrar engeli
 ### ✅ Adım 2 — Gemini ile metin (`src/generate_text.py`) — BİTTİ
 
 Girdi: `durum='yeni'` haberler. Çıktı: `ig_baslik`, `ig_caption`, `ig_hashtag`,
-`onem_puani` (1-10) → `durum='metin_hazir'`. Test: `scripts/test_3_metin_uret.py`
+`onem_puani` (1-10) → `durum='metin_hazir'`. Test: `tests/test_3_metin_uret.py`
 
 **EN ÖNEMLİ BULGU — bunu bozma:**
 RSS özetleri teaser; haberlerin **%76'sının özeti 200 karakterin altında**.
@@ -1847,10 +1851,10 @@ Anahtarları yeniden üretmek gerekirse:
 **6) Her şeyin çalıştığını doğrula** (sırayla, hepsi zararsız):
 
 ```bash
-python scripts/test_1_rss.py                    # RSS + veritabanı
-python scripts/test_kaynak_erisim.py            # kaynak erişimi
-python scripts/test_5_instagram_baglanti.py     # Instagram + jeton
-python scripts/test_2_makale_metni.py           # makale metni çekme
+python tests/test_1_rss.py                    # RSS + veritabanı
+python tests/test_kaynak_erisim.py            # kaynak erişimi
+python tests/test_5_instagram_baglanti.py     # Instagram + jeton
+python tests/test_2_makale_metni.py           # makale metni çekme
 ```
 
 Hepsi yeşilse kaldığın yerden devam edebilirsin. Jeton süresi dolmuşsa

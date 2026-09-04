@@ -46,7 +46,7 @@ sys.path.insert(0, str(KOK))
 # genişliyor.
 DENETLENEN = sorted(
     str(p.relative_to(KOK))
-    for klasor in ("src", "scripts")
+    for klasor in ("src", "scripts", "tests")
     for p in (KOK / klasor).glob("*.py")
     if p.name != "__init__.py" and p.name != Path(__file__).name
 )

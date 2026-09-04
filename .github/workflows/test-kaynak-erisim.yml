@@ -21,7 +21,7 @@ on:
     # Sadece teşhisin kendisi değişince otomatik çalışsın.
     # Her push'ta çalışmasını istemiyoruz.
     paths:
-      - "scripts/test_kaynak_erisim.py"
+      - "tests/test_kaynak_erisim.py"
       - ".github/workflows/test-kaynak-erisim.yml"
 
 # Raporu repo'ya geri yazabilmek için yazma izni gerekiyor.
@@ -50,7 +50,7 @@ jobs:
 
       - name: Kaynaklara eriş ve raporla
         # tee: çıktıyı hem ekrana bas hem dosyaya yaz
-        run: python scripts/test_kaynak_erisim.py 2>&1 | tee data/kaynak-erisim-raporu.txt
+        run: python tests/test_kaynak_erisim.py 2>&1 | tee data/kaynak-erisim-raporu.txt
 
       - name: Raporu repo'ya geri yaz
         run: |

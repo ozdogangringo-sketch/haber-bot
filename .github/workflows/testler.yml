@@ -21,6 +21,7 @@ on:
     paths:
       - "src/**"
       - "scripts/**"
+      - "tests/**"
       - "worker/**"
       - "config.yaml"
       - ".github/workflows/**"
@@ -38,7 +39,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Bütünlük testi (çağrılar ve imzalar)
-        run: python scripts/test_0_butunluk.py
+        run: python tests/test_0_butunluk.py
 
       - name: Sözleşme testleri (davranış kuralları)
-        run: python scripts/test_7_sozlesme.py
+        run: python tests/test_7_sozlesme.py

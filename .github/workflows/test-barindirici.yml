@@ -19,4 +19,4 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python scripts/test_barindirici.py
+      - run: python tests/test_barindirici.py

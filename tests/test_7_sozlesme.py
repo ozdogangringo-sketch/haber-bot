@@ -158,6 +158,13 @@ def test_config_anahtarlari_okunuyor() -> None:
     cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
     tum_kod = "\n".join(
         p.read_text(encoding="utf-8")
+        # ⚠️ `tests/` BİLEREK TARANMIYOR (4 Eyl 2026). Bir testin bir
+        # config anahtarını anması o ayarı CANLI yapmaz. Testler
+        # `scripts/` altındayken tam bu oldu:
+        # `haber_gorseli_asgari_genislik/yukseklik` ayarlarını yalnızca
+        # `test_gorsel_cesitliligi` okuyordu, üretim kodu hiç bakmıyordu
+        # ve bu denetim yıllarca TEMİZ geçti. Testler `tests/`e taşınınca
+        # ölü ayarlar ortaya çıktı ve kaldırıldı.
         for klasor in ("src", "scripts")
         for p in (KOK / klasor).glob("*.py")
     )
@@ -750,17 +757,36 @@ def test_gorsel_cesitliligi() -> None:
          fotoğrafçı 6, 5 ve 4 kez) — aynı arama hep aynı sonucu
          veriyor ve biz en yüksek puanlıyı alıyorduk.
     """
-    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
-    g = cfg.get("gorsel") or {}
-    # 1280x720 ve 1200x630 GEÇEBİLMELİ
-    for gen, yuk, ad in ((1280, 720, "16:9 (1280x720)"),
-                         (1200, 630, "1.91:1 (1200x630)")):
-        denetle(gen >= g.get("haber_gorseli_asgari_genislik", 0)
-                and yuk >= g.get("haber_gorseli_asgari_yukseklik", 0),
-                f"haber fotoğrafı eşiği {ad} boyutunu geçiriyor",
-                f"eşik {g.get('haber_gorseli_asgari_genislik')}x"
-                f"{g.get('haber_gorseli_asgari_yukseklik')} — haber "
-                "sitelerinin standart boyutu eleniyor, her şey Pexels'e düşer")
+    # ⚠️ ARTIK CONFIG DEĞİL, GERÇEK KAPI SINANIYOR (4 Eyl 2026).
+    # Eski hâli `gorsel.haber_gorseli_asgari_*` ayarlarını okuyordu ama
+    # o ayarları ÜRETİM KODU HİÇ OKUMUYORDU — boyut denetimi
+    # `gorsel_kalite.gorsel_kalite_denetle`e taşınmıştı. Yani test
+    # yaşayan bir kuralı değil, ölü bir ayarı doğruluyordu; testler
+    # `scripts/`ten `tests/`e taşınınca "ölü ayar" denetimi yakaladı.
+    from PIL import Image
+    from src import gorsel_kalite as gk
+
+    def _desenli(gen, yuk):
+        # Düz renk Laplacian 0 verir ve netlik testine takılır.
+        im = Image.new("RGB", (gen, yuk)); px = im.load()
+        for y in range(yuk):
+            for x in range(0, gen, 3):
+                px[x, y] = (40 + (x * 7) % 200, 90, 150 - (y // 3) % 120)
+        return im
+
+    # Haber sitelerinin STANDART OG boyutları geçebilmeli.
+    for gen, yuk, ad in ((1280, 720, "16:9"), (1200, 630, "1.91:1"),
+                         (1920, 1080, "HD"), (1200, 675, "AA tipik")):
+        ok, sebep = gk.gorsel_kalite_denetle(_desenli(gen, yuk), dosya_boyutu_kb=250)
+        denetle(ok, f"kalite kapısı {ad} ({gen}x{yuk}) boyutunu geçiriyor",
+                f"{sebep} — haber sitelerinin standart boyutu elenirse "
+                "her şey Pexels'e düşer (ölçüldü: 14/14 haber)")
+
+    # Büyütme gerektiren küçük fotoğraflar ELENMELİ.
+    for gen, yuk in ((864, 486), (640, 360)):
+        ok, _ = gk.gorsel_kalite_denetle(_desenli(gen, yuk), dosya_boyutu_kb=120)
+        denetle(not ok, f"kalite kapısı küçük fotoğrafı ({gen}x{yuk}) eliyor",
+                "büyütme bulanıklaştırır; küçültme kalite kaybettirmez")
 
     fs = (KOK / "src/fetch_stock.py").read_text(encoding="utf-8")
     denetle("kullanilmis" in fs,
@@ -1636,7 +1662,9 @@ def test_olu_modul_yok() -> None:
     moduller = {p.stem for p in kok_src.glob("*.py")} - {"__init__"}
     kullanim = {m: 0 for m in moduller}
 
-    for dosya in list(kok_src.glob("*.py")) + list((KOK / "scripts").glob("*.py")):
+    for dosya in (list(kok_src.glob("*.py"))
+                  + list((KOK / "scripts").glob("*.py"))
+                  + list((KOK / "tests").glob("*.py"))):
         try:
             agac = ast.parse(dosya.read_text(encoding="utf-8"))
         except SyntaxError:

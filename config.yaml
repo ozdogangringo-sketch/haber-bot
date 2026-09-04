@@ -459,9 +459,21 @@ gorsel:
   #   1280x720 (16:9) · 1200x630 (1.91:1)
   # İkisi de 800 yükseklik eşiğine takılıyordu.
   #
-  # Yalnızca yüksek çözünürlüklü HD haber fotoğraflarını kabul et (16:9 ve 1.91:1 standartları):
-  haber_gorseli_asgari_genislik: 1200
-  haber_gorseli_asgari_yukseklik: 630
+  # ⚠️ `haber_gorseli_asgari_genislik/yukseklik` KALDIRILDI (4 Eyl 2026).
+  # Boyut denetimi artık `src/gorsel_kalite.gorsel_kalite_denetle()`
+  # içinde ve DAHA AKILLI: düz genişlik/yükseklik eşiği yerine
+  # fotoğrafın hedef dikey orana KIRPILDIKTAN SONRAKİ gerçek piksel
+  # yoğunluğunu ölçüyor (`kirpma_olcegi_hesapla`). 1200x630 ile
+  # 630x1200 aynı piksel sayısına sahip ama dikey tuvale kırpıldığında
+  # bambaşka sonuç veriyor; düz eşik bunu göremiyordu.
+  #
+  # ⚠️ İki ayar bir süredir ÖLÜYDÜ — yalnızca test dosyası okuyordu,
+  # üretim kodu hiç bakmıyordu. Testler `scripts/`ten `tests/`e
+  # taşınınca "ölü ayar" denetimi bunu yakaladı.
+  #
+  # CLAUDE.md'deki ölçülmüş kural yeni kapıda DOĞRULANDI:
+  #   1280x720 ✓  1200x630 ✓  1920x1080 ✓  1200x675 ✓
+  #   864x486 ✗   640x360 ✗
   # Düz zeminli sayfalar (detay slaytları) — fotoğraf yok, yüksek
   # kalite dosyayı gereksiz şişiriyor.
   jpeg_kalite: 90
