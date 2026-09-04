@@ -2203,6 +2203,96 @@ def test_her_dugme_workerda_karsilaniyor() -> None:
                 f"ölçer her şeye 'karşılanıyor' diyor: {d}")
 
 
+def test_worker_komutlari_python_tarafinda_var() -> None:
+    """
+    TERS YÖN: Worker'ın kabul ettiği her komutun bir işleyicisi olmalı.
+
+    ⚠️ `test_her_dugme_workerda_karsilaniyor` Python→Worker yönünü
+    kapatıyor (düğme var, Worker tanımıyor). Bu test TERSİNİ ölçüyor:
+    Worker komutu GitHub'a iletiyor, job çalışıyor, hiçbir dal uymuyor.
+    Eskiden bunun sonucu **tam sessizlikti** — `main()` fonksiyonun
+    sonuna varıp `None` dönüyor, `SystemExit(None)` çıkış kodunu **0**
+    yapıyor, job YEŞİL görünüyordu.
+
+    ⚠️ İki yön AYRI kusur sınıfı ve ikisi de gerçekten yaşandı:
+    Python→Worker'da kurtarma panelinin iki düğmesi ölüydü;
+    Worker→Python'da `android_muzikli` beyaz listede kalmıştı (Android
+    kümesi 4 Eyl'de silinmişti, girdi kalmıştı).
+    """
+    import ast as _ast
+    import re as _re
+
+    js = (KOK / "worker/index.js").read_text(encoding="utf-8")
+    blok = js.split("const EYLEMLER = [", 1)[1].split("];", 1)[0]
+    blok = "\n".join(l for l in blok.splitlines()
+                     if not l.strip().startswith("//"))
+    eylemler = _re.findall(r'"([a-z0-9_]+)"', blok)
+    denetle(len(eylemler) > 20, "worker EYLEMLER listesi okunabildi",
+            f"yalnızca {len(eylemler)} komut bulundu — ayrıştırma bozuk")
+
+    agac = _ast.parse((KOK / "scripts/onay_isle.py").read_text(encoding="utf-8"))
+    tam, onek = set(), set()
+    for n in _ast.walk(agac):
+        if (isinstance(n, _ast.Compare) and isinstance(n.left, _ast.Name)
+                and n.left.id == "komut"):
+            for op, c in zip(n.ops, n.comparators):
+                if not isinstance(op, (_ast.Eq, _ast.In)):
+                    continue
+                if isinstance(c, _ast.Constant) and isinstance(c.value, str):
+                    tam.add(c.value)
+                elif isinstance(c, (_ast.Tuple, _ast.List, _ast.Set)):
+                    for e in c.elts:
+                        if isinstance(e, _ast.Constant) and isinstance(e.value, str):
+                            tam.add(e.value)
+        if (isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                and n.func.attr == "startswith"
+                and isinstance(n.func.value, _ast.Name)
+                and n.func.value.id == "komut"):
+            for a in n.args:
+                if isinstance(a, _ast.Constant):
+                    onek.add(a.value)
+                elif isinstance(a, _ast.Tuple):
+                    for e in a.elts:
+                        if isinstance(e, _ast.Constant):
+                            onek.add(e.value)
+
+    # ⚠️ onay_isle TEK işleyici değil: `yayinla.yml` bazı komutları kendi
+    # dalında karşılıyor (`arsiv` → gecmisi_paylas.py). Bunu modellemezsem
+    # çalışan komutu "ölü" diye raporlarım — bu oturumda tam olarak oldu.
+    yml = (KOK / ".github/workflows/yayinla.yml").read_text(encoding="utf-8")
+    workflow = set(_re.findall(r'\$KOMUT"\s*=\s*"([a-z0-9_]+)"', yml))
+
+    def _islenir(k: str) -> bool:
+        return (k in tam or k in onek
+                or any(k.startswith(o) for o in onek) or k in workflow)
+
+    olu = sorted(k for k in eylemler if not _islenir(k))
+    denetle(not olu,
+            "Worker'ın kabul ettiği her komutun işleyicisi var",
+            f"beyaz listede olup hiçbir yerde işlenmeyen: {olu}")
+
+    # --- Aracın kendisi çalışıyor mu: bilinen komutları görüyor mu? ---
+    denetle(all(_islenir(k) for k in ("yayinla", "durum", "ayar")),
+            "işleyici taraması bilinen komutları görüyor",
+            "tarama bozuk — her komutu 'ölü' sayabilir")
+
+    # --- SESSİZ DÜŞÜŞ YOK: try bloğu return ile bitmeli ---
+    #
+    # ⚠️ Yapısal denetim, metin araması değil. `main()`in try bloğunun
+    # son ifadesi `return` değilse eşleşmeyen komut fonksiyonun sonuna
+    # düşüyor ve `None` dönüyor demektir — çıkış kodu 0, job yeşil,
+    # kullanıcıya hiçbir şey söylenmiyor.
+    ana = next((n for n in _ast.walk(agac)
+                if isinstance(n, _ast.FunctionDef) and n.name == "main"), None)
+    denetle(ana is not None, "onay_isle.main bulundu", "fonksiyon yok")
+    if ana is not None:
+        try_blok = next((n for n in ana.body if isinstance(n, _ast.Try)), None)
+        denetle(try_blok is not None and isinstance(try_blok.body[-1], _ast.Return),
+                "eşleşmeyen komut sessizce düşmüyor",
+                "main()in try bloğu return ile bitmiyor; tanınmayan komut "
+                "None döndürüp çıkış kodunu 0 yapıyor (SESSİZ BAŞARISIZLIK)")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -2259,6 +2349,7 @@ def main() -> int:
         test_video_etiketleri_habere_ozel,
         test_metin_uretimi_icerik_sinyaline_bakiyor,
         test_her_dugme_workerda_karsilaniyor,
+        test_worker_komutlari_python_tarafinda_var,
     ):
         try:
             test()

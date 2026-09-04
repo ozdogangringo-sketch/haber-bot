@@ -32,7 +32,7 @@
 const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele", "durum", "tur",
                   "sondakika",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak", "cope_at",
-                  "plan_iptal", "havuz_guncelle", "havuzdan_ekle", "android_muzikli",
+                  "plan_iptal", "havuz_guncelle", "havuzdan_ekle",
                   "manuel_paket", "yayinla_diger", "manuel_tamam",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",

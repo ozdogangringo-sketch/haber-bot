@@ -3650,6 +3650,20 @@ def main() -> int:
         return ayar_degistir(con, ayarlar, komut.split(":", 1)[1],
                              mesaj_id, basan)
 
+    # ⚠️ MESAJSIZ KOMUT BURAYA GELMEMELİ. Geldiyse yukarıdaki dalların
+    # hiçbirine uymamış demektir — yani `MESAJSIZ_KOMUTLAR` listesine
+    # eklenmiş ama işleyicisi yazılmamış. Eskiden akış devam ediyor,
+    # `turu_getir(con, 0)` boş dönüyor ve kullanıcı **"bu mesaj artık
+    # geçerli değil"** gibi tamamen alakasız bir cevap alıyordu.
+    if mesajsiz_komut_mu(komut) and not mesaj_id:
+        log.error("işleyicisi olmayan mesajsız komut: %s", komut)
+        telegram_bot.mesaj_gonder(
+            f"⚠️ <b>Tanınmayan komut:</b> <code>{html.escape(komut)}</code>\n\n"
+            "Komut listede tanımlı ama karşılığı yazılmamış.",
+            html=True,
+        )
+        return 0
+
     haberler = turu_getir(con, mesaj_id)
 
     # YARIŞ DURUMU KORUMASI: turu hazırlayan job veritabanını henüz
@@ -3873,6 +3887,32 @@ def main() -> int:
             # için menüyü geri koymazsak onay verilemez hale gelir.
             menuyu_geri_koy(con, mesaj_id)
             return sonuc
+
+        # ⚠️ TANINMAYAN KOMUT ARTIK SESSİZ DEĞİL (4 Eyl 2026).
+        # Buraya kadar gelen komut hiçbir dala uymamış demektir. Eskiden
+        # fonksiyon burada BİTİYORDU: `None` dönüyor, `SystemExit(None)`
+        # çıkış kodunu **0** yapıyor, job YEŞİL görünüyordu. Kullanıcı
+        # düğmeye basıyor, hiçbir şey olmuyor, hiçbir yerde iz kalmıyor —
+        # projenin imza hatası (bkz. "SESSİZ BAŞARISIZLIK").
+        #
+        # ⚠️ Buraya düşmek KULLANICI HATASI DEĞİL, KOD HATASIDIR: Worker'ın
+        # beyaz listesi komutu kabul etmiş ama burada işleyicisi yok, yani
+        # iki liste ayrışmış. `test_worker_komutlari_python_tarafinda_var`
+        # bunu push anında yakalıyor; bu satır o testin kaçırdığı durum
+        # için son savunma.
+        #
+        # ⚠️ `return 1` DEĞİL: kırmızı job `hata_bildir`i tetikler ve
+        # kullanıcıya İKİNCİ bir Telegram mesajı gider. Bilgi aynı, gürültü
+        # iki katı. Menü de geri konuyor, yoksa tur kilitli kalır.
+        log.error("tanınmayan komut: %s (mesaj_id=%s)", komut, mesaj_id)
+        telegram_bot.mesaj_gonder(
+            f"⚠️ <b>Tanınmayan komut:</b> <code>{html.escape(komut)}</code>\n\n"
+            "Bu bir sistem hatası — düğme tanımlı ama karşılığı yok. "
+            "Menü geri kondu, turu yukarıdaki mesajdan yönetebilirsin.",
+            html=True,
+        )
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
 
     except Exception as e:
         log.exception("komut işlenemedi")
