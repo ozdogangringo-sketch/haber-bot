@@ -1607,6 +1607,67 @@ def test_db_yazan_workflow_commit_ediyor() -> None:
                 "contents: read ile db_kaydet sessizce başarısız olur")
 
 
+def test_olu_modul_yok() -> None:
+    """
+    `src/` altındaki her modül en az bir yerden import edilmeli.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): `src/handlers/` bir refactor
+    denemesinden kalmıştı — `slayt_yonetimi.py` ve `tur_yonetimi.py`
+    içinde **hiç fonksiyon yoktu**, `yayin_yonetimi.py` 158 satırdı ama
+    hiçbir yerden import edilmiyordu. Buna rağmen `GEMINI.md` onu
+    **tamamlanmış bir mimari** olarak anlatıyordu.
+
+    ⚠️ **ASIL ZARAR KOD DEĞİL, YANLIŞ HARİTA.** Bir hata ararken
+    (video eski görsel kullanıyordu) o ölü kopya görülüp "kod
+    ikilemesi var" diye YANLIŞ TEŞHİS kondu. Ölü kod yalnızca yer
+    kaplamıyor, okuyanı yanlış yöne gönderiyor.
+
+    Aynı taramada `src/x_paylas.py` de (141 satır) ölü bulundu —
+    `twitter.py` yerini almıştı.
+
+    ⚠️ TARAMA `n.module`'A DA BAKMALI. Bu denetimin ilk yazımında
+    yalnızca `a.name` inceleniyordu ve `from src.komutlar import
+    KOMUT_MENUSU` biçimi KAÇIYORDU: `a.name` = "KOMUT_MENUSU", modül
+    adı `n.module` içinde. Sonuç: `komutlar` ve `zaman` yanlışlıkla
+    "ölü" raporlandı (gerçekte 2 ve 7 yerden kullanılıyorlar).
+    **Az kalsın yaşayan iki modül silinecekti.**
+    """
+    kok_src = KOK / "src"
+    moduller = {p.stem for p in kok_src.glob("*.py")} - {"__init__"}
+    kullanim = {m: 0 for m in moduller}
+
+    for dosya in list(kok_src.glob("*.py")) + list((KOK / "scripts").glob("*.py")):
+        try:
+            agac = ast.parse(dosya.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for d in ast.walk(agac):
+            adaylar = []
+            if isinstance(d, ast.ImportFrom):
+                # ⚠️ İKİSİNE DE BAK — yukarıdaki uyarıya bakınız.
+                if d.module:
+                    adaylar.append(d.module.split(".")[-1])
+                adaylar += [a.name.split(".")[-1] for a in d.names]
+            elif isinstance(d, ast.Import):
+                adaylar += [a.name.split(".")[-1] for a in d.names]
+            for ad in adaylar:
+                if ad in kullanim and dosya.stem != ad:
+                    kullanim[ad] += 1
+
+    olu = sorted(m for m, c in kullanim.items() if c == 0)
+    denetle(not olu,
+            "src/ altında ölü modül yok",
+            f"hiçbir yerden import edilmeyen: {olu} — ölü kod okuyanı "
+            "yanlış yöne gönderir (bkz. handlers/ vakası)")
+
+    # Taramanın kendisi çalışıyor mu? Bilinen canlı modüller görülmeli.
+    for canli in ("db", "komutlar", "zaman"):
+        if canli in kullanim:
+            denetle(kullanim[canli] > 0,
+                    f"tarama '{canli}' modülünü canlı görüyor",
+                    "tarama bozuksa YAŞAYAN modülü ölü sanıp sildirir")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1656,6 +1717,7 @@ def main() -> int:
         test_onaylanan_gorsel_videoya_giriyor,
         test_vision_denetimi,
         test_db_yazan_workflow_commit_ediyor,
+        test_olu_modul_yok,
     ):
         try:
             test()

@@ -183,7 +183,7 @@ def kisa_metin_kur(
     özetleniyor. Öncelik sırası: tarih ve ilk manşetler korunur, hashtag
     en önce feda edilir.
 
-    (Threads için `sinir=THREADS_AZAMI`. X kapatıldı ama `x_paylas` de
+    (Threads için `sinir=THREADS_AZAMI`. X kapatıldı ama `twitter.py` de
      aynı işi 280 ile yapıyor — mantık tek yerde dursun diye burada.)
     """
     # ⚠️ CANLI SON DAKİKADA TARİH YAZILMIYOR (`tarihli=False`).
