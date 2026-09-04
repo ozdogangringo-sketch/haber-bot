@@ -61,6 +61,15 @@ def modul_adlarini_bul(agac: ast.AST) -> dict[str, str]:
             if dugum.module and dugum.module.startswith("src"):
                 for ad in dugum.names:
                     esleme[ad.asname or ad.name] = f"src.{ad.name}"
+            # ⚠️ `from scripts import X` DE SAYILMALI (4 Eyl 2026).
+            # Eskiden yalnızca `src` eşleniyordu ve `onay_isle.py`
+            # içindeki `from scripts import ekonomi_turu` +
+            # `ekonomi_turu.main()` çağrısı DENETİM DIŞI kalıyordu —
+            # oysa o dosya aylar önce silinmişti. Kullanıcı düğmeye
+            # basınca ImportError alıyordu, test tertemiz geçiyordu.
+            elif dugum.module and dugum.module.startswith("scripts"):
+                for ad in dugum.names:
+                    esleme[ad.asname or ad.name] = f"scripts.{ad.name}"
             elif dugum.level == 1 and not dugum.module:
                 for ad in dugum.names:
                     esleme[ad.asname or ad.name] = f"src.{ad.name}"

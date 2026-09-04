@@ -3305,11 +3305,6 @@ def main() -> int:
         from scripts import hazirla
         telegram_bot.mesaj_gonder("🔄 Gündem turu sıfırdan hazırlanıyor...")
         return hazirla.main()
-    if komut == "ekonomi_hazirla":
-        from scripts import ekonomi_turu
-        telegram_bot.mesaj_gonder("📈 Ekonomi & Finans turu sıfırdan hazırlanıyor...")
-        return ekonomi_turu.main()
-
     if komut == "ayar":
         return ayar_paneli(con, ayarlar)
     if komut == "havuz_guncelle":
@@ -3391,7 +3386,15 @@ def main() -> int:
             telegram_bot.mesaj_gonder("⚠️ Video üretilecek slayt görseli bulunamadı.")
             return 0
             
-    if komut in ("piyasa", "piyasa_ozet", "ekonomi"):
+    # ⚠️ `ekonomi_hazirla` BURAYA KATILDI (4 Eyl 2026).
+    # Eskiden kendi dalı vardı ve `from scripts import ekonomi_turu`
+    # çağırıyordu — ama o dosya `2aaa220` commit'inde SİLİNMİŞTİ
+    # ("eski 11:15 ekonomi turu kaldırıldı, saatler piyasa bültenine
+    # tahsis edildi"). Yani düğmeye basan kullanıcı ImportError alıyordu.
+    # Üstelik `yayinla.yml` komutu buraya hiç ulaştırmıyor, doğrudan
+    # var olmayan script'i çalıştırıp job'ı kırmızıya düşürüyordu.
+    # Kullanıcı kararı: /ekonomi piyasa bültenine bağlansın.
+    if komut in ("piyasa", "piyasa_ozet", "ekonomi", "ekonomi_hazirla"):
         from src import piyasa
         pv = piyasa.piyasa_verileri_getir()
         satirlar = ["📈 <b>CANLI PİYASA & BORSA ÖZETİ</b>\n"]
@@ -3547,9 +3550,15 @@ def main() -> int:
         return 0
 
     if komut in ("hata:tur_tekrar", "tur_tekrar"):
-        from scripts import ekonomi_turu
-        telegram_bot.mesaj_gonder("🔄 Ekonomi & Piyasa turu sıfırdan hazırlanıyor...")
-        return ekonomi_turu.main()
+        # ⚠️ EskIden `ekonomi_turu.main()` çağırıyordu ve o dosya
+        # `2aaa220`'de SİLİNMİŞTİ — yani hata bildirimindeki
+        # "🔄 Turu yeniden hazırla" düğmesi ImportError veriyordu.
+        # Bir şey bozulduğunda basılan düğmenin kendisi bozuktu.
+        # CLAUDE.md 1r(b): bu düğme GÜNDEM turunu kurmalı; hemen
+        # aşağıdaki `tur_metinsiz` de zaten `hazirla`yı çağırıyor.
+        from scripts import hazirla
+        telegram_bot.mesaj_gonder("🔄 Tur sıfırdan hazırlanıyor...")
+        return hazirla.main()
 
     if komut == "hata:tur_metinsiz":
         from scripts import hazirla

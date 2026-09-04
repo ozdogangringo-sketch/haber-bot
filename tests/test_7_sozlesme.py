@@ -1746,6 +1746,47 @@ def test_yazilan_durum_dosyasi_okunuyor() -> None:
             "PKCE doğrulayıcısı depoda durmamalı")
 
 
+def test_cagrilan_script_var_mi() -> None:
+    """
+    Workflow ve Worker'ın çağırdığı her script GERÇEKTEN var olmalı.
+
+    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): `scripts/ekonomi_turu.py` commit
+    `2aaa220`'de bilerek silinmişti ("eski 11:15 ekonomi turu
+    kaldırıldı"), ama üç yerde izi kalmıştı:
+      * `yayinla.yml` hâlâ `python scripts/ekonomi_turu.py` çağırıyor
+      * Worker hâlâ `ekonomi` / `ekonomi_hazirla` komutunu gönderiyor
+      * Telegram'da hâlâ "📊 Ekonomi Turu Başlat" düğmesi duruyor
+
+    Yani o düğmeye basan kullanıcı "⏳ başlatılıyor" görüyor, job
+    **No such file** ile kırmızıya düşüyor ve hata bildirimi geliyor.
+    Düğme her seferinde başarısız.
+
+    ⚠️ Bir özelliği kaldırırken ÜÇ YERİ birden temizle: script,
+    workflow dalı, Worker düğmesi/dispatch listesi. (1h/1k dersinin
+    workflow karşılığı: kaynağı kapatmak ondan gelen KAYITLARI
+    düzeltmiyordu; burada da script'i silmek onu ÇAĞIRANLARI
+    düzeltmiyor.)
+    """
+    import re as _re
+    kok = KOK
+    metinler = {}
+    for yol in (kok / ".github" / "workflows").glob("*.yml"):
+        metinler[str(yol.relative_to(kok))] = yol.read_text(encoding="utf-8")
+    worker_yolu = kok / "worker" / "index.js"
+    if worker_yolu.exists():
+        metinler["worker/index.js"] = worker_yolu.read_text(encoding="utf-8")
+
+    for nerede, icerik in sorted(metinler.items()):
+        # Yorum satırlarını at — uyarı metinleri yanlış alarm veriyor
+        kod = "\n".join(l for l in icerik.splitlines()
+                         if not l.strip().startswith("#"))
+        for script in sorted(set(_re.findall(r"(scripts/[a-z0-9_]+\.py)", kod))):
+            denetle((kok / script).exists(),
+                    f"{nerede} → {script} mevcut",
+                    "çağrılan script yoksa job 'No such file' ile kırmızıya "
+                    "düşer; kullanıcı düğmeye basar, hiçbir şey olmaz")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -1797,6 +1838,7 @@ def main() -> int:
         test_db_yazan_workflow_commit_ediyor,
         test_olu_modul_yok,
         test_yazilan_durum_dosyasi_okunuyor,
+        test_cagrilan_script_var_mi,
     ):
         try:
             test()

@@ -94,8 +94,12 @@ jobs:
           KOMUT="${{ github.event.client_payload.komut }}"
           if [ "$KOMUT" = "tur" ] || [ "$KOMUT" = "tur_hazirla" ]; then
             python scripts/hazirla.py
-          elif [ "$KOMUT" = "ekonomi" ] || [ "$KOMUT" = "ekonomi_hazirla" ]; then
-            python scripts/ekonomi_turu.py
+          # ⚠️ `ekonomi` DALI KALDIRILDI (4 Eyl 2026). `ekonomi_turu.py`
+          # `2aaa220`'de silinmişti ama bu dal onu çağırmaya devam
+          # ediyordu: "📊 Ekonomi Turu Başlat" düğmesine basan kullanıcı
+          # "⏳ başlatılıyor" görüp job'ın kırmızıya düşmesini izliyordu.
+          # Komut artık onay_isle'ye düşüyor ve orada CANLI PİYASA
+          # ÖZETİ + yayın düğmeleriyle karşılanıyor.
           elif [ "$KOMUT" = "arsiv" ]; then
             python scripts/gecmisi_paylas.py --adet 3
           else
