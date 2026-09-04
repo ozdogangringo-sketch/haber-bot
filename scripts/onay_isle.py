@@ -1652,6 +1652,56 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id) -> int:
     return 0
 
 
+def _gorsel_adayini_uygula(con, ayarlar, haber, secilen: dict,
+                           mesaj_id: int, tek_aday: bool = False) -> int:
+    """
+    Seçilen SON DAKİKA adayını kalıcı yapar: URL'ler yazılır, albüm
+    yenilenir, menü albümün altına taşınır.
+
+    ⚠️ URL'LER SAKLANMIŞ OLANLARDAN GELİYOR, yeniden üretilmiyor —
+    görsel katmanları deterministik değil, aynı `atlanacak` başka
+    fotoğraf verebilir ("onaylanan çıktı saklanmalı" kuralı).
+    """
+    urller = secilen["urller"]
+    con.execute(
+        "UPDATE haberler SET gorsel_url = ?, detay_url = ?, story_url = ?, "
+        "gorsel_kaynagi = ?, gorsel_atif = ?, gorsel_deneme = ? WHERE id = ?",
+        (urller[0], json.dumps(urller[1:]), secilen.get("story_url") or urller[0],
+         secilen.get("katman"), secilen.get("atif"), secilen.get("deneme", 0),
+         haber["id"]),
+    )
+    con.commit()
+
+    etiketler = []
+    for idx in range(len(urller)):
+        if idx == 0:
+            etiketler.append("Kapak")
+        elif len(urller) == 2:
+            etiketler.append("Ayrıntı")
+        else:
+            etiketler.append(f"Ayrıntı {idx}/{len(urller)-1}")
+
+    eski_albom = db.ayar_oku(con, f"albom_{mesaj_id}", "")
+    if eski_albom:
+        try:
+            telegram_bot.mesajlari_sil(json.loads(eski_albom))
+        except Exception as e:                        # noqa: BLE001
+            log.warning("eski albüm silinemedi: %s", e)
+
+    yeni_albom = telegram_bot.slaytlari_gonder(urller, etiketler)
+    if yeni_albom:
+        db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(yeni_albom))
+
+    if not tek_aday:
+        telegram_bot.mesaj_gonder(
+            f"✅ Seçtiğin görsel uygulandı — {secilen.get('katman', '')}")
+
+    yeni_mid = menuyu_geri_koy(con, mesaj_id, en_alta_tasi=True)
+    if yeni_albom and yeni_mid != mesaj_id:
+        db.ayar_yaz(con, f"albom_{yeni_mid}", json.dumps(yeni_albom))
+    return 0
+
+
 def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basan: str = "") -> int:
     """
     Onay bekleyen haberin fotoğrafını sıradaki alternatif HD görselle yeniler ve slaytları baştan çizer.
@@ -1664,58 +1714,93 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
     if len(haberler) == 1 or haberler[0]["son_dakika"]:
         h = haberler[0]
         deneme = (h["gorsel_deneme"] or 0) + 1
+        adet = int((ayarlar.get("gorsel") or {}).get("gorsel_aday_adedi", 3))
+
+        # ⚠️ ÜÇ ADAY ÜRETİLİYOR, KULLANICI SEÇİYOR (4 Eyl 2026).
+        # Eskiden tek alternatif üretilip DOĞRUDAN uygulanıyordu —
+        # beğenilmezse tekrar basmak gerekiyordu ve her basış ayrı bir
+        # Actions uyanması (40-90 sn). Kullanıcı: *"başka fotoğraf
+        # seçeneğine basınca 3 görsel sunsa seçtiğimle devam etsek"*.
+        #
+        # ⚠️ ADAYLARIN TAMAMI YÜKLENİYOR, SEÇİMDE YENİDEN ÜRETİLMİYOR.
+        # Görsel katmanları deterministik değil (Pexels tekrar engeli,
+        # Commons aday sırası, kardeş havuzu çalıştırma anına bağlı);
+        # seçimden sonra aynı `atlanacak` ile yeniden üretmek BAŞKA bir
+        # fotoğraf verebilirdi. "Onaylanan çıktı saklanmalı, yayın
+        # anında yeniden üretilmemeli" kuralı burada da geçerli.
         telegram_bot.mesaj_gonder(
-            f"🔄 <b>Fotoğraf Yenileniyor...</b>\n\n{h['ig_baslik'] or h['baslik_orj']}\n"
-            f"(Alternatif #{deneme + 1} taranıyor ve slaytlar baştan çiziliyor)",
+            f"🔄 <b>{adet} alternatif fotoğraf hazırlanıyor…</b>\n\n"
+            f"{h['ig_baslik'] or h['baslik_orj']}\n"
+            f"<i>Hepsi hazır olunca yan yana göstereceğim, sen seçeceksin.</i>",
             html=True,
         )
 
-        sonuclar = slaytlar.son_dakika_uret(h, ayarlar, con=con, atlanacak=deneme)
-        yuklemeler = upload_image.hepsini_yukle([s["yol"] for s in sonuclar], ayarlar)
-        urller = [y["url"] for y in yuklemeler]
-        story_url = urller[0] if urller else None
-        story_detay_urller = urller[1:] if len(urller) > 1 else []
+        adaylar = []
+        for ek in range(adet):
+            try:
+                sonuclar = slaytlar.son_dakika_uret(
+                    h, ayarlar, con=con, atlanacak=deneme + ek)
+                yuklemeler = upload_image.hepsini_yukle(
+                    [s["yol"] for s in sonuclar], ayarlar)
+                urller = [y["url"] for y in yuklemeler]
+            except Exception as e:                    # noqa: BLE001
+                log.warning("alternatif #%d üretilemedi: %s", deneme + ek, e)
+                continue
+            if not urller:
+                continue
+            if any(a["urller"][0] == urller[0] for a in adaylar):
+                log.info("alternatif #%d öncekiyle aynı, atlanıyor", deneme + ek)
+                continue
+            adaylar.append({
+                "urller": urller,
+                "story_url": urller[0],
+                "katman": sonuclar[0].get("katman", ""),
+                "atif": sonuclar[0].get("atif", ""),
+                "deneme": deneme + ek,
+                "tur": "son_dakika",
+            })
+
+        if not adaylar:
+            telegram_bot.mesaj_gonder(
+                "⚠️ Alternatif fotoğraf bulunamadı, mevcut görsel kalıyor.")
+            menuyu_geri_koy(con, mesaj_id)
+            return 0
 
         con.execute(
-            "UPDATE haberler SET gorsel_url = ?, detay_url = ?, story_url = ?, "
-            "gorsel_deneme = ? WHERE id = ?",
-            (urller[0], json.dumps(urller[1:]), story_url, deneme, h["id"]),
+            "UPDATE haberler SET gorsel_adaylari = ?, gorsel_deneme = ? "
+            "WHERE id = ?",
+            (json.dumps(adaylar, ensure_ascii=False),
+             adaylar[-1]["deneme"], h["id"]),
         )
         con.commit()
 
-        # Telegram'da gösterilecek 9:16 Story / 4:5 Akış slayt URL'leri ve etiketleri
-        telegram_urller = [story_url] if story_url else [urller[0]]
-        if story_detay_urller:
-            telegram_urller.extend(story_detay_urller)
-        elif len(urller) > 1:
-            telegram_urller.extend(urller[1:])
+        if len(adaylar) == 1:
+            return _gorsel_adayini_uygula(con, ayarlar, h, adaylar[0],
+                                          mesaj_id, tek_aday=True)
 
-        etiketler = []
-        for idx in range(len(telegram_urller)):
-            if idx == 0:
-                etiketler.append("Kapak")
-            elif len(telegram_urller) == 2:
-                etiketler.append("Ayrıntı")
-            else:
-                etiketler.append(f"Ayrıntı {idx}/{len(telegram_urller)-1}")
+        # ⚠️ `sendMediaGroup` INLINE BUTON KABUL ETMİYOR — albüm ayrı,
+        # düğmeler ayrı mesajda. Telegram kısıtı.
+        basliklar = [
+            f"{telegram_bot.KATMAN_SIMGE.get(a['katman'], '▫️')} "
+            f"{a['katman']} — {a['atif']}" for a in adaylar
+        ]
+        telegram_bot.slaytlari_gonder(
+            [a["urller"][0] for a in adaylar], basliklar)
 
-        # Telegram albümünü güncelle: Eski albümü silip yenisini gönder
-        eski_albom = db.ayar_oku(con, f"albom_{mesaj_id}", "")
-        if eski_albom:
-            try:
-                telegram_bot.mesajlari_sil(json.loads(eski_albom))
-            except Exception as e:
-                log.warning("eski albüm silinemedi: %s", e)
-
-        yeni_albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
-        if yeni_albom_idler:
-            db.ayar_yaz(con, f"albom_{mesaj_id}", json.dumps(yeni_albom_idler))
-
-        # Onay kartını ve butonları albümün hemen altına taşı
-        yeni_mid = menuyu_geri_koy(con, mesaj_id, en_alta_tasi=True)
-        if yeni_albom_idler and yeni_mid != mesaj_id:
-            db.ayar_yaz(con, f"albom_{yeni_mid}", json.dumps(yeni_albom_idler))
+        secim = [{"text": f"{i}\ufe0f\u20e3",
+                  "callback_data": f"gorsel_sec:{i}:1:{mesaj_id}"}
+                 for i in range(1, len(adaylar) + 1)]
+        telegram_bot.mesaj_gonder(
+            f"🎨 <b>{len(adaylar)} alternatif kapak</b>\n"
+            f"{h['ig_baslik'] or h['baslik_orj']}\n\n"
+            f"Beğendiğin numaraya bas. Seçim yapmazsan mevcut görsel kalır.",
+            html=True,
+            butonlar=[secim,
+                      [{"text": "🔄 Başka adaylar",
+                        "callback_data": "foto_degistir"}]],
+        )
         return 0
+
     else:
         # Çoklu tur: Kullanıcıya hangi slaytı değiştirmek istediğini sor
         telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.slayt_secim_menusu(len(haberler)))
@@ -2737,6 +2822,16 @@ def gorsel_adayini_sec(con, ayarlar, haberler, aday_no: int,
         return 0
 
     a = adaylar[aday_no - 1]
+
+    # ⚠️ İKİ ADAY BİÇİMİ VAR ve ikisi ayrı akıştan geliyor:
+    #   • "urller" taşıyan → SON DAKİKA (`foto_degistir`): tek haberden
+    #     2-5 slayt üretiliyor, hepsi birden değişiyor ve onay adımı YOK
+    #     (kullanıcı zaten üç kapağı görüp seçti).
+    #   • "url" taşıyan → TEKİL SLAYT (`slayt_foto`): carousel'de bir
+    #     slaytın görseli, aday alanlarına yazılıp kabul akışına giriyor.
+    if a.get("urller"):
+        return _gorsel_adayini_uygula(con, ayarlar, haber, a, mesaj_id)
+
     con.execute(
         "UPDATE haberler SET gorsel_url_aday = ?, story_url_aday = ?, "
         "gorsel_kaynagi_aday = ?, gorsel_atif_aday = ?, gorsel_yolu_aday = ?, "

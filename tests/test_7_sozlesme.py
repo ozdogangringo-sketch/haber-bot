@@ -2557,6 +2557,41 @@ def test_gorsel_aday_secimi() -> None:
             "gorsel_aday_adedi ayarı var",
             f"okunan değer: {adet!r}")
 
+    # --- YAPISAL: iki akış da ÇOKLU aday üretiyor mu ---
+    #
+    # ⚠️ NEDEN AYRI DENETİM: seçim mantığı doğru çalışsa bile üretim
+    # tarafı tek aday veriyorsa özellik yok demektir. 4 Eyl 2026'da
+    # tam bu oldu — üç adaylı akış önce yalnızca `slayt_foto` yoluna
+    # eklendi, kullanıcının bastığı `foto_degistir` düğmesi ise ayrı
+    # bir fonksiyona gidiyordu ve tek görsel üretmeye devam etti.
+    # Kullanıcı: *"başka fotoğrafa bastım, 3 görsel göstermedi"*.
+    import ast as _ast2
+    agac_oi = _ast2.parse((KOK / "scripts/onay_isle.py").read_text(encoding="utf-8"))
+    for fn_adi in ("foto_degistir_islemi", "slayt_islemi"):
+        fn = next((n for n in _ast2.walk(agac_oi)
+                   if isinstance(n, _ast2.FunctionDef) and n.name == fn_adi), None)
+        denetle(fn is not None, f"{fn_adi} bulundu", "fonksiyon yok")
+        if fn is None:
+            continue
+        # `for ... in range(<ayardan gelen adet>)` var mı?
+        coklu = any(
+            isinstance(n, _ast2.For)
+            and isinstance(n.iter, _ast2.Call)
+            and isinstance(n.iter.func, _ast2.Name)
+            and n.iter.func.id == "range"
+            and n.iter.args
+            and isinstance(n.iter.args[0], _ast2.Name)
+            for n in _ast2.walk(fn))
+        denetle(coklu,
+                f"{fn_adi} çoklu aday üretiyor",
+                "sabit sayıda (muhtemelen 1) aday üretiliyor — "
+                "'3 görsel göster' özelliği bu yolda yok")
+        okur = any(isinstance(n, _ast2.Constant)
+                   and n.value == "gorsel_aday_adedi" for n in _ast2.walk(fn))
+        denetle(okur,
+                f"{fn_adi} aday adedini config'den okuyor",
+                "adet koda gömülü — config değiştirmek işe yaramaz")
+
     # --- DAVRANIŞ: seçim uygulanıyor, aralık dışı reddediliyor ---
     eski_gonder, eski_kabul, eski_menu, eski_tur = (
         _tb.mesaj_gonder, _oi.gorseli_kabul_et,
@@ -2598,6 +2633,47 @@ def test_gorsel_aday_secimi() -> None:
             denetle(not kabuller and mesajlar,
                     f"aralık dışı aday reddediliyor ({gecersiz})",
                     "geçersiz numara sessizce kabul edildi")
+
+        # ⚠️ İKİNCİ ADAY BİÇİMİ — SON DAKİKA (`foto_degistir`).
+        # 4 Eyl 2026: üç adaylı seçim önce yalnızca `slayt_foto`
+        # yoluna eklendi, ama kullanıcının bastığı düğme
+        # **`foto_degistir`** gönderiyor ve o TAMAMEN AYRI bir
+        # fonksiyona gidiyor. Kullanıcı "başka fotoğrafa bastım, 3
+        # görsel göstermedi" dedi — özellik doğru yazılmış, yanlış
+        # kod yoluna bağlanmıştı. Bu denetim ikisini birden tutuyor.
+        con.execute("""CREATE TABLE ayarlar (anahtar TEXT PRIMARY KEY,
+                                             deger TEXT)""")
+        sd = [{"urller": [f"http://k{i}", f"http://d{i}"],
+               "story_url": f"http://k{i}", "katman": "pexels",
+               "atif": f"atif{i}", "deneme": i, "tur": "son_dakika"}
+              for i in (1, 2, 3)]
+        con.execute("""CREATE TABLE IF NOT EXISTS gecici (x)""")
+        for kolon in ("gorsel_url", "detay_url", "story_url",
+                      "gorsel_kaynagi", "gorsel_atif"):
+            try:
+                con.execute(f"ALTER TABLE haberler ADD COLUMN {kolon} TEXT")
+            except Exception:                         # noqa: BLE001
+                pass
+        con.execute("UPDATE haberler SET gorsel_adaylari = ? WHERE id=1",
+                    (_json.dumps(sd),))
+        con.commit()
+        eski_album = _tb.slaytlari_gonder
+        eski_sil = _tb.mesajlari_sil
+        _tb.slaytlari_gonder = lambda u, e=None: [1, 2]
+        _tb.mesajlari_sil = lambda *a, **k: None
+        try:
+            hs3 = list(con.execute("SELECT * FROM haberler"))
+            kabuller.clear()
+            _oi.gorsel_adayini_sec(con, {}, hs3, 2, 1, 500)
+            r = con.execute(
+                "SELECT gorsel_url FROM haberler WHERE id=1").fetchone()[0]
+            denetle(r == "http://k2",
+                    "son dakika adayı da uygulanıyor (foto_degistir yolu)",
+                    f"yazılan url: {r} (beklenen http://k2) — 'urller' "
+                    "biçimi tanınmıyor demektir")
+        finally:
+            _tb.slaytlari_gonder = eski_album
+            _tb.mesajlari_sil = eski_sil
 
         # Bayat liste: tur yenilenmiş, aday listesi silinmiş
         con.execute("UPDATE haberler SET gorsel_adaylari = NULL WHERE id=1")

@@ -261,6 +261,35 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
      empty field" araması "a road in Nagka, India" getirdi.
         KÖTÜ: "hospital corridor", "city bus stop", "courthouse"
 
+  3) KİMLİĞİ BELLİ FORMA, LOGO VEYA AMBLEM İSTEME. Stok fotoğraftaki
+     her oyuncu BİR kulübün formasını giyiyor; "players" ya da "team"
+     istediğin an başka bir takımın forması geliyor ve haberin altında
+     HATA gibi okunuyor.
+     ⚠️ Ölçüldü (4 Eyl 2026): "Galatasaray Başakşehir'i 3-2 yendi"
+     haberine "soccer match players stadium" istendi ve Pexels bir
+     ARJANTİN kulübünün fotoğrafını verdi. Kullanıcı fark etti.
+        KÖTÜ: "soccer match players stadium"
+        KÖTÜ: "womens volleyball team match action"
+
+     ⚠️ Pexels'te o takımın fotoğrafı ZATEN YOK — stok kütüphanesinde
+     Galatasaray da Fenerbahçe de bulunmaz. Yani "takım iste" hiçbir
+     durumda işe yaramıyor, yalnızca yanlış takım getiriyor.
+
+  4) HABERİN AYIRT EDİCİ ANINI/NESNESİNİ İSTE, KATEGORİSİNİ DEĞİL.
+     "Bu bir futbol haberi" değil, "bu haberde ne oldu" diye sor.
+        Haber: "Sara'nın 90. dakikada attığı frikik golüyle 3-2"
+        KÖTÜ: "soccer match players stadium"   (kategori)
+        İYİ : "football in goal net close up night"  (o an)
+
+        Haber: "Voleybolda Almanya 3-1 yenildi"
+        KÖTÜ: "womens volleyball team match action"
+        İYİ : "volleyball ball above net indoor court"
+
+     ⚠️ Bu kural yalnızca spor için değil: diğer kategorilerde zaten
+     doğru çalışıyor ("gold bullion bars dark vault luxury",
+     "handcuffs on wooden table closeup", "burning forest branches at
+     night") — sporda insana odaklanıldığı için bozuluyordu.
+
   KOMPOZİSYON SERBEST — "close up" ZORUNLU DEĞİL. Yakın plan nesne de,
   sahne de olabilir; yeter ki yukarıdaki iki şartı sağlasın. Hep aynı
   kalıbı kullanmak hesabı tekdüze gösteriyor.
