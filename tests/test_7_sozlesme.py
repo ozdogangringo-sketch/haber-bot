@@ -718,10 +718,25 @@ def test_worker_calisiyor() -> None:
     import subprocess
     if not shutil.which("node"):
         return                                  # node yoksa atla
+    # ⚠️ `export default` SONRASINI KESME — dosyanın %57'si denetimsiz
+    # kalıyordu (4 Eyl 2026). `export default` 528. satırda, dosya 1234
+    # satır; bütün istek işleyicileri, /yardim metni ve düğme panelleri
+    # o bloğun İÇİNDE. Kesince test yalnızca üst yarıyı ayrıştırıyordu.
+    #
+    # ÖLÇÜLDÜ — gerçek bir hata (JS'te geçersiz, yan yana iki dizgi)
+    # 657. satıra kondu ve ÜÇ yöntem denendi:
+    #   node --check                          → TEMİZ (kaçırdı)
+    #   new Function + kesilmiş kaynak        → TEMİZ (kaçırdı)
+    #   new Function + `export default` ataması → HATA (yakaladı)
+    # Wrangler/esbuild derlemesi de patlıyordu, yani hata gerçekti.
+    #
+    # ⚠️ `node --check` BU DOSYADA GÜVENİLMEZ. Tek başına yeterli
+    # sanılmasın diye buraya yazıldı; CLAUDE.md'deki eski uyarı
+    # ("node --check Worker'ı doğrulamaz") ölçümle daha da güçlendi.
     betik = (
         "const fs=require('fs');"
         "let k=fs.readFileSync(process.argv[1],'utf8');"
-        "k=k.replace(/export default[\\s\\S]*$/,'');"
+        "k=k.replace(/export default/,'const _wd =');"
         "new Function(k+';return eylemMi(\"hazirla:1\");')();"
         "console.log('ok');"
     )

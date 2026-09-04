@@ -653,7 +653,7 @@ export default {
                 "• /durdur — Botu geçici duraklat · /devam — Yeniden başlat\n\n" +
 
                 "❓ /yardim — Bu rehber\n\n" +
-                "<i>⚠️ Makro kartlarında oranı SEN yazıyorsun; bot rakam "
+                "<i>⚠️ Makro kartlarında oranı SEN yazıyorsun; bot rakam " +
                 "uydurmaz. Örn: /faiz 47.5 TCMB politika faizini sabit tuttu</i>",
                 "HTML");
             return new Response("ok");
