@@ -1617,6 +1617,78 @@ def plani_iptal_et(con, mesaj_id, basan) -> int:
     return 0
 
 
+def _son_dakika_metin_yenile(con, ayarlar, taze, mesaj_id: int) -> int:
+    """
+    Metni yenilenen SON DAKİKA turunun slaytlarını ve caption'ını kendi
+    üreticisiyle yeniden kurar.
+
+    ⚠️ NİYE AYRI DAL GEREKTİ (5 Eyl 2026): `metin_yenile` bütün turları
+    carousel sanıp `slaytlar.tur_uret` çağırıyordu. Son dakika turunda o
+    yalnızca TEK slayt üretiyor; ayrıntı sayfaları hiç yeniden
+    çizilmiyor ve veritabanındaki eski `detay_url`ler yerinde kalıyor.
+    Sonuç ÖLÇÜLDÜ (haber #109481): kapakta YENİ metin, ayrıntı
+    sayfalarında ESKİ metin. Kullanıcı yazım hatasını düzeltmek için
+    düğmeye bassa bile hata ayrıntı sayfalarında kalıyordu.
+
+    ⚠️ Caption da `caption_kur` ile kuruluyordu — yani son dakika postu
+    "Günün gündemi" biçiminde bir carousel metnine dönüşüyordu. Bu, 18
+    Ağu'daki *"onaylanan metin ≠ yayınlanan metin"* kusurunun aynısı ve
+    burada daha ağır: kullanıcı postu O METNİ kopyalayarak ELLE
+    paylaşıyor.
+    """
+    sonuclar = slaytlar.son_dakika_uret(taze, ayarlar, con=con)
+
+    urller, story_url = [], None
+    for s in sonuclar:
+        if not s.get("yol"):
+            continue
+        if s.get("katman") == "story":
+            try:
+                story_url = upload_image.gorsel_yukle(s["yol"], ayarlar)["url"]
+            except Exception as e:                        # noqa: BLE001
+                log.warning("story görseli yüklenemedi: %s", e)
+            continue
+        urller.append(upload_image.gorsel_yukle(s["yol"], ayarlar)["url"])
+
+    if not urller:
+        telegram_bot.mesaj_gonder(
+            "⚠️ Slaytlar yeniden üretilemedi — mevcut görseller kalıyor.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 0
+
+    metin = caption.son_dakika_caption(taze, sonuclar, ayarlar)
+    con.execute(
+        "UPDATE haberler SET gorsel_url = ?, story_url = ?, detay_url = ?, "
+        "ig_caption = ?, durum = 'onay_bekliyor' WHERE id = ?",
+        (urller[0], story_url or urller[0], json.dumps(urller[1:]),
+         metin, taze["id"]),
+    )
+    con.commit()
+
+    etiketler = []
+    for idx in range(len(urller)):
+        if idx == 0:
+            etiketler.append("Haber")
+        elif len(urller) == 2:
+            etiketler.append("Ayrıntı")
+        else:
+            etiketler.append(f"Ayrıntı {idx}/{len(urller)-1}")
+    telegram_bot.slaytlari_gonder(urller, etiketler)
+
+    uyari, isaretli = dogrula.turu_dogrula([taze])
+    yeni_id = telegram_bot.onay_iste(
+        metin, len(urller),
+        uyari=(uyari or "🔄 Metinler yeniden üretildi"),
+        ozet=telegram_bot.tur_ozeti([taze], isaretli),
+    )
+    con.execute("UPDATE haberler SET telegram_message_id = ? "
+                "WHERE telegram_message_id = ?", (yeni_id, mesaj_id))
+    con.commit()
+    telegram_bot.sonucu_yaz(
+        mesaj_id, "🔄 Metinler yeniden üretildi — yeni öneri yukarıda.")
+    return 0
+
+
 def metin_yenile(con, ayarlar, haberler, mesaj_id) -> int:
     """Tüm haberlerin metnini yeniden ürettirir ve slaytları yeniler."""
     con.execute(
@@ -1627,6 +1699,13 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id) -> int:
     metinleri_uret(ayarlar=ayarlar, haberler=haberler)
 
     taze = turu_getir(con, mesaj_id)
+
+    # ⚠️ SON DAKİKA TURU CAROUSEL DEĞİL — kendi üreticisine gidiyor.
+    # Aşağıdaki `tur_uret` yolu haber başına TEK slayt çiziyor; son
+    # dakikanın ayrıntı sayfaları orada hiç yenilenmiyordu.
+    if len(taze) == 1 and taze[0]["son_dakika"]:
+        return _son_dakika_metin_yenile(con, ayarlar, taze[0], mesaj_id)
+
     sonuclar = slaytlar.tur_uret(taze, ayarlar, con)
     yuklemeler = upload_image.hepsini_yukle([s["yol"] for s in sonuclar], ayarlar)
     for haber, yukleme in zip(taze, yuklemeler):

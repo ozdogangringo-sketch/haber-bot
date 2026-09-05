@@ -2965,6 +2965,85 @@ def test_sansur_yildizi_cizime_kadar_yasiyor() -> None:
 
 
 
+def test_metin_yenile_son_dakikayi_taniyor() -> None:
+    """
+    "Metinleri yeniden üret" son dakika turunu carousel sanmıyor mu?
+
+    ⚠️ GERÇEK OLAY (5 Eyl 2026, haber #109481). `metin_yenile` bütün
+    turlarda `slaytlar.tur_uret` çağırıyordu; o haber başına TEK slayt
+    çiziyor. Son dakika turunda ayrıntı sayfaları hiç yenilenmedi ve
+    veritabanındaki eski `detay_url`ler yerinde kaldı → kapakta YENİ
+    metin, ayrıntı sayfalarında ESKİ metin. Kullanıcı yazım hatasını
+    düzeltmek için düğmeye bastı, hata sayfalarda kaldı.
+
+    ⚠️ Caption da `caption_kur` ile kuruluyordu: son dakika postu
+    "Günün gündemi" biçimli carousel metnine dönüşüyordu. Kullanıcı
+    postu O METNİ kopyalayıp ELLE paylaştığı için bu görünmez değil,
+    doğrudan yayına giden bir kusur.
+
+    ⚠️ DENETİM AST İLE — docstring'de de "detay_url" geçiyor ve düz
+    metin araması bu projede üç kez yanlış sonuç verdi.
+    """
+    import ast as _ast
+    kaynak = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    agac = _ast.parse(kaynak)
+    fonk = {d.name: d for d in _ast.walk(agac)
+            if isinstance(d, _ast.FunctionDef)}
+
+    def _cagrilar(dugum):
+        adlar = set()
+        for n in _ast.walk(dugum):
+            if isinstance(n, _ast.Call):
+                f = n.func
+                adlar.add(f.attr if isinstance(f, _ast.Attribute)
+                          else getattr(f, "id", ""))
+        return adlar
+
+    def _govde_dizgileri(dugum):
+        """Docstring HARİÇ, fonksiyon gövdesindeki dizgiler."""
+        govde = dugum.body
+        if (govde and isinstance(govde[0], _ast.Expr)
+                and isinstance(govde[0].value, _ast.Constant)):
+            govde = govde[1:]
+        return [n.value for g in govde for n in _ast.walk(g)
+                if isinstance(n, _ast.Constant) and isinstance(n.value, str)]
+
+    denetle("_son_dakika_metin_yenile" in fonk,
+            "son dakika için ayrı metin yenileme dalı var",
+            "son dakika turu carousel gibi işlenir, ayrıntı sayfaları "
+            "eski metinle kalır")
+    if "_son_dakika_metin_yenile" not in fonk or "metin_yenile" not in fonk:
+        return
+
+    my = _cagrilar(fonk["metin_yenile"])
+    denetle("_son_dakika_metin_yenile" in my,
+            "metin_yenile son dakikayı ayrı dala devrediyor",
+            "dal yazılmış ama çağrılmıyor — kod ölü")
+    denetle(any("son_dakika" in d for d in _govde_dizgileri(fonk["metin_yenile"])),
+            "metin_yenile son_dakika alanına bakıyor",
+            "ayrım yapılmıyor, her tur carousel sanılıyor")
+
+    sd = _cagrilar(fonk["_son_dakika_metin_yenile"])
+    denetle("son_dakika_uret" in sd,
+            "son dakika slaytları kendi üreticisiyle çiziliyor",
+            "tur_uret tek slayt çizer, ayrıntı sayfaları yenilenmez")
+    denetle("son_dakika_caption" in sd,
+            "caption son dakika biçiminde kuruluyor",
+            "caption_kur carousel metni üretir — kullanıcı onu ELLE "
+            "paylaştığı için doğrudan yayına giden kusur")
+    denetle("tur_uret" not in sd and "caption_kur" not in sd,
+            "son dakika dalı carousel üreticilerini çağırmıyor",
+            "iki üretici karışmış")
+
+    sqllar = [q for q in _govde_dizgileri(fonk["_son_dakika_metin_yenile"])
+              if "UPDATE" in q.upper()]
+    denetle(any("detay_url" in q for q in sqllar),
+            "yeni ayrıntı sayfaları veritabanına yazılıyor",
+            "slaytlar yeniden çizilir ama eski detay_url kayıtta kalır — "
+            "yayında ESKİ sayfalar çıkar")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3029,6 +3108,7 @@ def main() -> int:
         test_veri_karti_ve_vurgu_kapilari,
         test_planli_yayin_cloudflareden_tetikleniyor,
         test_sansur_yildizi_cizime_kadar_yasiyor,
+        test_metin_yenile_son_dakikayi_taniyor,
     ):
         try:
             test()
