@@ -1269,8 +1269,25 @@ export default {
       return;
     }
 
-    // 1. Hafta içi Borsa Açılış Bülteni (TR 10:08 / UTC 07:08)
-    if (event.cron === "8 7 * * 1-5") {
+    // 1. Hafta içi Borsa Bülteni — AÇILIŞ ve KAPANIŞ AYNI CRON'DA
+    //    (TR 10:20 açılış / TR 18:20 kapanış — UTC 07:20 ve 15:20)
+    //
+    // ⚠️ İKİ AYRI CRON SATIRIYDI, BİRLEŞTİRİLDİ. Cloudflare ücretsiz
+    // planda cron sınırı HESAP başına 5 ve aynı hesapta ezan botunun
+    // tetikleyicisi de duruyor; ortak dakikada (20) toplanınca bir
+    // slot boşaldı ve davranış korundu.
+    //
+    // ⚠️ CRON DİZGİSİ ARTIK HANGİ BÜLTEN OLDUĞUNU SÖYLEMİYOR — ayrım
+    // SAATTEN yapılıyor. `scheduledTime` tercih ediliyor: tetiklemenin
+    // PLANLANAN anı, worker'ın uyandığı an değil. Yan faydası, testin
+    // saati enjekte edip iki modu da ağa çıkmadan sınayabilmesi.
+    //
+    // ⚠️ Yanlış mod gönderilse bile `piyasa_otomatik.py` saat
+    // penceresini ayrıca denetliyor (açılış 09:55-11:30, kapanış
+    // 18:15-20:00 TR) — yani bu ayrım tek savunma katmanı değil.
+    if (event.cron === "20 7,15 * * 1-5") {
+      const saatUTC = new Date(event.scheduledTime ?? Date.now()).getUTCHours();
+      const mod = saatUTC < 12 ? "acilis" : "kapanis";
       await fetch(url, {
         method: "POST",
         headers: {
@@ -1280,24 +1297,7 @@ export default {
         },
         body: JSON.stringify({
           event_type: "piyasa_bulteni",
-          client_payload: { mod: "acilis", tetikleyen: "cloudflare_cron" },
-        }),
-      });
-      return;
-    }
-
-    // 2. Hafta içi Borsa Kapanış Bülteni (TR 18:20 / UTC 15:20)
-    if (event.cron === "20 15 * * 1-5") {
-      await fetch(url, {
-        method: "POST",
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${env.GITHUB_PAT}`,
-          "User-Agent": "HaberBot-CloudflareWorker",
-        },
-        body: JSON.stringify({
-          event_type: "piyasa_bulteni",
-          client_payload: { mod: "kapanis", tetikleyen: "cloudflare_cron" },
+          client_payload: { mod: mod, tetikleyen: "cloudflare_cron" },
         }),
       });
       return;

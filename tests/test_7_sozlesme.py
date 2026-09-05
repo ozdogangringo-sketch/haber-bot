@@ -2821,16 +2821,32 @@ def test_planli_yayin_cloudflareden_tetikleniyor() -> None:
             "PLANLAR KV alanı bağlı",
             "Worker alarmı saklayamaz, çalar saat çalışmaz")
 
-    # ⚠️ CLOUDFLARE ÜCRETSİZ PLAN: HESAP BAŞINA 5 CRON (code 10072).
-    # Beşinciyi eklerken sınıra çarpıldı; iki son_dakika satırı
-    # birleştirildi. Sayı tekrar 5'e çıkarsa deploy SESSİZCE yarım
-    # kalıyor — kod gidiyor, cron gitmiyor.
+    # ⚠️ CLOUDFLARE ÜCRETSİZ PLAN: HESAP BAŞINA 5 CRON (code 10072) —
+    # WORKER BAŞINA DEĞİL. Ölçüldü (5 Eyl 2026, API okumasıyla): aynı
+    # hesapta `ezan-plus-tetikleyici` worker'ı da cron tutuyor, yani
+    # bütçemiz 5 değil. Dün sınıra çarpmamızın gerçek sebebi buydu —
+    # o worker bizden 3 saat önce deploy edilip son slotu almıştı.
+    #
+    # ⚠️ SINIRI AŞAN DEPLOY SESSİZCE YARIM KALIYOR: kod gidiyor, cron
+    # gitmiyor ve wrangler bunu yalnızca uyarı olarak söylüyor. Bu
+    # yüzden denetim "5" değil BİZE AYRILAN pay üzerinden yapılıyor.
+    HESAP_SINIRI = 5          # Cloudflare ücretsiz plan, hesap başına
+    BASKA_WORKER = 1          # ezan-plus-tetikleyici (ölçüldü)
+    BIZE_AYRILAN = HESAP_SINIRI - BASKA_WORKER
     cronlar = _re.search(r"crons\s*=\s*\[([^\]]*)\]", kod)
     adet = len(_re.findall(r'"', cronlar.group(1))) // 2 if cronlar else 0
-    denetle(0 < adet <= 5,
-            f"cron sayısı ücretsiz plan sınırında ({adet}/5)",
-            "5'i aşarsa wrangler deploy cron'ları YAZAMIYOR ve bunu "
-            "yalnızca uyarı olarak söylüyor")
+    denetle(0 < adet <= BIZE_AYRILAN,
+            f"cron sayısı hesap bütçesinde ({adet}/{BIZE_AYRILAN}, "
+            f"hesap sınırı {HESAP_SINIRI})",
+            "payı aşarsa wrangler deploy cron'ları YAZAMIYOR ve bunu "
+            "yalnızca uyarı olarak söylüyor — ayrıca aynı hesaptaki "
+            "ezan botunun deploy'unu da kilitler")
+
+    # ⚠️ Saat listesi virgülle yazılabiliyor; iki piyasa cron'u ortak
+    # dakikada (20) birleştirildi ve bir slot boşaldı.
+    denetle('"20 7,15 * * 1-5"' in kod,
+            "piyasa açılış+kapanış tek cron satırında",
+            "iki ayrı satır hesap bütçesini aşırıyor")
 
     yml = (KOK / ".github/workflows/son-dakika.yml").read_text(encoding="utf-8")
     denetle("planli_yayin" in yml,
@@ -2862,6 +2878,23 @@ def test_planli_yayin_cloudflareden_tetikleniyor() -> None:
     denetle("KV boş" in cikti and cikti.split("KV boş")[1].split("\n")[0].count("YOK"),
             "KV boşken GitHub uyandırılmıyor",
             "her tetiklemede Actions çalışırsa kota patlar")
+
+    # ⚠️ PİYASA BİRLEŞTİRMESİ — cron dizgisi artık hangi bülten
+    # olduğunu SÖYLEMİYOR, ayrım saatten yapılıyor. Bu denetim
+    # olmasaydı birleşik cron sessizce iki kez "acilis" üretebilir
+    # ve kapanış bülteni hiç çıkmazdı.
+    def _satir(anahtar):
+        for satir in cikti.splitlines():
+            if anahtar in satir:
+                return satir
+        return ""
+
+    denetle("piyasa_bulteni/acilis" in _satir("piyasa 07:20"),
+            "07:20 UTC → açılış bülteni",
+            "birleşik cron yanlış mod gönderiyor, açılış bülteni çıkmaz")
+    denetle("piyasa_bulteni/kapanis" in _satir("piyasa 15:20"),
+            "15:20 UTC → kapanış bülteni",
+            "birleşik cron iki slotta da aynı modu gönderiyor")
 
 
 def main() -> int:

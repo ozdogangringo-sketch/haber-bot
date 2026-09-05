@@ -33,11 +33,21 @@ GITHUB_REPO = "ozdogangringo-sketch/haber-bot"
 # 0,1,3,4,21,22 kapsanmadığı için TR gece yarısı planlanan yayın
 # 1.5-2 saat bekleyebiliyordu. Sıklığı artırmak kotayı patlatırdı
 # (ölçüldü: +1620 dk/ay, kota 3000 ve 1260'ı zaten dolu).
-# ⚠️ CLOUDFLARE ÜCRETSİZ PLAN: HESAP BAŞINA 5 CRON. Beşinciyi
-# eklerken sınıra çarptık (`code: 10072`). İki `son_dakika` satırı
-# BİRLEŞTİRİLDİ — saat listesi virgülle yazılabiliyor, davranış
-# birebir aynı: "12 5-20" + "12 23,2" = "12 2,5-20,23".
-crons = ["8 7 * * 1-5", "20 15 * * 1-5", "12 2,5-20,23 * * *", "*/10 * * * *"]
+# ⚠️ CLOUDFLARE ÜCRETSİZ PLAN: HESAP BAŞINA 5 CRON — worker başına
+# DEĞİL. Ölçüldü (5 Eyl 2026): aynı hesapta `ezan-plus-tetikleyici`
+# worker'ı da 1 cron tutuyor, yani bize 4 slot kalıyor. Beşinciyi
+# eklerken sınıra çarptık (`code: 10072`) ve deploy SESSİZCE yarım
+# kaldı: kod yüklendi, cron yazılmadı.
+#
+# ⚠️ ÇÖZÜM SLOT DEĞİL, BİRLEŞTİRME: saat listesi virgülle
+# yazılabiliyor ve Cloudflare dizgiyi birebir geri veriyor
+# (API okumasıyla doğrulandı). İki kez uygulandı:
+#   "12 5-20"  + "12 23,2"     = "12 2,5-20,23"    (son dakika)
+#   "8 7 1-5"  + "20 15 1-5"   = "20 7,15 * * 1-5" (piyasa)
+# ⚠️ Piyasa birleşince açılış 10:08 → 10:20 TR kaydı; iki pencere
+# de korunuyor (açılış 09:55-11:30, kapanış 18:15-20:00).
+# Dakika ORTAK olmak zorunda — bu yüzden 8 değil 20 seçildi.
+crons = ["20 7,15 * * 1-5", "12 2,5-20,23 * * *", "*/10 * * * *"]
 
 # Planlanmış yayınların "çalar saati". Anahtar: plan:<mesaj_id>,
 # değer: ISO zaman damgası. ⚠️ GERÇEĞİN KAYNAĞI DEĞİL — veritabanı
