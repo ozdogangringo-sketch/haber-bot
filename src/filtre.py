@@ -116,10 +116,30 @@ def tipografi_temizle(metin: str) -> str:
     metin = re.sub(r"(\d+(?:,\d+)?)\s*TL\b", r"\1 ₺", metin)
 
     # 4. Kapanmamış markdown kalıpları: '**95-96 *' -> '**95-96**'
-    metin = re.sub(r"\*\*([^*]+)\s*\*(?!\*)", r"**\1**", metin)
+    # ⚠️ `(?<!\w)` SANSÜR YILDIZI İÇİN — aşağıdaki uzun nota bak.
+    # Onsuz "**2.544** askeri öl*m" ifadesinde kapanış `**`i ile sansür
+    # yıldızı eşleşip "**2.544** askeri öl**m" üretiliyordu: yıldız
+    # ikizleniyor ve satırın TÜM kalın/ince yapısı kayıyordu.
+    metin = re.sub(r"\*\*([^*]+)\s*(?<!\w)\*(?!\*)", r"**\1**", metin)
 
     # 5. Öksüz tek yıldızları temizle
-    metin = re.sub(r"(?<!\*)\*(?!\*)", "", metin)
+    #
+    # ⚠️ SANSÜR YILDIZINA DOKUNMA — bu satır aynı dosyadaki
+    # `metni_yumusat`ı sessizce iptal ediyordu. O fonksiyon riskli
+    # kelimenin ortasındaki sesliyi yıldızla değiştiriyor
+    # (öldürdü → öld*rdü); buradaki düz silme yıldızı da götürünce
+    # geriye EKSİK HARFLİ bir kelime kalıyordu ve okuyucu sansür değil
+    # YAZIM HATASI görüyordu: "ölmünü", "öldrdü", "öl m".
+    # ⚠️ Bozulma ÇİZİM anında olduğu için "metinleri yeniden üret"
+    # düğmesi bunu ASLA düzeltemiyordu — veritabanındaki metin zaten
+    # doğruydu, her yeni çizimde aynı bozulma tekrar oluşuyordu.
+    #
+    # ⚠️ ÖLÇÜT "İKİ YANINDA HARF" DEĞİL, "SOLUNDA HARF": `_yildizla`
+    # ilk iki karakteri koruduğu için sansür yıldızının solunda HER
+    # ZAMAN harf var; ama kök sesliyle bitiyorsa yıldız sona düşüyor
+    # ("ölü" → "öl*"). İki yanı arayan ölçüt o kelimeyi "öl" yapardı.
+    # Öksüz markdown yıldızı ise boşluk ya da satır başı komşusu.
+    metin = re.sub(r"(?<!\*)(?<!\w)\*(?!\*)", "", metin)
 
     return metin
 

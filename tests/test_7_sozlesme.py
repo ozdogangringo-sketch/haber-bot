@@ -2897,6 +2897,74 @@ def test_planli_yayin_cloudflareden_tetikleniyor() -> None:
             "birleşik cron iki slotta da aynı modu gönderiyor")
 
 
+def test_sansur_yildizi_cizime_kadar_yasiyor() -> None:
+    """
+    Sansür yıldızı slayta BASILANA kadar hayatta kalıyor mu?
+
+    ⚠️ GERÇEK OLAY (5 Eyl 2026). Kullanıcı: *"ölümünü yazacağına ölmünü
+    yazmış ve metinleri yenile dediğimde düzeltemedim"*. Suçlanan Gemini
+    değildi — veritabanındaki metin BAŞTAN BERİ doğruydu. Aynı dosyadaki
+    iki fonksiyon birbirini bozuyordu:
+
+      filtre.metni_yumusat   : ölümünü → öl*münü   (sansür)
+      filtre.tipografi_temizle: öl*münü → ölmünü   (yıldızı sildi)
+
+    Sonuç sansür değil YAZIM HATASI oluyordu. ⚠️ Bozulma ÇİZİM anında
+    olduğu için "metinleri yeniden üret" düğmesi bunu asla
+    düzeltemiyordu; kullanıcı haberi hiç yayınlayamadı.
+
+    İkinci kusur daha sinsiydi: tipografinin "kapanmamış kalın" onarımı
+    sansür yıldızını bir önceki `**` ile eşleştirip `öl*m` → `öl**m`
+    yapıyor ve satırın TÜM kalın/ince yapısını kaydırıyordu.
+
+    ⚠️ TEST GİRDİYİ `metni_yumusat`TAN ÜRETMİYOR — yıldızlı metin elle
+    yazıldı. Ölçülen kuralı uygulayan fonksiyonla ölçüm yapmak bu
+    projede daha önce testi kör etmişti (`_etiket_anahtari` vakası).
+    """
+    sys.path.insert(0, str(KOK))
+    from src import filtre
+    from src import make_image as mi
+    from PIL import Image, ImageDraw
+
+    # --- 1. Sansür yıldızı tipografi temizliğinden sağ çıkıyor mu ---
+    for yildizli in ("2.544 asker öl*münü inceleme", "askeri öld*rdü iddiası",
+                     "Kazada öl* sayısı", "Şüpheli int*har girişimi"):
+        denetle(yildizli == filtre.tipografi_temizle(yildizli),
+                f"sansür yıldızı korunuyor: {yildizli.split()[-2:][0]}",
+                f"yıldız kayboldu → okuyucu yazım hatası görür: "
+                f"{filtre.tipografi_temizle(yildizli)!r}")
+
+    # --- 2. Yıldız İKİZLENMİYOR (kalın yapısını kaydırıyordu) ---
+    kalinli = "**Dr. Long**, **2.544** askeri öl*m ve **55 bin** yan etki"
+    cikti = filtre.tipografi_temizle(kalinli)
+    denetle("öl**m" not in cikti and "öl*m" in cikti,
+            "sansür yıldızı kapanmamış kalın sanılmıyor",
+            f"yıldız ikizlendi, satırın kalın yapısı kayıyor: {cikti!r}")
+    denetle(cikti.count("**") == kalinli.count("**"),
+            "kalın işaretlerinin sayısı korunuyor",
+            f"kalın yapısı bozuldu: {cikti!r}")
+
+    # --- 3. ÇİZİM YOLU: satırlara bölündükten sonra da duruyor mu ---
+    # ⚠️ Asıl kusur burada görünüyordu: `_satirlara_bol` tipografiyi
+    # kendi içinde çağırıyor, yani metin kutuya girmeden bozuluyordu.
+    img = Image.new("RGB", (1080, 1920))
+    ciz = ImageDraw.Draw(img)
+    satirlar = mi._satirlara_bol("2.544 asker öl*münü inceleme görevi",
+                                 mi._font(34, [20.0, 600]), 900, ciz)
+    denetle(any("öl*münü" in s for s in satirlar),
+            "sansür yıldızı çizim satırında duruyor",
+            f"slayta eksik harfli kelime basılır: {satirlar}")
+
+    # --- 4. Öksüz markdown yıldızı HÂLÂ temizleniyor (kural yaşıyor) ---
+    denetle(not filtre.tipografi_temizle("* madde başı").startswith("*"),
+            "satır başındaki öksüz yıldız temizleniyor",
+            "markdown artığı slayta basılır")
+    denetle("*" not in filtre.tipografi_temizle("5 * 3 işlemi"),
+            "boşluklarla çevrili öksüz yıldız temizleniyor",
+            "markdown artığı slayta basılır")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -2960,6 +3028,7 @@ def main() -> int:
         test_slaytta_eksik_glif_yok,
         test_veri_karti_ve_vurgu_kapilari,
         test_planli_yayin_cloudflareden_tetikleniyor,
+        test_sansur_yildizi_cizime_kadar_yasiyor,
     ):
         try:
             test()
