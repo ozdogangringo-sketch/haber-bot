@@ -39,6 +39,9 @@ AZAMI_UZUNLUK = 4000
 # Bu kadarından kısa bir metin "çekemedik" sayılır — muhtemelen
 # çerez uyarısı veya "bot musun" sayfası yakalamışız.
 ASGARI_UZUNLUK = 200
+# Çapa yönteminde 'gerçek paragraf' sayılma eşiği (ölçüldü: gövdenin ilk
+# paragrafı 135 karakter, foto altyazıları ve 'Abone ol' metinleri kısa).
+CAPA_ASGARI_PARAGRAF = 60
 
 # Haber gövdesinde işimize yaramayan, neredeyse her sitede olan bloklar
 GEREKSIZ_ETIKETLER = [
@@ -332,6 +335,54 @@ def hd_gorsel_url_coz(u: str) -> list[str]:
     return adaylar
 
 
+def _capadan_topla(corba: BeautifulSoup, baslik: str | None = None) -> str | None:
+    """
+    Haberin KENDİ BAŞLIĞINI (h1) çapa alıp gövdeyi bulur.
+
+    ⚠️ NİYE GEREKTİ (6 Eyl 2026, kullanıcı fikri). `_paragraflardan_topla`
+    "en çok paragraf metni taşıyan kutuyu" seçiyor. Bazı sitelerde en
+    uzun metin haber değil, sayfanın altındaki YASAL UYARI oluyor:
+    borsaningundemi.com'da feragatname 2081 karakter, haberin kendisi
+    667. Sonuç: alaka kapısı feragatnameyi doğru şekilde reddediyor ama
+    haber de kayboluyor ve model 123 karakterlik RSS özetiyle baş başa
+    kalıyor (ölçüldü — detay metni 895 yerine 223 karakter çıkıyor).
+
+    ⚠️ "ALAKALI KUTULAR ARASINDAN EN BÜYÜĞÜ" ÇÖZMÜYOR — denendi ve
+    ELENDİ: o kural 1019 karakterlik "diğer haberler" listesini seçti,
+    çünkü o listede de aynı haberin başlığı geçiyor ve alaka kapısı
+    kendi kendini onaylıyor. (Görsel tarafındaki `gorsel_konu` = Trump
+    döngüselliğinin aynısı.)
+
+    ⚠️ ASIL FİKİR "SONRAKİ BAŞLIĞA KADAR AL"DI ama ölçüldü: bu sayfada
+    haberden sonra HİÇ başlık etiketi yok — 42 "diğer haber" `<a>`
+    bağlantısı, `<h2>` değil. Duracak yer yapıdan gelmeli: paragrafın
+    KENDİ KUTUSU, eksik olan "sonraki başlık"ın yerini tutuyor.
+
+    ⚠️ Paragraf tek başına alaka testine SOKULMUYOR: başlıktaki
+    kelimeler tek bir paragrafa sığmıyor ("açıklama" ≠ "açıkladı") ve
+    test gerçek gövdeyi eliyordu. Alaka, toplanan kutunun TAMAMINDA
+    ölçülüyor — çağıran taraf zaten bunu yapıyor.
+    """
+    h1 = corba.find("h1")
+    if h1 is None:
+        return None
+
+    for p in h1.find_all_next("p"):
+        if len(p.get_text(" ", strip=True)) < CAPA_ASGARI_PARAGRAF:
+            continue
+        kutu = p.parent
+        if kutu is None:
+            return None
+        metin = _paragraf_metni(kutu)
+        # Paragraf tek başına bir sarmalayıcıdaysa bir üst kata çık
+        if len(metin) < ASGARI_UZUNLUK and kutu.parent is not None:
+            ustu = _paragraf_metni(kutu.parent)
+            if len(ustu) > len(metin):
+                metin = ustu
+        return metin or None
+    return None
+
+
 def makale_metni_cek(
     link: str, baslik: str | None = None, zaman_asimi: int = 20
 ) -> str | None:
@@ -363,26 +414,51 @@ def makale_metni_cek(
         etiket.decompose()
 
     # Güvenilirlik sırasına göre deniyoruz
-    metin = _jsonld_articlebody(corba)
-    yontem = "json-ld"
-    if not metin or len(metin) < ASGARI_UZUNLUK:
-        metin = _paragraflardan_topla(corba)
-        yontem = "paragraf"
-    if not metin or len(metin) < ASGARI_UZUNLUK:
-        metin = _og_aciklama(corba)
-        yontem = "og:description"
+    def _duzelt(ham: str) -> str:
+        return re.sub(r"\s+", " ", html_temizle(ham)).strip()
 
-    if not metin:
-        return None
+    # ⚠️ REDDEDİLEN ADAY ZİNCİRİ BİTİRMİYOR — ÖNCE ELE, SONRA SEÇ.
+    # Eski akışta tek bir aday seçilip en sonda alaka kapısından
+    # geçiriliyordu; kapı reddedince "gövde yok" deniyor ve SIRADAKİ
+    # YÖNTEM HİÇ DENENMİYORDU. borsaningundemi.com'da tam bu oldu:
+    # "en büyük kutu" yasal uyarıyı (2081 kr) seçti, kapı onu haklı
+    # olarak reddetti ve haberin kendi gövdesi (667 kr) hiç aranmadı.
+    # Artık her yöntem kendi kapısından geçiyor; biri elenirse
+    # diğerine geçiliyor.
+    #
+    # ⚠️ ÇAPA NEDEN PARAGRAFTAN SONRA: 22 kaynakla ölçüldü (6 Eyl 2026).
+    # Çapa öne alındığında 0 kazanç / 5 GERİLEME çıktı — NTV Gündem ve
+    # Habertürk Gündem'de sonuç sıfıra düştü. Çapa, paragraf yöntemini
+    # değiştirmiyor; yalnızca o BAŞARISIZ olduğunda devreye giriyor.
+    for uretici, ad in (
+        (lambda: _jsonld_articlebody(corba), "json-ld"),
+        (lambda: _paragraflardan_topla(corba), "paragraf"),
+        (lambda: _capadan_topla(corba, baslik), "çapa"),
+    ):
+        try:
+            aday = uretici()
+        except Exception as e:                        # noqa: BLE001
+            log.warning("%s yöntemi patladı %s: %s", ad, link, e)
+            continue
+        if not aday or len(aday) < ASGARI_UZUNLUK:
+            continue
+        temiz = _duzelt(aday)
+        if baslik and not _baslikla_ilgili_mi(temiz, baslik):
+            log.info("%s yöntemi başlıkla ilgisiz metin verdi, sıradaki "
+                     "yöntem deneniyor: %s", ad, link)
+            continue
+        return temiz[:AZAMI_UZUNLUK]
 
-    metin = html_temizle(metin)
-    metin = re.sub(r"\s+", " ", metin).strip()
+    # Son çare: og:description. ASGARI_UZUNLUK aranmıyor — bu alan zaten
+    # kısa olur ve RSS özetinden iyi bir şey vermese de zarar vermez.
+    og = _og_aciklama(corba)
+    if og:
+        temiz = _duzelt(og)
+        if not baslik or _baslikla_ilgili_mi(temiz, baslik):
+            return temiz[:AZAMI_UZUNLUK]
 
-    if baslik and not _baslikla_ilgili_mi(metin, baslik):
-        log.warning("çekilen metin başlıkla ilgisiz görünüyor, atlanıyor: %s", link)
-        return None
-
-    return metin[:AZAMI_UZUNLUK]
+    log.warning("gövde çekilemedi (hiçbir yöntem tutmadı): %s", link)
+    return None
 
 
 def olay_baglami_cek(baslik: str, zaman_asimi: int = 10) -> str | None:

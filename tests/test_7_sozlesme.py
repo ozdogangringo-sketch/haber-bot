@@ -3096,6 +3096,92 @@ def test_kacis_dizileri_slayta_basilmiyor() -> None:
 
 
 
+def test_govde_cekiminde_reddedilen_aday_zinciri_bitirmiyor() -> None:
+    """
+    Bir çıkarma yöntemi alakasız metin verince SIRADAKİ yöntem deneniyor mu?
+
+    ⚠️ GERÇEK OLAY (6 Eyl 2026, haber #116353). Kullanıcı: *"çok az bilgi
+    veriyor, okudum ve bir şey öğrenemedim"*. Sebep prompt ya da sayfa
+    tasarımı DEĞİLDİ: `makale_metni` boştu, model 123 karakterlik RSS
+    özetiyle baş başa kalmıştı. Ölçüldü — gövde çekilebilen haberlerde
+    detay metni ortanca 895 karakter, çekilemeyenlerde 223.
+
+    Zincir şöyle kırılıyordu: "en çok paragraf taşıyan kutuyu al" kuralı
+    borsaningundemi.com'da haberin gövdesini (667 kr) değil sayfanın
+    YASAL UYARISINI (2081 kr) seçiyordu; alaka kapısı onu haklı olarak
+    reddediyor ve `None` dönüyordu. **Reddedilen aday zinciri
+    bitiriyordu** — sıradaki yöntem hiç denenmiyordu.
+
+    ⚠️ "Alakalı kutular arasından en büyüğünü al" denendi ve ELENDİ:
+    "diğer haberler" listesini seçti, çünkü o listede de aynı haberin
+    başlığı geçiyor ve kapı kendi kendini onaylıyor (görsel tarafındaki
+    `gorsel_konu`=Trump döngüselliğinin aynısı).
+
+    ⚠️ Çapa yöntemi PARAGRAFTAN SONRA gelmeli: 22 kaynakla ölçüldü,
+    öne alındığında 0 kazanç / 5 GERİLEME veriyor (NTV Gündem ve
+    Habertürk Gündem sıfıra düşüyor). Son sıralamayla: 20 aynı,
+    1 kurtarma, 0 gerileme.
+    """
+    import ast as _ast
+    sys.path.insert(0, str(KOK))
+    from bs4 import BeautifulSoup
+    from src import fetch_article as fa
+
+    BASLIK = "Galatasaray'dan 2 oyuncunun sağlık durumuyla ilgili açıklama"
+    GOVDE = ("Galatasaray, Victor Osimhen ile Mario Lemina'nın kasık adale "
+             "grubunda ileri-orta düzeyde kanama ve zorlanma tespit edildiğini "
+             "açıkladı. Kulüpten yapılan açıklamada tedavi süreçlerinin devam "
+             "ettiği ve iki oyuncunun sağlık durumunun yakından izlendiği "
+             "bildirildi. Galatasaray oyuncunun durumunu paylaştı.")
+    UYARI = ("Sayfada yer alan bilgi, yorum ve tavsiyeler yatırım danışmanlığı "
+             "kapsamında değildir. Yatırım danışmanlığı hizmeti aracı kurumlar "
+             "ve portföy yönetim şirketleri tarafından sunulmaktadır. Burada "
+             "yer alan yorumlar kişisel görüşlere dayanmaktadır ve mali "
+             "durumunuza uygun olmayabilir. Telif hakları saklıdır. ") * 3
+
+    corba = BeautifulSoup(
+        f"<html><body><h1>{BASLIK}</h1>"
+        f"<div id='govde'><p>{GOVDE}</p></div>"
+        f"<div id='uyari'><p>{UYARI}</p></div>"
+        f"</body></html>", "html.parser")
+
+    # 1. Tuzak gerçekten kuruldu mu — paragraf yöntemi yasal uyarıyı seçiyor
+    par = fa._paragraflardan_topla(corba) or ""
+    denetle(len(par) > len(GOVDE) and not fa._baslikla_ilgili_mi(par, BASLIK),
+            "test verisi kusuru doğru sebeple tetikliyor",
+            "senaryo yanlış kurulmuş, denetim bir şey ölçmüyor")
+
+    # 2. Çapa yöntemi gövdeyi buluyor mu
+    capa = fa._capadan_topla(corba, BASLIK) or ""
+    denetle("Osimhen" in capa and fa._baslikla_ilgili_mi(capa, BASLIK),
+            "çapa yöntemi haberin kendi gövdesini buluyor",
+            f"gövde bulunamadı: {capa[:70]!r}")
+
+    # 3. Zincir: reddedilen adaydan sonra sıradaki yöntem deneniyor mu (AST)
+    kaynak = (KOK / "src/fetch_article.py").read_text(encoding="utf-8")
+    fonk = {d.name: d for d in _ast.walk(_ast.parse(kaynak))
+            if isinstance(d, _ast.FunctionDef)}
+    mm = fonk.get("makale_metni_cek")
+    denetle(mm is not None, "makale_metni_cek duruyor", "fonksiyon yok")
+    if mm is None:
+        return
+    cagrilar = {n.func.id for n in _ast.walk(mm)
+                if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)}
+    denetle("_capadan_topla" in cagrilar,
+            "çapa yöntemi zincire bağlı",
+            "yazılmış ama çağrılmıyor — ölü kod")
+    denetle(any(isinstance(n, _ast.For) for n in _ast.walk(mm)),
+            "yöntemler tek tek deneniyor (döngü)",
+            "tek aday seçilip sonda eleniyor: reddedilen aday zinciri "
+            "bitirir ve gövde tamamen kaybolur")
+    denetle(sum(1 for n in _ast.walk(mm)
+                if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)
+                and n.func.id == "_baslikla_ilgili_mi") >= 2,
+            "alaka kapısı her aday için ayrı çalışıyor",
+            "kapı tek noktada kalmış, elenen aday sıradakine yol açmıyor")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3162,6 +3248,7 @@ def main() -> int:
         test_sansur_yildizi_cizime_kadar_yasiyor,
         test_metin_yenile_son_dakikayi_taniyor,
         test_kacis_dizileri_slayta_basilmiyor,
+        test_govde_cekiminde_reddedilen_aday_zinciri_bitirmiyor,
     ):
         try:
             test()
