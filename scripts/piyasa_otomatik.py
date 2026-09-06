@@ -131,7 +131,25 @@ def main() -> int:
 
     # 5. %100 Native 1080x1920 (9:16 Full-bleed) Slaytları Üret (Sıfır Çerçeve, Sıfır Blur)
     kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(piyasa_verileri)
-    tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16()
+    # ⚠️ CANLI VERİ YETERSİZSE BÜLTEN YAYINLANMIYOR (6 Eyl 2026).
+    # Kullanıcı "BIST hisse dataları çekilememişti" diye bildirdi;
+    # gerçekte tablo eksik veriyi KODA GÖMÜLÜ yüzdelerle dolduruyor ve
+    # canlı veriymiş gibi yeşil/kırmızı basıyordu. Artık eksik hücre
+    # "veri yok" diyor — ama bir sütun büyük ölçüde boşken bülteni hiç
+    # yayınlamamak doğru: yarım piyasa karnesi, karne olmaktan çıkıyor.
+    canli_fiyatlar = piyasa_tablo._tum_fiyatlari_cek()
+    yeterli, sebep = piyasa_tablo.veri_yeterli_mi(canli_fiyatlar)
+    if not yeterli and not args.zorla:
+        log.warning("Piyasa bülteni atlandı — %s", sebep)
+        telegram_bot.mesaj_gonder(
+            f"⚠️ <b>Piyasa bülteni yayınlanmadı</b>\n{sebep}.\n\n"
+            "Canlı veri alınamadığı için uydurma rakam basmak yerine "
+            "atlandı — bir sonraki pencerede yeniden denenecek.",
+            html=True,
+        )
+        con.close()
+        return 0
+    tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16(canli_fiyatlar)
 
     kart_yukleme = upload_image.gorsel_yukle(kart_yolu, ayarlar)
     tablo_yukleme = upload_image.gorsel_yukle(tablo_yolu, ayarlar)

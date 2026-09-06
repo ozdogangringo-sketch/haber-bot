@@ -3182,6 +3182,71 @@ def test_govde_cekiminde_reddedilen_aday_zinciri_bitirmiyor() -> None:
 
 
 
+def test_piyasa_verisi_yoksa_uydurma_sayi_basilmiyor() -> None:
+    """
+    Canlı piyasa verisi gelmeyince koda gömülü yüzde basılıyor mu?
+
+    ⚠️ GERÇEK OLAY (6 Eyl 2026). Kullanıcı: *"sabah ekonomi turunun
+    ikinci sayfasında BIST Türkiye hisse dataları çekilememişti"*.
+    Gerçekte çekilememiş veri BOŞ BIRAKILMIYOR, `oge["varsayilan"]`
+    ile DOLDURULUYORDU: fiyat sütunu boş kalıyor ama yüzde rozeti
+    koda gömülü bir değeri canlı veriymiş gibi yeşil/kırmızı
+    gösteriyordu. Yani "veri çekilemedi" değil, **uydurma finansal
+    rakam yayınlanıyordu** — 4 Eyl'de `/menu` düğmelerinden kaldırılan
+    uydurma faiz oranıyla aynı sınıf.
+
+    ⚠️ Yeterlilik ölçütü SÜTUN BAZLI olmalı: 30 sembolün 10'u eksikse
+    toplamda %33 görünür ama o 10 sembol tek bir sütunun TAMAMI
+    olabilir — kullanıcının bildirdiği vaka tam buydu.
+    """
+    import ast as _ast
+    sys.path.insert(0, str(KOK))
+    from src import piyasa_tablo as pt
+
+    # --- 1. DAVRANIŞ: sütunun tamamı eksikse yayın reddediliyor ---
+    sahte = {o["sym"]: {"price": 1.0, "chg": 0.5}
+             for sut in pt.SUTUNLAR.values() for o in sut["ogeler"]}
+    tam, _ = pt.veri_yeterli_mi(sahte)
+    denetle(tam, "tam veride bülten yayınlanıyor",
+            "kapı fazla sıkı, sağlam bülten de engellenir")
+
+    bist = [o["sym"] for o in pt.SUTUNLAR["bist"]["ogeler"]]
+    eksik = {k: v for k, v in sahte.items() if k not in bist}
+    yeterli, sebep = pt.veri_yeterli_mi(eksik)
+    denetle(not yeterli and "BİST" in sebep.upper().replace("I", "İ"),
+            "bir sütun komple boşken bülten reddediliyor",
+            f"yarım karne yayınlanır: {sebep!r}")
+
+    tek_eksik = {k: v for k, v in sahte.items() if k != bist[0]}
+    denetle(pt.veri_yeterli_mi(tek_eksik)[0],
+            "tek sembol eksikken bülten yayınlanıyor",
+            "kapı fazla sıkı — o hücre zaten 'veri yok' diyor")
+
+    # --- 2. YAPI: çizim kodu artık varsayılanı OKUMUYOR ---
+    kaynak = (KOK / "src/piyasa_tablo.py").read_text(encoding="utf-8")
+    fonk = {d.name: d for d in _ast.walk(_ast.parse(kaynak))
+            if isinstance(d, _ast.FunctionDef)}
+    ciz = fonk.get("_ciz_piyasa_tablosu_icerik")
+    denetle(ciz is not None, "tablo çizim fonksiyonu duruyor", "fonksiyon yok")
+    if ciz is not None:
+        gomulu = [n for n in _ast.walk(ciz)
+                  if isinstance(n, _ast.Subscript)
+                  and isinstance(n.slice, _ast.Constant)
+                  and n.slice.value == "varsayilan"]
+        denetle(not gomulu,
+                "çizim kodu koda gömülü yüzdeyi okumuyor",
+                "veri gelmeyince uydurma finansal rakam basılır")
+
+    # --- 3. YAPI: yayın kapısı bağlı mı ---
+    otom = (KOK / "scripts/piyasa_otomatik.py").read_text(encoding="utf-8")
+    cagrilar = {n.func.attr for n in _ast.walk(_ast.parse(otom))
+                if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)}
+    denetle("veri_yeterli_mi" in cagrilar,
+            "bülten yayınından önce veri yeterliliği denetleniyor",
+            "sütunu boş bülten yayınlanır")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3249,6 +3314,7 @@ def main() -> int:
         test_metin_yenile_son_dakikayi_taniyor,
         test_kacis_dizileri_slayta_basilmiyor,
         test_govde_cekiminde_reddedilen_aday_zinciri_bitirmiyor,
+        test_piyasa_verisi_yoksa_uydurma_sayi_basilmiyor,
     ):
         try:
             test()

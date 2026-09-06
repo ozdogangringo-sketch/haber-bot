@@ -35,6 +35,8 @@ RENK_GLOW = (6, 182, 212, 40)
 
 RENK_KART_CONTAINER = (8, 32, 38)
 RENK_KART_BORDER = (20, 68, 78)
+RENK_VERI_YOK_BG = (58, 66, 78)
+RENK_VERI_YOK_BD = (92, 102, 116)
 RENK_SATIR_EVEN = (12, 46, 56)
 RENK_SATIR_ODD = (10, 38, 46)
 
@@ -300,8 +302,16 @@ def _ciz_piyasa_tablosu_icerik(
 
             sym = oge["sym"]
             canli = canli_fiyatlar.get(sym)
-            degisim = canli["chg"] if canli else oge["varsayilan"]
-            fiyat = canli["price"] if canli else 0.0
+            # ⚠️ CANLI VERİ YOKSA UYDURMA SAYI BASILMIYOR (6 Eyl 2026).
+            # Eskiden `oge["varsayilan"]` basılıyordu: fiyat sütunu BOŞ
+            # kalıyor ama yüzde kutusu koda gömülü bir değeri canlı
+            # veriymiş gibi yeşil/kırmızı gösteriyordu. Kullanıcı
+            # "BIST verileri çekilememişti" diye bildirdi; gerçekte
+            # çekilememiş veri UYDURMA sayıyla DOLDURULUYORDU.
+            # Bu, /menu düğmelerindeki uydurma faiz oranıyla aynı sınıf:
+            # hiçbir kaynaktan gelmeyen bir finansal rakam yayınlamak.
+            degisim = canli["chg"] if canli else None
+            fiyat = canli["price"] if canli else None
 
             draw.rounded_rectangle(
                 [(col_x + 6, cur_y + 2), (col_x + col_w - 6, cur_y + row_h - 2)],
@@ -313,12 +323,18 @@ def _ciz_piyasa_tablosu_icerik(
             f_font_sym = f_sym_uzun if len(sembol_txt) >= 9 else f_sym_normal
             draw.text((col_x + 16, cur_y + int(row_h * 0.35)), sembol_txt, font=f_font_sym, fill=RENK_BEYAZ)
 
-            fiyat_txt = _temiz_fiyat_yazisi(sym, fiyat)
+            fiyat_txt = _temiz_fiyat_yazisi(sym, fiyat) if fiyat else "—"
             pw = draw.textlength(fiyat_txt, font=f_price)
             draw.text((col_x + col_w - pw - 16, cur_y + 11), fiyat_txt, font=f_price, fill=RENK_FIYAT_ACIK)
 
-            chg_str = f"{'▲ %' if degisim >= 0 else '▼ %'}{abs(degisim):.2f}".replace(".", ",")
-            c_bg, c_bd = _renk_hesapla_canli(degisim)
+            if degisim is None:
+                # Veri yok: nötr gri rozet, ok YOK — yükseliş/düşüş iddiası
+                # taşımıyor, "bilmiyoruz" diyor.
+                chg_str = "veri yok"
+                c_bg, c_bd = RENK_VERI_YOK_BG, RENK_VERI_YOK_BD
+            else:
+                chg_str = f"{'▲ %' if degisim >= 0 else '▼ %'}{abs(degisim):.2f}".replace(".", ",")
+                c_bg, c_bd = _renk_hesapla_canli(degisim)
 
             bw = draw.textlength(chg_str, font=f_badge) + 16
             bx = col_x + col_w - bw - 16
@@ -337,6 +353,43 @@ def _ciz_piyasa_tablosu_icerik(
     draw.text((45, skala_y), not_txt1, font=_font(15, 700.0), fill=RENK_BEYAZ)
     w_t2 = draw.textlength(not_txt2, font=_font(14, 500.0))
     draw.text((sag_kenar - w_t2, skala_y), not_txt2, font=_font(14, 500.0), fill=RENK_GRI_METIN)
+
+
+def eksik_semboller(canli_fiyatlar: dict) -> dict[str, list[str]]:
+    """
+    Hangi sütunda hangi semboller canlı veri alamadı?
+
+    ⚠️ NİYE GEREKTİ (6 Eyl 2026): veri gelmeyince tablo eskiden koda
+    gömülü yüzdeleri basıyordu ve eksiklik GÖRÜNMÜYORDU. Artık "veri
+    yok" yazıyor — ama bir sütunun tamamı boşken bülten yayınlamak da
+    doğru değil. Bu fonksiyon yayın kapısını besliyor.
+    """
+    eksik: dict[str, list[str]] = {}
+    for anahtar, s_info in SUTUNLAR.items():
+        yok = [o["sym"] for o in s_info["ogeler"]
+               if not canli_fiyatlar.get(o["sym"])]
+        if yok:
+            eksik[anahtar] = yok
+    return eksik
+
+
+def veri_yeterli_mi(canli_fiyatlar: dict, azami_oran: float = 0.34) -> tuple[bool, str]:
+    """
+    Bülten yayınlanacak kadar veri var mı?
+
+    ⚠️ Ölçüt SÜTUN BAZLI, toplam bazlı değil: 30 sembolün 10'u eksikse
+    toplamda %33 görünür ama o 10 sembol tek bir sütunun TAMAMI olabilir
+    (kullanıcının bildirdiği vaka tam buydu — BİST sütunu komple boştu,
+    diğer 20 sembol sağlamdı). Toplam oranla bakan bir kural bunu
+    "kabul edilebilir" sayardı.
+    """
+    for anahtar, s_info in SUTUNLAR.items():
+        toplam = len(s_info["ogeler"])
+        yok = sum(1 for o in s_info["ogeler"] if not canli_fiyatlar.get(o["sym"]))
+        if toplam and yok / toplam > azami_oran:
+            return False, (f"{s_info.get('baslik', anahtar)} sütununda "
+                           f"{yok}/{toplam} sembol canlı veri alamadı")
+    return True, ""
 
 
 def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
