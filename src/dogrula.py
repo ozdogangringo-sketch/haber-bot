@@ -28,8 +28,11 @@ TÜRKÇE EK SORUNU:
 
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
+
+log = logging.getLogger(__name__)
 
 # Bu kelimeler cümle içinde büyük harfle başlayabiliyor ama özel isim
 # değiller; doğrulamaya sokulursa gürültü yapıyorlar.
@@ -167,6 +170,61 @@ ABARTI_KALIPLAR = (
     "şaşkına çevirdi", "şaşkına çeviren",
     "ağzı açık kaldı", "dumur etti", "çılgın",
 )
+
+
+# ⚠️ İÇİ BOŞ ÖVGÜ — "neden_onemli" / "sana_etkisi" alanlarının hastalığı.
+# Kullanıcı (6 Eyl 2026): *"bu paragraf çok fazla AI gibi duruyor, yapay bir
+# cümle ve sırıtıyor"*. Örnek: *"Milli takımın bu tarihi başarısı tüm
+# Türkiye'de büyük bir gurur, coşku ve motivasyon kaynağı yaratıyor."*
+#
+# ⚠️ Cümleler YANLIŞ DEĞİL — sorun bu. Yanlış olsalar sayı/isim denetimi
+# yakalardı. Bunlar DOĞRULANAMAZ: içlerinde kontrol edilebilecek hiçbir şey
+# yok, silinince hiçbir bilgi kaybolmuyor. Kaynak zayıf olduğunda model
+# boşluğu övgüyle dolduruyor (ölçüldü: gövde zenginken boş cümle %8, gövde
+# zayıfken %44).
+#
+# ⚠️ İKİ ÖLÇÜT AYRI ÇALIŞIYOR — bu ayrım ölçümle bulundu:
+#   DUYGU ATFI koşulsuz elenir: bir topluluğun duygusu kaynakta ASLA yazmaz.
+#   TÖREN DİLİ yalnızca yanında somut sayı YOKSA elenir — "45 milyon Euro
+#   bedelle tarihin en yüksek transferi" bilgi taşıyor, elenmemeli.
+_DUYGU_ATFI = re.compile(
+    r"gurur|coşku|moral kaynağı|motivasyon kaynağı|sevinç kaynağı|"
+    r"tüm (Türkiye|ülke|dünya)'?d[ae]", re.IGNORECASE)
+
+# ⚠️ DAR TUTULDU. Düz "en büyük" / "en önemli" DENENDİ ve ELENDİ: olgusal
+# tanımları da yakalıyordu ("Türkiye'nin en büyük yerel yönetimi olan İBB").
+# Ölçüm: geniş liste 202 cümlenin 5'ini eledi ve 3'ü yanlış alarmdı; dar
+# liste 2'sini eliyor ve ikisi de kullanıcının gösterdiği cümleler.
+_TOREN_DILI = re.compile(
+    r"tarihin?in en (önemli|büyük|prestijli|unutulmaz)|prestijli başarı|"
+    r"kayda geçiyor|altın harflerle|başarılarından biri olarak|"
+    r"zaferle birlikte", re.IGNORECASE)
+
+_SOMUT_SAYI = re.compile(r"\d")
+
+
+def bos_ovgu_mu(cumle: str) -> bool:
+    """
+    Bu cümle bilgi taşımayan bir övgü mü?
+
+    Ölçüldü (202 gerçek cümle): %1'i eleniyor ve elenenler tam olarak
+    kullanıcının *"yapay duruyor"* dediği cümleler. Bilgi veren cümleler
+    (`45 milyon Euro`, `35 il`, `9 yıllık kariyer`) korunuyor.
+    """
+    metin = (cumle or "").strip()
+    if not metin:
+        return False
+    if _DUYGU_ATFI.search(metin):
+        return True
+    return bool(_TOREN_DILI.search(metin)) and not _SOMUT_SAYI.search(metin)
+
+
+def ovguyu_ele(cumle: str) -> str:
+    """İçi boş övgüyse boş dize döner — çağıran taraf o bloğu basmaz."""
+    if bos_ovgu_mu(cumle):
+        log.info("içi boş övgü elendi: %s", (cumle or "")[:80])
+        return ""
+    return cumle
 
 
 def basligi_denetle(baslik: str) -> list[str]:

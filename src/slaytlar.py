@@ -973,10 +973,10 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         detay, ayarlar,
         vurgu=vurgu,
         alinti=alinti,
-        neden_onemli=_alan(haber, "neden_onemli"),
+        neden_onemli=dogrula.ovguyu_ele(_alan(haber, "neden_onemli")),
         sirada_ne_var=_alan(haber, "sirada_ne_var"),
         trend_karti=trend_karti,
-        sana_etkisi=_alan(haber, "sana_etkisi"),
+        sana_etkisi=dogrula.ovguyu_ele(_alan(haber, "sana_etkisi")),
     )
 
     # --- %100 SAF NATIVE 9:16 (1080x1920) ÜRETİM (4:5 tamamen kaldırıldı) ---

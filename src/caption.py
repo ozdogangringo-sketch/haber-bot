@@ -26,7 +26,7 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from . import filtre
+from . import dogrula, filtre
 from .make_image import kaynak_gosterim_adi, tarih_metni
 
 AZAMI_KARAKTER = 2200
@@ -262,7 +262,11 @@ def son_dakika_caption(
 
     baslik = (h_dict.get("ig_baslik") or h_dict.get("baslik_orj") or "").strip()
     govde = (h_dict.get("ig_caption") or h_dict.get("slayt_ozet") or "").strip()
-    sana_etkisi = (h_dict.get("sana_etkisi") or h_dict.get("neden_onemli") or "").strip()
+    # ⚠️ İçi boş övgü caption'a da girmesin — kullanıcı bu metni
+    # kopyalayıp ELLE paylaşıyor. Her alan AYRI eleniyor: `sana_etkisi`
+    # boşsa `neden_onemli` hâlâ bilgi taşıyor olabilir.
+    sana_etkisi = (dogrula.ovguyu_ele((h_dict.get("sana_etkisi") or "").strip())
+                   or dogrula.ovguyu_ele((h_dict.get("neden_onemli") or "").strip()))
     etkilesim = (h_dict.get("etkilesim_sorusu") or "").strip()
     vurgu_sayi = (h_dict.get("vurgu_sayi") or "").strip()
     vurgu_etiket = (h_dict.get("vurgu_etiket") or "").strip()

@@ -3367,6 +3367,86 @@ def test_reels_karesi_yuklenen_dosyayi_geri_indirmiyor() -> None:
 
 
 
+def test_ici_bos_ovgu_slayta_basilmiyor() -> None:
+    """
+    "Yapay duruyor" diye şikâyet edilen övgü cümleleri eleniyor mu?
+
+    ⚠️ GERÇEK OLAY (6 Eyl 2026, haber #118885). Kullanıcı: *"milli takımın
+    bu başarısı bütün Türkiye'de gurur coşku paragrafı çok fazla AI gibi
+    duruyor, yapay bir cümle ve sırıtıyor"*.
+
+    ⚠️ CÜMLELER YANLIŞ DEĞİL — sorun bu. Yanlış olsalar sayı/isim denetimi
+    yakalardı. DOĞRULANAMAZLAR: içlerinde kontrol edilebilecek hiçbir şey
+    yok, silinince bilgi kaybolmuyor. Kaynak zayıfken model boşluğu övgüyle
+    dolduruyor (ölçüldü: gövde zenginken %8, gövde zayıfken %44 boş cümle;
+    o haberin gövdesi 91 karakterdi — sadece sayfa başlığı).
+
+    ⚠️ İKİ ÖLÇÜT AYRI: duygu atfı koşulsuz elenir (bir topluluğun duygusu
+    kaynakta asla yazmaz); tören dili yalnızca yanında somut sayı YOKSA
+    elenir — "45 milyon Euro bedelle tarihin en yüksek transferi" bilgi
+    taşıyor ve elenmemeli.
+
+    ⚠️ GENİŞ LİSTE DENENDİ VE ELENDİ: düz "en büyük"/"en önemli" olgusal
+    tanımları da yakalıyordu ("Türkiye'nin en büyük yerel yönetimi olan
+    İBB"). Ölçüm — geniş liste 202 cümlenin 5'ini eledi, 3'ü yanlış alarm;
+    dar liste 2'sini eliyor ve ikisi de kullanıcının gösterdikleri.
+    """
+    import ast as _ast
+    sys.path.insert(0, str(KOK))
+    from src import dogrula
+
+    # --- 1. Kullanıcının şikâyet ettiği iki cümle eleniyor mu ---
+    for c in ("Milli takımın bu tarihi başarısı tüm Türkiye'de büyük bir "
+              "gurur, coşku ve motivasyon kaynağı yaratıyor.",
+              "A Milli Kadın Voleybol Takımı'nın Avrupa'nın en büyüğü olması, "
+              "Türk spor tarihinin en önemli ve prestijli başarılarından biri "
+              "olarak kayda geçiyor."):
+        denetle(dogrula.bos_ovgu_mu(c),
+                f"içi boş övgü yakalanıyor: {c[:34]}…",
+                "yapay cümle slayta basılır")
+
+    # --- 2. YANLIŞ ALARM: bilgi veren cümleler korunuyor mu ---
+    # ⚠️ Bu yarısı daha önemli: aşırı eleyen kural, doğru bilgiyi de siler.
+    for c in ("Diyanet İşleri Başkanlığı teşkilatında 35 ili kapsayan geniş "
+              "çaplı bir yönetim değişimi gerçekleşti.",
+              # ⚠️ BU CÜMLE TÖREN DESENİNE UYUYOR ("tarihinin en büyük") ve
+              # yanında somut sayı var — sayı kuralı ancak böyle sınanır.
+              # İlk yazımda "en yüksek" yazmıştım; desende o kelime yok, yani
+              # veri kuralı hiç tetiklemiyordu ve sayı denetimi kaldırılınca
+              # test TEMİZ geçiyordu (bozma ile yakalandı).
+              "Galatasaray, bonuslar dahil 45 milyon Euro bedelle kulüp "
+              "tarihinin en büyük transferini gerçekleştirdi.",
+              "Türkiye'nin en büyük yerel yönetimi olan İBB'nin üst düzey "
+              "bürokratlarını hedef alan soruşturma derinleşti.",
+              "İki kilit oyuncunun aynı anda sakatlanması takımın önümüzdeki "
+              "maçlarını doğrudan etkileyecek."):
+        denetle(not dogrula.bos_ovgu_mu(c),
+                f"bilgi veren cümle korunuyor: {c[:34]}…",
+                "kural fazla geniş — gerçek bilgi siliniyor")
+
+    # --- 3. Kapı hem SLAYTA hem CAPTION'a bağlı mı (AST) ---
+    # ⚠️ Caption ayrıca gerekli: kullanıcı o metni kopyalayıp ELLE paylaşıyor.
+    # ⚠️ "BİR YERDE ÇAĞRILIYOR" YETMEZ: her iki alan da (neden_onemli ve
+    # sana_etkisi) ayrı ayrı geçmeli. İlk yazımda tek çağrı arıyordum ve
+    # caption'daki iki çağrıdan birini silmek testi TEMİZ bırakıyordu.
+    for dosya, ad in (("src/slaytlar.py", "slayt"), ("src/caption.py", "caption")):
+        kaynak = (KOK / dosya).read_text(encoding="utf-8")
+        adet = sum(1 for n in _ast.walk(_ast.parse(kaynak))
+                   if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                   and n.func.attr == "ovguyu_ele")
+        denetle(adet >= 2,
+                f"{ad} tarafında iki alan da övgü kapısından geçiyor ({adet})",
+                f"{ad} metninde yapay cümle görünmeye devam eder")
+
+    # --- 4. Prompt da yasağı taşıyor mu (üretimi kaynağında azaltsın) ---
+    prompt = (KOK / "src/generate_text.py").read_text(encoding="utf-8")
+    denetle("DUYGU ATFETME" in prompt and "DOĞRULANAMAZ ÜSTÜNLÜK" in prompt,
+            "prompt duygu atfı ve tören dilini yasaklıyor",
+            "yalnızca kod eliyor; model üretmeye devam eder ve blok "
+            "boş kaldığı için sayfa kısalır")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3436,6 +3516,7 @@ def main() -> int:
         test_govde_cekiminde_reddedilen_aday_zinciri_bitirmiyor,
         test_piyasa_verisi_yoksa_uydurma_sayi_basilmiyor,
         test_reels_karesi_yuklenen_dosyayi_geri_indirmiyor,
+        test_ici_bos_ovgu_slayta_basilmiyor,
     ):
         try:
             test()

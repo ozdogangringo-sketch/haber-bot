@@ -210,6 +210,15 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
 - etkilesim_sorusu: TEK CÜMLE. Okuyucunun fikrini soran, kutuplaştırmayan ama yorum yapma isteği uyandıran zekice soru.
   (Örn: "Sizce TCMB'nin ilk faiz indirimi hangi ayda gelmeli?", "Bu hedef fiyat sonrası hisseyi takibe alır mısınız?")
 - neden_onemli: 1-2 CÜMLE. Haberin makro, stratejik veya jeopolitik etki boyutu. Genel geçer soyut laflar yerine somut etkiyi net bir dille yaz. Asla markdown yıldız (**) kullanma.
+- ⛔ `sana_etkisi` ve `neden_onemli` İÇİN İKİ MUTLAK YASAK — bunlar okura "yapay metin" hissi veren en büyük iki kalıp:
+  * DUYGU ATFETME: bir topluluğun ne hissettiğini YAZMA. Kaynakta böyle bir cümle asla geçmez, uydurmuş olursun.
+    KÖTÜ: "Milli takımın bu tarihi başarısı tüm Türkiye'de büyük bir gurur, coşku ve motivasyon kaynağı yaratıyor."
+  * DOĞRULANAMAZ ÜSTÜNLÜK: "tarihin en önemlilerinden biri", "kayda geçiyor", "altın harflerle" gibi tören dili kurma.
+    KÖTÜ: "Türk spor tarihinin en önemli ve prestijli başarılarından biri olarak kayda geçiyor."
+  * ÖLÇÜT: cümlede DOĞRULANABİLİR bir şey olmalı — bir sayı, bir tarih, bir sonuç, bir isim. Cümleyi silince hiçbir bilgi kaybolmuyorsa o cümleyi HİÇ YAZMA, alanı boş ("") bırak.
+    İYİ: "Diyanet teşkilatında 35 ili kapsayan bir yönetim değişimi gerçekleşti."
+    İYİ: "İki kilit oyuncunun aynı anda sakatlanması takımın önümüzdeki maçlarını etkileyecek."
+  * Üstünlük ancak SOMUT bir veriye bağlıysa serbest: "45 milyon Euro bedelle kulüp tarihinin en yüksek transferi" geçerli, çünkü rakam doğrulanabilir.
 - sirada_ne_var: TEK CÜMLE. Haberde açıkça geçen sonraki resmi adım, duruşma veya yürürlük tarihi. Bilgi yoksa boş string ("") bırak.
 - veri_karti_*: SADECE başlıkta ve slayt özetinde YER ALMAYAN somut bir karşılaştırma (eski vs yeni) veya arka plan göstergesi (hedef fiyat, faiz değişimi vb.) varsa doldur. Başlıkta zaten geçen skor, maç sonucu, maaş veya sayıları buraya ASLA TEKRAR YAZMA (başlıkta zaten geçen veriler için tüm veri_karti alanlarını boş string "" bırak):
     veri_karti_etiket : "Hedef Fiyat", "Politika Faizi", "Yıllık TÜFE"
