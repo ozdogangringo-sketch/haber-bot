@@ -3044,6 +3044,58 @@ def test_metin_yenile_son_dakikayi_taniyor() -> None:
 
 
 
+def test_kacis_dizileri_slayta_basilmiyor() -> None:
+    """
+    Modelin yazdığı "\\n" slayta harf harf basılıyor mu?
+
+    ⚠️ GERÇEK OLAY (6 Eyl 2026, haber #116353). Gemini `detay_metni`
+    içinde paragraf ayracını gerçek satır sonu yerine DÜZ METİN olarak
+    yazdı ve slaytta *"resmi açıklamada bulundu.\\n\\nYapılan
+    bilgilendirmede"* diye basıldı — kullanıcı yayınlamak üzereyken
+    gördü. ⚠️ `json.loads` bunu YAKALAMAZ: ortada bozuk JSON yok, model
+    gerçekten ters bölü + "n" karakterlerini yazmış.
+
+    İki zarar: kaçış dizisi ekranda görünüyor VE paragraf bölünmediği
+    için iki paragraf tek blok oluyor.
+
+    ⚠️ İKİ KAPI BİRDEN denetleniyor: üretim girişi (yeni kayıtlar temiz
+    kalsın) ve çizim okuması (ESKİ kayıtlar ile `onay_isle` içindeki
+    diğer `json.loads` noktaları da kapsansın). Kaynağı düzeltmek
+    geçmiş kayıtları düzeltmiyor — bu projede defalarca yaşandı.
+    """
+    import ast as _ast
+    sys.path.insert(0, str(KOK))
+    from src import filtre, slaytlar
+
+    # --- 1. Kural: kaçış dizisi gerçek karaktere dönüyor ---
+    cozulmus = filtre.kacislari_coz("bulundu.\\n\\nYapılan bilgilendirmede")
+    denetle("\\n" not in cozulmus and cozulmus.count("\n") == 2,
+            "düz \\n gerçek satır sonuna çevriliyor",
+            f"kaçış dizisi slayta basılır: {cozulmus!r}")
+    denetle(filtre.kacislari_coz("normal metin, ters bölü yok")
+            == "normal metin, ters bölü yok",
+            "normal metne dokunulmuyor",
+            "temiz metin bozuluyor")
+
+    # --- 2. ÇİZİM KAPISI: eski kayıt da düzeliyor mu ---
+    # ⚠️ Asıl değer burada: veritabanında hâlihazırda bozuk kayıtlar var
+    # ve onlar yeniden üretilmeden yayınlanabiliyor.
+    okunan = slaytlar._alan({"detay_metni": "bir.\\n\\niki."}, "detay_metni")
+    denetle("\\n" not in okunan,
+            "çizim okuması eski kayıtları da temizliyor",
+            f"slayta kaçış dizisi basılır: {okunan!r}")
+
+    # --- 3. ÜRETİM GİRİŞİ: bağlı mı (AST) ---
+    kaynak = (KOK / "src/generate_text.py").read_text(encoding="utf-8")
+    agac = _ast.parse(kaynak)
+    cagrilar = {n.func.attr for n in _ast.walk(agac)
+                if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)}
+    denetle("kacislari_coz" in cagrilar,
+            "üretim girişinde kaçış dizileri çözülüyor",
+            "yeni kayıtlar bozuk kaydediliyor, yalnızca çizimde maskeleniyor")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3109,6 +3161,7 @@ def main() -> int:
         test_planli_yayin_cloudflareden_tetikleniyor,
         test_sansur_yildizi_cizime_kadar_yasiyor,
         test_metin_yenile_son_dakikayi_taniyor,
+        test_kacis_dizileri_slayta_basilmiyor,
     ):
         try:
             test()

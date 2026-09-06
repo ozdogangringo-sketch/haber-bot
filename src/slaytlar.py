@@ -69,12 +69,18 @@ def _alan(haber, ad: str) -> str:
 
     sqlite3.Row'da olmayan bir kolona erişmek IndexError/KeyError atıyor;
     sayısal değerlerde (id, onem_puani vb.) strip çökmemesi için str'ye çevrilir.
+
+    ⚠️ KAÇIŞ DİZİLERİ BURADA DA ÇÖZÜLÜYOR. Üretim girişinde de
+    çözülüyor ama bu kapı ESKİ KAYITLARI ve diğer üretim yollarını
+    (`onay_isle` içindeki başlık düzeltme, aday üretimi gibi ayrı
+    `json.loads` noktaları) da kapsıyor — kaynağı düzeltmek geçmiş
+    kayıtları düzeltmiyor, bu projede defalarca yaşandı.
     """
     try:
         val = haber[ad]
         if val is None:
             return ""
-        return str(val).strip()
+        return filtre.kacislari_coz(str(val)).strip()
     except (IndexError, KeyError, TypeError):
         return ""
 

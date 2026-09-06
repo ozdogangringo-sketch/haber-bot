@@ -658,8 +658,16 @@ def _cevabi_coz(veri: dict) -> dict:
 
     sonuc = json.loads(ham)
 
-    # 1. Otomatik tipografi ve sayı standardı temizliği (bin 410 -> 1.410, yüzde 25 -> %25, TL -> ₺)
+    # 0. Modelin yazdığı KAÇIŞ DİZİLERİNİ gerçek karaktere çevir.
+    # ⚠️ `json.loads` bunu halletmiyor — model ters bölü + "n"i metnin
+    # kendisine yazdığında ortada bozuk JSON yok, veri sadakatle
+    # aktarılıyor ve "\n\n" slayta harf harf basılıyor (6 Eyl 2026).
     from src import filtre
+    for k, v in list(sonuc.items()):
+        if isinstance(v, str):
+            sonuc[k] = filtre.kacislari_coz(v)
+
+    # 1. Otomatik tipografi ve sayı standardı temizliği (bin 410 -> 1.410, yüzde 25 -> %25, TL -> ₺)
     for k, v in list(sonuc.items()):
         if isinstance(v, str):
             sonuc[k] = filtre.tipografi_temizle(v)

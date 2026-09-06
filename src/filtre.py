@@ -94,6 +94,36 @@ def hashtaglari_ele(etiketler: list[str], yasakli: list[str]) -> list[str]:
     ]
 
 
+def kacislari_coz(metin: str) -> str:
+    """
+    Modelin ÜRETTİĞİ kaçış dizilerini gerçek karaktere çevirir.
+
+    ⚠️ GERÇEK OLAY (6 Eyl 2026): Gemini `detay_metni` alanında paragraf
+    ayracını gerçek satır sonu yerine DÜZ METİN olarak yazıyor —
+    "...bulundu.\\n\\nYapılan bilgilendirmede...". JSON çözümlemesi bunu
+    DÜZELTMEZ, çünkü ortada bozuk JSON yok: model gerçekten ters bölü
+    ve "n" karakterlerini yazmış, `json.loads` da onları sadakatle
+    aktarıyor.
+
+    İki zararı birden var: (1) "\\n\\n" slayta HARF HARF basılıyor,
+    kullanıcı ekranda görüyor; (2) paragraf bölünmediği için iki
+    paragraf tek blok hâline geliyor ve sayfa düzeni bozuluyor.
+
+    ⚠️ Ölçüldü (307 kayıt, 11 metin alanı taranarak): bu sınıfta
+    BAŞKA bir şey yok — HTML varlığı (&nbsp;), HTML etiketi, kod bloğu
+    işareti, çözülmemiş \\uXXXX, markdown bağlantısı hiç görülmedi.
+    Yalnızca `detay_metni` alanında 6 kayıt (%2).
+    """
+    if not metin or not isinstance(metin, str):
+        return metin
+    if "\\" not in metin:
+        return metin                      # hızlı çıkış: kayıtların %98'i
+    return (metin.replace("\\r\\n", "\n")
+                 .replace("\\n", "\n")
+                 .replace("\\r", "\n")
+                 .replace("\\t", " "))
+
+
 def tipografi_temizle(metin: str) -> str:
     """
     Türkçe tipografi ve sayı standartlarını otomatik temizler:
