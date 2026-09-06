@@ -3245,6 +3245,38 @@ def test_piyasa_verisi_yoksa_uydurma_sayi_basilmiyor() -> None:
             "bülten yayınından önce veri yeterliliği denetleniyor",
             "sütunu boş bülten yayınlanır")
 
+    # --- 4. SAYFA 1 (kart): varsayılana düşen varlık işaretleniyor mu ---
+    # ⚠️ Sayfa 1 ve sayfa 2 AYRI veri çekicileri kullanıyor; aynı kusur
+    # ikisinde de vardı. `piyasa.py` eksik varlığı sessizce sabit
+    # değerle dolduruyordu (BIST 100 için 14.500 puan) ve kartta gerçek
+    # veriden ayırt edilemiyordu.
+    from src import piyasa
+    sahte_v = {"dolar": {"ad": "Dolar / TL", "fiyat": 48.0, "degisim": 0.1},
+               "bist100": {"ad": "BIST 100", "fiyat": 14500.0,
+                           "degisim": 0.5, "veri_yok": True}}
+    denetle(piyasa.eksik_varliklar(sahte_v) == ["BIST 100"],
+            "varsayılana düşen varlık işaretleniyor",
+            "uydurma rakam canlı veriden ayırt edilemez")
+    denetle(piyasa.eksik_varliklar(
+        {"dolar": {"ad": "Dolar / TL", "fiyat": 48.0, "degisim": 0.1}}) == [],
+            "canlı veride yanlış alarm yok",
+            "her bülten engellenir")
+
+    kaynak_p = (KOK / "src/piyasa.py").read_text(encoding="utf-8")
+    pf = {d.name: d for d in _ast.walk(_ast.parse(kaynak_p))
+          if isinstance(d, _ast.FunctionDef)}
+    getir = pf.get("piyasa_verileri_getir")
+    if getir is not None:
+        isaretli = [n for n in _ast.walk(getir)
+                    if isinstance(n, _ast.Constant) and n.value == "veri_yok"]
+        denetle(bool(isaretli),
+                "dolgu yapılan varlık veri_yok ile işaretleniyor",
+                "dolgu sessiz kalır, yayın kapısı göremez")
+
+    denetle("eksik_varliklar" in cagrilar,
+            "kart bülteni de eksik veri denetiminden geçiyor",
+            "sayfa 1'de uydurma rakam yayınlanır")
+
 
 
 def test_reels_karesi_yuklenen_dosyayi_geri_indirmiyor() -> None:

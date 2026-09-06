@@ -130,12 +130,39 @@ def piyasa_verileri_getir() -> dict[str, dict]:
     elif "gram_altin" not in sonuclar:
         sonuclar["gram_altin"] = VARSAYILAN_VERILER["gram_altin"]
 
-    # Eksik kalan varsa varsayılanla doldur
+    # Eksik kalan varsa varsayılanla doldur — AMA İŞARETLE.
+    #
+    # ⚠️ 6 Eyl 2026'ya kadar bu dolgu SESSİZDİ: canlı veri gelmeyince
+    # BIST 100 için sabit "14.500 puan, +%0,50" basılıyor ve kartta
+    # gerçek piyasa verisinden ayırt edilemiyordu. Yani "veri
+    # çekilemedi" değil, UYDURMA FİNANSAL RAKAM yayınlanıyordu —
+    # `/menu` düğmelerinden kaldırılan uydurma faiz oranıyla ve
+    # piyasa tablosundaki (sayfa 2) aynı kusurla aynı sınıf.
+    #
+    # ⚠️ Varsayılan SİLİNMEDİ, çünkü çizim kodu beş ayrı yerden
+    # `fiyat`/`degisim` okuyor ve hepsini None'a hazırlamak bu
+    # düzeltmenin riskini gereksiz büyütürdü. Bunun yerine `veri_yok`
+    # işareti konuyor ve YAYIN KAPISI o bülteni hiç yayınlamıyor:
+    # uydurma rakam ekrana hiç ulaşmıyor.
     for k, varsayilan in VARSAYILAN_VERILER.items():
         if k not in sonuclar:
-            sonuclar[k] = varsayilan
+            sonuclar[k] = {**varsayilan, "veri_yok": True}
 
     return sonuclar
+
+
+def eksik_varliklar(veriler: dict) -> list[str]:
+    """
+    Canlı veri alınamayıp varsayılana düşen varlıkların adları.
+
+    Boş liste = her şey canlı. Dolu liste = o bülten yayınlanmamalı;
+    kartta uydurma rakam görünür.
+    """
+    eksik = []
+    for anahtar, deger in (veriler or {}).items():
+        if isinstance(deger, dict) and deger.get("veri_yok"):
+            eksik.append(deger.get("ad") or anahtar)
+    return eksik
 
 
 def varlik_sorgula(girdi: str) -> dict | None:

@@ -131,6 +131,25 @@ def main() -> int:
 
     # 5. %100 Native 1080x1920 (9:16 Full-bleed) Slaytları Üret (Sıfır Çerçeve, Sıfır Blur)
     kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(piyasa_verileri)
+    # ⚠️ SAYFA 1 DENETİMİ: canlı veri alınamayan varlık varsa bülten
+    # yayınlanmıyor. `piyasa_verileri_getir` eksik varlığı varsayılanla
+    # dolduruyor (BIST 100 için sabit 14.500 puan) ve kartta gerçek
+    # veriden ayırt edilemiyor — uydurma finansal rakam yayınlamaktansa
+    # bülteni atlamak doğru. Altı çekirdek varlık var; biri bile
+    # eksikse zaten "piyasa özeti" olmaktan çıkıyor.
+    eksik_varlik = piyasa.eksik_varliklar(piyasa_verileri)
+    if eksik_varlik and not args.zorla:
+        sebep_1 = "canlı veri alınamadı: " + ", ".join(eksik_varlik)
+        log.warning("Piyasa bülteni atlandı — %s", sebep_1)
+        telegram_bot.mesaj_gonder(
+            f"⚠️ <b>Piyasa bülteni yayınlanmadı</b>\n{sebep_1}.\n\n"
+            "Uydurma rakam basmak yerine atlandı — bir sonraki "
+            "pencerede yeniden denenecek.",
+            html=True,
+        )
+        con.close()
+        return 0
+
     # ⚠️ CANLI VERİ YETERSİZSE BÜLTEN YAYINLANMIYOR (6 Eyl 2026).
     # Kullanıcı "BIST hisse dataları çekilememişti" diye bildirdi;
     # gerçekte tablo eksik veriyi KODA GÖMÜLÜ yüzdelerle dolduruyor ve
