@@ -120,6 +120,28 @@ YEDEK_BARINDIRICILAR = (
 )
 
 
+# ⚠️ BU SÜREÇTE YÜKLENEN DOSYALARIN HARİTASI: url -> yerel yol.
+# Neden var (6 Eyl 2026): yayın job'ı slaytları üretip imgbb'ye
+# yüklüyor, sonra Reels videosunu kurmak için AYNI dosyaları imgbb'den
+# GERİ İNDİRİYORDU. i.ibb.co cevap vermeyince (read timeout) dört
+# karenin dördü de düştü ve "Reels videosu için 9:16 görsel üretilemedi"
+# hatasıyla video hiç üretilmedi — Telegram'a da düşmedi.
+# ⚠️ Bu harita "eski yerel dosyayı kullan" DEĞİL: yalnızca AYNI süreçte
+# o URL'i üretmek için yüklediğimiz dosyayı hatırlıyor. 3 Eyl'deki
+# "onaylanan görsel ≠ videodaki görsel" kusuru bayat yerel dosyadan
+# çıkmıştı; burada dosya ile URL'in aynı içerik olduğu garanti.
+_YUKLENEN_YEREL: dict[str, str] = {}
+
+
+def yerel_karsiligi(url: str) -> Path | None:
+    """Bu süreçte bu URL'i üretmek için yüklenen yerel dosya (varsa)."""
+    yol = _YUKLENEN_YEREL.get(str(url or ""))
+    if not yol:
+        return None
+    p = Path(yol)
+    return p if p.exists() else None
+
+
 def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
     """
     Tek bir görseli yükler.
@@ -159,6 +181,7 @@ def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
                 if not veri.get("success"):
                     raise RuntimeError(f"imgbb reddetti: {str(veri)[:200]}")
                 d = veri["data"]
+                _YUKLENEN_YEREL[d["url"]] = str(yol)
                 return {
                     "url": d["url"],
                     "silme_url": d.get("delete_url"),
@@ -192,6 +215,7 @@ def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
             try:
                 sonuc = islev(Path(yol), g["zaman_asimi"])
                 log.info("%s'e yüklendi: %s", ad, sonuc["url"])
+                _YUKLENEN_YEREL[sonuc["url"]] = str(yol)
                 return sonuc
             except Exception as e:                    # noqa: BLE001
                 log.warning("%s olmadı: %s", ad, str(e)[:130])

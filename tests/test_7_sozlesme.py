@@ -3247,6 +3247,94 @@ def test_piyasa_verisi_yoksa_uydurma_sayi_basilmiyor() -> None:
 
 
 
+def test_reels_karesi_yuklenen_dosyayi_geri_indirmiyor() -> None:
+    """
+    Video kareleri, aynı job'da yüklediğimiz dosyayı ağdan geri mi indiriyor?
+
+    ⚠️ GERÇEK OLAY (6 Eyl 2026, yayın #117412). imgbb CDN'i birkaç
+    dakika cevap vermedi. Zincir: slaytlar üretildi → imgbb'ye YÜKLENDİ
+    (başarılı) → Reels videosu için AYNI dosyalar imgbb'den GERİ
+    İNDİRİLMEYE çalışıldı → dört karenin dördü de zaman aşımına uğradı
+    → *"Reels videosu için 9:16 görsel üretilemedi"* → **video hiç
+    üretilmedi, Telegram'a düşmedi**. Aynı arıza story'yi ve Facebook'u
+    da düşürdü, Threads zincirini yarım bıraktı.
+
+    İki kusur birlikte: **(1)** dosya elimizdeyken ağa çıkılıyordu,
+    **(2)** indirme TEK denemeydi, ilk zaman aşımında pes ediyordu.
+
+    ⚠️ Bu, 3 Eyl'deki *"onaylanan görsel ≠ videodaki görsel"* kusurunun
+    TERSİ DEĞİL: orada BAYAT yerel dosya kullanılıyordu. Buradaki harita
+    yalnızca AYNI SÜREÇTE o URL'i üretmek için yüklenen dosyayı
+    hatırlıyor — dosya ile URL'in içeriği aynı, garanti.
+    """
+    import ast as _ast
+    import tempfile
+    sys.path.insert(0, str(KOK))
+    from PIL import Image
+    import requests as _requests
+    from src import upload_image, video
+
+    # --- 1. Harita davranışı ---
+    with tempfile.TemporaryDirectory() as td:
+        kaynak = Path(td) / "slayt.jpg"
+        Image.new("RGB", (1080, 1920), (20, 30, 40)).save(kaynak, "JPEG")
+        URL = "https://i.ibb.co/TEST/slayt.jpg"
+
+        upload_image._YUKLENEN_YEREL.pop(URL, None)
+        denetle(upload_image.yerel_karsiligi(URL) is None,
+                "bilinmeyen URL için yerel dosya iddia edilmiyor",
+                "rastgele bir dosya video karesi olarak kullanılır")
+
+        upload_image._YUKLENEN_YEREL[URL] = str(kaynak)
+        denetle(upload_image.yerel_karsiligi(URL) == kaynak,
+                "yüklenen dosyanın yerel karşılığı hatırlanıyor",
+                "aynı dosya ağdan geri indirilir")
+
+        # --- 2. DAVRANIŞ: ağ tamamen kapalıyken kare üretiliyor mu ---
+        eski_get = video.requests.get
+        try:
+            def _patla(*a, **k):
+                raise _requests.exceptions.ReadTimeout("test: barındırıcı kapalı")
+            video.requests.get = _patla
+            cikti = Path(td) / "kare"
+            cikti.mkdir()
+            kareler = video.reels_dikey_gorselleri_uret([URL], cikti_dizini=cikti)
+        finally:
+            video.requests.get = eski_get
+            upload_image._YUKLENEN_YEREL.pop(URL, None)
+
+        denetle(len(kareler) == 1,
+                "barındırıcı kapalıyken Reels karesi yine üretiliyor",
+                "video üretilemez ve Telegram'a düşmez — 6 Eyl'de yaşandı")
+
+    # --- 3. YAPI: yükleme haritayı gerçekten dolduruyor mu ---
+    kaynak_ui = (KOK / "src/upload_image.py").read_text(encoding="utf-8")
+    fonk = {d.name: d for d in _ast.walk(_ast.parse(kaynak_ui))
+            if isinstance(d, _ast.FunctionDef)}
+    gy = fonk.get("gorsel_yukle")
+    denetle(gy is not None, "gorsel_yukle duruyor", "fonksiyon yok")
+    if gy is not None:
+        yazan = [n for n in _ast.walk(gy)
+                 if isinstance(n, _ast.Subscript)
+                 and isinstance(n.value, _ast.Name)
+                 and n.value.id == "_YUKLENEN_YEREL"]
+        denetle(len(yazan) >= 2,
+                "hem imgbb hem yedek barındırıcı haritaya yazıyor",
+                "yedek barındırıcıya düşen yükleme haritada görünmez, "
+                "video yine ağa çıkar")
+
+    # --- 4. YAPI: indirme tek denemeli değil ---
+    kaynak_v = (KOK / "src/video.py").read_text(encoding="utf-8")
+    vf = {d.name: d for d in _ast.walk(_ast.parse(kaynak_v))
+          if isinstance(d, _ast.FunctionDef)}
+    indir = vf.get("_url_gorseli_indir")
+    denetle(indir is not None and any(isinstance(n, _ast.For)
+                                      for n in _ast.walk(indir)),
+            "görsel indirme geçici hatada tekrar deniyor",
+            "tek zaman aşımı bütün videoyu düşürür")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3315,6 +3403,7 @@ def main() -> int:
         test_kacis_dizileri_slayta_basilmiyor,
         test_govde_cekiminde_reddedilen_aday_zinciri_bitirmiyor,
         test_piyasa_verisi_yoksa_uydurma_sayi_basilmiyor,
+        test_reels_karesi_yuklenen_dosyayi_geri_indirmiyor,
     ):
         try:
             test()

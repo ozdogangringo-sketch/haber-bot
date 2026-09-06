@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 import numpy as np
 import io
 import requests
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 import imageio
+
+from . import upload_image
 
 log = logging.getLogger(__name__)
 
@@ -73,6 +76,33 @@ def _cercevele_9_16(img: Image.Image, baslik_rozet: str = "") -> Image.Image:
     bg.paste(img.convert("RGBA"), (0, card_y))
 
     return bg.convert("RGB")
+
+
+def _url_gorseli_indir(url: str, deneme_adedi: int = 3,
+                       bekleme: int = 5) -> Image.Image | None:
+    """
+    Video karesi için görseli indirir; GEÇİCİ hatada tekrar dener.
+
+    ⚠️ Eskiden TEK deneme vardı (timeout=25) ve ilk zaman aşımında pes
+    ediyordu. 6 Eyl 2026'da imgbb CDN'i birkaç dakika cevap vermedi:
+    dört karenin dördü de tek denemede düştü, video üretilemedi ve
+    Telegram'a Reels düşmedi. Yeniden deneme, projedeki diğer dış
+    servis çağrılarıyla aynı desen (imgbb, Instagram, Threads).
+    """
+    basliklar = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+    for deneme in range(1, deneme_adedi + 1):
+        try:
+            r = requests.get(url, headers=basliklar, timeout=25)
+            if r.status_code == 200:
+                return Image.open(io.BytesIO(r.content))
+            log.warning("Görsel indirilemedi (HTTP %s, deneme %d/%d): %s",
+                        r.status_code, deneme, deneme_adedi, url)
+        except Exception as e:                        # noqa: BLE001
+            log.warning("Görsel indirme hatası (deneme %d/%d): %s",
+                        deneme, deneme_adedi, str(e)[:120])
+        if deneme < deneme_adedi:
+            time.sleep(bekleme * deneme)
+    return None
 
 
 def reels_dikey_gorselleri_uret(
@@ -175,12 +205,19 @@ def reels_dikey_gorselleri_uret(
             if p.exists() and p.is_file():
                 img = Image.open(p)
             elif str(kaynak).startswith("http://") or str(kaynak).startswith("https://"):
-                headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
-                r = requests.get(str(kaynak), headers=headers, timeout=25)
-                if r.status_code != 200:
-                    log.warning("Görsel indirilemedi (HTTP %s): %s", r.status_code, kaynak)
-                    continue
-                img = Image.open(io.BytesIO(r.content))
+                # ⚠️ ÖNCE BU SÜREÇTE YÜKLEDİĞİMİZ DOSYAYA BAK (6 Eyl 2026).
+                # Yayın job'ı slaytları üretip yükledikten sonra aynı
+                # dosyaları barındırıcıdan geri indiriyordu; i.ibb.co
+                # cevap vermeyince dört karenin dördü düştü ve Reels
+                # videosu hiç üretilemedi. Dosya elimizdeyken ağa
+                # çıkmanın bir faydası yok, riski var.
+                yerel = upload_image.yerel_karsiligi(str(kaynak))
+                if yerel is not None:
+                    img = Image.open(yerel)
+                else:
+                    img = _url_gorseli_indir(str(kaynak))
+                    if img is None:
+                        continue
             else:
                 log.warning("Geçersiz görsel kaynağı: %s", kaynak)
                 continue
