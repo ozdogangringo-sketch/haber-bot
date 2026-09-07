@@ -392,7 +392,13 @@ def _formatli_satir_ciz(
             ciz.text((cur_x, y), t, font=f_vurgu, fill=c_vurgu)
             cur_x += int(ciz.textlength(t, font=f_vurgu))
         elif (ham.startswith('"') and ham.endswith('"')) or (ham.startswith('“') and ham.endswith('”')):
-            t = ham
+            # ⚠️ TIRNAK DALI DA YILDIZI TEMİZLEMELİ (7 Eyl 2026).
+            # Desen `**kalın**` ve `"alıntı"` kalıplarını AYNI alternasyonda
+            # arıyor; metin `"**Yurt kazandı**"` gibi İÇ İÇE olduğunda tırnak
+            # alternatifi kazanıyor ve bu dal `ham`i olduğu gibi çiziyordu.
+            # Sonuç slaytta göründü: « " **Yurt kazandı** " ». Kalın dalında
+            # `.replace("**","")` vardı, burada yoktu.
+            t = ham.replace("**", "")
             ciz.text((cur_x, y), t, font=f_vurgu, fill=c_alinti)
             cur_x += int(ciz.textlength(t, font=f_vurgu))
         son = m.end()
@@ -1614,6 +1620,11 @@ def story_detay(
     Haber detayının 9:16 (1080x1920) Story formatı.
     story_haber ile birebir aynı dikey güvenli pay (285px), logo, bayrak ve tipografi hizalamasını kullanır.
     """
+    # ⚠️ Başlık DÜZ çiziliyor, kalın vurgusu yok — `**` gelirse ekranda
+    # görünür. `ig_baslik` üretimde `markdown_temizle`den geçiyor ama
+    # bu fonksiyon başka yollardan da çağrılabiliyor (özel haber,
+    # elle kurulan tur); kapıyı burada da tutuyoruz.
+    baslik = (baslik or "").replace("**", "")
     story_ayarlar = {
         **ayarlar,
         "gorsel": {
@@ -1753,7 +1764,11 @@ def detay_sayfalara_bol(
         else:
             s_punto = 46
         bloklar.append({
-            "tip": "sayi", "sayi": vurgu[0], "etiket": vurgu[1] or "",
+            # ⚠️ Vurgu etiketi KALIN basılmıyor, düz çiziliyor — yıldız
+            # gelirse ekranda görünür. Model bu alanda `**` kullanmamalı
+            # ama kullanırsa burada eleniyor.
+            "tip": "sayi", "sayi": vurgu[0],
+            "etiket": (vurgu[1] or "").replace("**", ""),
             "punto": s_punto, "satirlar": [],
             "yukseklik": int(s_punto * 1.15) + int(VURGU_ETIKET_PUNTO * 1.7),
         })
@@ -1885,6 +1900,11 @@ def detay_slayti(
     Son dakika postunun 2. slaytı: haberin ayrıntısı.
     İkinci bir fotoğraf varsa hafif koyu perdeyle derinlikli zemin olarak kullanılır.
     """
+    # ⚠️ Başlık DÜZ çiziliyor, kalın vurgusu yok — `**` gelirse ekranda
+    # görünür. `ig_baslik` üretimde `markdown_temizle`den geçiyor ama
+    # bu fonksiyon başka yollardan da çağrılabiliyor (özel haber,
+    # elle kurulan tur); kapıyı burada da tutuyoruz.
+    baslik = (baslik or "").replace("**", "")
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
     kenar = g["kenar_bosluk"]

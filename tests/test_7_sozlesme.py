@@ -3447,6 +3447,75 @@ def test_ici_bos_ovgu_slayta_basilmiyor() -> None:
 
 
 
+def test_markdown_yildizi_slayta_sizmiyor() -> None:
+    """
+    `**` işaretleri slayta basılıyor mu?
+
+    ⚠️ GERÇEK OLAY (7 Eyl 2026). Kullanıcı ekran görüntüsü gönderdi:
+    *« sonuçlarda " **Yurt kazandı** " ifadesini gören adaylar »*.
+
+    Kök sebep: çizim deseni `**kalın**` ve `"alıntı"` kalıplarını AYNI
+    alternasyonda arıyor —
+        (\*\*[^*]+\*\* | "[^"]+" | “[^”]+”)
+    Metin `"**Yurt kazandı**"` gibi İÇ İÇE olduğunda **tırnak
+    alternatifi kazanıyor** ve o dal metni `t = ham` ile olduğu gibi
+    çiziyordu. Kalın dalında `.replace("**","")` vardı, tırnak dalında
+    YOKTU.
+
+    ⚠️ Veritabanında dengesiz yıldız YOKTU — bu yüzden metin taraması
+    kusuru bulamadı. Kusur ÜRETİMDE değil ÇİZİMDE; ancak slayt
+    render edilip bakılarak görülüyor.
+
+    Aynı turda iki sessiz açık daha kapatıldı: vurgu etiketi ve
+    detay sayfası başlığı da düz çiziliyor, yıldız gelirse görünüyordu.
+    """
+    import ast as _ast
+    sys.path.insert(0, str(KOK))
+    from src import make_image as mi
+
+    # --- 1. DAVRANIŞ: vurgu etiketi yıldızsız çıkıyor mu ---
+    sayfalar = mi.detay_sayfalara_bol(
+        "Tek paragraf yeter.", {"genel": {}, "gorsel": {}},
+        vurgu=("3-2", "Vurgu **etiket** testi"))
+    etiketler = [b.get("etiket", "") for sf in sayfalar for b in sf
+                 if b.get("tip") == "sayi"]
+    denetle(etiketler and all("**" not in e for e in etiketler),
+            "vurgu etiketinde markdown yıldızı kalmıyor",
+            f"yıldız slayta basılır: {etiketler}")
+
+    # --- 2. YAPI: tırnak dalı metni HAM çizmiyor ---
+    # ⚠️ Kusurun imzası tam olarak `t = ham` idi; onu arıyoruz.
+    kaynak = (KOK / "src/make_image.py").read_text(encoding="utf-8")
+    agac = _ast.parse(kaynak)
+    ham_atama = [n for n in _ast.walk(agac)
+                 if isinstance(n, _ast.Assign)
+                 and len(n.targets) == 1
+                 and isinstance(n.targets[0], _ast.Name)
+                 and n.targets[0].id == "t"
+                 and isinstance(n.value, _ast.Name)
+                 and n.value.id == "ham"]
+    denetle(not ham_atama,
+            "tırnak dalı metni temizlemeden çizmiyor",
+            'iç içe `"**metin**"` yapısında yıldızlar slayta basılır')
+
+    # --- 3. YAPI: detay başlığı da temizleniyor ---
+    fonk = {d.name: d for d in _ast.walk(agac) if isinstance(d, _ast.FunctionDef)}
+    for ad in ("story_detay", "detay_slayti"):
+        f = fonk.get(ad)
+        if f is None:
+            denetle(False, f"{ad} duruyor", "fonksiyon yok")
+            continue
+        temiz = [n for n in _ast.walk(f)
+                 if isinstance(n, _ast.Assign)
+                 and len(n.targets) == 1
+                 and isinstance(n.targets[0], _ast.Name)
+                 and n.targets[0].id == "baslik"]
+        denetle(bool(temiz),
+                f"{ad} başlıktaki yıldızı temizliyor",
+                "başlıkta ** gelirse slayta basılır")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3517,6 +3586,7 @@ def main() -> int:
         test_piyasa_verisi_yoksa_uydurma_sayi_basilmiyor,
         test_reels_karesi_yuklenen_dosyayi_geri_indirmiyor,
         test_ici_bos_ovgu_slayta_basilmiyor,
+        test_markdown_yildizi_slayta_sizmiyor,
     ):
         try:
             test()
