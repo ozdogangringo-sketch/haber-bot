@@ -202,8 +202,8 @@ gemini:
   zaman_asimi: 90
 
   # Makale gövdesinden modele en fazla kaç karakter gönderilsin.
-  # Daha uzunu hem gereksiz hem kotayı yer.
-  azami_makale_uzunlugu: 4000
+  # Uzun siyasi/kabine konuşmalarındaki tüm maddeleri kapsaması için 12000.
+  azami_makale_uzunlugu: 12000
 
 
 # =========================================================

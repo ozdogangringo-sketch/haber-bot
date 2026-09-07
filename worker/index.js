@@ -34,6 +34,9 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
                   "ayar", "tamamla", "arsiv", "oneri_gec", "tura_birak", "cope_at",
                   "plan_iptal", "havuz_guncelle", "havuzdan_ekle",
                   "manuel_paket", "yayinla_diger", "manuel_tamam",
+                  // Fotoğraf ve metin alt menü eylemleri
+                  "foto_gercek", "foto_stok", "foto_ai",
+                  "metin_ozetle", "metin_detaylandir", "metin_kaynak_arastir",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
                   "kota_raporu", "tur_temizle", "tur_hazirla", "ekonomi_hazirla", "ekonomi",
@@ -116,7 +119,7 @@ const SECILENLERI_HAZIRLA = "hazirla_secilenler";
 // 30+ saniye sürüyor ve menü açmak anında olmalı. Worker mesajın
 // butonlarını doğrudan düzenliyor.
 const MENU_GEZINME =
-  /^(slayt_menu:(\d{1,2})(?::([a-z0-9_,]+))?|geri:(\d{1,2})(?::([a-z0-9_,]+))?|slayt:([1-9]|10):(\d{1,2})(?::([a-z0-9_,]+))?|yayin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|yayin_geri:(\d{1,2})(?::([a-z0-9_,]+))?)$/;
+  /^(slayt_menu:(\d{1,2})(?::([a-z0-9_,]+))?|geri:(\d{1,2})(?::([a-z0-9_,]+))?|slayt:([1-9]|10):(\d{1,2})(?::([a-z0-9_,]+))?|yayin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|yayin_geri:(\d{1,2})(?::([a-z0-9_,]+))?|foto_menu:(\d{1,2})(?::([a-z0-9_,]+))?|foto_geri:(\d{1,2})(?::([a-z0-9_,]+))?|metin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|metin_geri:(\d{1,2})(?::([a-z0-9_,]+))?)$/;
 
 // Yayından kaldırma. Tur id'si komuta GÖMÜLÜ ("kaldir:144") çünkü bu
 // düğme yayın sonucu mesajında duruyor ve o mesajın kendi message_id'si
@@ -259,18 +262,49 @@ function anaMenu(adet, kanallar) {
   const kStr = kanallariKodla(kanallar);
   const yayinCb = kStr ? `yayin_menu:${adet}:${kStr}` : `yayin_menu:${adet}`;
   const slaytCb = kStr ? `slayt_menu:${adet}:${kStr}` : `slayt_menu:${adet}`;
+  const fotoCb  = kStr ? `foto_menu:${adet}:${kStr}`  : `foto_menu:${adet}`;
+  const metinCb = kStr ? `metin_menu:${adet}:${kStr}` : `metin_menu:${adet}`;
   return {
     inline_keyboard: [
       ...kanalButonlariSatirlari(kanallariCoz(kStr)),
       [{ text: "✅ Yayınla", callback_data: yayinCb },
        { text: "📲 Manuel Paylaşım Paketi", callback_data: "manuel_paket" }],
-      [{ text: "🔄 Başka Fotoğraf Bul", callback_data: "foto_degistir" },
-       { text: "✍️ Metinleri Yenile", callback_data: "metin_yenile" }],
+      [{ text: "🔄 Başka Fotoğraf Bul", callback_data: fotoCb },
+       { text: "✍️ Metinleri Yenile", callback_data: metinCb }],
       [{ text: `🎨 Slayt düzenle (${adet} slayt)`, callback_data: slaytCb }],
       [{ text: "⏰ 1 saat ertele", callback_data: "ertele" }],
       [{ text: "📋 Tekil atma, 10'lu tura bırak", callback_data: "tura_birak" }],
       [{ text: "❌ Bu turu atla (Havuza döner)", callback_data: "iptal" },
        { text: "🗑️ Çöpe At (Havuza dönmesin)", callback_data: "cope_at" }],
+    ],
+  };
+}
+
+function fotoMenusu(adet, kanallar) {
+  const kStr = kanallariKodla(kanallar);
+  const geriCb = kStr ? `foto_geri:${adet}:${kStr}` : `foto_geri:${adet}`;
+  return {
+    inline_keyboard: [
+      ...kanalButonlariSatirlari(kanallariCoz(kStr)),
+      [{ text: "📸 Gerçek Fotoğraf Ara", callback_data: "foto_gercek" },
+       { text: "🖼️ Stok Fotoğraf (Pexels)", callback_data: "foto_stok" }],
+      [{ text: "🎨 Yapay Zeka ile Üret", callback_data: "foto_ai" }],
+      [{ text: "← Ana Menü", callback_data: geriCb }],
+    ],
+  };
+}
+
+function metinMenusu(adet, kanallar) {
+  const kStr = kanallariKodla(kanallar);
+  const geriCb = kStr ? `metin_geri:${adet}:${kStr}` : `metin_geri:${adet}`;
+  return {
+    inline_keyboard: [
+      ...kanalButonlariSatirlari(kanallariCoz(kStr)),
+      [{ text: "✂️ Haberi Daha da Özetle", callback_data: "metin_ozetle" },
+       { text: "📖 Haberi Detaylandır", callback_data: "metin_detaylandir" }],
+      [{ text: "🔍 Başka Kaynaktan Araştır", callback_data: "metin_kaynak_arastir" }],
+      [{ text: "🔄 Standart Yeniden Yaz", callback_data: "metin_yenile" }],
+      [{ text: "← Ana Menü", callback_data: geriCb }],
     ],
   };
 }
@@ -1070,7 +1104,7 @@ export default {
         const adet = Number(parcalar[1]);
         const kanallarStr = parcalar[2] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
         menu = slaytSecimMenusu(adet, kanallarStr);
-      } else if (kok === "geri") {
+      } else if (kok === "geri" || kok === "yayin_geri" || kok === "foto_geri" || kok === "metin_geri") {
         const adet = Number(parcalar[1]);
         const kanallarStr = parcalar[2];
         const kanallar = kanallarStr ? kanallarStr.split(",") : klavyedenKanallar;
@@ -1080,11 +1114,16 @@ export default {
         const kanallarStr = parcalar[2] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
         const kanallar = kanallarStr ? kanallarStr.split(",") : klavyedenKanallar;
         menu = yayinZamaniMenusu(adet, kanallar);
-      } else if (kok === "yayin_geri") {
+      } else if (kok === "foto_menu") {
         const adet = Number(parcalar[1]);
-        const kanallarStr = parcalar[2];
+        const kanallarStr = parcalar[2] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
         const kanallar = kanallarStr ? kanallarStr.split(",") : klavyedenKanallar;
-        menu = anaMenu(adet, kanallar);
+        menu = fotoMenusu(adet, kanallar);
+      } else if (kok === "metin_menu") {
+        const adet = Number(parcalar[1]);
+        const kanallarStr = parcalar[2] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
+        const kanallar = kanallarStr ? kanallarStr.split(",") : klavyedenKanallar;
+        menu = metinMenusu(adet, kanallar);
       } else if (kok === "slayt") {
         const sira = Number(parcalar[1]);
         const adet = Number(parcalar[2]);

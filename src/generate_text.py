@@ -161,8 +161,9 @@ CEVAP_SEMASI = {
 PROMPT = """Sen Türkiye'nin en kaliteli sosyal medya haber yayını Daily Brief'in baş editörüsün.
 Aşağıdaki haberi Instagram, Threads ve sosyal medya için en yüksek kalitede, taranabilir ve etkileşimli bir yayına dönüştür.
 
-EN ÖNEMLİ KURAL — BUNU ASLA ÇİĞNEME (SIFIR HALÜSİNASYON):
-Sadece aşağıdaki HABER METNİNDE yazan bilgileri kullan. Metinde geçmeyen hiçbir iddiayı, sayıyı, ismi, tepkiyi veya sonucu yazma. Emin değilsen o cümleyi hiç kurma. Eksik yazmak, uydurmaktan iyidir.
+EN ÖNEMLİ KURAL — BUNU ASLA ÇİĞNEME (SIFIR HALÜSİNASYON & KONU ÇAPASI):
+1. ODAK KONU ÇAPASI (TOPIC LOCK): Haberin konusu KESİNLİKLE `[BAŞLIK]`'taki konu olmak zorundadır. Bir liderin, bakanın veya konuşmacının birden fazla konudan bahsettiği genel konuşmalarda (örneğin aynı metinde hem ihracat verileri, hem kaza, hem de kentsel dönüşüm geçiyorsa), postun başlığı, özeti ve detayları KESİNLİKLE orijinal başlıktaki konuya odaklanmalıdır. ASLA metindeki başka bir gündem maddesine kayma; başka konunun rakamlarını manşet yapma.
+2. Sadece aşağıdaki HABER METNİNDE yazan bilgileri kullan. Metinde geçmeyen hiçbir iddiayı, sayıyı, ismi, tepkiyi veya sonucu yazma. Emin değilsen o cümleyi hiç kurma. Eksik yazmak, uydurmaktan iyidir.
 
 SAYILAR — KAYNAKTAKİ GİBİ YAZ, YUVARLAMA:
 Kaynakta "2 milyar 841 milyon lira" yazıyorsa aynen öyle yaz. "2,8 milyar" diye yuvarlama. Tarih, oran, kişi sayısı ve hedef fiyatlar için de aynı kural geçerlidir.
@@ -453,12 +454,34 @@ bu "biri konuştu" değil, OLAYDIR — düşürme, 7-8 bandında değerlendir.
   · "Bakan yapay zekânın önemini vurguladı"            -> 3-5
 Ayrım şu: birincisinde okuyucunun YAPABİLECEĞİ bir şey var.
 
+{mod_talimati}
 {bilgi_uyarisi}
 HABER
 Kaynak : {kaynak}
 Başlık : {baslik}
 Metin  : {metin}
 """
+
+MOD_TALIMATLARI = {
+    "normal": "",
+    "ozetle": (
+        "\n★ KULLANICI ÖZEL TALİMATI — HABERİ DAHA DA ÖZETLE:\n"
+        "Kullanıcı metinlerin daha sade ve kompakt olmasını istedi.\n"
+        "- `ig_baslik`: Çok vurucu, net ve en fazla 7-9 kelime.\n"
+        "- `slayt_ozet`: Maksimum 12-15 kelimelik tek bir öz cümle.\n"
+        "- `detay_metni`: 50-80 kelime, 2 kısa ferah paragraf. Gereksiz dolgu cümlelerini at, sadece en yalın ve net gerçeği bırak.\n"
+    ),
+    "detaylandir": (
+        "\n★ KULLANICI ÖZEL TALİMATI — HABERİ DERİNLEMESİNE DETAYLANDIR:\n"
+        "Kullanıcı haberin daha zengin ve kapsamlı anlatılmasını istedi.\n"
+        "- `detay_metni`: 180-250 kelime, 3-4 ferah paragraf. Olayın gelişimini, ilgili kurum/tarafların açıklamalarını, istatistikleri ve gelecekteki takvimi zenginleştir.\n"
+        "- `neden_onemli` ve `sana_etkisi` alanlarını güçlü, somut ve derinlemesine verilerle doldur.\n"
+    ),
+    "kaynak_arastir": (
+        "\n★ KULLANICI ÖZEL TALİMATI — ÇOKLU KAYNAKTAN DERLENEN ZENGİN İÇERİK:\n"
+        "Aşağıdaki metin birden fazla haber kaynağından ve ajans detaylarından derlenmiştir. Olayın en güncel, doğrulanmış ve kapsamlı yönlerini birleştirerek profesyonel bir bülten oluştur.\n"
+    ),
+}
 
 # Gövdeyi çekemediğimizde prompt'un başına eklenen uyarı.
 AZ_BILGI_UYARISI = """DİKKAT — ELİNDEKİ BİLGİ ÇOK AZ:
@@ -503,9 +526,11 @@ def _anahtarlar() -> list[tuple[str, str]]:
     return anahtarlar
 
 
-def prompt_kur(kaynak: str, baslik: str, metin: str, tam_metin_var: bool) -> str:
+def prompt_kur(kaynak: str, baslik: str, metin: str, tam_metin_var: bool,
+               mod: str = "normal") -> str:
     """Modele gidecek metni hazırlar."""
     return PROMPT.format(
+        mod_talimati=MOD_TALIMATLARI.get(mod, ""),
         bilgi_uyarisi="" if tam_metin_var else AZ_BILGI_UYARISI,
         kaynak=kaynak,
         baslik=baslik,
@@ -700,19 +725,20 @@ def _cevabi_coz(veri: dict) -> dict:
     return sonuc
 
 
-def tek_haber_uret(haber, ayarlar: dict) -> tuple[dict, str | None]:
+def tek_haber_uret(haber, ayarlar: dict, mod: str = "normal") -> tuple[dict, str | None]:
     """
     Tek bir haber için metin üretir.
+    `mod`: 'normal', 'ozetle', 'detaylandir', 'kaynak_arastir'
     Döner: (uretilen_sozluk, makale_metni_veya_None)
     """
     g = ayarlar["gemini"]
 
     # Önce makalenin gövdesini çekmeyi dene
     govde = makale_metni_cek(haber["link"], haber["baslik_orj"])
-    if not govde or len(govde) < 150:
+    if mod == "kaynak_arastir" or not govde or len(govde) < 150:
         ek_baglam = olay_baglami_cek(haber["baslik_orj"])
         if ek_baglam:
-            govde = f"{govde or ''}\n\n[GÜNCEL BASIN DETAYLARI & OLAY BAĞLAMI]:\n{ek_baglam}"
+            govde = f"{govde or ''}\n\n[GÜNCEL BASIN DETAYLARI & ÇOKLU KAYNAK BAĞLAMI]:\n{ek_baglam}"
 
     tam_metin_var = bool(govde)
 
@@ -729,12 +755,13 @@ def tek_haber_uret(haber, ayarlar: dict) -> tuple[dict, str | None]:
         baslik=haber["baslik_orj"],
         metin=metin,
         tam_metin_var=tam_metin_var,
+        mod=mod,
     )
     return gemini_cagir(prompt, ayarlar), govde
 
 
 def metinleri_uret(limit: int = 10, ayarlar: dict | None = None,
-                   haberler: list | None = None) -> dict:
+                   haberler: list | None = None, mod: str = "normal") -> dict:
     """
     Haberlere Instagram metni ürettirir.
 
@@ -768,7 +795,7 @@ def metinleri_uret(limit: int = 10, ayarlar: dict | None = None,
                      "hata": None, "sonuc": None, "kaynak_uzunluk": 0}
 
             try:
-                uretilen, govde = tek_haber_uret(haber, ayarlar)
+                uretilen, govde = tek_haber_uret(haber, ayarlar, mod=mod)
             except Exception as e:
                 satir.update(durum="hata", hata=f"{type(e).__name__}: {e}")
                 db.durum_guncelle(con, haber["id"], "hata", str(e)[:500])

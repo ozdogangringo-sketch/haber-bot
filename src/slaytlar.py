@@ -470,9 +470,11 @@ def _vision_onayi(foto, haber, ayarlar: dict) -> tuple[bool, str]:
 def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                  atlanacak: int = 0,
                  haber_gorseli_atla: bool = False,
-                 con=None) -> tuple[Image.Image, str, str]:
+                 con=None,
+                 gorsel_modu: str = "hepsi") -> tuple[Image.Image, str, str]:
     """
     Habere arka plan bulur. (görüntü, katman_adı, atıf_metni) döner.
+    `gorsel_modu`: 'hepsi', 'gercek' (basın/kardeş/web), 'stok' (pexels)
 
     Katmanlar tek tek denenip ilk tutan alınıyor. Bir katman patlarsa
     (ağ hatası, kota, bozuk dosya) sonrakine geçiliyor — görsel
@@ -509,6 +511,27 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             log.warning("AI görsel üretemedi, normal zincire düşülüyor")
         except Exception as e:                        # noqa: BLE001
             log.warning("AI görsel hatası (%s), normal zincire düşülüyor", e)
+
+    # --- STOK MODU: kullanıcı özellikle Pexels stok görseli istediyse ---
+    if gorsel_modu == "stok":
+        _SON_STOK_ID.clear()
+        terim = _alan(haber, "gorsel_temsili")
+        if terim:
+            try:
+                sonuc = fetch_stock.konu_icin_fotograf(
+                    terim, atlanacak=atlanacak,
+                    kullanilmis=_kullanilmis_stok_idler()
+                )
+                if sonuc:
+                    foto, kayit = sonuc
+                    _SON_STOK_ID.append(kayit.get("id"))
+                    return (
+                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                        "pexels",
+                        fetch_stock.atif_metni(kayit),
+                    )
+            except Exception as e:                        # noqa: BLE001
+                log.warning("Pexels stok katmanı patladı (%s): %s", terim, e)
 
     # --- 0.5) Haberin kendi görseli (og:image) ---
     #
@@ -608,6 +631,27 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                          atlanacak + ek, sebep)
         except Exception as e:
             log.warning("Commons katmanı patladı (%s): %s", konu, e)
+
+    # --- 1.5) Gerçek Fotoğraf Modunda Web Editoryal Arama ---
+    if gorsel_modu == "gercek" and not haber_gorseli_atla:
+        try:
+            web_sonuc = fetch_web_image.haber_icin_fotograf(
+                haber, atlanacak=atlanacak)
+            if web_sonuc:
+                foto, web_kayit = web_sonuc
+                atif = fetch_web_image.atif_metni(web_kayit)
+                uygun, sebep = _vision_onayi(foto, haber, ayarlar)
+                if not uygun:
+                    log.info("internet görseli Vision denetiminden geçemedi (%s)", sebep)
+                elif atif:
+                    log.info("arka plan: gerçek modda web editoryal fotoğraf — %s", atif)
+                    return (
+                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                        "web_haber",
+                        atif,
+                    )
+        except Exception as e:                        # noqa: BLE001
+            log.warning("gerçek modda internet görsel araması hatası: %s", e)
 
     # --- 2) Pexels: temsili fotoğraf ---
     _SON_STOK_ID.clear()
@@ -894,7 +938,8 @@ def _yil_ya_da_tarih_mi(deger: str) -> bool:
 def son_dakika_uret(haber, ayarlar: dict, con=None,
                     zorla_ai: bool = False,
                     atlanacak: int | None = None,
-                    haber_gorseli_atla: bool = False) -> list[dict]:
+                    haber_gorseli_atla: bool = False,
+                    gorsel_modu: str = "hepsi") -> list[dict]:
     """
     Son dakika postunun iki slaytını üretir.
 
@@ -916,7 +961,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         haber, atlanacak, haber_gorseli_atla)
     ham_arkaplan, katman, atif = arkaplan_sec(
         haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
-        haber_gorseli_atla=haber_gorseli_atla, con=con)
+        haber_gorseli_atla=haber_gorseli_atla, con=con,
+        gorsel_modu=gorsel_modu)
 
     veri_karti = None
     v_etiket = _alan(haber, "veri_karti_etiket")

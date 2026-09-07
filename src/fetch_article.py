@@ -33,9 +33,9 @@ from .fetch_news import BASLIKLAR, html_temizle
 
 log = logging.getLogger(__name__)
 
-# Prompt'u şişirmemek için üst sınır. 4000 karakter ~ 1000 kelime,
-# bir haber için fazlasıyla yeterli.
-AZAMI_UZUNLUK = 4000
+# Prompt'u şişirmemek için üst sınır. 12000 karakter ~ 2500 kelime,
+# uzun siyasi ve kabine konuşmalarındaki tüm gündem maddelerini kapsar.
+AZAMI_UZUNLUK = 12000
 
 # Bu kadarından kısa bir metin "çekemedik" sayılır — muhtemelen
 # çerez uyarısı veya "bot musun" sayfası yakalamışız.
@@ -210,7 +210,8 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
         "tracker", "spacer", "placeholder", "icon", ".svg", ".gif",
         "share-button", "default_image", "no-image", "-150x150", "-300x",
         "-thumb", "small_thumb", "widget", "advert/documents", "ilan.memurlar",
-        "kamuilan", "documents", "tablo", "dilekce"
+        "kamuilan", "documents", "tablo", "dilekce", "ahaber2.png", "logo-text",
+        "/site/v2/i/", "channel_logo", "site_logo"
     ]
 
     def _gecerli_url_mi(u: str) -> bool:
@@ -240,10 +241,11 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
 
     # 1. JSON-LD Yapılandırılmış Veri (Sitenin doğrudan sunduğu orijinal yüksek çözünürlüklü basın görseli)
     for script in corba.find_all("script", attrs={"type": "application/ld+json"}):
-        if not script.string:
+        text = script.string or script.text
+        if not text:
             continue
         try:
-            veri = json.loads(script.string)
+            veri = json.loads(text)
         except Exception:
             continue
 
@@ -256,13 +258,31 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
         for aday in adaylar or []:
             if not isinstance(aday, dict):
                 continue
+            # Yalnızca haber/makale şemalarını kabul et, Organization/Person/WebSite logolarını atla
+            tip = str(aday.get("@type", "")).lower()
+            if tip in ("organization", "newsmediaorganization", "website", "person", "breadcrumblist"):
+                continue
+
             img = aday.get("image")
-            if isinstance(img, str) and _gecerli_url_mi(img):
-                return _temiz_url(img)
-            elif isinstance(img, dict) and _gecerli_url_mi(img.get("url", "")):
-                return _temiz_url(img["url"])
-            elif isinstance(img, list) and img and isinstance(img[0], str) and _gecerli_url_mi(img[0]):
-                return _temiz_url(img[0])
+            aday_urller = []
+            if isinstance(img, str):
+                aday_urller.append(img)
+            elif isinstance(img, dict):
+                u = img.get("contentUrl") or img.get("url")
+                if isinstance(u, str):
+                    aday_urller.append(u)
+            elif isinstance(img, list):
+                for eleman in img:
+                    if isinstance(eleman, str):
+                        aday_urller.append(eleman)
+                    elif isinstance(eleman, dict):
+                        u = eleman.get("contentUrl") or eleman.get("url")
+                        if isinstance(u, str):
+                            aday_urller.append(u)
+
+            for u in aday_urller:
+                if _gecerli_url_mi(u):
+                    return _temiz_url(u)
 
     # 2. Makale İçi Orijinal Basın Görseli (figure, featured-image, news-detail)
     for secici in (
@@ -426,6 +446,32 @@ def _sayfayi_getir(link: str, zaman_asimi: int = 20,
     return None
 
 
+def _kirp_baslik_oncelikli(metin: str, baslik: str | None, azami: int = AZAMI_UZUNLUK) -> str:
+    """Metin azami sınırı aşıyorsa, başlıktaki anahtar kelimeleri içeren paragrafları korur."""
+    if len(metin) <= azami:
+        return metin
+    if not baslik:
+        return metin[:azami]
+
+    anahtarlar = [k for k in re.findall(r"\w+", _kucult(baslik)) if len(k) >= 4]
+    if not anahtarlar:
+        return metin[:azami]
+
+    paragraflar = [p.strip() for p in metin.split(". ") if len(p.strip()) > 30]
+    secilen = []
+    toplam = 0
+    # Önce başlıktaki kelimeleri içeren kısımları ve giriş kısmını dahil et
+    for p in paragraflar:
+        p_k = _kucult(p)
+        eslesiyor = any(k in p_k for k in anahtarlar)
+        if eslesiyor or toplam < azami // 2:
+            if toplam + len(p) < azami:
+                secilen.append(p)
+                toplam += len(p) + 2
+
+    return ". ".join(secilen) if secilen else metin[:azami]
+
+
 def makale_metni_cek(
     link: str, baslik: str | None = None, zaman_asimi: int = 20
 ) -> str | None:
@@ -487,7 +533,7 @@ def makale_metni_cek(
             log.info("%s yöntemi başlıkla ilgisiz metin verdi, sıradaki "
                      "yöntem deneniyor: %s", ad, link)
             continue
-        return temiz[:AZAMI_UZUNLUK]
+        return _kirp_baslik_oncelikli(temiz, baslik, AZAMI_UZUNLUK)
 
     # Son çare: og:description. ASGARI_UZUNLUK aranmıyor — bu alan zaten
     # kısa olur ve RSS özetinden iyi bir şey vermese de zarar vermez.
@@ -495,7 +541,7 @@ def makale_metni_cek(
     if og:
         temiz = _duzelt(og)
         if not baslik or _baslikla_ilgili_mi(temiz, baslik):
-            return temiz[:AZAMI_UZUNLUK]
+            return _kirp_baslik_oncelikli(temiz, baslik, AZAMI_UZUNLUK)
 
     log.warning("gövde çekilemedi (hiçbir yöntem tutmadı): %s", link)
     return None

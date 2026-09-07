@@ -1080,50 +1080,13 @@ def yaziyi_bas(
     if son_dakika:
         sd_sag, sd_alt = _son_dakika_rozeti(ciz, kenar + 162, dikey_kenar + 30)
 
-    # Mini İnfografik Veri Kartı Rozeti (varsa üst sağ/orta bölgeye şık cam kutu)
-    if veri_karti and (veri_karti.get("etiket") or veri_karti.get("yeni")):
-        vk_etiket = (veri_karti.get("etiket") or "").strip().upper()
-        vk_eski = (veri_karti.get("eski") or "").strip()
-        vk_yeni = (veri_karti.get("yeni") or "").strip()
-        vk_yon = (veri_karti.get("yon") or "").strip()
-
-        if vk_yeni:
-            ok = "→" if vk_eski else ""
-            yon_simge = "▲" if vk_yon == "artis" else ("▼" if vk_yon == "azalis" else "◆")
-            deger_metin = f"{vk_eski} {ok} {vk_yeni}".strip() if vk_eski else vk_yeni
-            rozet_metin = f"{yon_simge} {vk_etiket}: {deger_metin}" if vk_etiket else f"{yon_simge} {deger_metin}"
-
-            ciz = ImageDraw.Draw(gorsel)
-            vk_font = _font(24, EKSEN_KUCUK)
-            vk_gen = int(ciz.textlength(rozet_metin, font=vk_font)) + 36
-            vk_yuk = 48
-            vk_x = int(genislik - kenar - vk_gen if not ulke_kodu else genislik - kenar - vk_gen - 110)
-            vk_y = int(dikey_kenar + 10)
-
-            # ⚠️ SON DAKİKA ETİKETİYLE ÇAKIŞMA. Etiket soldan büyüyor,
-            # rozet sağa yaslı; ikisi de genişleyince üst üste biniyor.
-            # Sığmıyorsa rozet İKİNCİ SATIRA iniyor ve tam genişliği
-            # kullanıyor — bayrak flaması yukarıda kaldığı için o
-            # satırda sağa kadar yer var.
-            if sd_sag and vk_x < sd_sag + 16:
-                vk_y = int(sd_alt + 14)
-                vk_x = int(genislik - kenar - vk_gen)
-                log.info("veri rozeti SON DAKİKA etiketiyle çakışıyordu, "
-                         "ikinci satıra alındı")
-
-            vk_overlay = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
-            vk_ciz = ImageDraw.Draw(vk_overlay)
-            vk_ciz.rounded_rectangle(
-                [vk_x, vk_y, vk_x + vk_gen, vk_y + vk_yuk],
-                radius=10,
-                fill=(6, 26, 30, 215),
-                outline=(6, 182, 212, 240),
-                width=2,
-            )
-            gorsel = Image.alpha_composite(gorsel.convert("RGBA"), vk_overlay).convert("RGB")
-            ciz = ImageDraw.Draw(gorsel)
-            ciz.text((vk_x + 18, vk_y + 11), rozet_metin, font=vk_font, fill=(246, 243, 236))
-
+    # ⚠️ VERİ KARTI ROZETİ KALDIRILDI (7 Eyl 2026):
+    # Kullanıcı: *"ülke bayrağının solundaki özet rakamsal bilgi kartımızın
+    # içeriği çok uzadığında soldaki logomuza taşıyor, tasarımı hoşuma gitmiyo
+    # kaldıralım"*. Üst barda Logo (144px) + SON DAKİKA rozeti + Ülke Bayrağı
+    # varken araya 4. bir kutu olarak giren cam rozet hem logoya biniyordu hem
+    # görseli boğuyordu. Bu bilgi zaten başlıkta, spotta veya ayrıntı
+    # sayfasındaki büyük odak kartında (vurgu_sayi) yer alıyor.
     return gorsel
 
 

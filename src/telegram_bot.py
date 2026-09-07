@@ -221,8 +221,8 @@ def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
         *kanal_butonlari(kanallar),
         [{"text": "✅ Yayınla", "callback_data": f"yayin_menu:{adet}"},
          {"text": "📲 Manuel Paylaşım Paketi", "callback_data": "manuel_paket"}],
-        [{"text": "🔄 Başka Fotoğraf Bul", "callback_data": "foto_degistir"},
-         {"text": "✍️ Metinleri Yenile", "callback_data": "metin_yenile"}],
+        [{"text": "🔄 Başka Fotoğraf Bul", "callback_data": f"foto_menu:{adet}"},
+         {"text": "✍️ Metinleri Yenile", "callback_data": f"metin_menu:{adet}"}],
         [{"text": f"🎨 Slayt düzenle ({adet} slayt)",
           "callback_data": f"slayt_menu:{adet}"}],
         [{"text": "⏰ 1 saat ertele", "callback_data": "ertele"}],
@@ -235,6 +235,29 @@ def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
           "callback_data": "tura_birak"}],
         [{"text": "❌ Bu turu atla (Havuza döner)", "callback_data": "iptal"},
          {"text": "🗑️ Çöpe At (Havuza dönmesin)", "callback_data": "cope_at"}],
+    ]}
+
+
+def foto_menusu(adet: int, kanallar: dict | None = None) -> dict:
+    """Fotoğraf değiştirme alt menüsü."""
+    return {"inline_keyboard": [
+        *kanal_butonlari(kanallar),
+        [{"text": "📸 Gerçek Fotoğraf Ara", "callback_data": "foto_gercek"},
+         {"text": "🖼️ Stok Fotoğraf (Pexels)", "callback_data": "foto_stok"}],
+        [{"text": "🎨 Yapay Zeka ile Üret", "callback_data": "foto_ai"}],
+        [{"text": "← Ana Menü", "callback_data": f"foto_geri:{adet}"}],
+    ]}
+
+
+def metin_menusu(adet: int, kanallar: dict | None = None) -> dict:
+    """Metin yenileme alt menüsü."""
+    return {"inline_keyboard": [
+        *kanal_butonlari(kanallar),
+        [{"text": "✂️ Haberi Daha da Özetle", "callback_data": "metin_ozetle"},
+         {"text": "📖 Haberi Detaylandır", "callback_data": "metin_detaylandir"}],
+        [{"text": "🔍 Başka Kaynaktan Araştır", "callback_data": "metin_kaynak_arastir"}],
+        [{"text": "🔄 Standart Yeniden Yaz", "callback_data": "metin_yenile"}],
+        [{"text": "← Ana Menü", "callback_data": f"metin_geri:{adet}"}],
     ]}
 
 

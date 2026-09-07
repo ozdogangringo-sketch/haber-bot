@@ -1689,14 +1689,44 @@ def _son_dakika_metin_yenile(con, ayarlar, taze, mesaj_id: int) -> int:
     return 0
 
 
-def metin_yenile(con, ayarlar, haberler, mesaj_id) -> int:
+def metin_yenile(con, ayarlar, haberler, mesaj_id, mod: str = "normal") -> int:
     """Tüm haberlerin metnini yeniden ürettirir ve slaytları yeniler."""
     con.execute(
         "UPDATE haberler SET durum = 'yeni' WHERE telegram_message_id = ?",
         (mesaj_id,),
     )
     con.commit()
-    metinleri_uret(ayarlar=ayarlar, haberler=haberler)
+
+    if mod == "kaynak_arastir" and con is not None:
+        for h in haberler:
+            try:
+                kardesler = slaytlar.kardes_linkler(con, h, azami=3)
+                ek_metinler = []
+                for k_link in kardesler:
+                    row = con.execute(
+                        "SELECT makale_metni, ozet_orj FROM haberler WHERE link = ?",
+                        (k_link,),
+                    ).fetchone()
+                    if row:
+                        m = row["makale_metni"] or row["ozet_orj"]
+                        if m:
+                            ek_metinler.append(m[:2000])
+                if ek_metinler:
+                    mevcut = h.get("makale_metni") or h.get("ozet_orj") or ""
+                    yeni_govde = (
+                        mevcut
+                        + "\n\n[ÇOKLU AJANS / KARDEŞ KAYNAK DETAYLARI]:\n"
+                        + "\n\n".join(ek_metinler)
+                    )
+                    con.execute(
+                        "UPDATE haberler SET makale_metni = ? WHERE id = ?",
+                        (yeni_govde[:15000], h["id"]),
+                    )
+                    con.commit()
+            except Exception as e:                    # noqa: BLE001
+                log.warning("kaynak araştırma zenginleştirme hatası: %s", e)
+
+    metinleri_uret(ayarlar=ayarlar, haberler=haberler, mod=mod)
 
     taze = turu_getir(con, mesaj_id)
 
@@ -1781,9 +1811,10 @@ def _gorsel_adayini_uygula(con, ayarlar, haber, secilen: dict,
     return 0
 
 
-def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basan: str = "") -> int:
+def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basan: str = "", mod: str = "hepsi") -> int:
     """
     Onay bekleyen haberin fotoğrafını sıradaki alternatif HD görselle yeniler ve slaytları baştan çizer.
+    `mod`: 'hepsi', 'gercek' (basın/kardeş/web), 'stok' (pexels), 'ai' (gemini)
     """
     if not haberler:
         telegram_bot.mesaj_gonder("⚠️ Fotoğrafı değiştirilecek haber bulunamadı.")
@@ -1794,21 +1825,17 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
         h = haberler[0]
         deneme = (h["gorsel_deneme"] or 0) + 1
         adet = int((ayarlar.get("gorsel") or {}).get("gorsel_aday_adedi", 3))
+        if mod == "ai":
+            adet = 1
 
-        # ⚠️ ÜÇ ADAY ÜRETİLİYOR, KULLANICI SEÇİYOR (4 Eyl 2026).
-        # Eskiden tek alternatif üretilip DOĞRUDAN uygulanıyordu —
-        # beğenilmezse tekrar basmak gerekiyordu ve her basış ayrı bir
-        # Actions uyanması (40-90 sn). Kullanıcı: *"başka fotoğraf
-        # seçeneğine basınca 3 görsel sunsa seçtiğimle devam etsek"*.
-        #
-        # ⚠️ ADAYLARIN TAMAMI YÜKLENİYOR, SEÇİMDE YENİDEN ÜRETİLMİYOR.
-        # Görsel katmanları deterministik değil (Pexels tekrar engeli,
-        # Commons aday sırası, kardeş havuzu çalıştırma anına bağlı);
-        # seçimden sonra aynı `atlanacak` ile yeniden üretmek BAŞKA bir
-        # fotoğraf verebilirdi. "Onaylanan çıktı saklanmalı, yayın
-        # anında yeniden üretilmemeli" kuralı burada da geçerli.
+        baslik_metin = {
+            "gercek": "📸 <b>Gerçek basın fotoğrafı adayları</b>",
+            "stok": "🖼️ <b>Pexels stok fotoğrafı adayları</b>",
+            "ai": "🎨 <b>Yapay zeka görseli</b>",
+        }.get(mod, f"🔄 <b>{adet} alternatif fotoğraf</b>")
+
         telegram_bot.mesaj_gonder(
-            f"🔄 <b>{adet} alternatif fotoğraf hazırlanıyor…</b>\n\n"
+            f"{baslik_metin} hazırlanıyor…\n\n"
             f"{h['ig_baslik'] or h['baslik_orj']}\n"
             f"<i>Hepsi hazır olunca yan yana göstereceğim, sen seçeceksin.</i>",
             html=True,
@@ -1817,8 +1844,10 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
         adaylar = []
         for ek in range(adet):
             try:
+                zorla_ai = (mod == "ai")
                 sonuclar = slaytlar.son_dakika_uret(
-                    h, ayarlar, con=con, atlanacak=deneme + ek)
+                    h, ayarlar, con=con, atlanacak=deneme + ek,
+                    gorsel_modu=mod, zorla_ai=zorla_ai)
                 yuklemeler = upload_image.hepsini_yukle(
                     [s["yol"] for s in sonuclar], ayarlar)
                 urller = [y["url"] for y in yuklemeler]
@@ -4137,9 +4166,21 @@ def main() -> int:
                                 int(komut.split(":")[1]), mesaj_id, basan,
                                 kanallar=kanallar)
         if komut == "foto_degistir":
-            return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, basan)
+            return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, basan, mod="hepsi")
+        if komut == "foto_gercek":
+            return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, basan, mod="gercek")
+        if komut == "foto_stok":
+            return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, basan, mod="stok")
+        if komut == "foto_ai":
+            return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, basan, mod="ai")
         if komut == "metin_yenile":
-            return metin_yenile(con, ayarlar, haberler, mesaj_id)
+            return metin_yenile(con, ayarlar, haberler, mesaj_id, mod="normal")
+        if komut == "metin_ozetle":
+            return metin_yenile(con, ayarlar, haberler, mesaj_id, mod="ozetle")
+        if komut == "metin_detaylandir":
+            return metin_yenile(con, ayarlar, haberler, mesaj_id, mod="detaylandir")
+        if komut == "metin_kaynak_arastir":
+            return metin_yenile(con, ayarlar, haberler, mesaj_id, mod="kaynak_arastir")
         if komut == "metin_duzenle":
             sonuc = metin_duzenle(con, ayarlar, haberler, mesaj_id, metin, basan)
             menuyu_geri_koy(con, mesaj_id)
@@ -4181,7 +4222,15 @@ def main() -> int:
             adet = int(komut.split(":")[1])
             telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.yayin_zamani_menusu(adet))
             return 0
-        if komut.startswith(("geri:", "yayin_geri:")):
+        if komut.startswith("foto_menu:"):
+            adet = int(komut.split(":")[1])
+            telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.foto_menusu(adet))
+            return 0
+        if komut.startswith("metin_menu:"):
+            adet = int(komut.split(":")[1])
+            telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.metin_menusu(adet))
+            return 0
+        if komut.startswith(("geri:", "yayin_geri:", "foto_geri:", "metin_geri:")):
             adet = int(komut.split(":")[1])
             telegram_bot.menuyu_degistir(mesaj_id, telegram_bot.ana_menu(adet))
             return 0
