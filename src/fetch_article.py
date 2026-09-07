@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 
 import requests
 from bs4 import BeautifulSoup
@@ -194,12 +195,13 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
       2. Schema.org JSON-LD NewsArticle 'image' alanı (Sitenin sunduğu orijinal tam boy basın görseli)
       3. Makale gövdesindeki ana manşet/ürün görseli (figure, featured-image, article img)
     """
+    cevap = _sayfayi_getir(link, zaman_asimi)
+    if cevap is None:
+        return None
     try:
-        cevap = requests.get(link, headers=BASLIKLAR, timeout=zaman_asimi)
-        cevap.raise_for_status()
         corba = BeautifulSoup(cevap.content, "html.parser")
-    except Exception as e:
-        log.warning("Haber görseli için sayfa alınamadı %s: %s", link, e)
+    except Exception as e:                            # noqa: BLE001
+        log.warning("Haber sayfası ayrıştırılamadı %s: %s", link, e)
         return None
 
     # İstenmeyen görsel kalıpları (avatar, logo, sayaç, banner reklam, küçük thumbnail, ilan formları)
@@ -383,6 +385,47 @@ def _capadan_topla(corba: BeautifulSoup, baslik: str | None = None) -> str | Non
     return None
 
 
+# Kalıcı HTTP hataları — tekrar denemek zaman kaybı.
+# ⚠️ Investing.com bize 403 dönüyor (15/15 başarısızlığın sebebi); her
+# haberde 3 kez denemek her çalışmaya boşuna saniyeler ekler.
+KALICI_HTTP = {400, 401, 403, 404, 410, 451}
+
+
+def _sayfayi_getir(link: str, zaman_asimi: int = 20,
+                   deneme_adedi: int = 3, bekleme: int = 3):
+    """
+    Haber sayfasını indirir; GEÇİCİ hatada tekrar dener.
+
+    ⚠️ NİYE GEREKTİ (7 Eyl 2026): hem gövde çekimi hem og:image çekimi
+    TEK denemeydi. Ölçüldü — "başka fotoğraf" basılmamış 12 stok
+    postunun 5'inde haberin og:image'ı bugün sorunsuz geliyor ve kalite
+    kapısını geçiyor; yani üretim anında geçici bir ağ hatası yaşanmış
+    ve post sessizce stok fotoğrafa düşmüş. Aynı desen gövde çekiminde
+    de görüldü (kayıtta 0 karakter, bugün 513-2246 karakter).
+    ⚠️ Aynı gün video karelerinde de yeniden deneme yokluğu bulunmuştu —
+    projede geçici ağ hatasına karşı korunmayan üçüncü yol buydu.
+    """
+    son_hata = None
+    for deneme in range(1, deneme_adedi + 1):
+        try:
+            cevap = requests.get(link, headers=BASLIKLAR, timeout=zaman_asimi)
+            cevap.raise_for_status()
+            return cevap
+        except requests.HTTPError as e:
+            kod = getattr(e.response, "status_code", 0)
+            if kod in KALICI_HTTP:
+                log.warning("sayfa alınamadı (kalıcı HTTP %s): %s", kod, link)
+                return None
+            son_hata = e
+        except Exception as e:                        # noqa: BLE001
+            son_hata = e
+        if deneme < deneme_adedi:
+            time.sleep(bekleme * deneme)
+    log.warning("sayfa alınamadı (%d deneme) %s: %s",
+                deneme_adedi, link, str(son_hata)[:120])
+    return None
+
+
 def makale_metni_cek(
     link: str, baslik: str | None = None, zaman_asimi: int = 20
 ) -> str | None:
@@ -397,11 +440,8 @@ def makale_metni_cek(
     Çağıran taraf None gelirse RSS özetiyle devam etmeli
     (ve modele "elinde az bilgi var" demeli).
     """
-    try:
-        cevap = requests.get(link, headers=BASLIKLAR, timeout=zaman_asimi)
-        cevap.raise_for_status()
-    except Exception as e:
-        log.warning("makale indirilemedi %s: %s", link, e)
+    cevap = _sayfayi_getir(link, zaman_asimi)
+    if cevap is None:
         return None
 
     try:

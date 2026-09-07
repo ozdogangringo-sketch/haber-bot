@@ -3516,6 +3516,103 @@ def test_markdown_yildizi_slayta_sizmiyor() -> None:
 
 
 
+def test_gecici_ag_hatasinda_tekrar_deneniyor() -> None:
+    """
+    Geçici ağ hatası postu sessizce stok fotoğrafa düşürüyor mu?
+
+    ⚠️ GERÇEK OLAY (7 Eyl 2026). Kullanıcı: *"çok fazla stok görsel
+    kullanıyoruz"*. ÖLÇÜLDÜ — son 40 yayında stok payı %35 (son 120'de
+    %23), yükseliyordu. Sebep ayrıştırıldı: yarısı kullanıcının "başka
+    fotoğraf" basması (beklenen). Kalanların içinde **5 post**, haberin
+    kendi og:image'ı BUGÜN sorunsuz inip kalite kapısını geçtiği hâlde
+    stoğa düşmüştü — yani üretim anında geçici bir ağ hatası olmuş.
+
+    ⚠️ İKİ AĞ ADIMINDA DA YENİDEN DENEME YOKTU: sayfayı çekme
+    (`og_gorseli_cek`, `makale_metni_cek`) ve görseli indirme
+    (`slaytlar._gorseli_indir`). Aynı gün video karelerinde de aynı
+    boşluk bulunmuştu — projede korunmasız üçüncü yol buydu.
+
+    ⚠️ KALICI HATA TEKRARLANMAZ: Investing.com bize 403 dönüyor (o
+    kaynağın 15/15 başarısızlığının sebebi). Her haberde 3 kez denemek
+    her çalışmaya boşuna saniye ekler.
+    """
+    import ast as _ast
+    sys.path.insert(0, str(KOK))
+    import requests as _requests
+    from src import fetch_article as fa, slaytlar
+
+    class _Cevap:
+        def __init__(self, kod): self.status_code = kod; self.content = b""
+        def raise_for_status(self):
+            if self.kod_hatali:
+                h = _requests.HTTPError(f"HTTP {self.status_code}")
+                h.response = self
+                raise h
+        @property
+        def kod_hatali(self): return self.status_code >= 400
+
+    # --- 1. Geçici hata: tekrar deniyor mu ---
+    sayac = {"n": 0}
+    def _gecici(*a, **k):
+        sayac["n"] += 1
+        if sayac["n"] < 3:
+            raise _requests.exceptions.ReadTimeout("test: geçici")
+        return _Cevap(200)
+    eski = fa.requests.get
+    try:
+        fa.requests.get = _gecici
+        sonuc = fa._sayfayi_getir("https://ornek/test", zaman_asimi=1)
+    finally:
+        fa.requests.get = eski
+    denetle(sonuc is not None and sayac["n"] == 3,
+            f"geçici ağ hatasında tekrar deniyor ({sayac['n']} deneme)",
+            "tek zaman aşımı postu sessizce stok fotoğrafa düşürür")
+
+    # --- 2. Kalıcı hata (403): boşuna tekrarlamıyor ---
+    sayac2 = {"n": 0}
+    def _kalici(*a, **k):
+        sayac2["n"] += 1
+        return _Cevap(403)
+    try:
+        fa.requests.get = _kalici
+        sonuc2 = fa._sayfayi_getir("https://ornek/403", zaman_asimi=1)
+    finally:
+        fa.requests.get = eski
+    denetle(sonuc2 is None and sayac2["n"] == 1,
+            f"kalıcı HTTP hatasında tek deneme ({sayac2['n']})",
+            "403 veren kaynakta her haberde boşuna bekleniyor")
+
+    # --- 3. Görsel indirme de tekrar deniyor mu ---
+    sayac3 = {"n": 0}
+    def _gorsel(*a, **k):
+        sayac3["n"] += 1
+        raise _requests.exceptions.ConnectionError("test")
+    eski_s = slaytlar.requests.get
+    try:
+        slaytlar.requests.get = _gorsel
+        slaytlar._indir_tekrarli("https://ornek/foto.jpg", bekleme=0)
+    finally:
+        slaytlar.requests.get = eski_s
+    denetle(sayac3["n"] >= 2,
+            f"görsel indirme geçici hatada tekrar deniyor ({sayac3['n']})",
+            "haberin fotoğrafı varken stok fotoğrafa düşülür")
+
+    # --- 4. YAPI: sayfa çekimi tek kapıdan geçiyor mu ---
+    kaynak = (KOK / "src/fetch_article.py").read_text(encoding="utf-8")
+    fonk = {d.name: d for d in _ast.walk(_ast.parse(kaynak))
+            if isinstance(d, _ast.FunctionDef)}
+    for ad in ("makale_metni_cek", "og_gorseli_cek"):
+        f = fonk.get(ad)
+        if f is None:
+            denetle(False, f"{ad} duruyor", "fonksiyon yok"); continue
+        cagrilar = {n.func.id for n in _ast.walk(f)
+                    if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)}
+        denetle("_sayfayi_getir" in cagrilar,
+                f"{ad} yeniden denemeli kapıyı kullanıyor",
+                "çıplak requests.get — tek deneme, geçici hata postu düşürür")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3587,6 +3684,7 @@ def main() -> int:
         test_reels_karesi_yuklenen_dosyayi_geri_indirmiyor,
         test_ici_bos_ovgu_slayta_basilmiyor,
         test_markdown_yildizi_slayta_sizmiyor,
+        test_gecici_ag_hatasinda_tekrar_deneniyor,
     ):
         try:
             test()

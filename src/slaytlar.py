@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import io
 import logging
+import time
 from pathlib import Path
 
 import re
@@ -85,6 +86,33 @@ def _alan(haber, ad: str) -> str:
         return ""
 
 
+def _indir_tekrarli(u: str, deneme_adedi: int = 2, bekleme: int = 2):
+    """
+    Görseli indirir; GEÇİCİ ağ hatasında bir kez daha dener.
+
+    ⚠️ NİYE (7 Eyl 2026): kullanıcı *"çok fazla stok görsel kullanıyoruz"*
+    dedi. Ölçüldü — "başka fotoğraf" basılmamış 12 stok postunun **5'inde**
+    haberin kendi og:image'ı bugün sorunsuz iniyor ve kalite kapısını
+    geçiyor. Yani fotoğraf vardı, üretim anında geçici bir ağ hatası oldu
+    ve post sessizce stoğa düştü. Bu yolda hiç yeniden deneme yoktu.
+    ⚠️ Kalite elemesi tekrar denenmiyor — o kalıcı bir karar; yalnızca
+    AĞ hatası tekrarlanıyor.
+    """
+    basliklar = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+    for deneme in range(1, deneme_adedi + 1):
+        try:
+            cevap = requests.get(u, timeout=15, headers=basliklar)
+            if cevap.status_code == 200:
+                return cevap
+            if cevap.status_code in (400, 401, 403, 404, 410):
+                return None                    # kalıcı, tekrar anlamsız
+        except Exception as e:                 # noqa: BLE001
+            log.debug("görsel indirme hatası (deneme %d): %s", deneme, str(e)[:80])
+        if deneme < deneme_adedi:
+            time.sleep(bekleme)
+    return None
+
+
 def _gorseli_indir(url: str, g: dict):
     """
     Haber görselini indirir; CDN thumbnail'lerini otomatik 4K/2K ham basın görseline çözer.
@@ -97,12 +125,8 @@ def _gorseli_indir(url: str, g: dict):
     
     for u in adaylar:
         try:
-            cevap = requests.get(
-                u,
-                timeout=15,
-                headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
-            )
-            if cevap.status_code != 200:
+            cevap = _indir_tekrarli(u)
+            if cevap is None:
                 continue
             ham_boyut_kb = len(cevap.content) / 1024
             foto = Image.open(io.BytesIO(cevap.content))
