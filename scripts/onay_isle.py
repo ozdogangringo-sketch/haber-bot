@@ -3763,7 +3763,7 @@ def main() -> int:
     if komut in ("hata:sondakika_tekrar", "sondakika", "son_dakika"):
         from scripts import son_dakika
         telegram_bot.mesaj_gonder("🔍 Son dakika ve güncel haber havuzu taranıyor, öneriler hazırlanıyor…")
-        return son_dakika.main()
+        return son_dakika.main(elle=True)
 
     if komut == "haftalik":
         from scripts import haftalik_ozet

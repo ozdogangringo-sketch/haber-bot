@@ -369,7 +369,8 @@ def oneri_esigi(ayarlar: dict, kategori: str | None) -> int:
     return esikler.get(kategori, 6)
 
 
-def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
+def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
+                     elle_tetiklendi: bool = False) -> int:
     """
     Taze başlıkları ucuz yoldan puanlayıp Telegram'a ÖNERİ gönderir.
 
@@ -380,6 +381,9 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     toplu ve ucuz biçimde puanlanıyor (10 başlık tek istekte,
     ~1500 token); tam metin YALNIZCA kullanıcının seçtiği haber için
     üretiliyor.
+
+    elle_tetiklendi=True ise daha önce önerilmiş haberler de havuza
+    dahil edilir ve sonuç boşsa Telegram'a bildirim gönderilir.
 
     Döner: gönderilen öneri sayısı (0 = önerilecek haber yok).
     """
@@ -411,15 +415,31 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
     # önce KENDİ kategorisinde sıralanıyor, sonra kategori katsayısıyla
     # ağırlıklandırılıyor. O değişiklik ön elemede kategori çeşidini
     # 2'den 5'e çıkarmıştı.
-    havuz = list(con.execute(
-        """SELECT * FROM haberler
-           WHERE durum = 'yeni' AND yayin_tarihi >= ?
-             AND (oneri_gonderildi IS NULL OR oneri_gonderildi = 0)
-             AND (sadece_tur IS NULL OR sadece_tur = 0)""",
-        (sinir,),
-    ))
+    if elle_tetiklendi:
+        # Elle çağrılınca önceden önerilmiş haberler de dahil edilir.
+        # Kullanıcı /sondakika yazdığında önceki öneriyi görmek ister;
+        # filtre kalkarsa daha geniş havuz sunulur.
+        havuz = list(con.execute(
+            """SELECT * FROM haberler
+               WHERE durum = 'yeni' AND yayin_tarihi >= ?
+                 AND (sadece_tur IS NULL OR sadece_tur = 0)""",
+            (sinir,),
+        ))
+    else:
+        havuz = list(con.execute(
+            """SELECT * FROM haberler
+               WHERE durum = 'yeni' AND yayin_tarihi >= ?
+                 AND (oneri_gonderildi IS NULL OR oneri_gonderildi = 0)
+                 AND (sadece_tur IS NULL OR sadece_tur = 0)""",
+            (sinir,),
+        ))
     if not havuz:
         log.info("önerilecek taze haber yok")
+        if elle_tetiklendi and not kuru:
+            telegram_bot.mesaj_gonder(
+                f"⏳ <b>Son {tazelik} saatte paylaşılmaya değer taze haber yok.</b>\n\n"
+                "Saatlik tarama devam ediyor, öne çıkan haber geldiğinde bildirim alacaksın."
+            )
         return 0
 
     s_ayar = ayarlar.get("secim", {}) or {}
@@ -538,6 +558,12 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
 
     if not adaylar:
         log.info("puanlanan %d başlığın hiçbiri eşiği geçmedi", len(puanlar))
+        if elle_tetiklendi and not kuru:
+            telegram_bot.mesaj_gonder(
+                f"⏳ <b>Şu an paylaşılmaya değer haber yok.</b>\n\n"
+                f"Son {tazelik} saatteki {len(puanlar)} haberden hiçbiri "
+                "yayın eşiğini geçemedi. Saatlik tarama devam ediyor."
+            )
         return 0
 
     if kuru:
@@ -782,7 +808,7 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
     log.info("son dakika onaya sunuldu (message_id=%s)", mesaj_id)
     return 0
 
-def main(zorla_haber_id: int | None = None) -> int:
+def main(zorla_haber_id: int | None = None, elle: bool = False) -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-7s %(name)s: %(message)s",
@@ -972,7 +998,7 @@ def main(zorla_haber_id: int | None = None) -> int:
                 return 1
         elif acik_tur_var:
             # Otomatik periyodik kontrolde açık tur varsa yeni tur kurulmaz ama öneri gönderilebilir.
-            onerileri_gonder(con, ayarlar, kuru=kuru)
+            onerileri_gonder(con, ayarlar, kuru=kuru, elle_tetiklendi=elle)
             return 0
         else:
             # Metni ZATEN hazır bir aday var mı? (daha önce seçilmiş
@@ -988,7 +1014,7 @@ def main(zorla_haber_id: int | None = None) -> int:
             #
             # Şimdi başlıklar toplu ve ucuz biçimde puanlanıp kullanıcıya
             # öneriliyor; tam metin yalnızca seçilen haber için üretiliyor.
-            sonuc = onerileri_gonder(con, ayarlar, kuru=kuru)
+            sonuc = onerileri_gonder(con, ayarlar, kuru=kuru, elle_tetiklendi=elle)
             if sonuc == METIN_URETILDI:
                 # Yüksek puanlı bir habere metin üretildi; artık
                 # otomatik yayın akışına girebilir.
