@@ -1811,6 +1811,58 @@ def _gorsel_adayini_uygula(con, ayarlar, haber, secilen: dict,
     return 0
 
 
+def foto_orijinal_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int) -> int:
+    """
+    Başlangıç (orijinal) görsele geri döner: atlanacak=0, gorsel_deneme=0.
+
+    Kullanıcı "Başka Fotoğraf" ile birkaç alternatif gördükten sonra
+    hiçbirini beğenmeyip başlangıca dönmek istediğinde bu fonksiyon
+    çalışır. gorsel_deneme sıfırlanır ve zincir ilk kez çalışıyormuş
+    gibi baştan başlatılır.
+    """
+    if not haberler:
+        telegram_bot.mesaj_gonder("⚠️ Görseli değiştirilecek haber bulunamadı.")
+        return 1
+
+    h = haberler[0]
+
+    # gorsel_deneme'yi sıfırla — sıradaki "Başka Fotoğraf" yine sıfırdan başlasın
+    con.execute("UPDATE haberler SET gorsel_deneme = 0 WHERE id = ?", (h["id"],))
+    con.commit()
+
+    telegram_bot.mesaj_gonder(
+        "↩️ <b>İlk görsel yeniden hazırlanıyor…</b>",
+        html=True,
+    )
+    try:
+        sonuclar = slaytlar.son_dakika_uret(
+            h, ayarlar, con=con, atlanacak=0,
+            gorsel_modu="hepsi", zorla_ai=False)
+        yuklemeler = upload_image.hepsini_yukle(
+            [s["yol"] for s in sonuclar], ayarlar)
+        urller = [y["url"] for y in yuklemeler]
+    except Exception as e:  # noqa: BLE001
+        log.warning("orijinal görsel yeniden üretilemedi: %s", e)
+        telegram_bot.mesaj_gonder("⚠️ İlk görsel yeniden üretilemedi.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 1
+
+    if not urller:
+        telegram_bot.mesaj_gonder("⚠️ İlk görsel yeniden üretilemedi.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 1
+
+    aday = {
+        "urller": urller,
+        "story_url": urller[0],
+        "katman": sonuclar[0].get("katman", ""),
+        "atif": sonuclar[0].get("atif", ""),
+        "deneme": 0,
+        "tur": "son_dakika",
+    }
+    return _gorsel_adayini_uygula(con, ayarlar, h, aday, mesaj_id, tek_aday=True)
+
+
 def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basan: str = "", mod: str = "hepsi") -> int:
     """
     Onay bekleyen haberin fotoğrafını sıradaki alternatif HD görselle yeniler ve slaytları baştan çizer.
@@ -4173,6 +4225,8 @@ def main() -> int:
             return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, basan, mod="stok")
         if komut == "foto_ai":
             return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, basan, mod="ai")
+        if komut == "foto_orijinal":
+            return foto_orijinal_islemi(con, ayarlar, haberler, mesaj_id)
         if komut == "metin_yenile":
             return metin_yenile(con, ayarlar, haberler, mesaj_id, mod="normal")
         if komut == "metin_ozetle":

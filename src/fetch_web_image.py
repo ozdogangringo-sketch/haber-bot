@@ -193,8 +193,16 @@ def haber_icin_fotograf(
     atlanacak: int = 0,
 ) -> tuple[Image.Image, dict[str, Any]] | None:
     """
-    Haber için en uygun 4-5 editoryal basın arama kalıbını oluşturup webde gerçek HD fotoğraf arar.
-    Kişi, sıcak olay, şirket, kurum ve teknoloji kategorilerine göre optimize edilmiş sorgular üretir.
+    Haber için en uygun editoryal basın arama kalıbını oluşturup webde gerçek HD fotoğraf arar.
+
+    ⚠️ BAŞLIK ÖNCELİKLİ SORGU (8 Eyl 2026):
+    Eskiden `gorsel_konu` (örn. "iPhone") önce geliyordu; bu da çok genel
+    sonuçlar üretiyordu. Artık başlıktaki tam ifade (örn. "iPhone 18 Pro
+    fiyatları sızdı") birinci sırada; `gorsel_konu` yalnızca destekleyici
+    sorgu olarak ikinci sıraya alındı.
+
+    Kişi, sıcak olay, şirket, kurum ve teknoloji kategorilerine göre
+    optimize edilmiş sorgular üretir.
     """
     h_dict = dict(haber) if hasattr(haber, "keys") else (haber or {})
     baslik = h_dict.get("baslik_orj") or h_dict.get("orijinal_baslik") or h_dict.get("ig_baslik") or h_dict.get("baslik") or ""
@@ -207,34 +215,38 @@ def haber_icin_fotograf(
     temiz_baslik = re.sub(r'[^\w\sğüşıöçĞÜŞİÖÇ]', ' ', baslik).strip()
     kelimeler = temiz_baslik.split()
     kisa_baslik = " ".join(kelimeler[:6]) if len(kelimeler) > 6 else temiz_baslik
+    # Daha spesifik 4 kelimelik versiyon — model/kişi adlarını korur
+    ort_baslik = " ".join(kelimeler[:4]) if len(kelimeler) > 4 else temiz_baslik
 
     sorgular = []
 
-    # 1. Doğrudan Konu / Model / Marka / Kişi Odaklı Nokta Atışı Sorgular
-    if konu:
-        sorgular.append(f"{konu}")
-        sorgular.append(f"{konu} HD")
-        sorgular.append(f"{konu} fotoğrafları")
-        sorgular.append(f"{konu} press photo")
-        if kelimeler:
-            ilk_kelime = kelimeler[0]
-            if len(ilk_kelime) > 2 and ilk_kelime.lower() not in konu.lower():
-                sorgular.append(f"{ilk_kelime} {konu}")
-
-    # 2. Doğrudan Sıcak Haber / Olay Başlığı
+    # 1. ÖNCELİKLİ: Tam başlık — en spesifik, yanlış fotoğraf riskini minimize eder
     if kisa_baslik:
-        sorgular.append(f"{kisa_baslik}")
-        sorgular.append(f"{kisa_baslik} fotoğrafları")
+        sorgular.append(kisa_baslik)
+        sorgular.append(f"{kisa_baslik} fotoğraf")
+
+    # 2. Konu / Model / Marka (ikincil — başlıktan daha genel)
+    if konu:
+        # Başlık konu içeriyorsa tekrar ekleme
+        if konu.lower() not in temiz_baslik.lower():
+            sorgular.append(konu)
+            sorgular.append(f"{konu} press photo")
+        else:
+            # Başlıkta konu var ama İngilizce press photo ile zenginleştir
+            sorgular.append(f"{ort_baslik} press photo")
+
+    # 3. Haber sitesi tarzı sorgular
+    if kisa_baslik:
         sorgular.append(f"{kisa_baslik} haber")
 
-    # 3. Somut İngilizce Basın & Olay Sorguları
+    # 4. Temsili + ülke/bağlam (fallback)
     if temsili:
         if ulke:
             sorgular.append(f"{ulke} {temsili} press photo")
         sorgular.append(f"{temsili} news editorial photo")
         sorgular.append(f"{temsili} HD")
 
-    # 4. Kategoriye Özel Zenginleştirme
+    # 5. Kategoriye Özel Zenginleştirme
     if kategori == "ekonomi" and kisa_baslik:
         sorgular.append(f"{kisa_baslik} bloomberg reuters")
     elif kategori in ("teknoloji", "bilim") and konu:

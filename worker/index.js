@@ -35,7 +35,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
                   "plan_iptal", "havuz_guncelle", "havuzdan_ekle",
                   "manuel_paket", "yayinla_diger", "manuel_tamam",
                   // Fotoğraf ve metin alt menü eylemleri
-                  "foto_gercek", "foto_stok", "foto_ai",
+                  "foto_gercek", "foto_stok", "foto_ai", "foto_orijinal",
                   "metin_ozetle", "metin_detaylandir", "metin_kaynak_arastir",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
@@ -288,7 +288,8 @@ function fotoMenusu(adet, kanallar) {
       ...kanalButonlariSatirlari(kanallariCoz(kStr)),
       [{ text: "📸 Gerçek Fotoğraf Ara", callback_data: "foto_gercek" },
        { text: "🖼️ Stok Fotoğraf (Pexels)", callback_data: "foto_stok" }],
-      [{ text: "🎨 Yapay Zeka ile Üret", callback_data: "foto_ai" }],
+      [{ text: "🎨 Yapay Zeka ile Üret", callback_data: "foto_ai" },
+       { text: "↩️ İlk Görsele Dön", callback_data: "foto_orijinal" }],
       [{ text: "← Ana Menü", callback_data: geriCb }],
     ],
   };
@@ -418,6 +419,7 @@ const KOMUT_ADI = {
   iptal: "Tur atlanıyor",
   metin_yenile: "Metinler yeniden üretiliyor",
   foto_degistir: "Alternatif fotoğraf aranıyor",
+  foto_orijinal: "Orijinal görsel geri yükleniyor",
   ertele: "Erteleniyor",
   slayt_carpici: "Başlık daha dikkat çekici yapılıyor",
   slayt_ai: "AI görsel üretiliyor",

@@ -533,6 +533,45 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             except Exception as e:                        # noqa: BLE001
                 log.warning("Pexels stok katmanı patladı (%s): %s", terim, e)
 
+    # --- 0.8) GERÇEK FOTOĞRAF MODU: Diğer haber sitelerinin basın görselleri ---
+    #
+    # ⚠️ NEDEN BAŞA ALINDI (8 Eyl 2026):
+    # Eskiden bu katman Commons'tan SONRA geliyordu (1.5. sıra).
+    # Kullanıcı "Gerçek Fotoğraf Ara" dediğinde arşiv fotoğrafı,
+    # portre veya genel stok görseli geliyordu; çünkü og:image ve
+    # Commons önce seçiliyordu.
+    #
+    # "Gerçek fotoğraf" = o haber için diğer haber sitelerinin AYNI
+    # OLAYI gösteren gerçek basın karesi. Bu ancak web editoryal
+    # aramasıyla bulunabilir. Bu mod aktifse ondan başlamak doğru.
+    #
+    # ⚠️ iPhone 18 → iPhone 15 sorunu: `gorsel_konu` çok genel olduğunda
+    # ("iPhone") yanlış model görseli geliyor. `haber_icin_fotograf`
+    # artık başlığı da kullanıyor — spesifik sonuçlar için başlık
+    # öncelikli sorgu ile araştırıyor.
+    if gorsel_modu == "gercek":
+        try:
+            web_sonuc = fetch_web_image.haber_icin_fotograf(
+                haber, atlanacak=atlanacak)
+            if web_sonuc:
+                foto, web_kayit = web_sonuc
+                atif = fetch_web_image.atif_metni(web_kayit)
+                uygun, sebep = _vision_onayi(foto, haber, ayarlar)
+                if not uygun:
+                    log.info("gerçek mod: web görseli Vision denetiminden geçemedi (%s), "
+                             "kardeş/Commons'a devam ediliyor", sebep)
+                elif atif:
+                    log.info("arka plan: gerçek mod — web editoryal (%s)", atif)
+                    return (
+                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                        "web_haber",
+                        atif,
+                    )
+                else:
+                    log.info("gerçek mod: web görseli atıfsız, geçildi")
+        except Exception as e:                        # noqa: BLE001
+            log.warning("gerçek mod web görsel araması hatası: %s", e)
+
     # --- 0.5) Haberin kendi görseli (og:image) ---
     #
     # ⚠️ "BAŞKA FOTOĞRAF" ARTIK ÖNCE KARDEŞLERİ GEZİYOR. Eskiden
@@ -633,25 +672,9 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             log.warning("Commons katmanı patladı (%s): %s", konu, e)
 
     # --- 1.5) Gerçek Fotoğraf Modunda Web Editoryal Arama ---
-    if gorsel_modu == "gercek" and not haber_gorseli_atla:
-        try:
-            web_sonuc = fetch_web_image.haber_icin_fotograf(
-                haber, atlanacak=atlanacak)
-            if web_sonuc:
-                foto, web_kayit = web_sonuc
-                atif = fetch_web_image.atif_metni(web_kayit)
-                uygun, sebep = _vision_onayi(foto, haber, ayarlar)
-                if not uygun:
-                    log.info("internet görseli Vision denetiminden geçemedi (%s)", sebep)
-                elif atif:
-                    log.info("arka plan: gerçek modda web editoryal fotoğraf — %s", atif)
-                    return (
-                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
-                        "web_haber",
-                        atif,
-                    )
-        except Exception as e:                        # noqa: BLE001
-            log.warning("gerçek modda internet görsel araması hatası: %s", e)
+    # --- 1.5 katmanı 0.8'e taşındı (8 Eyl 2026) ---
+    # gorsel_modu=='gercek' web editoryal araması artık zincirin BAŞINDA
+    # yapılıyor; bu konumdaki eski blok kaldırıldı.
 
     # --- 2) Pexels: temsili fotoğraf ---
     _SON_STOK_ID.clear()
