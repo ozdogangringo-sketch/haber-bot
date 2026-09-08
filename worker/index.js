@@ -665,6 +665,7 @@ export default {
 
                 "<b>📰 GÜNDEM &amp; AKIŞ</b>\n" +
                 "• /sondakika — Taze haberleri tara, öneri getir\n" +
+                "• /populer — Merak edilen, popüler haberler\n" +
                 "• /guncelle — RSS kaynaklarını ŞİMDİ tara (metin üretmez)\n" +
                 "• /tur — 10 haberlik gündem turu hazırla\n" +
                 "• /bulten — Taze haberlerden kahve bülteni derle\n" +
@@ -866,7 +867,7 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar"].includes(komutMetni)) {
+        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/populer", "/popüler", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
             if (komut === "panel") komut = "yonetim";
             if (komut === "hazirla") komut = "tur";
@@ -878,6 +879,7 @@ export default {
             if (komut === "durdur") komut = "durdur";
             if (komut === "devam") komut = "devam_et";
             if (komut === "kahve") komut = "bulten";
+            if (komut === "popüler") komut = "populer";
             const iletildi = await githubaIlet(env, komut, null,
                 msj.from ? msj.from.first_name || "" : "");
             await mesajGonder(env, sohbet,
@@ -890,8 +892,10 @@ export default {
                             ? "🧹 Askıdaki cevapsız turlar temizleniyor…"
                             : komut === "sondakika"
                               ? "⚡️ Son dakika sıcak haber taraması başlatılıyor…"
-                              : komut === "piyasa"
-                                ? "📈 Canlı piyasa ve borsa verileri çekiliyor…"
+                              : komut === "populer"
+                                ? "🔥 Popüler & merak edilen haber önerileri taranıyor…"
+                                : komut === "piyasa"
+                                  ? "📈 Canlı piyasa ve borsa verileri çekiliyor…"
                                 : komut === "saglik_testi"
                                   ? "🩺 Sosyal medya API bağlantıları test ediliyor…"
                                   : komut === "bulten"

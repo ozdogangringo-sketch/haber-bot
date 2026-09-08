@@ -978,3 +978,103 @@ def basliklari_puanla(haberler: list, ayarlar: dict) -> dict[int, int]:
 
     log.warning("toplu puanlama başarısız, hiçbir anahtar/model çalışmadı")
     return {}
+
+
+TOPLU_POPULERLIK_PROMPT = """Aşağıda numaralı haber başlıkları var. Her birine
+1-10 arası bir SOSYAL MEDYA ETKİLEŞİM & POPÜLERLİK PUANI ver ve yalnızca puanları döndür.
+
+⚠️ AMACIMIZ: Türkiye'deki sosyal medya kullanıcılarının (Instagram, Threads, X)
+görünce İLGİSİNİ ÇEKECEK, TIKLAYACAK, YORUM YAPACAK, KAYDEDECEK veya
+ARKADAŞINA GÖNDERECEK haberleri keşfetmek. Devlet veya bürokrasi önceliği değil,
+HALKIN MERAKI ve ETKİLEŞİM önceliği geçerlidir.
+
+ÖLÇÜTLER (HERKESİN İLGİSİNİ ÇEKEN, MERAK EDİLEN, HAYATA DOKUNAN GELİŞMELER):
+1. GÜNDELİK HAYATA & CÜZDANA DOKUNAN HABERLER:
+   - Öğrenci, gençlik, KYK burs/yurt sonuçları, sınav, tatil, üniversite gelişmeleri
+   - Zam, indirim, asgari ücret, maaş, ikramiye, emekli, vergi, fatura, kira
+   - Pasaport, vize, ehliyet, askerlik, sosyal yardımlar, başvuru fırsatları
+   - Tüketici hakları, cezalar, yeni yürürlüğe giren pratik kurallar
+
+2. MERAK & KONUŞULURLUK (HERKESİN FİKRİ OLAN / TARTIŞACAĞI KONULAR):
+   - Çok konuşulacak ilginç toplumsal olaylar, davalar, skandallar, dolandırıcılık hikayeleri
+   - "Duydun mu?" dedirten sıradışı gelişmeler, şaşırtıcı olaylar
+   - Günlük hayatta kullanılan teknoloji ve ürünlerle ilgili büyük yenilikler (yeni iPhone, yapay zeka araçları, popüler uygulamalar)
+   - Popüler kültür, sinema, dizi, spor dünyasındaki çok konuşulan kırılma anları
+
+PUANLAMA ARALIĞI (1-10):
+  8-10 — Çok yüksek etkileşim: Hemen herkesin ilgisini çeken, binlerce yorum/kaydetme alacak somut hayat veya dev merak haberi (örn: KYK yurt/burs sonuçları, bayram tatili süresi, asgari ücret, büyük skandal, ücretsiz erişim/fırsat).
+  6-7  — Güçlü ilgi: Geniş kitlelerin dikkatini çeken, arkadaşına atılacak veya merakla okunacak haber.
+  4-5  — Orta: Belirli bir kesimin (teknoloji meraklıları, sürücüler, sinemaseverler vb.) ilgisini çekecek pratik gelişme.
+  1-3  — Bürokratik protokol, bakanlık rutin demeci, resmi ziyaret, sıkıcı veya niş teknik açıklamalar.
+
+HABERLER
+{liste}
+"""
+
+
+def basliklari_populerlik_puanla(haberler: list, ayarlar: dict) -> dict[int, int]:
+    """
+    Birden çok haber başlığına TEK Gemini isteğiyle sosyal medya etkileşim & popülerlik puanı verir.
+
+    Döner: {haber_id: puan}. Puanlanamayan haber sözlükte yer almaz.
+    """
+    if not haberler:
+        return {}
+
+    satirlar = []
+    sira_id = {}
+    for i, h in enumerate(haberler, 1):
+        sira_id[i] = h["id"]
+        ozet = (h["ozet_orj"] or "")[:200].replace("\n", " ")
+        satirlar.append(f"{i}. [{h['kaynak']}] {h['baslik_orj']}\n   {ozet}")
+
+    prompt = TOPLU_POPULERLIK_PROMPT.format(liste="\n".join(satirlar))
+
+    g = ayarlar["gemini"]
+    modeller = [m for m in (g["model"], g.get("yedek_model")) if m]
+    for anahtar_adi, anahtar in _anahtarlar():
+        for model in modeller:
+            try:
+                cevap = requests.post(
+                    UC_NOKTA.format(model=model),
+                    headers={"x-goog-api-key": anahtar},
+                    json={
+                        "contents": [{"parts": [{"text": prompt}]}],
+                        "generationConfig": {
+                            "responseMimeType": "application/json",
+                            "responseSchema": TOPLU_PUAN_SEMASI,
+                            "temperature": 0.2,
+                        },
+                    },
+                    timeout=g["zaman_asimi"],
+                )
+            except requests.RequestException as e:
+                log.warning("popülerlik puanlama ağ hatası: %s", e)
+                continue
+
+            if cevap.status_code != 200:
+                log.warning("popülerlik puanlama HTTP %s (%s)",
+                            cevap.status_code, model)
+                continue
+
+            try:
+                ham = cevap.json()["candidates"][0]["content"]["parts"][0]["text"]
+                veri = json.loads(ham)
+            except Exception as e:
+                log.warning("popülerlik puanlama çözümlenemedi: %s", e)
+                continue
+
+            sonuc = {}
+            for kayit in veri.get("puanlar", []):
+                no, puan = kayit.get("no"), kayit.get("puan")
+                if no in sira_id and isinstance(puan, int) and 1 <= puan <= 10:
+                    sonuc[sira_id[no]] = puan
+            if anahtar_adi != "birincil":
+                log.warning("Gemini %s anahtarı kullanıldı", anahtar_adi)
+            log.info("popülerlik puanlama: %d başlığın %d tanesi puanlandı",
+                     len(haberler), len(sonuc))
+            return sonuc
+
+    log.warning("popülerlik puanlama başarısız, hiçbir anahtar/model çalışmadı")
+    return {}
+

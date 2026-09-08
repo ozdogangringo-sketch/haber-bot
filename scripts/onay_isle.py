@@ -3817,6 +3817,11 @@ def main() -> int:
         telegram_bot.mesaj_gonder("🔍 Son dakika ve güncel haber havuzu taranıyor, öneriler hazırlanıyor…")
         return son_dakika.main(elle=True)
 
+    if komut in ("populer", "popüler"):
+        from scripts import son_dakika
+        telegram_bot.mesaj_gonder("🔥 Popüler & merak edilen haber havuzu taranıyor…")
+        return son_dakika.populer_onerileri_gonder(con, ayarlar)
+
     if komut == "haftalik":
         from scripts import haftalik_ozet
         telegram_bot.mesaj_gonder("🗓️ Haftalık Pazar özeti hazırlanıyor, son 7 günün manşetleri derleniyor…")

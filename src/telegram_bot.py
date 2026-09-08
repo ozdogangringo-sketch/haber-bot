@@ -928,7 +928,8 @@ def _kacir(metin: str) -> str:
     return html.escape(metin or "", quote=False)
 
 
-def oneri_gonder(adaylar: list[dict], azami: int = 5) -> int:
+def oneri_gonder(adaylar: list[dict], azami: int = 5,
+                 baslik_metni: str = "📰 <b>Günün Öne Çıkan Haber Adayları</b>") -> int:
     """
     Kullanıcıya saatlik tekil post için seçebileceği 5 taze başlığı önerir.
     `[1️⃣] [2️⃣] [3️⃣] [4️⃣] [5️⃣]` butonları ile çoklu seçim yapılır.
@@ -939,7 +940,7 @@ def oneri_gonder(adaylar: list[dict], azami: int = 5) -> int:
     rakamlar = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
     gosterilecek = adaylar[:min(len(adaylar), len(rakamlar), azami)]
 
-    satirlar = ["📰 <b>Günün Öne Çıkan Haber Adayları</b>", ""]
+    satirlar = [baslik_metni, ""]
     secim_butonlari = []
     for i, a in enumerate(gosterilecek):
         r_simge = rakamlar[i]

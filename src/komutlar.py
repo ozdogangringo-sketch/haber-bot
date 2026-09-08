@@ -20,6 +20,8 @@ MESAJSIZ_KOMUTLAR: set[str] = {
     "guncelle",
     "sondakika",
     "son_dakika",
+    "populer",
+    "popüler",
     "haftalik",
     "pazar",
     "bulten",
@@ -104,6 +106,7 @@ KOMUT_MENUSU: list[dict[str, str]] = [
 
     # ── 📰 GÜNDEM & AKIŞ ──────────────────────────────────────────
     {"command": "sondakika", "description": "📰 Taze haberleri tara, öneri getir"},
+    {"command": "populer", "description": "📰 Merak edilen, popüler haberler"},
     {"command": "guncelle", "description": "📰 RSS'i şimdi tara (metin üretmez)"},
     {"command": "tur", "description": "📰 10 haberlik gündem turu hazırla"},
     {"command": "bulten", "description": "📰 Kahve bülteni derle"},

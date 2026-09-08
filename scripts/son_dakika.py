@@ -26,6 +26,7 @@ NEDEN ONAY KALDIRILMADI:
 
 import json
 import logging
+import re
 import sys
 import traceback
 from datetime import datetime, timedelta, timezone
@@ -583,6 +584,118 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
     return len(adaylar[:5])
 
 
+def populer_onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
+    """
+    Son 24 saatteki haberleri tarar; gündelik hayata dokunan, merak uyandıran
+    ve yüksek sosyal medya etkileşimi (yorum/kaydetme/paylaşım) potansiyeli
+    taşıyan en iyi haberleri Gemini ile puanlayıp Telegram'a önerir.
+
+    Kullanıcı talebi (/popüler):
+      "insanların görünce merak ettiği takip edeceği tarzda haber önerileri
+       versin, puanı 4'ten büyük olsa bile olur (KYK, burs, zam, fırsat vb.)"
+    """
+    tazelik = 24  # Popüler/etkileşimli içerikler için 24 saatlik havuz
+    sinir = (datetime.now(timezone.utc) - timedelta(hours=tazelik)).isoformat()
+    azami = ayarlar.get("genel", {}).get("oneri_aday_adedi", 15)
+
+    havuz = list(con.execute(
+        """SELECT * FROM haberler
+           WHERE durum = 'yeni' AND yayin_tarihi >= ?
+             AND (sadece_tur IS NULL OR sadece_tur = 0)""",
+        (sinir,),
+    ))
+    if not havuz:
+        log.info("popüler havuzda taze haber yok")
+        if not kuru:
+            telegram_bot.mesaj_gonder(
+                f"⏳ <b>Son {tazelik} saatte değerlendirilecek haber bulunamadı.</b>"
+            )
+        return 0
+
+    # Sosyal medyada yorum, kaydetme ve merak getiren anahtar kelimeler
+    viral_desen = re.compile(
+        r"\b(kyk|burs|yurt|zam|fiyat|indirim|emekli|asgari|maaş|maas|ikramiye|"
+        r"bayram|tatil|kira|fatura|vergi|pasaport|ehliyet|askerlik|başvuru|basvuru|"
+        r"sınav|sinav|yks|kpss|ösym|osym|meb|toki|kredi|faiz|altın|altin|gümüş|gumus|"
+        r"kampanya|ücretsiz|ucretsiz|fırsat|firsat|destek|yardım|yardim|hak|ceza|"
+        r"skandal|ifşa|ifsa|şok|sok|şaşırtan|sasirtan|akıl almaz|akil almaz|"
+        r"dolandır|dolandir|operasyon|yakalandı|yakalandi|gözaltı|gozalti|"
+        r"sızdı|sizdi|tanıtıldı|tanitildi|özellik|ozellik|yapay zeka|iphone|apple|"
+        r"tesla|google|dava|cinayet|kumar|vurgun|yasak|düzenleme|duzenleme)\b",
+        re.IGNORECASE,
+    )
+
+    on_puanli = []
+    for h in havuz:
+        baslik = h["baslik_orj"] or ""
+        ipucu_var = bool(viral_desen.search(baslik))
+        mevcut_puan = h["onem_puani"] or 0
+        skor = (4.0 if ipucu_var else 0.0) + (mevcut_puan * 0.5)
+        on_puanli.append((skor, h))
+
+    on_puanli.sort(key=lambda x: x[0], reverse=True)
+    aday_havuzu = [h for _, h in on_puanli[:azami]]
+
+    puanlar = generate_text.basliklari_populerlik_puanla(aday_havuzu, ayarlar)
+    if not puanlar:
+        puanlar = {h["id"]: max(h["onem_puani"] or 0, 6 if viral_desen.search(h["baslik_orj"] or "") else 4)
+                   for h in aday_havuzu}
+
+    gecerliler = []
+    gorulen_kelimeler = []
+    for h in aday_havuzu:
+        p = puanlar.get(h["id"], 0)
+        # Kullanıcının talebi: 4'ten büyük olsa bile olur (puan >= 4)
+        if p < 4:
+            continue
+
+        baslik = h["baslik_orj"] or ""
+        kelimeler = set(re.findall(r"\w{4,}", baslik.lower()))
+        if any(len(kelimeler & diger) >= 3 for diger in gorulen_kelimeler):
+            continue
+        gorulen_kelimeler.append(kelimeler)
+
+        gecerliler.append({
+            "id": h["id"],
+            "puan": p,
+            "baslik": baslik,
+            "kaynak": h["kaynak"],
+            "kategori": h["kategori"] or "-",
+        })
+
+    gecerliler.sort(key=lambda x: x["puan"], reverse=True)
+
+    if not gecerliler:
+        log.info("popüler eşiği (>=4) geçen haber bulunamadı")
+        if not kuru:
+            telegram_bot.mesaj_gonder(
+                "⏳ <b>Şu an etkileşim potansiyeli yüksek bir haber bulunamadı.</b>\n\n"
+                "Havuzdaki haberler popülerlik ölçütlerini karşılayamadı."
+            )
+        return 0
+
+    if kuru:
+        print("\n--- POPÜLER ÖNERİ (kuru çalışma) ---")
+        for a in gecerliler[:5]:
+            print(f"  [{a['puan']}] {a['kategori']:9} {a['baslik'][:60]}")
+        return len(gecerliler[:5])
+
+    telegram_bot.oneri_gonder(
+        gecerliler[:5],
+        azami=5,
+        baslik_metni="🔥 <b>Günün Popüler & Merak Edilen Haber Önerileri</b>",
+    )
+
+    for a in gecerliler[:5]:
+        con.execute("UPDATE haberler SET oneri_gonderildi = 1 WHERE id = ?",
+                    (a["id"],))
+    con.commit()
+    db_senkron.hemen_kaydet("Popüler post önerisi")
+    log.info("%d popüler başlık öneri olarak gönderildi", len(gecerliler[:5]))
+    return len(gecerliler[:5])
+
+
+
 def aday_bul(con, ayarlar: dict):
     """
     Son dakika adayı: yüksek puanlı, taze ve henüz yayınlanmamış haber.
@@ -808,7 +921,8 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
     log.info("son dakika onaya sunuldu (message_id=%s)", mesaj_id)
     return 0
 
-def main(zorla_haber_id: int | None = None, elle: bool = False) -> int:
+def main(zorla_haber_id: int | None = None, elle: bool = False,
+         populer: bool = False) -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-7s %(name)s: %(message)s",
@@ -823,6 +937,17 @@ def main(zorla_haber_id: int | None = None, elle: bool = False) -> int:
     db.kur()
     con = db.baglan()
     ayar.uygula(con, ayarlar)
+
+    # Popüler haber önerileri modu (/populer)
+    if populer or "--populer" in sys.argv:
+        try:
+            return populer_onerileri_gonder(con, ayarlar, kuru=kuru)
+        finally:
+            try:
+                con.commit()
+            except Exception:
+                pass
+            con.close()
 
     # ⚠️ BOT DURAKLATILDI MI KONTROLÜ (Acil durum / Mute)
     # Kullanıcı elle bir haber seçtiyse (zorla_haber_id) engellenmez;
@@ -1102,4 +1227,5 @@ def main(zorla_haber_id: int | None = None, elle: bool = False) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    populer_mi = "--populer" in sys.argv
+    raise SystemExit(main(populer=populer_mi))
