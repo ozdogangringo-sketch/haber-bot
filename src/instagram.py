@@ -31,13 +31,16 @@ HESAP GÜVENLİĞİ — BU KORUMAYI KALDIRMA:
 
 from __future__ import annotations
 
+import io
 import logging
 import os
 import re
 import time
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+from PIL import Image
 
 from . import filtre
 
@@ -215,6 +218,98 @@ def _container_bekle(container_id: str, ayarlar: dict, azami_deneme: int | None 
     raise RuntimeError(f"container zamanında hazır olmadı: {container_id}")
 
 
+def gorselleri_4_5_yap(gorsel_urlleri: list[str], ayarlar: dict) -> list[str]:
+    """
+    Instagram Akış (Feed Carousel) için görselleri içerik tasarımını değiştirmeden
+    4:5 (1080x1350) formatına getirir.
+
+    9:16 (1080x1920) slaytların içeriği zaten 4:5 güvenli alanında (Y: 285..1635)
+    tasarlandığı için, dikeyde merkezi 1080x1350 alan kırpılarak sıfır kayıpla 4:5 elde edilir.
+    Görsel zaten 4:5 oranındaysa (en-boy ~0.8) dokunulmaz.
+    """
+    from . import make_image, upload_image
+
+    yeni_urller = []
+    for i, u in enumerate(gorsel_urlleri):
+        try:
+            im = None
+            dosya_adi = None
+
+            # 1. Önceden bu süreçte yüklenmiş yerel dosya var mı?
+            yerel_yol = upload_image.yerel_karsiligi(str(u))
+            if yerel_yol and yerel_yol.exists():
+                with Image.open(yerel_yol) as _img:
+                    im = _img.copy()
+                dosya_adi = yerel_yol.stem
+            else:
+                # 2. Doğrudan yerel dosya yolu verilmiş olabilir mi?
+                p = Path(str(u))
+                if p.exists() and p.is_file():
+                    with Image.open(p) as _img:
+                        im = _img.copy()
+                    dosya_adi = p.stem
+                elif isinstance(u, str) and (u.startswith("http://") or u.startswith("https://")):
+                    # 3. CIKTI_KLASORU altında aynı isimli dosya var mı?
+                    temiz_ad = u.split("?")[0].split("/")[-1]
+                    yerel = make_image.CIKTI_KLASORU / temiz_ad
+                    if yerel.exists():
+                        with Image.open(yerel) as _img:
+                            im = _img.copy()
+                        dosya_adi = yerel.stem
+                    else:
+                        # 4. Uzak URL'den indir
+                        r = requests.get(u, timeout=25)
+                        r.raise_for_status()
+                        with Image.open(io.BytesIO(r.content)) as _img:
+                            im = _img.copy()
+                        dosya_adi = Path(temiz_ad).stem if temiz_ad else f"feed_{int(time.time())}_{i}"
+
+            if im is None:
+                yeni_urller.append(u)
+                continue
+
+            w, h = im.size
+            # Zaten 4:5 (en-boy oranı ~0.8) ise dokunma
+            if abs((w / h) - (4 / 5)) < 0.03:
+                yeni_urller.append(u)
+                continue
+
+            # 9:16 veya daha uzun bir dikey görsel ise merkezi 4:5 kırpma yap
+            if h > w * 1.25:
+                target_h = int(w * 1350 / 1080)
+                crop_y = (h - target_h) // 2
+                cropped = im.crop((0, crop_y, w, crop_y + target_h))
+
+                if cropped.mode in ("RGBA", "P"):
+                    cropped = cropped.convert("RGB")
+
+                make_image.CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
+                hedef_dosya = make_image.CIKTI_KLASORU / f"{dosya_adi}_4_5.jpg"
+                exif = im.info.get("exif")
+                try:
+                    if exif:
+                        cropped.save(hedef_dosya, "JPEG", quality=95, subsampling=0, optimize=True, exif=exif)
+                    else:
+                        cropped.save(hedef_dosya, "JPEG", quality=95, subsampling=0, optimize=True)
+                except Exception:
+                    cropped.save(hedef_dosya, "JPEG", quality=95, subsampling=0, optimize=True)
+
+                yukleme = upload_image.gorsel_yukle(hedef_dosya, ayarlar)
+                if yukleme and yukleme.get("url"):
+                    log.info("Instagram Feed için görsel 4:5 formatına kırpıldı ve yüklendi: %s -> %s", dosya_adi, yukleme["url"])
+                    yeni_urller.append(yukleme["url"])
+                    continue
+
+            # Kırpma yapılamadıysa orijinali koru
+            yeni_urller.append(u)
+
+        except Exception as e:
+            log.warning("Görsel 4:5 dönüştürme hatası (%s): %s — orijinal URL kullanılıyor", u, e)
+            yeni_urller.append(u)
+
+    return yeni_urller
+
+
 def carousel_yayinla(
     gorsel_urlleri: list[str], caption: str, ayarlar: dict
 ) -> str:
@@ -222,11 +317,16 @@ def carousel_yayinla(
     Carousel postu yayınlar, Instagram post id'sini döner.
 
     Yayın öncesi hesap doğrulaması ve kota kontrolü yapılıyor.
+    Instagram Akış (Feed Carousel) yalnızca 4:5 formatını kabul eder.
+    Tüm 9:16 görseller içerik tasarımı bozulmadan 4:5 güvenli alanından kırpılarak yayınlanır.
     """
     if not 2 <= len(gorsel_urlleri) <= 10:
         raise ValueError(
             f"carousel 2-10 görsel ister, {len(gorsel_urlleri)} verildi"
         )
+
+    # 4:5 format garantisi
+    gorsel_urlleri = gorselleri_4_5_yap(gorsel_urlleri, ayarlar)
 
     hesap = hesabi_dogrula(ayarlar)
     kota = yayin_kotasi(ayarlar)

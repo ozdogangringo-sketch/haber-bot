@@ -200,7 +200,7 @@ def main() -> int:
     try:
         post_id = instagram.carousel_yayinla(slayt_urlleri, ig_caption, ayarlar)
         baglanti = instagram.post_baglantisi(post_id, ayarlar)
-        sonuclar.append("📸 Instagram Gönderisi paylaşıldı")
+        sonuclar.append("📸 Instagram Gönderisi (4:5) paylaşıldı")
         if baglanti:
             canli_link_dugmeleri.append([{"text": "📸 Instagram'da Gör", "url": baglanti}])
     except Exception as e:
@@ -211,7 +211,7 @@ def main() -> int:
     try:
         instagram.story_yayinla(kart_story_url, ayarlar)
         instagram.story_yayinla(tablo_story_url, ayarlar)
-        sonuclar.append("📱 Instagram Story (2 slayt) paylaşıldı")
+        sonuclar.append("📱 Instagram Story (9:16 - 2 slayt) paylaşıldı")
     except Exception as e:
         log.warning("Instagram story hatası: %s", e)
         sonuclar.append(f"⚠️ Instagram Story hatası: {type(e).__name__}")

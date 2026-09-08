@@ -354,7 +354,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     elif paylas_ig:
         post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
         baglanti = instagram.post_baglantisi(post_id, ayarlar)
-        ig_notu = "\n📸 Instagram gönderisi yayınlandı"
+        ig_notu = "\n📸 Instagram gönderisi (4:5) yayınlandı"
     else:
         ig_notu = "\n📸 Instagram atlandı"
 
@@ -839,7 +839,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             con.execute("UPDATE haberler SET ig_post_id = ? WHERE telegram_message_id = ?", (post_id, mesaj_id))
             con.commit()
             ig_url = instagram.post_baglantisi(post_id, ayarlar)
-            sonuclar.append(f"📸 <b>Instagram Gönderisi:</b> Başarıyla yayınlandı!")
+            sonuclar.append(f"📸 <b>Instagram Gönderisi (4:5):</b> Başarıyla yayınlandı!")
             if ig_url:
                 canli_linkler.append([{"text": "📸 Instagram'da Gör", "url": ig_url}])
         except Exception as e:

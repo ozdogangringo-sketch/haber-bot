@@ -3613,6 +3613,88 @@ def test_gecici_ag_hatasinda_tekrar_deneniyor() -> None:
 
 
 
+def test_instagram_gonderileri_4_5_yayinlaniyor() -> None:
+    """
+    Instagram Gönderileri (Feed Carousel) içerik tasarımını bozmadan
+    kesinlikle 4:5 (1080x1350) olarak yayınlanıyor mu?
+
+    ⚠️ KULLANICI KURALI (8 Eyl 2026).
+    Kullanıcı: "insta gönderi paylaştığımızda içerik tasarımını değiştirmeden
+    sadece 4:5 şeklinde paylaşmamız lazım, bu telegramda reels değilde ig
+    seçiliykende geçerli, ekonomi turu içinde geçerli".
+
+    Story (9:16) ve Reels (9:16) tam dikey kalırken, feed carousel gönderileri
+    için 9:16 görseller merkezi 4:5 güvenli alanından (y=285..1635) kırpılır.
+    """
+    import ast as _ast
+    import tempfile
+    from PIL import Image
+    sys.path.insert(0, str(KOK))
+    from src import instagram, upload_image
+
+    # --- 1. FONKSİYON VARLIĞI & BOYUT DÖNÜŞÜMÜ ---
+    denetle(hasattr(instagram, "gorselleri_4_5_yap"),
+            "instagram.gorselleri_4_5_yap fonksiyonu var",
+            "4:5 dönüştürme fonksiyonu eksik")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # 1080x1920 sentetik dikey görsel
+        yol_9_16 = Path(tmpdir) / "test_9_16.jpg"
+        im_9_16 = Image.new("RGB", (1080, 1920), color=(10, 20, 30))
+        im_9_16.save(yol_9_16, "JPEG")
+
+        # 1080x1350 sentetik 4:5 görsel
+        yol_4_5 = Path(tmpdir) / "test_4_5.jpg"
+        im_4_5 = Image.new("RGB", (1080, 1350), color=(10, 20, 30))
+        im_4_5.save(yol_4_5, "JPEG")
+
+        ayarlar = {"imgbb": {"omur_saniye": 3600}}
+        yuklenen_dosyalar = []
+
+        def _mock_yukle(p, ayarlar):
+            yuklenen_dosyalar.append(Path(p))
+            return {"url": f"https://mock.imgbb.com/{Path(p).name}"}
+
+        eski_yukle = upload_image.gorsel_yukle
+        try:
+            upload_image.gorsel_yukle = _mock_yukle
+            sonuc = instagram.gorselleri_4_5_yap([str(yol_9_16), str(yol_4_5)], ayarlar)
+
+            # 9:16 görsel kırpılıp yüklendi mi?
+            denetle(len(yuklenen_dosyalar) == 1,
+                    "9:16 görsel 4:5 formatına dönüştürülüp yüklendi",
+                    f"Beklenen 1 yükleme, gerçekleşen: {len(yuklenen_dosyalar)}")
+
+            if yuklenen_dosyalar:
+                kirpilmis = Image.open(yuklenen_dosyalar[0])
+                w, h = kirpilmis.size
+                denetle(w == 1080 and h == 1350,
+                        f"kırpılan görsel tam 1080x1350 (ölçülen: {w}x{h})",
+                        "4:5 kırpma boyutları yanlış")
+
+            # Zaten 4:5 olan görsele dokunulmadı mı?
+            denetle(sonuc[1] == str(yol_4_5),
+                    "zaten 4:5 olan görsel yeniden işlenmedi",
+                    "4:5 görsel gereksiz yere kırpıldı/yüklendi")
+
+        finally:
+            upload_image.gorsel_yukle = eski_yukle
+
+    # --- 2. AST DENETİMİ: carousel_yayinla gorselleri_4_5_yap çağırıyor mu ---
+    kaynak = (KOK / "src/instagram.py").read_text(encoding="utf-8")
+    agac = _ast.parse(kaynak)
+    fonk = {d.name: d for d in _ast.walk(agac) if isinstance(d, _ast.FunctionDef)}
+    f_car = fonk.get("carousel_yayinla")
+    denetle(f_car is not None, "carousel_yayinla fonksiyonu var", "fonksiyon silinmiş")
+    if f_car:
+        cagrilar = {n.func.id for n in _ast.walk(f_car)
+                    if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name)}
+        denetle("gorselleri_4_5_yap" in cagrilar,
+                "carousel_yayinla 4:5 dönüştürmeyi zorunlu kılıyor",
+                "feed carousel'e 9:16 görseller filtrelenmeden gidebilir")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3685,6 +3767,7 @@ def main() -> int:
         test_ici_bos_ovgu_slayta_basilmiyor,
         test_markdown_yildizi_slayta_sizmiyor,
         test_gecici_ag_hatasinda_tekrar_deneniyor,
+        test_instagram_gonderileri_4_5_yayinlaniyor,
     ):
         try:
             test()
