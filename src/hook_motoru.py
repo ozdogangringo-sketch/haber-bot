@@ -101,6 +101,50 @@ def uygun_alan_tespit_et(gorsel: Image.Image, baslik_ust: int, hook_h: int = 160
         return "zemin", max(400, baslik_ust - hook_h - 30)
 
 
+# Tuval ve kenar payları — hook metni bu sınırın dışına TAŞAMAZ.
+TUVAL_GENISLIK = 1080
+SAG_PAY = 74
+
+
+def _sigdiran_font(satirlar, punto_bas: int, azami_px: int,
+                   agirlik: float = 900.0, asgari: int = 26):
+    """
+    Verilen satırların HEPSİNİ `azami_px` genişliğe sığdıran en büyük puntoyu bulur.
+
+    ⚠️ NİYE GEREKTİ (9 Eyl 2026): `ciz_stat_punch` docstring'i *"Sıfır
+    taşma garantilidir"* diyordu ama `toplam_w` hesaplanıp HİÇBİR YERDE
+    tuval genişliğiyle karşılaştırılmıyordu — ne kırpma, ne punto
+    küçültme. ÖLÇÜLDÜ (60 gerçek haber): **9'u (%15) tuvali taşıyordu**,
+    en kötüsü 1359px (1080'lik tuvalde 279px kesiliyor). Kullanıcı ekran
+    görüntüsüyle yakaladı: *"APPLE İPHONE FİYATLA…"* diye kesilmişti.
+    ⚠️ Punto TÜM satırlar için ortak seçiliyor; satır satır küçültmek
+    aynı blokta iki farklı boyut yaratıp düzeni bozardı.
+    """
+    dolu = [s for s in satirlar if s]
+    if not dolu:
+        return _font(punto_bas, agirlik)
+    for punto in range(punto_bas, asgari - 1, -2):
+        f = _font(punto, agirlik)
+        if all((f.getbbox(s)[2] - f.getbbox(s)[0]) <= azami_px for s in dolu):
+            return f
+    return _font(asgari, agirlik)
+
+
+def _kirp(metin: str, font, azami_px: int) -> str:
+    """Punto küçültme yetmediyse kelime kelime kırpar ve … ekler."""
+    if not metin:
+        return metin
+    if (font.getbbox(metin)[2] - font.getbbox(metin)[0]) <= azami_px:
+        return metin
+    kelimeler = metin.split()
+    while len(kelimeler) > 1:
+        kelimeler.pop()
+        aday = " ".join(kelimeler) + "…"
+        if (font.getbbox(aday)[2] - font.getbbox(aday)[0]) <= azami_px:
+            return aday
+    return metin
+
+
 def ciz_stat_punch(
     gorsel: Image.Image,
     x: int,
@@ -118,12 +162,25 @@ def ciz_stat_punch(
     Sıfır taşma garantilidir (BİN ₺ gibi birimler ayracı dinamik öteler).
     """
     out = gorsel.copy()
-    f_num = _font(105, 900.0)
     f_unit = _font(34, 800.0)
     f_lbl = _font(17, 700.0)
-    f_t = _font(44, 900.0)
+    satirlar = [s for s in [t1, t2, t3] if s]
 
-    # 1. Genişlik ölçümü
+    # ⚠️ İKİ AŞAMALI SIĞDIRMA (9 Eyl 2026) — eskiden hiç yoktu.
+    # Sağ bloğa en az `SAG_BLOK_ASGARI` piksel kalmalı; kalmıyorsa önce
+    # RAKAM puntosu küçültülüyor (sol blok daralır), sonra sağ blok
+    # satırları ortak bir puntoya sığdırılıyor, o da yetmezse kırpılıyor.
+    SAG_BLOK_ASGARI = 400
+    f_num = _font(105, 900.0)
+    for num_punto in range(105, 55, -5):
+        f_num = _font(num_punto, 900.0)
+        w_num_d = f_num.getbbox(num_txt)[2] - f_num.getbbox(num_txt)[0]
+        w_unit_d = (f_unit.getbbox(unit_txt)[2] - f_unit.getbbox(unit_txt)[0]) if unit_txt else 0
+        w_lbl_d = (f_lbl.getbbox(lbl_txt)[2] - f_lbl.getbbox(lbl_txt)[0]) if lbl_txt else 0
+        sol_d = max(w_num_d + (10 + w_unit_d if unit_txt else 0), w_lbl_d)
+        if (TUVAL_GENISLIK - SAG_PAY) - (x + sol_d + 52) >= SAG_BLOK_ASGARI:
+            break
+
     bb_num = f_num.getbbox(num_txt)
     w_num = bb_num[2] - bb_num[0]
     w_unit = (f_unit.getbbox(unit_txt)[2] - f_unit.getbbox(unit_txt)[0]) if unit_txt else 0
@@ -136,7 +193,10 @@ def ciz_stat_punch(
     sep_x = x + sol_blok + 26
     sag_x = sep_x + 26
 
-    satirlar = [s for s in [t1, t2, t3] if s]
+    sag_alan = max(160, (TUVAL_GENISLIK - SAG_PAY) - sag_x)
+    f_t = _sigdiran_font(satirlar, 44, sag_alan)
+    satirlar = [_kirp(sat, f_t, sag_alan) for sat in satirlar]
+
     w_sag = max((f_t.getbbox(s)[2] - f_t.getbbox(s)[0] for s in satirlar), default=200)
     toplam_w = (sag_x + w_sag) - x
 
@@ -147,8 +207,9 @@ def ciz_stat_punch(
     sdraw.text((sx, 25), num_txt, font=f_num, fill=(0, 0, 0, 255))
     if unit_txt:
         sdraw.text((sx + w_num + 10, 41), unit_txt, font=f_unit, fill=(0, 0, 0, 255))
+    satir_adim = max(34, f_t.size + 6)
     for i, s in enumerate(satirlar):
-        sdraw.text((sx + (sep_x - x) + 26, 25 + i * 50), s, font=f_t, fill=(0, 0, 0, 255))
+        sdraw.text((sx + (sep_x - x) + 26, 25 + i * satir_adim), s, font=f_t, fill=(0, 0, 0, 255))
     shadow = shadow.filter(ImageFilter.GaussianBlur(14))
     out.paste(shadow, (x - 40, y - 25), shadow)
 
@@ -167,7 +228,7 @@ def ciz_stat_punch(
     # Sağ blok satırları
     for i, s in enumerate(satirlar):
         satir_rengi = renk if i == 1 else WHITE
-        draw.text((sag_x, y + 10 + i * 50), s, font=f_t, fill=satir_rengi)
+        draw.text((sag_x, y + 10 + i * satir_adim), s, font=f_t, fill=satir_rengi)
 
     return out
 
@@ -184,9 +245,13 @@ def ciz_kinetik_cubuk(
     """Sol degrade çentikli kinetik format (Rakamsız haberler için)."""
     out = gorsel.copy()
     f_kicker = _font(22, 800.0)
-    f_title = _font(56, 900.0)
-
     tx = x + 26
+    # ⚠️ Sığdırma: bu format da genişlik denetimsizdi (bkz. _sigdiran_font).
+    kinetik_alan = max(160, (TUVAL_GENISLIK - SAG_PAY) - tx)
+    f_title = _sigdiran_font([t1, t2], 56, kinetik_alan)
+    t1 = _kirp(t1, f_title, kinetik_alan)
+    t2 = _kirp(t2, f_title, kinetik_alan)
+    kicker = _kirp(kicker, f_kicker, kinetik_alan)
     y_kicker = y
     y_t1 = y + 32
     y_t2 = y + 96
@@ -207,7 +272,7 @@ def ciz_kinetik_cubuk(
         ndraw.line([(0, ny), (7, ny)], fill=(r, g, b, 255))
     out.paste(notch, (x, bar_top), notch)
 
-    shadow = Image.new("RGBA", (850, 220), (0, 0, 0, 0))
+    shadow = Image.new("RGBA", (kinetik_alan + 60, 220), (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow)
     sdraw.text((30, 20), kicker, font=f_kicker, fill=(0, 0, 0, 255))
     sdraw.text((30, 52), t1, font=f_title, fill=(0, 0, 0, 255))
@@ -235,9 +300,14 @@ def ciz_minimal_vurgu(
     """Kutulardan arınmış, en yalın editoryal minimal kicker + dev başlık formatı."""
     out = gorsel.copy()
     f_kicker = _font(22, 800.0)
-    f_title = _font(64, 900.0)
+    # ⚠️ Sığdırma: 64 punto bu formatta en riskliydi (bkz. _sigdiran_font).
+    minimal_alan = max(160, (TUVAL_GENISLIK - SAG_PAY) - x)
+    f_title = _sigdiran_font([t1, t2], 64, minimal_alan)
+    t1 = _kirp(t1, f_title, minimal_alan)
+    t2 = _kirp(t2, f_title, minimal_alan)
+    kicker = _kirp(kicker, f_kicker, minimal_alan)
 
-    shadow = Image.new("RGBA", (850, 220), (0, 0, 0, 0))
+    shadow = Image.new("RGBA", (minimal_alan + 60, 220), (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow)
     sdraw.text((30, 20), kicker, font=f_kicker, fill=(0, 0, 0, 255))
     sdraw.text((30, 56), t1, font=f_title, fill=(0, 0, 0, 255))
@@ -354,17 +424,17 @@ def hook_olustur(haber: dict) -> dict | None:
     else:
         renk_adi = "amber"
 
-    # 2. Özel Durum Kontrolü (Xiaomi SUV gibi somut lansman haberleri)
-    if "xiaomi" in metin_tum and ("suv" in metin_tum or "skynomad" in metin_tum):
-        return {
-            "format": "stat_punch",
-            "renk": "amber",
-            "num_txt": "750",
-            "unit_txt": "mm",
-            "lbl_txt": "SU GEÇİŞ DERİNLİĞİ",
-            "t1": "SUDA BATMAYAN",
-            "t2": "KAMP ARACI",
-        }
+    # ⚠️ KODA GÖMÜLÜ "XIAOMI SUV" ÖZEL DURUMU SİLİNDİ (9 Eyl 2026).
+    # Haberde ne yazarsa yazsın sabit "750 mm · SU GEÇİŞ DERİNLİĞİ" ve
+    # "SUDA BATMAYAN KAMP ARACI" basıyordu. ÖLÇÜLDÜ: kaynağında 400 mm
+    # geçen uydurma bir Xiaomi SUV haberi verildiğinde slayta yine 750
+    # yazdı — yani kaynakta OLMAYAN bir teknik veri yayınlanıyordu.
+    # ⚠️ Bu, projede DÖRDÜNCÜ kez görülen uydurma-rakam kusuru:
+    # `/menu` düğmesindeki sahte TCMB faizi · piyasa sayfa 1 ve sayfa 2
+    # varsayılanları · ısı haritası varsayılanları. Kural aynı:
+    # KAYNAKTA YAZMAYAN SAYI SLAYTA BASILMAZ. Somut veri gerekiyorsa
+    # `vurgu_sayi` alanından gelmeli — o alan makale metninden üretiliyor
+    # ve `dogrula` denetiminden geçiyor.
 
     # 3. Sayısal Vurgu Varsa (stat_punch)
     v_sayi = haber.get("vurgu_sayi")

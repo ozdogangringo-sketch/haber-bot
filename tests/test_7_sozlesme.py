@@ -3987,6 +3987,89 @@ def test_piyasa_bulteni_tek_veri_kaynagindan_besleniyor() -> None:
 
 
 
+def test_hook_tuvali_tasmiyor_ve_uydurmuyor() -> None:
+    """
+    Editoryal kanca tuvali taşıyor mu, koda gömülü veri basıyor mu?
+
+    ⚠️ GERÇEK OLAY (9 Eyl 2026). Kullanıcı ekran görüntüsü gönderdi:
+    kanca başlığı *"APPLE İPHONE FİYATLA…"* diye tuvalin sağından
+    KESİLMİŞTİ. `ciz_stat_punch` docstring'i *"Sıfır taşma garantilidir"*
+    diyordu ama `toplam_w` hesaplanıp hiçbir yerde tuval genişliğiyle
+    karşılaştırılmıyordu. ÖLÇÜLDÜ (60 gerçek haber): **9'u (%15)
+    taşıyordu**, en kötüsü 1359px — 1080'lik tuvalde 279px kesik.
+    Düzeltme sonrası 0/60, en geniş sağ kenar 1003px.
+
+    ⚠️ İKİNCİ VE DAHA AĞIR KUSUR: motorda koda gömülü bir "Xiaomi SUV"
+    dalı vardı ve haberde ne yazarsa yazsın sabit **750 mm** basıyordu.
+    Ölçüldü: kaynağında 400 mm geçen bir haber verildiğinde slayta yine
+    750 yazdı. Bu, projede DÖRDÜNCÜ uydurma-rakam vakası (`/menu` sahte
+    faizi · piyasa sayfa 1 · sayfa 2 · ısı haritası). Dal silindi.
+    """
+    import ast as _ast
+    sys.path.insert(0, str(KOK))
+    from PIL import Image, ImageDraw
+    from src import hook_motoru as hm
+
+    # --- 1. UYDURMA: sabit sayı taşıyan özel dal var mı (AST) ---
+    kaynak = (KOK / "src/hook_motoru.py").read_text(encoding="utf-8")
+    agac = _ast.parse(kaynak)
+    gomulu = []
+    for n in _ast.walk(agac):
+        if not isinstance(n, _ast.Dict):
+            continue
+        for anahtar, deger in zip(n.keys, n.values):
+            if (isinstance(anahtar, _ast.Constant) and anahtar.value == "num_txt"
+                    and isinstance(deger, _ast.Constant)
+                    and str(deger.value).strip()):
+                gomulu.append(deger.value)
+    denetle(not gomulu,
+            "kancada koda gömülü sayı yok",
+            f"kaynakta yazmayan rakam slayta basılır: {gomulu}")
+
+    # --- 2. DAVRANIŞ: aynı haber, farklı veri → farklı çıktı ---
+    a = hm.hook_olustur({"ig_baslik": "Xiaomi SUV modeli 400 mm su geçişiyle tanıtıldı",
+                         "slayt_ozet": "su geçiş derinliği 400 mm", "kategori": "teknoloji"})
+    denetle(not a or str(a.get("num_txt") or "") != "750",
+            "kanca sabit '750' basmıyor",
+            "haberde 400 yazarken slayta 750 basılıyor")
+
+    # --- 3. TAŞMA: uzun metinlerle sağ kenar tuvalde kalıyor mu ---
+    # ⚠️ Zorlayıcı veri: gerçek haberlerde taşan en kötü vaka 1359px'di.
+    zorlu = [
+        {"ig_baslik": "Apple iPhone fiyatlarına %25 zam yaptı: En ucuz model 72.999 ₺ oldu",
+         "vurgu_sayi": "335.999 ₺", "vurgu_etiket": "en pahalı iPhone modeli",
+         "kategori": "teknoloji"},
+        {"ig_baslik": "Vergi ihbarlarında yapay zeka dönemi başlıyor: 2027-2029 planı açıklandı",
+         "vurgu_sayi": "2027-2029", "vurgu_etiket": "uygulama dönemi", "kategori": "ekonomi"},
+        {"ig_baslik": "Çok uzun bir başlık ile taşma sınırını zorlayan olağanüstü gelişme yaşandı",
+         "kategori": "turkiye"},
+    ]
+    en_sag = 0
+    for haber in zorlu:
+        tuval = Image.new("RGB", (1080, 1920), (8, 12, 20))
+        olcum = {"sag": 0}
+        orj = ImageDraw.ImageDraw.text
+        def _olc(self, xy, text, *a, **k):
+            f = k.get("font") or (a[0] if a else None)
+            if isinstance(text, str) and text and f is not None:
+                try:
+                    g = f.getbbox(text)[2] - f.getbbox(text)[0]
+                    olcum["sag"] = max(olcum["sag"], xy[0] + g)
+                except Exception:                      # noqa: BLE001
+                    pass
+            return orj(self, xy, text, *a, **k)
+        ImageDraw.ImageDraw.text = _olc
+        try:
+            hm.hook_uygula(tuval, haber, baslik_ust=1150)
+        finally:
+            ImageDraw.ImageDraw.text = orj
+        en_sag = max(en_sag, olcum["sag"])
+    denetle(en_sag <= 1080,
+            f"kanca metni tuvalde kalıyor (en sağ {en_sag:.0f}px)",
+            f"metin {en_sag:.0f}px'e taşıyor, sağdan kesiliyor")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -4062,6 +4145,7 @@ def main() -> int:
         test_iki_piyasa_sayfasi_ayni_donemi_gosteriyor,
         test_karta_basilan_veri_kapidan_geciyor,
         test_piyasa_bulteni_tek_veri_kaynagindan_besleniyor,
+        test_hook_tuvali_tasmiyor_ve_uydurmuyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
     ):
         try:
