@@ -3947,6 +3947,22 @@ def test_piyasa_bulteni_tek_veri_kaynagindan_besleniyor() -> None:
     cagrilar = [n for n in _ast.walk(agac) if isinstance(n, _ast.Call)
                 and isinstance(n.func, _ast.Attribute)]
     adlar = [n.func.attr for n in cagrilar]
+    # --- 4. "DÜNKÜ KAPANIŞ" DİYE YAZILMAMALI ---
+    # ⚠️ Kullanıcı yakaladı (9 Eyl 2026): PAZARTESİ günü BIST'in son
+    # kapanışı CUMA'dır, "dün" değil; resmî tatil sonrasında da öyle.
+    # Ayrıca tek kartta İKİ FARKLI referans var — pazartesi BIST'inki
+    # cuma, Bitcoin'inki pazar (kripto her gün işlem görüyor). Tek bir
+    # gün adı yazmak ikisinden birini yanlış yapar.
+    for dosya in ("src/piyasa_kart.py", "src/piyasa_tablo.py"):
+        metin = (KOK / dosya).read_text(encoding="utf-8")
+        ciz = [n for n in _ast.walk(_ast.parse(metin))
+               if isinstance(n, _ast.Constant) and isinstance(n.value, str)
+               and "dünkü kapanış" in n.value.lower()]
+        denetle(not ciz,
+                f"{dosya} 'dünkü kapanış' iddiası taşımıyor",
+                "pazartesi ve tatil sonrası YANLIŞ — referans önceki "
+                "SEANS, önceki gün değil")
+
     denetle(adlar.count("tum_fiyatlari_cek") == 1,
             "akış bülten başına TEK çekim yapıyor",
             f"çekim sayısı {adlar.count('tum_fiyatlari_cek')} — "

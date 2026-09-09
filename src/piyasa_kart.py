@@ -613,7 +613,19 @@ def _ciz_piyasa_karti_icerik(
     # ⚠️ DÖNEM ETİKETİ ZORUNLU (9 Eyl 2026): kartta İKİ FARKLI dönem
     # yan yana duruyor — yüzdeler GÜNLÜK, sparkline grafikleri 5 GÜNLÜK.
     # Hiçbiri yazılı değildi ve okuyucu ikisini aynı sanıyordu.
-    draw.text((45, skala_y), "GÜNLÜK DEĞİŞİM  ·  dünkü kapanışa göre",
+    #
+    # ⚠️ "DÜNKÜ KAPANIŞ" YAZMA — kullanıcı yakaladı (9 Eyl 2026):
+    # PAZARTESİ günü BIST'in son kapanışı CUMA'dır, "dün" değil. Aynı
+    # kusur resmî tatil sonrasında da oluşur. Üstelik tek kartta İKİ
+    # FARKLI referans yan yana duruyor — ölçüldü: pazartesi BIST'in
+    # referansı cuma (Cmt/Paz mumu yok), Bitcoin'inki pazar (kripto her
+    # gün işlem görüyor). Tek bir tarih yazmak ikisinden birini
+    # YANLIŞ yapardı.
+    # ⚠️ Bu yüzden etiket bilerek GENEL: "önceki kapanış" her enstrüman
+    # için kendi son seansını doğru anlatıyor. Rakam zaten doğruydu —
+    # `previousClose` son TAMAMLANMIŞ seansı veriyor (ölçüldü: XU100,
+    # BTC ve THYAO'da 3/3 eşleşme); kusur yalnızca etiketteydi.
+    draw.text((45, skala_y), "GÜNLÜK DEĞİŞİM  ·  önceki kapanışa göre",
               font=_font(14, 800.0), fill=RENK_GRI_METIN)
 
     skala_noktalari = [
