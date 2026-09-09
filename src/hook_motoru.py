@@ -58,15 +58,16 @@ def _font(punto: int, weight: float = 900.0) -> ImageFont.FreeTypeFont:
     return make_image._font(punto, [opsz, weight])
 
 
-def uygun_alan_tespit_et(gorsel: Image.Image, baslik_ust: int, hook_h: int = 160) -> tuple[str, int | None]:
+def uygun_alan_tespit_et(gorsel: Image.Image, baslik_ust: int, hook_h: int = 160) -> tuple[str, int]:
     """
     Fotoğrafın kenar yoğunluğunu (edge density) analiz ederek en uygun
     negatif alanı belirler.
 
     Döner: (konum_adi, y_koordinati)
-      - ("zemin", y): Başlık üstü zemin temiz.
-      - ("ust_bosluk", y): Zemin dolu/insan yüzü var, üst alan pürüzsüz bokeh.
-      - ("pas_gec", None): İki alan da aşırı kalabalık, görseli kirletmemek için çizme.
+      - ("zemin", y): Başlık üstü zemin (varsayılan ve en güvenli, koyu perde alanı).
+      - ("ust_bosluk", y): Zemin dolu veya nesne var, üst alan pürüzsüz gökyüzü/bokeh.
+
+    NOT: Hook ASLA pas geçilmez; her haberin kapağında mutlaka yer alır.
     """
     try:
         genislik, yukseklik = gorsel.size
@@ -74,7 +75,7 @@ def uygun_alan_tespit_et(gorsel: Image.Image, baslik_ust: int, hook_h: int = 160
         edges = gray.filter(ImageFilter.FIND_EDGES)
 
         # 1. Alan: Zemin (Başlık Üstü)
-        zemin_ust = max(350, baslik_ust - hook_h - 40)
+        zemin_ust = max(350, baslik_ust - hook_h - 30)
         box_zemin = (74, zemin_ust, min(genislik - 74, 650), baslik_ust)
         crop_z = edges.crop(box_zemin)
         zemin_edge = ImageStat.Stat(crop_z).mean[0]
@@ -87,32 +88,17 @@ def uygun_alan_tespit_et(gorsel: Image.Image, baslik_ust: int, hook_h: int = 160
         log.debug("Hook alan analizi: Zemin Edge=%.2f, Üst Edge=%.2f (baslik_ust=%d)",
                   zemin_edge, ust_edge, baslik_ust)
 
-        # Karar matrisi:
-        # Zemin eşiği: 3.6 altı pürüzsüz düz yol/asfalt/karanlık zemin
-        if zemin_edge <= 3.6:
-            return "zemin", zemin_ust
-
-        # Zemin dolu ama üst alan pürüzsüz bokeh ise (Öğrenci/Portre gibi)
-        if ust_edge <= 3.8:
+        # Üst alan zeminden belirgin biçimde daha sakin ve pürüzsüzse üst boşluğu tercih et
+        # (Örn: Portre fotoğraflarında gövde zemin alanını doldururken üstte temiz bokeh duvarı vardır)
+        if ust_edge < zemin_edge * 0.65 and ust_edge < 25.0:
             return "ust_bosluk", 485
 
-        # Zemin hafif toleranslıysa ve üstten daha az karmaşıksa
-        if zemin_edge <= 4.8 and zemin_edge <= ust_edge:
-            return "zemin", zemin_ust
-
-        # Eğer iki alan da aşırı gürültülü/detaylıysa (kalabalık miting vb.)
-        if zemin_edge > 5.2 and ust_edge > 5.0:
-            log.info("Hook pas geçildi: görselin hem üstü hem altı aşırı kalabalık")
-            return "pas_gec", None
-
-        # Varsayılan emniyet: daha sakin olan alan
-        if ust_edge < zemin_edge:
-            return "ust_bosluk", 485
+        # Varsayılan emniyetli konum: Başlık üstü zemin (alt perdenin karartması sayesinde %100 net kontrast)
         return "zemin", zemin_ust
 
     except Exception as e:
         log.warning("Hook alan tespitinde hata, varsayılan zemin kullanılıyor: %s", e)
-        return "zemin", max(400, baslik_ust - hook_h - 40)
+        return "zemin", max(400, baslik_ust - hook_h - 30)
 
 
 def ciz_stat_punch(
@@ -277,9 +263,12 @@ def tr_upper(s: str) -> str:
 def _basliktan_hook_metinleri(baslik: str, konu: str = "") -> tuple[str, str]:
     """
     Haber başlığı veya konusundan 2 satırlık vurucu kanca başlığı türetir.
-    Klişe kalıplar yerine haberin özünü 2 dengeli satıra böler.
+    Klişe kalıplar veya başlığı körü körüne tekrarlamak yerine haberin özünü çıkarır.
     """
     baslik = (baslik or "").strip()
+    konu_temiz = tr_upper(konu or "").strip()
+
+    # 1. Başlıkta iki nokta (:) varsa (örn: "TEKNOFEST: Kayıtlar başladı")
     if ":" in baslik:
         sol, sag = baslik.split(":", 1)
         sol, sag = sol.strip(), sag.strip()
@@ -287,20 +276,52 @@ def _basliktan_hook_metinleri(baslik: str, konu: str = "") -> tuple[str, str]:
         if len(kelimeler_sol) >= 3:
             mid = (len(kelimeler_sol) + 1) // 2
             return tr_upper(" ".join(kelimeler_sol[:mid])), tr_upper(" ".join(kelimeler_sol[mid:]))
-        return tr_upper(sol[:22]), tr_upper(sag[:22])
+        return tr_upper(sol[:24]), tr_upper(sag[:24])
 
     kelimeler = baslik.split()
     if len(kelimeler) <= 2:
         return tr_upper(baslik), (tr_upper(konu[:20]) if konu else "")
 
-    mid = (len(kelimeler) + 1) // 2
-    s1 = " ".join(kelimeler[:mid])
-    s2 = " ".join(kelimeler[mid:])
-    if len(s1) > 22 and " " in s1:
-        s1 = s1[:22].rsplit(" ", 1)[0]
-    if len(s2) > 22 and " " in s2:
-        s2 = s2[:22].rsplit(" ", 1)[0]
-    return tr_upper(s1), tr_upper(s2)
+    # 2. Somut bir konu / marka / model / aktör varsa (örn: "ANKA III", "Xiaomi", "Beşiktaş", "Apple")
+    t1 = konu_temiz if (konu_temiz and len(konu_temiz) <= 24) else ""
+    if not t1:
+        t1 = " ".join(kelimeler[:2])
+    else:
+        # Bilinen kilit kurum/aktör önekleri
+        for kurum in ["TUSAŞ", "BAYKAR", "ASELSAN", "ROKETSAN", "APPLE", "TESLA", "XIAOMI", "TFF", "ÖSYM", "CHP"]:
+            if kurum.lower() in baslik.lower() and kurum not in t1:
+                t1 = f"{kurum} {t1}"
+                break
+
+    # t2: Cümledeki ana olay/eylem (Türkçe haberlerde fiil ve aktör)
+    ilk = kelimeler[0]
+    son = kelimeler[-1]
+    if ilk.lower() not in t1.lower() and len(ilk) <= 10 and not ilk.lower().startswith(("bir", "bu", "yeni", "ilk")):
+        if "paylaş" in son.lower():
+            t2 = f"{ilk}'DAN RESMİ PAYLAŞIM"
+        elif "açıkla" in son.lower():
+            t2 = f"{ilk}'DEN RESMİ AÇIKLAMA"
+        elif "duyur" in son.lower():
+            t2 = f"{ilk}'DEN RESMİ DUYURU"
+        elif "onayla" in son.lower():
+            t2 = f"{ilk}'DEN RESMİ ONAY"
+        elif "yasakla" in son.lower():
+            t2 = f"{ilk}'DEN YASAK KARARI"
+        elif "karar" in son.lower():
+            t2 = f"{ilk}'DEN KRİTİK KARAR"
+        else:
+            son_kelimeler = [k for k in kelimeler[-2:] if k.lower() not in t1.lower()]
+            t2 = " ".join(son_kelimeler)
+    else:
+        son_kelimeler = [k for k in kelimeler[-2:] if k.lower() not in t1.lower()]
+        t2 = " ".join(son_kelimeler) if son_kelimeler else (tr_upper(konu[:20]) if konu else "GÜNDEM")
+
+    if len(t1) > 24 and " " in t1:
+        t1 = t1[:24].rsplit(" ", 1)[0]
+    if len(t2) > 24 and " " in t2:
+        t2 = t2[:24].rsplit(" ", 1)[0]
+
+    return tr_upper(t1), tr_upper(t2)
 
 
 def hook_olustur(haber: dict) -> dict | None:
@@ -333,7 +354,7 @@ def hook_olustur(haber: dict) -> dict | None:
     else:
         renk_adi = "amber"
 
-    # 2. Özel Durum Kontrolü (Xiaomi SUV gibi somut haberler için)
+    # 2. Özel Durum Kontrolü (Xiaomi SUV gibi somut lansman haberleri)
     if "xiaomi" in metin_tum and ("suv" in metin_tum or "skynomad" in metin_tum):
         return {
             "format": "stat_punch",
@@ -373,8 +394,24 @@ def hook_olustur(haber: dict) -> dict | None:
             "t2": t2,
         }
 
-    # 4. Sayısız Haberler (minimal_vurgu veya kinetik_cubuk)
-    kicker = "● SON DAKİKA GELİŞMESİ" if renk_adi == "kirmizi" else "● DİKKAT ÇEKEN GELİŞME"
+    # 4. Sayısız Haberler (Konuya ve Duyguya Uygun Kicker + Minimal Vurgu)
+    if renk_adi == "kirmizi":
+        kicker = "● SON DAKİKA GELİŞMESİ"
+    elif renk_adi == "yesil":
+        kicker = "● TARİHİ BAŞARI"
+    elif any(w in metin_tum for w in ["savunma", "siha", "iha", "tusaş", "tsk", "nato", "baykar", "aselsan", "uçağı", "savaş uçağı"]):
+        kicker = "● SAVUNMA SANAYİİ"
+    elif any(w in metin_tum for w in ["öğrenci", "yurt", "ösym", "dgs", "yks", "kyk", "burs", "üniversite", "sınav"]):
+        kicker = "● ÖĞRENCİLERİN DİKKATİNE"
+    elif any(w in metin_tum for w in ["zam", "enflasyon", "bist", "faiz", "dolar", "euro", "petrol", "altın", "mevduat"]):
+        kicker = "● PİYASA & EKONOMİ"
+    elif kategori in ["teknoloji", "bilim"]:
+        kicker = "● TEKNOLOJİ DÜNYASI"
+    elif kategori == "spor":
+        kicker = "● SPOR GÜNDEMİ"
+    else:
+        kicker = "● DİKKAT ÇEKEN GELİŞME"
+
     t1, t2 = _basliktan_hook_metinleri(
         haber.get("ig_baslik") or haber.get("baslik_orj") or "",
         haber.get("gorsel_konu") or ""
@@ -404,10 +441,10 @@ def hook_uygula(
     if not hook_veri:
         return gorsel
 
-    # Akıllı negatif alan tespiti
+    # Akıllı negatif alan tespiti (asla pas geçilmez, güvenli koordinat döner)
     konum, y = uygun_alan_tespit_et(gorsel, baslik_ust)
-    if konum == "pas_gec" or y is None:
-        return gorsel
+    if y is None:
+        y = max(400, baslik_ust - 190)
 
     x = 74
     renk = RENK_PALETI.get(hook_veri.get("renk", "amber"), AMBER)
