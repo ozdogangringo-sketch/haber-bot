@@ -58,47 +58,66 @@ def _font(punto: int, weight: float = 900.0) -> ImageFont.FreeTypeFont:
     return make_image._font(punto, [opsz, weight])
 
 
-def uygun_alan_tespit_et(gorsel: Image.Image, baslik_ust: int, hook_h: int = 160) -> tuple[str, int]:
-    """
-    Fotoğrafın kenar yoğunluğunu (edge density) analiz ederek en uygun
-    negatif alanı belirler.
+def _bant_yogunlugu(edges, x0: int, y0: int, x1: int, y1: int) -> float:
+    """Bir bandın kenar yoğunluğu — yazı ve ince detay burada yükselir."""
+    from PIL import ImageStat
+    if y1 <= y0 or x1 <= x0:
+        return 999.0
+    return ImageStat.Stat(edges.crop((x0, y0, x1, y1))).mean[0]
 
-    Döner: (konum_adi, y_koordinati)
-      - ("zemin", y): Başlık üstü zemin (varsayılan ve en güvenli, koyu perde alanı).
-      - ("ust_bosluk", y): Zemin dolu veya nesne var, üst alan pürüzsüz gökyüzü/bokeh.
 
-    NOT: Hook ASLA pas geçilmez; her haberin kapağında mutlaka yer alır.
+def uygun_alan_tespit_et(gorsel, baslik_ust: int, hook_h: int = 160) -> tuple[str, int]:
     """
+    Kancanın oturacağı EN SAKİN bandı seçer.
+
+    ⚠️ NİYE DEĞİŞTİ (9 Eyl 2026): eski sürüm yalnızca İKİ bandı
+    karşılaştırıyor ve neredeyse her zaman "zemin"e düşüyordu. Ürün
+    fotoğrafı / infografik gibi YAZILI görsellerde her yer yoğun
+    olduğundan ayrım yapamıyor, kanca fotoğrafın kendi yazısının
+    üstüne oturuyordu — kullanıcının gönderdiği iPhone slaytında
+    kancanın arkasında *"Başlangıç fiyatı: 137.999 TL"* okunuyordu.
+
+    Yeni davranış: dört aday bant ölçülüyor, en sakini seçiliyor.
+    ⚠️ HİÇBİRİ SAKİN DEĞİLSE en ALTTAKİ bant seçiliyor — orada okuma
+    perdesi en koyu, yani fotoğraf ne kadar kalabalık olursa olsun
+    metin okunur kalıyor. "En az kötü" seçeneği bilerek tercih
+    ediliyor; kanca çizilmeyecekse bunu `hook_olustur` söyler.
+    """
+    from PIL import ImageFilter
+
+    varsayilan_y = max(400, baslik_ust - hook_h - 30)
     try:
-        genislik, yukseklik = gorsel.size
-        gray = gorsel.convert("L")
-        edges = gray.filter(ImageFilter.FIND_EDGES)
+        genislik, _ = gorsel.size
+        edges = gorsel.convert("L").filter(ImageFilter.FIND_EDGES)
+        sag = min(genislik - 74, 1006)
 
-        # 1. Alan: Zemin (Başlık Üstü)
-        zemin_ust = max(350, baslik_ust - hook_h - 30)
-        box_zemin = (74, zemin_ust, min(genislik - 74, 650), baslik_ust)
-        crop_z = edges.crop(box_zemin)
-        zemin_edge = ImageStat.Stat(crop_z).mean[0]
+        adaylar = [
+            ("zemin", max(350, baslik_ust - hook_h - 30)),
+            ("zemin_ust", max(350, baslik_ust - hook_h - 200)),
+            ("orta", max(350, baslik_ust - hook_h - 380)),
+            ("ust_bosluk", 485),
+        ]
+        olculen = []
+        for ad, y in adaylar:
+            yog = _bant_yogunlugu(edges, 74, y, sag, y + hook_h)
+            olculen.append((yog, ad, y))
+        olculen.sort(key=lambda t: t[0])
 
-        # 2. Alan: Üst Boşluk (DB Logo Altı, Heykel/Duvar/Gökyüzü Bokeh Alanı)
-        box_ust = (74, 460, min(genislik - 74, 650), 660)
-        crop_u = edges.crop(box_ust)
-        ust_edge = ImageStat.Stat(crop_u).mean[0]
+        SAKIN_ESIK = 18.0
+        en_sakin_yog, en_sakin_ad, en_sakin_y = olculen[0]
+        if en_sakin_yog <= SAKIN_ESIK:
+            log.debug("Hook bandı: %s (yoğunluk %.1f)", en_sakin_ad, en_sakin_yog)
+            return en_sakin_ad, en_sakin_y
 
-        log.debug("Hook alan analizi: Zemin Edge=%.2f, Üst Edge=%.2f (baslik_ust=%d)",
-                  zemin_edge, ust_edge, baslik_ust)
+        # Hepsi kalabalık → perdenin en koyu olduğu EN ALT bandı seç
+        en_alt = max(adaylar, key=lambda t: t[1])
+        log.debug("Hook bandı: hepsi yoğun (en düşük %.1f), perdeye iniliyor",
+                  en_sakin_yog)
+        return en_alt[0], en_alt[1]
 
-        # Üst alan zeminden belirgin biçimde daha sakin ve pürüzsüzse üst boşluğu tercih et
-        # (Örn: Portre fotoğraflarında gövde zemin alanını doldururken üstte temiz bokeh duvarı vardır)
-        if ust_edge < zemin_edge * 0.65 and ust_edge < 25.0:
-            return "ust_bosluk", 485
-
-        # Varsayılan emniyetli konum: Başlık üstü zemin (alt perdenin karartması sayesinde %100 net kontrast)
-        return "zemin", zemin_ust
-
-    except Exception as e:
-        log.warning("Hook alan tespitinde hata, varsayılan zemin kullanılıyor: %s", e)
-        return "zemin", max(400, baslik_ust - hook_h - 30)
+    except Exception as e:                             # noqa: BLE001
+        log.warning("Hook alan tespitinde hata, varsayılan kullanılıyor: %s", e)
+        return "zemin", varsayilan_y
 
 
 # Tuval ve kenar payları — hook metni bu sınırın dışına TAŞAMAZ.
@@ -113,19 +132,17 @@ def _sigdiran_font(satirlar, punto_bas: int, azami_px: int,
 
     ⚠️ NİYE GEREKTİ (9 Eyl 2026): `ciz_stat_punch` docstring'i *"Sıfır
     taşma garantilidir"* diyordu ama `toplam_w` hesaplanıp HİÇBİR YERDE
-    tuval genişliğiyle karşılaştırılmıyordu — ne kırpma, ne punto
-    küçültme. ÖLÇÜLDÜ (60 gerçek haber): **9'u (%15) tuvali taşıyordu**,
-    en kötüsü 1359px (1080'lik tuvalde 279px kesiliyor). Kullanıcı ekran
-    görüntüsüyle yakaladı: *"APPLE İPHONE FİYATLA…"* diye kesilmişti.
+    tuval genişliğiyle karşılaştırılmıyordu. ÖLÇÜLDÜ (60 gerçek haber):
+    9'u (%15) taşıyordu, en kötüsü 1359px — 1080'lik tuvalde 279px kesik.
     ⚠️ Punto TÜM satırlar için ortak seçiliyor; satır satır küçültmek
     aynı blokta iki farklı boyut yaratıp düzeni bozardı.
     """
-    dolu = [s for s in satirlar if s]
+    dolu = [x for x in satirlar if x]
     if not dolu:
         return _font(punto_bas, agirlik)
     for punto in range(punto_bas, asgari - 1, -2):
         f = _font(punto, agirlik)
-        if all((f.getbbox(s)[2] - f.getbbox(s)[0]) <= azami_px for s in dolu):
+        if all((f.getbbox(x)[2] - f.getbbox(x)[0]) <= azami_px for x in dolu):
             return f
     return _font(asgari, agirlik)
 
@@ -330,6 +347,41 @@ def tr_upper(s: str) -> str:
     return s.replace("i", "İ").replace("ı", "I").upper()
 
 
+def _dengeli_bol(kelimeler: list[str]) -> tuple[str, str]:
+    """
+    Kelime listesini iki satıra böler — KELİME SAYISINA göre değil,
+    KARAKTER dengesine göre.
+
+    ⚠️ NİYE (9 Eyl 2026): eski kural `mid = (len+1)//2` ile ortadan
+    bölüyordu ve ifadeleri ortasından kesiyordu. Gerçek örnekler:
+    `VERGİ İHBARLARINDA YAPAY / ZEKA DÖNEMİ BAŞLIYOR` ("yapay zeka"
+    ikiye bölünmüş) · `YARISI BİZDEN KAMPANYASI / KADAR UZATILDI`
+    (öznesiz parça).
+
+    ⚠️ Tek başına yeterli değil ama zararı azaltıyor: iki satır da en
+    az iki kelime ya da 8 karakter taşıyor, yani tek başına anlamsız
+    bir kelime satırı kalmıyor.
+    """
+    if len(kelimeler) < 2:
+        return " ".join(kelimeler), ""
+
+    toplam = sum(len(k) for k in kelimeler) + len(kelimeler) - 1
+    en_iyi, en_iyi_fark = 1, None
+    for i in range(1, len(kelimeler)):
+        sol = " ".join(kelimeler[:i])
+        sag = " ".join(kelimeler[i:])
+        # Tek kısa kelimelik satır bırakma
+        if (len(kelimeler[:i]) < 2 and len(sol) < 8) or \
+           (len(kelimeler[i:]) < 2 and len(sag) < 8):
+            continue
+        fark = abs(len(sol) - len(sag))
+        if en_iyi_fark is None or fark < en_iyi_fark:
+            en_iyi, en_iyi_fark = i, fark
+    if en_iyi_fark is None:
+        en_iyi = (len(kelimeler) + 1) // 2
+    return " ".join(kelimeler[:en_iyi]), " ".join(kelimeler[en_iyi:])
+
+
 def _basliktan_hook_metinleri(baslik: str, konu: str = "") -> tuple[str, str]:
     """
     Haber başlığı veya konusundan 2 satırlık vurucu kanca başlığı türetir.
@@ -344,8 +396,8 @@ def _basliktan_hook_metinleri(baslik: str, konu: str = "") -> tuple[str, str]:
         sol, sag = sol.strip(), sag.strip()
         kelimeler_sol = sol.split()
         if len(kelimeler_sol) >= 3:
-            mid = (len(kelimeler_sol) + 1) // 2
-            return tr_upper(" ".join(kelimeler_sol[:mid])), tr_upper(" ".join(kelimeler_sol[mid:]))
+            a, b = _dengeli_bol(kelimeler_sol)
+            return tr_upper(a), tr_upper(b)
         return tr_upper(sol[:24]), tr_upper(sag[:24])
 
     kelimeler = baslik.split()
@@ -394,6 +446,59 @@ def _basliktan_hook_metinleri(baslik: str, konu: str = "") -> tuple[str, str]:
     return tr_upper(t1), tr_upper(t2)
 
 
+def _basliktan_farkli_mi(t1: str, t2: str, baslik: str,
+                         azami_ortusme: float = 0.70) -> bool:
+    """
+    Kanca metni başlıktan GERÇEKTEN farklı bir şey söylüyor mu?
+
+    ⚠️ KULLANICI KARARI (9 Eyl 2026): *"kancayla başlık tamamen farklı
+    olmalı"*. Ekran görüntüsünde kanca *"APPLE İPHONE FİYATLARINA / %25
+    ZAM YAPTI"* diyordu, 100 piksel altındaki başlık ise *"Apple iPhone
+    fiyatlarına %25 zam yaptı: …"* — aynı cümle iki kez.
+
+    Sebep yapısal: `_basliktan_hook_metinleri` başlığı kelime sayısına
+    göre ortadan ikiye bölüyor, yani ürettiği şey tanım gereği başlığın
+    bir DİLİMİ. Docstring "özü çıkarır" dese de yaptığı dilimlemek.
+
+    Ölçüt: kancadaki anlamlı kelimelerin `azami_ortusme` kadarı başlıkta
+    da geçiyorsa kanca bilgi eklemiyor demektir → hiç çizilmez.
+    """
+    import re as _re
+
+    from . import dogrula
+
+    # ⚠️ TÜRKÇE "İ" TUZAĞI — BEŞİNCİ KEZ. Düz `.lower()` "İPHONE"u
+    # "i̇phone" (noktalı i) yapıyor ve "iphone" ile EŞLEŞMİYOR. İlk
+    # yazımda tam bu yüzden `APPLE İPHONE FİYATLARINA / %25 ZAM YAPTI`
+    # kancası, başlıkla birebir aynı olduğu hâlde filtreden GEÇTİ.
+    # `dogrula._sadelestir` projenin ortak normalizeri — altıncı bir
+    # varyant yazma.
+    def _kelimeler(metin):
+        return {k for k in _re.findall(r"\w+", dogrula._sadelestir(metin or ""))
+                if len(k) > 2}
+
+    kanca = _kelimeler(f"{t1} {t2}")
+    if not kanca:
+        return False
+    ortak = len(kanca & _kelimeler(baslik)) / len(kanca)
+    return ortak < azami_ortusme
+
+
+def _baslikta_sayi_var_mi(baslik: str) -> bool:
+    """
+    Başlık zaten bir rakam taşıyor mu?
+
+    ⚠️ KULLANICI KARARI: *"başlıkta rakam varsa zaten kancada gerek
+    yok"*. iPhone vakasında başlık **en ucuz** modeli anlatıyordu
+    (72.999) ama kanca **en pahalıyı** basıyordu (335.999) — üstelik
+    fotoğrafın kendi içinde de 137.999 vardı. Tek slaytta üç fiyat.
+    Rakam başlıkta duyurulmuşsa kanca onu tekrarlamamalı, başka bir
+    rakamla da yarışmamalı: rakamsız formata düşer.
+    """
+    import re as _re
+    return bool(_re.search(r"\d", baslik or ""))
+
+
 def hook_olustur(haber: dict) -> dict | None:
     """
     Haber verisinden akıllı editoryal hook konfigürasyonunu çıkarır.
@@ -440,6 +545,14 @@ def hook_olustur(haber: dict) -> dict | None:
     v_sayi = haber.get("vurgu_sayi")
     v_etiket = haber.get("vurgu_etiket")
 
+    # ⚠️ B KURALI — KULLANICI KARARI (9 Eyl 2026):
+    # *"başlıkta rakam varsa zaten kancada gerek yok"*. Başlık rakamı
+    # zaten duyurmuşsa kanca ikinci bir rakamla yarışmamalı; rakamsız
+    # formata düşüyor. iPhone vakası: başlık **en ucuz** modeli
+    # (72.999) anlatırken kanca **en pahalıyı** (335.999) basıyordu.
+    if v_sayi and _baslikta_sayi_var_mi(haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+        v_sayi = None
+
     if v_sayi:
         v_sayi_str = str(v_sayi).strip()
         m = re.match(r"^([%0-9\.\,\-]+)\s*(.*)$", v_sayi_str)
@@ -454,6 +567,8 @@ def hook_olustur(haber: dict) -> dict | None:
             haber.get("ig_baslik") or haber.get("baslik_orj") or "",
             haber.get("gorsel_konu") or ""
         )
+        if not _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+            return None
         return {
             "format": "stat_punch",
             "renk": renk_adi,
@@ -488,6 +603,12 @@ def hook_olustur(haber: dict) -> dict | None:
     )
     if not t2:
         t2 = tr_upper(haber.get("gorsel_konu") or "GÜNDEM")
+
+    # ⚠️ A KURALI — KULLANICI KARARI: kanca başlığı tekrarlıyorsa HİÇ
+    # ÇİZİLMEZ. Koddaki eski *"Hook ASLA pas geçilmez"* kararı bu
+    # noktada terk edildi: bilgi eklemeyen bir kanca gürültüdür.
+    if not _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+        return None
 
     return {
         "format": "minimal_vurgu",

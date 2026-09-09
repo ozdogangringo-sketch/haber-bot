@@ -4070,6 +4070,107 @@ def test_hook_tuvali_tasmiyor_ve_uydurmuyor() -> None:
 
 
 
+def test_kanca_baslikla_yarismiyor() -> None:
+    """
+    Kanca başlığın kopyası mı, yoksa yeni bir şey mi söylüyor?
+
+    ⚠️ KULLANICI KARARLARI (9 Eyl 2026), ekran görüntüsü üzerine:
+      A) *"kanca başlığı tekrarlıyorsa hiç çizilmesin"* — kesinlikle doğru.
+      B) *"başlıkta rakam varsa zaten kancada gerek yok, kancayla başlık
+         tamamen farklı olmalı"*.
+      C) ifadeyi ortasından kesme.
+      D) fotoğrafın kendi yazısının üstüne oturma.
+
+    ÖLÇÜLEN ZEMİN: iPhone slaytında kanca *"APPLE İPHONE FİYATLARINA /
+    %25 ZAM YAPTI"*, 100 piksel altındaki başlık *"Apple iPhone
+    fiyatlarına %25 zam yaptı: …"*. Aynı cümle iki kez. Ayrıca kanca
+    **en pahalı** modeli (335.999) basarken başlık **en ucuzu** (72.999)
+    anlatıyordu; fotoğrafın kendi içinde de 137.999 vardı — tek slaytta
+    üç fiyat.
+
+    ⚠️ TÜRKÇE "İ" TUZAĞI — BEŞİNCİ KEZ: A kuralı ilk yazımda düz
+    `.lower()` kullanıyordu; "İPHONE".lower() → "i̇phone" (noktalı i) ve
+    "iphone" ile EŞLEŞMİYOR. Bu yüzden başlıkla birebir aynı olan kanca
+    filtreden GEÇTİ. `dogrula._sadelestir` kullanılıyor artık.
+    """
+    sys.path.insert(0, str(KOK))
+    from PIL import Image, ImageDraw
+    from src import hook_motoru as hm
+
+    # --- A: başlığı tekrarlayan kanca çizilmiyor ---
+    iphone = {"ig_baslik": "Apple iPhone fiyatlarına %25 zam yaptı: "
+                           "En ucuz model 72.999 ₺ oldu",
+              "vurgu_sayi": "335.999 ₺", "vurgu_etiket": "en pahalı iPhone modeli",
+              "kategori": "teknoloji", "gorsel_konu": "Apple iPhone"}
+    denetle(hm.hook_olustur(iphone) is None,
+            "başlığı tekrarlayan kanca hiç çizilmiyor",
+            "aynı cümle slaytta iki kez görünür")
+
+    # ⚠️ Türkçe İ ile yazılmış hâli de yakalanmalı (tuzağın kendisi).
+    denetle(not hm._basliktan_farkli_mi("APPLE İPHONE FİYATLARINA", "%25 ZAM YAPTI",
+                                        "Apple iPhone fiyatlarına %25 zam yaptı"),
+            "İ/ı normalizasyonu tekrarı yakalıyor",
+            "düz .lower() 'İPHONE' ile 'iphone'u ayrı sayıyor")
+
+    # --- B: başlıkta rakam varsa rakamlı format kullanılmıyor ---
+    cfg = hm.hook_olustur({"ig_baslik": "Balıkesir'deki yangına 4 uçak ve 100 personel katıldı",
+                           "vurgu_sayi": "870", "vurgu_etiket": "hektar",
+                           "kategori": "turkiye", "gorsel_konu": "Balıkesir orman yangını"})
+    denetle(cfg is None or cfg.get("format") != "stat_punch",
+            "başlıkta rakam varken kanca ikinci rakamı basmıyor",
+            "tek slaytta rakamlar birbiriyle yarışıyor")
+
+    # --- C: ifade ortasından kesilmiyor ---
+    # ⚠️ VERİ TUZAĞI (ölçüldü): ilk yazımda veri *"vergi ihbarlarında yapay
+    # zeka dönemi başlıyor"* idi ve naif `len//2` bölmesi de 3+3 kelime
+    # verdiği için kural HİÇ SINANMIYORDU — sabotaj temiz geçti. Ayırt eden
+    # veri TEK sayıda kelime: ortadan bölme ilk satırda tek kısa kelime
+    # bırakıyor.
+    a, b = hm._dengeli_bol(["ceza", "kesildi", "sürücüye"])
+    denetle(not (len(a.split()) < 2 and len(a) < 8),
+            f"bölme tek kısa kelimelik satır bırakmıyor ({a} / {b})",
+            "satırın biri tek başına anlamsız bir kelime oluyor")
+
+    # ⚠️ İKİNCİ VERİ TUZAĞI: "operasyonunda şüpheli tutuklandı" ile
+    # denendi ve kelime sayısına göre bölen sabotaj da AYNI sonucu verdi
+    # (13/18) — kural yine sınanmıyordu. Ayırt eden veri ölçümle bulundu:
+    # karakter dengesi 16/27, kelime sayısı 10/33 veriyor. Üstelik bu
+    # tam olarak docstring'in adını verdiği kusur — kelime sayısıyla
+    # bölünce "yapay zeka" ikiye ayrılıyor.
+    c, d = hm._dengeli_bol("yapay zeka vergi denetimlerinde kullanılacak".split())
+    denetle(abs(len(c) - len(d)) < 20,
+            f"bölme karakter dengesine bakıyor ({c} / {d})",
+            "bir satır diğerinin üç katı uzunlukta çiziliyor")
+
+    # --- D: yazılı zemine oturmuyor ---
+    yazili = Image.new("RGB", (1080, 1920), (30, 40, 60))
+    ciz = ImageDraw.Draw(yazili)
+    f = hm._font(40, 700.0)
+    for y in range(940, 1140, 46):
+        ciz.text((80, y), "Başlangıç fiyatı: 137.999 TL · 9.999 TL",
+                 font=f, fill=(240, 240, 240))
+    _, y_sec = hm.uygun_alan_tespit_et(yazili, baslik_ust=1150)
+    denetle(y_sec < 900,
+            f"kanca yazılı zeminden kaçıyor (y={y_sec})",
+            "fotoğrafın kendi yazısının üstüne oturuyor")
+
+    # ⚠️ Her yer kalabalıksa perdenin en koyu olduğu ALT banda inmeli —
+    # "en az kötü" seçenek; kanca çizilmeyecekse bunu hook_olustur söyler.
+    import random
+    gurultu = Image.new("RGB", (1080, 1920))
+    px = gurultu.load()
+    random.seed(1)
+    for yy in range(0, 1920, 2):
+        for xx in range(0, 1080, 2):
+            v = random.randint(0, 255)
+            px[xx, yy] = (v, v, v)
+    _, y_gur = hm.uygun_alan_tespit_et(gurultu, baslik_ust=1150)
+    denetle(y_gur >= 900,
+            f"her yer kalabalıkken perdeye iniyor (y={y_gur})",
+            "kalabalık üst alana çıkıp okunmaz oluyor")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -4146,6 +4247,7 @@ def main() -> int:
         test_karta_basilan_veri_kapidan_geciyor,
         test_piyasa_bulteni_tek_veri_kaynagindan_besleniyor,
         test_hook_tuvali_tasmiyor_ve_uydurmuyor,
+        test_kanca_baslikla_yarismiyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
     ):
         try:
