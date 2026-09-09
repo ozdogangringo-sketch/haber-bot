@@ -319,6 +319,7 @@ def _ciz_sparkline_gercek(
 def _ciz_piyasa_karti_icerik(
     img: Image.Image,
     sektor_verileri: dict,
+    mod: str | None = None,
     y_offset: int = 0,
 ) -> None:
     """
@@ -370,7 +371,17 @@ def _ciz_piyasa_karti_icerik(
     draw.text((header_x + 12, y_offset + 43), rozet_txt, font=f_etiket, fill=RENK_CYAN)
 
     simdi = datetime.now(timezone.utc)
-    aksam_mi = simdi.hour >= 15
+    # ⚠️ OTURUM AKIŞTAN GELİR, SAATTEN TAHMİN EDİLMEZ (9 Eyl 2026).
+    # `piyasa_otomatik` açılış/kapanış penceresini zaten hesaplıyor
+    # (`mod`); kart bunu ikinci kez saatten tahmin ediyordu — aynı
+    # bilginin iki kaynağı. `--zorla` ile pencere dışında elle
+    # çalıştırıldığında caption "kapanış" derken kart "Güne Nasıl
+    # Başladı?" diyebiliyordu. `mod` verilmezse eski saat tahmini
+    # yedek olarak duruyor (elle çağrılar için).
+    if mod in ("acilis", "kapanis"):
+        aksam_mi = (mod == "kapanis")
+    else:
+        aksam_mi = datetime.now(timezone.utc).hour >= 15
     baslik_ana = "Günü Nasıl Kapattı?" if aksam_mi else "Güne Nasıl Başladı?"
     baslik_alt = "BİST ve piyasalarda günün kapanış rakamları" if aksam_mi else "BİST ve piyasalarda günün açılış rakamları"
     oturum_adi = "Kapanış" if aksam_mi else "Açılış"
@@ -631,7 +642,7 @@ def _ciz_piyasa_karti_icerik(
     draw.text((sag_kenar - w_t2, ny), tav_txt2, font=_font(13, 500.0), fill=(100, 145, 155))
 
 
-def piyasa_karti_uret(veriler: dict | None = None) -> Path:
+def piyasa_karti_uret(veriler: dict | None = None, mod: str | None = None) -> Path:
     """
     1080x1350 Instagram 1. slayt için Varyasyon 14 Derin Petrol & Siber Turkuaz temalı
     mockup ile %100 birebir borsa & piyasa infografik kartını üretir.
@@ -640,7 +651,7 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     sektor_verileri = piyasa.isi_haritasi_verileri_getir()
 
     img = _arka_plan_ciz(GENISLIK, YUKSEKLIK)
-    _ciz_piyasa_karti_icerik(img, sektor_verileri, y_offset=0)
+    _ciz_piyasa_karti_icerik(img, sektor_verileri, mod=mod, y_offset=0)
 
     simdi = datetime.now(timezone.utc)
     cikti_yolu = CIKTI_KLASORU / f"piyasa_karti_{simdi.strftime('%Y%m%d')}.jpg"
@@ -649,7 +660,8 @@ def piyasa_karti_uret(veriler: dict | None = None) -> Path:
     return cikti_yolu
 
 
-def piyasa_karti_uret_9_16(sektor_verileri: dict | None = None) -> Path:
+def piyasa_karti_uret_9_16(sektor_verileri: dict | None = None,
+                           mod: str | None = None) -> Path:
     """
     1080x1920 tam ekran (9:16 Full-bleed Native Story) Canlı Piyasa Isı Haritası üretir.
     Normal postlarımızla birebir aynı 4:5 tasarım oranlarını kullanır ve merkezi güvenli alana (Y=285)
@@ -666,7 +678,7 @@ def piyasa_karti_uret_9_16(sektor_verileri: dict | None = None) -> Path:
     CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
     img = _arka_plan_ciz(W_STORY, H_STORY)
-    _ciz_piyasa_karti_icerik(img, sektor_verileri, y_offset=Y_OFFSET)
+    _ciz_piyasa_karti_icerik(img, sektor_verileri, mod=mod, y_offset=Y_OFFSET)
 
     cikti_yolu = CIKTI_KLASORU / f"story_piyasa_karti_{simdi.strftime('%Y%m%d')}.jpg"
     img.save(cikti_yolu, "JPEG", quality=95)

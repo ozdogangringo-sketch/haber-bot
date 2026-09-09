@@ -127,12 +127,20 @@ def _arka_plan_ciz(genislik: int = GENISLIK, yukseklik: int = YUKSEKLIK) -> Imag
     return img
 
 
-def _tum_fiyatlari_cek() -> dict[str, dict]:
-    """Tüm 30 sembolün canlı fiyat ve değişim verilerini çeker."""
+def _tum_fiyatlari_cek(fiyat_verileri: dict | None = None) -> dict[str, dict]:
+    """
+    30 sembolün canlı fiyat ve değişim verileri.
+
+    `fiyat_verileri` verilirse yeniden çekim YAPILMAZ — bülten başına tek
+    çekim için `piyasa_otomatik` bunu geçiyor (bkz. `piyasa.tum_fiyatlari_cek`).
+    """
     tum_semboller = set()
     for s_info in SUTUNLAR.values():
         for oge in s_info["ogeler"]:
             tum_semboller.add(oge["sym"])
+
+    if fiyat_verileri is not None:
+        return {s: fiyat_verileri[s] for s in tum_semboller if s in fiyat_verileri}
 
     headers = {"User-Agent": "Mozilla/5.0"}
     fiyatlar = {}
@@ -184,6 +192,7 @@ def _temiz_fiyat_yazisi(sym: str, fiyat: float) -> str:
 def _ciz_piyasa_tablosu_icerik(
     img: Image.Image,
     canli_fiyatlar: dict,
+    mod: str | None = None,
     y_offset: int = 0,
 ) -> None:
     """
@@ -240,7 +249,17 @@ def _ciz_piyasa_tablosu_icerik(
     draw.text((header_x + 12, y_offset + 43), rozet_txt, font=f_etiket, fill=RENK_CYAN)
 
     simdi = datetime.now(timezone.utc)
-    aksam_mi = simdi.hour >= 15
+    # ⚠️ OTURUM AKIŞTAN GELİR, SAATTEN TAHMİN EDİLMEZ (9 Eyl 2026).
+    # `piyasa_otomatik` açılış/kapanış penceresini zaten hesaplıyor
+    # (`mod`); kart bunu ikinci kez saatten tahmin ediyordu — aynı
+    # bilginin iki kaynağı. `--zorla` ile pencere dışında elle
+    # çalıştırıldığında caption "kapanış" derken kart "Güne Nasıl
+    # Başladı?" diyebiliyordu. `mod` verilmezse eski saat tahmini
+    # yedek olarak duruyor (elle çağrılar için).
+    if mod in ("acilis", "kapanis"):
+        aksam_mi = (mod == "kapanis")
+    else:
+        aksam_mi = datetime.now(timezone.utc).hour >= 15
     baslik_ana = "Piyasa Fiyat Listesi"
     baslik_alt = "Borsa İstanbul, Wall Street ve Kripto Piyasaları"
     oturum_adi = "Kapanış" if aksam_mi else "Açılış"
@@ -401,7 +420,7 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
     canli_fiyatlar = _tum_fiyatlari_cek()
 
     img = _arka_plan_ciz(GENISLIK, YUKSEKLIK)
-    _ciz_piyasa_tablosu_icerik(img, canli_fiyatlar, y_offset=0)
+    _ciz_piyasa_tablosu_icerik(img, canli_fiyatlar, mod=mod, y_offset=0)
 
     simdi = datetime.now(timezone.utc)
     cikti_yolu = CIKTI_KLASORU / f"piyasa_tablosu_{simdi.strftime('%Y%m%d')}.jpg"
@@ -410,7 +429,8 @@ def piyasa_tablosu_uret(veriler: dict | None = None) -> Path:
     return cikti_yolu
 
 
-def piyasa_tablosu_uret_9_16(canli_fiyatlar: dict[str, dict] | None = None) -> Path:
+def piyasa_tablosu_uret_9_16(canli_fiyatlar: dict[str, dict] | None = None,
+                             mod: str | None = None) -> Path:
     """
     1080x1920 tam ekran (9:16 Full-bleed Native Story) 30 Varlık Piyasa Karnesi üretir.
     Normal postlarımızla birebir aynı 4:5 tasarım oranlarını kullanır ve merkezi güvenli alana (Y=285)
@@ -427,7 +447,7 @@ def piyasa_tablosu_uret_9_16(canli_fiyatlar: dict[str, dict] | None = None) -> P
     CIKTI_KLASORU.mkdir(parents=True, exist_ok=True)
 
     img = _arka_plan_ciz(W_STORY, H_STORY)
-    _ciz_piyasa_tablosu_icerik(img, canli_fiyatlar, y_offset=Y_OFFSET)
+    _ciz_piyasa_tablosu_icerik(img, canli_fiyatlar, mod=mod, y_offset=Y_OFFSET)
 
     cikti_yolu = CIKTI_KLASORU / f"story_piyasa_tablosu_{simdi.strftime('%Y%m%d')}.jpg"
     img.save(cikti_yolu, "JPEG", quality=95)

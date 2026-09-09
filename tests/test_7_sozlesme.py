@@ -3868,6 +3868,109 @@ def test_karta_basilan_veri_kapidan_geciyor() -> None:
 
 
 
+def test_piyasa_bulteni_tek_veri_kaynagindan_besleniyor() -> None:
+    """
+    Bültenin üç parçası aynı veriyi mi kullanıyor, oturumu akıştan mı alıyor?
+
+    ⚠️ 9 Eyl 2026'da iki sayfa ZIT yüzde bastı (BIST ▲%3,16 / ▼%0,22).
+    Kök sebep tek satırdı ama ZEMİNİ mimariydi: aynı bülten için ÜÇ ayrı
+    çekici vardı — kart (ısı haritası, 23 sembol), tablo (30 sembol),
+    caption metni (7 gösterge). Üçü de kendi HTTP turunu atıyor, kendi
+    zaman aralığını seçiyor ve "önceki kapanış"ı kendi sırasıyla
+    okuyordu. Kural üç yerde yaşayınca biri kaçtı.
+
+    Artık `piyasa.tum_fiyatlari_cek` TEK kapı; akış bülten başına bir kez
+    çekip aynı sözlüğü üçüne dağıtıyor (ölçüldü: 37/37 sembol, 1,3 sn —
+    önceki üç çekim ~5,1 sn).
+
+    ⚠️ Oturum etiketi de akıştan geliyor: iki kart da
+    `datetime.utcnow().hour >= 15` ile "açılış mı kapanış mı" diye TAHMİN
+    ediyordu, oysa akış `mod`'u zaten hesaplamış. `--zorla` ile pencere
+    dışında çalıştırıldığında caption "kapanış" derken kart "Güne Nasıl
+    Başladı?" diyebiliyordu.
+    """
+    import ast as _ast
+    sys.path.insert(0, str(KOK))
+    from PIL import Image, ImageDraw
+    from src import piyasa, piyasa_kart, piyasa_tablo
+
+    # --- 1. DAVRANIŞ: aynı veri → üç tüketici aynı yüzdeyi versin ---
+    # ⚠️ Sentetik veri: ağa çıkmıyor.
+    semboller = ({o["sym"].replace("_ONS", "")
+                  for l in piyasa.ISI_HARITASI_SEKTORLERI.values() for o in l}
+                 | {o["sym"] for v in piyasa_tablo.SUTUNLAR.values()
+                    for o in v["ogeler"]}
+                 | {m["sembol"] for m in piyasa.SEMBOL_HARITASI.values()})
+    sahte = {s: {"price": 110.0, "chg": 10.0, "sparkline": [100.0, 110.0]}
+             for s in semboller}
+
+    pv = piyasa.piyasa_verileri_getir(sahte)
+    isi = piyasa.isi_haritasi_verileri_getir(sahte)
+    tab = piyasa_tablo._tum_fiyatlari_cek(sahte)
+
+    yuzdeler = ([v["degisim"] for k, v in pv.items() if k != "gram_altin"]
+                + [o["degisim"] for l in isi.values() for o in l]
+                + [v["chg"] for v in tab.values()])
+    denetle(bool(yuzdeler) and all(abs(y - 10.0) < 0.01 for y in yuzdeler),
+            f"üç tüketici de aynı veriyi kullanıyor ({len(yuzdeler)} değer)",
+            "bir tüketici kendi çekimini yapıyor — sayfalar ayrışabilir")
+
+    # --- 2. DAVRANIŞ: oturum etiketi `mod`'dan geliyor ---
+    def _basliklar(ciz_fn, veri, mod):
+        yakalanan = []
+        orj = ImageDraw.ImageDraw.text
+        def _sahte_text(self, xy, text, *a, **k):
+            if isinstance(text, str):
+                yakalanan.append(text)
+            return orj(self, xy, text, *a, **k)
+        ImageDraw.ImageDraw.text = _sahte_text
+        try:
+            ciz_fn(Image.new("RGB", (1080, 1920), (10, 20, 30)),
+                   veri, mod=mod, y_offset=0)
+        finally:
+            ImageDraw.ImageDraw.text = orj
+        return yakalanan
+
+    for mod, beklenen in (("acilis", "Açılış"), ("kapanis", "Kapanış")):
+        k = _basliklar(piyasa_kart._ciz_piyasa_karti_icerik, isi, mod)
+        t = _basliklar(piyasa_tablo._ciz_piyasa_tablosu_icerik, tab, mod)
+        denetle(any(x.endswith(beklenen) for x in k),
+                f"kart mod={mod} için '{beklenen}' yazıyor",
+                "kart oturumu saatten tahmin ediyor, akıştan değil")
+        denetle(any(x.endswith(beklenen) for x in t),
+                f"tablo mod={mod} için '{beklenen}' yazıyor",
+                "tablo oturumu saatten tahmin ediyor, akıştan değil")
+
+    # --- 3. YAPI: akış tek çekim yapıp üçüne dağıtıyor mu ---
+    kaynak = (KOK / "scripts/piyasa_otomatik.py").read_text(encoding="utf-8")
+    agac = _ast.parse(kaynak)
+    cagrilar = [n for n in _ast.walk(agac) if isinstance(n, _ast.Call)
+                and isinstance(n.func, _ast.Attribute)]
+    adlar = [n.func.attr for n in cagrilar]
+    denetle(adlar.count("tum_fiyatlari_cek") == 1,
+            "akış bülten başına TEK çekim yapıyor",
+            f"çekim sayısı {adlar.count('tum_fiyatlari_cek')} — "
+            "aynı bülten için birden fazla veri turu")
+
+    # ⚠️ "Tek çekim var" yetmez: üç tüketiciye de O veri verilmeli.
+    for ad in ("piyasa_verileri_getir", "isi_haritasi_verileri_getir",
+               "_tum_fiyatlari_cek"):
+        hedef = [n for n in cagrilar if n.func.attr == ad]
+        denetle(bool(hedef) and any(
+                    any(isinstance(a, _ast.Name) and a.id == "fiyatlar"
+                        for a in n.args) for n in hedef),
+                f"{ad} ortak veriyle çağrılıyor",
+                "kendi çekimini yapar; sayfalar yine ayrışabilir")
+
+    for ad in ("piyasa_karti_uret_9_16", "piyasa_tablosu_uret_9_16"):
+        hedef = [n for n in cagrilar if n.func.attr == ad]
+        denetle(bool(hedef) and any(
+                    any(kw.arg == "mod" for kw in n.keywords) for n in hedef),
+                f"{ad} oturumu akıştan alıyor",
+                "kart oturumu kendi saatinden tahmin eder")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3942,6 +4045,7 @@ def main() -> int:
         test_gecici_ag_hatasinda_tekrar_deneniyor,
         test_iki_piyasa_sayfasi_ayni_donemi_gosteriyor,
         test_karta_basilan_veri_kapidan_geciyor,
+        test_piyasa_bulteni_tek_veri_kaynagindan_besleniyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
     ):
         try:

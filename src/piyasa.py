@@ -84,35 +84,35 @@ def turkce_sayi(sayi: float, ondalik: int = 2) -> str:
     return f"{ana},{kusurat}"
 
 
-def piyasa_verileri_getir() -> dict[str, dict]:
+def piyasa_verileri_getir(fiyat_verileri: dict | None = None) -> dict[str, dict]:
     """
-    Canlı piyasa göstergelerini çeker ve sözlük olarak döner.
-    """
-    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
-    sonuclar = {}
+    Caption ve Twitter metnini besleyen 7 göstergeyi döner.
 
+    `fiyat_verileri` verilirse yeniden çekim YAPILMAZ — bülten başına tek
+    çekim için `piyasa_otomatik` bunu geçiyor.
+
+    ⚠️ Eskiden bu fonksiyon KENDİ çekimini `interval=1d` ile yapıyordu,
+    kart ve tablo ise `1h&range=5d` ile. Üç ayrı çekim, üç ayrı kural —
+    9 Eyl 2026'da iki sayfanın zıt yüzde basmasının zemini buydu. Artık
+    üçü de `tum_fiyatlari_cek` üzerinden aynı veriyi kullanıyor.
+    """
+    if fiyat_verileri is None:
+        fiyat_verileri = tum_fiyatlari_cek(
+            {m["sembol"] for m in SEMBOL_HARITASI.values()})
+
+    sonuclar = {}
     for anahtar, meta_bilgi in SEMBOL_HARITASI.items():
-        sym = meta_bilgi["sembol"]
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d"
-        try:
-            r = requests.get(url, headers=headers, timeout=6)
-            if r.status_code == 200:
-                veri = r.json()
-                meta = veri["chart"]["result"][0]["meta"]
-                fiyat = float(meta.get("regularMarketPrice", 0.0))
-                kapanis = float(meta.get("previousClose") or meta.get("chartPreviousClose") or fiyat)
-                degisim = ((fiyat - kapanis) / kapanis) * 100 if kapanis else 0.0
-                sonuclar[anahtar] = {
-                    "ad": meta_bilgi["ad"],
-                    "fiyat": fiyat,
-                    "degisim": degisim,
-                    "simge": meta_bilgi["simge"],
-                    "para": meta_bilgi["para"],
-                }
-            else:
-                log.warning("piyasa verisi çekilemedi (%s): status=%s", sym, r.status_code)
-        except Exception as e:
-            log.warning("piyasa verisi hatası (%s): %s", sym, e)
+        canli = fiyat_verileri.get(meta_bilgi["sembol"])
+        if not canli or canli.get("price") is None:
+            log.warning("piyasa verisi çekilemedi (%s)", meta_bilgi["sembol"])
+            continue
+        sonuclar[anahtar] = {
+            "ad": meta_bilgi["ad"],
+            "fiyat": float(canli["price"]),
+            "degisim": float(canli["chg"]),
+            "simge": meta_bilgi["simge"],
+            "para": meta_bilgi["para"],
+        }
 
     # Gram Altın (TL) hesaplama: (Ons Altın / 31.1034768) * Dolar/TL
     if "ons_altin" in sonuclar and "dolar" in sonuclar:
@@ -287,6 +287,64 @@ ISI_HARITASI_SEKTORLERI = {
 }
 
 
+def tum_fiyatlari_cek(semboller) -> dict[str, dict]:
+    """
+    Piyasa bülteninin TEK veri kapısı: verilen sembollerin canlı fiyatı,
+    günlük değişimi ve 5 günlük serisi.
+
+    ⚠️ NİYE TEK KAPI (9 Eyl 2026): aynı bülten için ÜÇ ayrı çekici vardı —
+    kart (ısı haritası, 23 sembol), tablo (30 sembol), caption metni
+    (7 varlık). Üçü de kendi HTTP turunu atıyor, kendi zaman aralığını
+    seçiyor ve "önceki kapanış"ı kendi sırasıyla okuyordu. Sonuç:
+    9 Eyl'de sayfa 1 ile sayfa 2 aynı varlık için ZIT yüzde bastı
+    (BIST ▲%3,16 / ▼%0,22). Kural üç yerde yaşayınca biri kaçıyor.
+
+    ⚠️ `previousClose` ile `chartPreviousClose` AYNI ŞEY DEĞİL:
+    `interval=1h&range=5d` isteğinde ilki DÜNKÜ kapanış (günlük değişim),
+    ikincisi 5 GÜNLÜK pencerenin öncesi (serinin başlangıç çapası).
+    Bu ayrım burada BİR KEZ yapılıyor.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
+
+    def _tek(s):
+        for _ in range(2):
+            try:
+                r = requests.get(
+                    f"https://query1.finance.yahoo.com/v8/finance/chart/{s}"
+                    "?interval=1h&range=5d",
+                    headers=headers, timeout=8,
+                )
+                if r.status_code != 200:
+                    continue
+                veri = r.json()["chart"]["result"][0]
+                meta = veri["meta"]
+                gunluk_kapanis = meta.get("previousClose") or meta.get("chartPreviousClose")
+                seri_basi = meta.get("chartPreviousClose") or meta.get("previousClose")
+                fiyat = meta.get("regularMarketPrice")
+                if fiyat is None:
+                    continue
+                degisim = (((fiyat - gunluk_kapanis) / gunluk_kapanis) * 100
+                           if gunluk_kapanis else 0.0)
+                kapanislar = (veri.get("indicators", {}).get("quote", [{}])[0]
+                              .get("close", []))
+                seri = [float(c) for c in kapanislar if c is not None]
+                if seri_basi and seri:
+                    seri = [float(seri_basi)] + seri
+                return s, {"price": fiyat, "chg": degisim, "sparkline": seri}
+            except Exception:                          # noqa: BLE001
+                continue
+        return s, None
+
+    sonuc = {}
+    with ThreadPoolExecutor(max_workers=16) as ex:
+        for sym, veri in ex.map(_tek, list(semboller)):
+            if veri:
+                sonuc[sym] = veri
+    return sonuc
+
+
 def isi_haritasi_eksikleri(sektor_verileri: dict) -> list[str]:
     """
     Karta basılan ısı haritasında canlı veri alınamayan varlıkların adları.
@@ -307,11 +365,13 @@ def isi_haritasi_eksikleri(sektor_verileri: dict) -> list[str]:
     return eksik
 
 
-def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
+def isi_haritasi_verileri_getir(fiyat_verileri: dict | None = None) -> dict[str, list[dict]]:
     """
-    Tüm ısı haritası sektörlerindeki hisse ve varlıkların canlı verilerini paralel çeker.
+    Isı haritası sektörlerini canlı fiyatlarla doldurur.
+
+    `fiyat_verileri` verilirse yeniden çekim YAPILMAZ — bülten başına
+    tek çekim için `piyasa_otomatik` bunu geçiyor.
     """
-    from concurrent.futures import ThreadPoolExecutor
 
     tum_semboller = set()
     for ogeler in ISI_HARITASI_SEKTORLERI.values():
@@ -321,60 +381,13 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
                 sym = sym.replace("_ONS", "")
             tum_semboller.add(sym)
 
+    # ⚠️ Fiyatlar DIŞARIDAN verilebiliyor: `piyasa_otomatik` bülten
+    # başına TEK çekim yapıp aynı veriyi kart, tablo ve caption'a
+    # dağıtıyor. Verilmezse (elle çağrılar) kendi çekimini yapar.
+    if fiyat_verileri is None:
+        fiyat_verileri = tum_fiyatlari_cek(tum_semboller)
+
     headers = {"User-Agent": "Mozilla/5.0"}
-    fiyat_verileri = {}
-
-    def _tek_cek(s):
-        try:
-            r = requests.get(
-                f"https://query1.finance.yahoo.com/v8/finance/chart/{s}?interval=1h&range=5d",
-                headers=headers,
-                timeout=4,
-            )
-            if r.status_code == 200:
-                veri = r.json()["chart"]["result"][0]
-                res = veri["meta"]
-
-                # ⚠️ İKİ FARKLI "ÖNCEKİ KAPANIŞ" VAR — KARIŞTIRMA (9 Eyl 2026).
-                # `interval=1h&range=5d` isteğinde Yahoo iki ayrı referans
-                # döndürüyor ve ikisi FARKLI günü gösteriyor:
-                #   previousClose      → DÜNKÜ kapanış      (günlük değişim)
-                #   chartPreviousClose → 5 GÜN ÖNCEKİ kapanış (serinin başı)
-                #
-                # Bu satır ikisini TERS sırada okuyordu ve kart günlük değişim
-                # yerine 5 GÜNLÜK değişimi basıyordu. ÖLÇÜLDÜ (9 Eyl 2026):
-                # BIST 100 kartta %4,39 — gerçek günlük değişim %0,97;
-                # Bitcoin kartta ▼%0,45 — gerçekte +%1,32, yani İŞARET BİLE
-                # TERSTİ. Sayfa 2 (`piyasa_tablo`) aynı veriyi doğru sırayla
-                # okuduğu için iki sayfa aynı varlık için çelişen rakam
-                # gösteriyordu; kullanıcının bildirdiği kusur buydu.
-                #
-                # ⚠️ Kart "Güne Nasıl Başladı? · günün açılış rakamları"
-                # diyor — yani yalnızca tutarsızlık değil, BAŞLIĞIN
-                # SÖYLEDİĞİNDEN farklı bir şey basıyordu.
-                gunluk_kapanis = res.get("previousClose") or res.get("chartPreviousClose")
-                seri_basi = res.get("chartPreviousClose") or res.get("previousClose")
-                price = res.get("regularMarketPrice")
-                chg = ((price - gunluk_kapanis) / gunluk_kapanis) * 100 if gunluk_kapanis else 0.0
-
-                # 5 günlük gerçek fiyat serisi (Sparkline)
-                # ⚠️ Serinin başına konan çapa `chartPreviousClose` OLMALI:
-                # seri 5 gün önce başlıyor, başına dünkü kapanışı koymak
-                # grafiğe sahte bir sıçrama çizer.
-                closes = veri.get("indicators", {}).get("quote", [{}])[0].get("close", [])
-                sparkline = [float(c) for c in closes if c is not None]
-                if seri_basi and sparkline:
-                    sparkline = [float(seri_basi)] + sparkline
-
-                return s, {"price": price, "chg": chg, "sparkline": sparkline}
-        except Exception:
-            pass
-        return s, None
-
-    with ThreadPoolExecutor(max_workers=16) as ex:
-        for sym, res in ex.map(_tek_cek, list(tum_semboller)):
-            if res:
-                fiyat_verileri[sym] = res
 
     sonuclar = {}
     dolar_kuru = (fiyat_verileri.get("TRY=X") or {}).get("price", 48.08)

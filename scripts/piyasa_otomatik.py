@@ -126,8 +126,25 @@ def main() -> int:
 
     log.info("--- PİYASA BÜLTENİ OTOMATİK YAYIN (%s) BAŞLATILDI ---", mod.upper())
 
-    # 4. Canlı piyasa verilerini çek
-    piyasa_verileri = piyasa.piyasa_verileri_getir()
+    # 4. Canlı piyasa verilerini çek — BÜLTEN BAŞINA TEK ÇEKİM
+    #
+    # ⚠️ ESKİDEN ÜÇ AYRI ÇEKİM VARDI (9 Eyl 2026'da birleştirildi):
+    # kart (ısı haritası, 23 sembol) · tablo (30 sembol) · caption metni
+    # (7 gösterge). Üçü de kendi HTTP turunu atıyor, kendi zaman
+    # aralığını seçiyor ve "önceki kapanış"ı kendi sırasıyla okuyordu —
+    # sayfa 1 ile sayfa 2'nin ZIT yüzde basmasının zemini buydu.
+    # Artık tek çekim, tek kural; üç tüketici aynı sözlüğü paylaşıyor.
+    semboller = (
+        {o["sym"].replace("_ONS", "")
+         for liste in piyasa.ISI_HARITASI_SEKTORLERI.values() for o in liste}
+        | {o["sym"]
+           for s_info in piyasa_tablo.SUTUNLAR.values() for o in s_info["ogeler"]}
+        | {m["sembol"] for m in piyasa.SEMBOL_HARITASI.values()}
+    )
+    fiyatlar = piyasa.tum_fiyatlari_cek(semboller)
+    log.info("piyasa verisi: %d/%d sembol çekildi", len(fiyatlar), len(semboller))
+
+    piyasa_verileri = piyasa.piyasa_verileri_getir(fiyatlar)
 
     # 5. %100 Native 1080x1920 (9:16 Full-bleed) Slaytları Üret
     #
@@ -140,7 +157,7 @@ def main() -> int:
     # KEZ çekiliyor, kapıdan geçiriliyor ve karta o veri veriliyor.
     # ⚠️ `piyasa_verileri` yine gerekli — caption ve Twitter metnini o
     # besliyor (aşağıda), yani ikisi ayrı amaca hizmet ediyor.
-    sektor_verileri = piyasa.isi_haritasi_verileri_getir()
+    sektor_verileri = piyasa.isi_haritasi_verileri_getir(fiyatlar)
     eksik_kart = piyasa.isi_haritasi_eksikleri(sektor_verileri)
     if eksik_kart and not args.zorla:
         sebep_k = "kart verisi alınamadı: " + ", ".join(eksik_kart[:6])
@@ -154,7 +171,7 @@ def main() -> int:
         con.close()
         return 0
 
-    kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(sektor_verileri)
+    kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(sektor_verileri, mod=mod)
     # ⚠️ SAYFA 1 DENETİMİ: canlı veri alınamayan varlık varsa bülten
     # yayınlanmıyor. `piyasa_verileri_getir` eksik varlığı varsayılanla
     # dolduruyor (BIST 100 için sabit 14.500 puan) ve kartta gerçek
@@ -180,7 +197,7 @@ def main() -> int:
     # canlı veriymiş gibi yeşil/kırmızı basıyordu. Artık eksik hücre
     # "veri yok" diyor — ama bir sütun büyük ölçüde boşken bülteni hiç
     # yayınlamamak doğru: yarım piyasa karnesi, karne olmaktan çıkıyor.
-    canli_fiyatlar = piyasa_tablo._tum_fiyatlari_cek()
+    canli_fiyatlar = piyasa_tablo._tum_fiyatlari_cek(fiyatlar)
     yeterli, sebep = piyasa_tablo.veri_yeterli_mi(canli_fiyatlar)
     if not yeterli and not args.zorla:
         log.warning("Piyasa bülteni atlandı — %s", sebep)
@@ -192,7 +209,7 @@ def main() -> int:
         )
         con.close()
         return 0
-    tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16(canli_fiyatlar)
+    tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16(canli_fiyatlar, mod=mod)
 
     kart_yukleme = upload_image.gorsel_yukle(kart_yolu, ayarlar)
     tablo_yukleme = upload_image.gorsel_yukle(tablo_yolu, ayarlar)
