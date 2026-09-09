@@ -3695,6 +3695,106 @@ def test_instagram_gonderileri_4_5_yayinlaniyor() -> None:
 
 
 
+def test_iki_piyasa_sayfasi_ayni_donemi_gosteriyor() -> None:
+    """
+    Piyasa bülteninin iki sayfası aynı varlık için aynı yüzdeyi mi veriyor?
+
+    ⚠️ GERÇEK OLAY (9 Eyl 2026). Kullanıcı: *"ekonomi turunda ilk sayfayla
+    2. sayfa arasında datalar farklılık gösteriyor"*. Ekran görüntüsü:
+    aynı anda, aynı fiyatla — BIST 100 sayfa 1'de **▲%3,16**, sayfa 2'de
+    **▼%0,22**; Bitcoin sayfa 1'de **▼%0,69**, sayfa 2'de **▲%1,05**.
+    Fiyatlar aynı, yüzdeler zıt.
+
+    Kök sebep TEK SATIR ve iki dosyada TERS yazılmıştı:
+
+        sayfa 1: prev = chartPreviousClose or previousClose   ← 5 GÜN ÖNCE
+        sayfa 2: prev = previousClose or chartPreviousClose   ← DÜN
+
+    `interval=1h&range=5d` isteğinde Yahoo iki ayrı referans döndürüyor:
+    `previousClose` DÜNKÜ kapanış, `chartPreviousClose` ise 5 GÜNLÜK
+    pencerenin öncesi. Sayfa 1 ilkini tercih ettiği için günlük değişim
+    yerine **5 günlük** değişimi basıyordu — üstelik kart *"Güne Nasıl
+    Başladı? · günün açılış rakamları"* diyor, yani başlığının söylediği
+    şeyden başkasını gösteriyordu.
+
+    ⚠️ TEST AĞA ÇIKMIYOR: iki çekiciye de AYNI sahte Yahoo cevabı verilip
+    çıktıları karşılaştırılıyor. Gerçek piyasada iki referans bazen
+    yakınsıyor (sakin haftada 5 günlük ≈ günlük) ve kusur görünmez
+    oluyordu; sahte veride fark 10 kat ayrıldığı için kaçamıyor.
+    """
+    sys.path.insert(0, str(KOK))
+    from src import piyasa, piyasa_tablo
+
+    FIYAT, DUN, BES_GUN_ONCE = 110.0, 100.0, 50.0
+    # Doğru cevap: dünkü kapanışa göre +%10. Hatalı sürüm +%120 verir.
+    BEKLENEN = 10.0
+
+    class _Cevap:
+        status_code = 200
+        def json(self):
+            return {"chart": {"result": [{
+                "meta": {"regularMarketPrice": FIYAT,
+                         "previousClose": DUN,
+                         "chartPreviousClose": BES_GUN_ONCE},
+                "indicators": {"quote": [{"close": [100.0, 105.0, 110.0]}]},
+            }]}}
+
+    def _sahte(*a, **k):
+        return _Cevap()
+
+    # --- SAYFA 1 (ısı haritası → kart) ---
+    eski1 = piyasa.requests.get
+    try:
+        piyasa.requests.get = _sahte
+        isi = piyasa.isi_haritasi_verileri_getir()
+    finally:
+        piyasa.requests.get = eski1
+    s1 = [o["degisim"] for ogeler in isi.values() for o in ogeler
+          if isinstance(o.get("degisim"), (int, float))]
+
+    # --- SAYFA 2 (piyasa karnesi) ---
+    eski2 = piyasa_tablo.requests.get
+    try:
+        piyasa_tablo.requests.get = _sahte
+        tab = piyasa_tablo._tum_fiyatlari_cek()
+    finally:
+        piyasa_tablo.requests.get = eski2
+    s2 = [v["chg"] for v in tab.values() if isinstance(v.get("chg"), (int, float))]
+
+    denetle(bool(s1) and bool(s2),
+            "iki sayfa da sahte veriyle sonuç üretiyor",
+            "test verisi çekicilere ulaşmıyor — denetim kör")
+    if not (s1 and s2):
+        return
+
+    # ⚠️ Yalnızca "iki sayfa aynı" demek YETMEZ: ikisi birden 5 günlük
+    # referansa geçseydi yine eşit olurlardı. Beklenen DEĞER de sınanıyor.
+    s1_yanlis = [d for d in s1 if abs(d - BEKLENEN) > 0.01]
+    s2_yanlis = [d for d in s2 if abs(d - BEKLENEN) > 0.01]
+    denetle(not s1_yanlis,
+            "sayfa 1 günlük değişimi (dünkü kapanış) kullanıyor",
+            f"5 günlük referansa göre hesaplıyor: {s1_yanlis[:3]} "
+            f"(beklenen %{BEKLENEN})")
+    denetle(not s2_yanlis,
+            "sayfa 2 günlük değişimi (dünkü kapanış) kullanıyor",
+            f"beklenen %{BEKLENEN}, gelen {s2_yanlis[:3]}")
+    denetle(abs(max(s1) - max(s2)) < 0.01,
+            "iki sayfa aynı varlık için aynı yüzdeyi veriyor",
+            f"sayfa1 {max(s1):.2f}% · sayfa2 {max(s2):.2f}% — carousel "
+            "içinde iki sayfa birbiriyle çelişir")
+
+    # --- Sparkline ÇAPASI 5 günlük kalmalı (seri 5 gün önce başlıyor) ---
+    # ⚠️ Düzeltirken bu ikisini ayırmak şart: yüzde dünkü kapanışa göre,
+    # serinin başlangıç noktası ise 5 gün öncesine. Tek değişkene
+    # indirgemek grafiğe sahte bir sıçrama çizer.
+    seriler = [o.get("sparkline") for ogeler in isi.values() for o in ogeler
+               if o.get("sparkline")]
+    denetle(bool(seriler) and all(abs(s[0] - BES_GUN_ONCE) < 0.01 for s in seriler),
+            "sparkline serisi 5 günlük çapayla başlıyor",
+            "grafiğin başına dünkü kapanış konmuş — sahte sıçrama çizer")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3767,6 +3867,7 @@ def main() -> int:
         test_ici_bos_ovgu_slayta_basilmiyor,
         test_markdown_yildizi_slayta_sizmiyor,
         test_gecici_ag_hatasinda_tekrar_deneniyor,
+        test_iki_piyasa_sayfasi_ayni_donemi_gosteriyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
     ):
         try:

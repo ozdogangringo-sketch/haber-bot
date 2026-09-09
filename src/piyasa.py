@@ -314,15 +314,37 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
             if r.status_code == 200:
                 veri = r.json()["chart"]["result"][0]
                 res = veri["meta"]
-                prev = res.get("chartPreviousClose") or res.get("previousClose")
+
+                # ⚠️ İKİ FARKLI "ÖNCEKİ KAPANIŞ" VAR — KARIŞTIRMA (9 Eyl 2026).
+                # `interval=1h&range=5d` isteğinde Yahoo iki ayrı referans
+                # döndürüyor ve ikisi FARKLI günü gösteriyor:
+                #   previousClose      → DÜNKÜ kapanış      (günlük değişim)
+                #   chartPreviousClose → 5 GÜN ÖNCEKİ kapanış (serinin başı)
+                #
+                # Bu satır ikisini TERS sırada okuyordu ve kart günlük değişim
+                # yerine 5 GÜNLÜK değişimi basıyordu. ÖLÇÜLDÜ (9 Eyl 2026):
+                # BIST 100 kartta %4,39 — gerçek günlük değişim %0,97;
+                # Bitcoin kartta ▼%0,45 — gerçekte +%1,32, yani İŞARET BİLE
+                # TERSTİ. Sayfa 2 (`piyasa_tablo`) aynı veriyi doğru sırayla
+                # okuduğu için iki sayfa aynı varlık için çelişen rakam
+                # gösteriyordu; kullanıcının bildirdiği kusur buydu.
+                #
+                # ⚠️ Kart "Güne Nasıl Başladı? · günün açılış rakamları"
+                # diyor — yani yalnızca tutarsızlık değil, BAŞLIĞIN
+                # SÖYLEDİĞİNDEN farklı bir şey basıyordu.
+                gunluk_kapanis = res.get("previousClose") or res.get("chartPreviousClose")
+                seri_basi = res.get("chartPreviousClose") or res.get("previousClose")
                 price = res.get("regularMarketPrice")
-                chg = ((price - prev) / prev) * 100 if prev else 0.0
+                chg = ((price - gunluk_kapanis) / gunluk_kapanis) * 100 if gunluk_kapanis else 0.0
 
                 # 5 günlük gerçek fiyat serisi (Sparkline)
+                # ⚠️ Serinin başına konan çapa `chartPreviousClose` OLMALI:
+                # seri 5 gün önce başlıyor, başına dünkü kapanışı koymak
+                # grafiğe sahte bir sıçrama çizer.
                 closes = veri.get("indicators", {}).get("quote", [{}])[0].get("close", [])
                 sparkline = [float(c) for c in closes if c is not None]
-                if prev and sparkline:
-                    sparkline = [float(prev)] + sparkline
+                if seri_basi and sparkline:
+                    sparkline = [float(seri_basi)] + sparkline
 
                 return s, {"price": price, "chg": chg, "sparkline": sparkline}
         except Exception:

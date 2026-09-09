@@ -513,7 +513,7 @@ def _ciz_piyasa_karti_icerik(
         outline=RENK_KART_BORDER,
         width=2,
     )
-    draw.text((makro_x + 18, makro_y + 10), "› EMTİA & KÜRESEL MAKRO", font=f_sektor, fill=(246, 243, 236))
+    draw.text((makro_x + 18, makro_y + 10), "› EMTİA & KÜRESEL MAKRO   ·   grafikler: son 5 gün", font=f_sektor, fill=(246, 243, 236))
 
     makro_ogeler = sektor_verileri.get("EMTİA & KÜRESEL MAKRO", [])
     kw = 186
@@ -562,7 +562,7 @@ def _ciz_piyasa_karti_icerik(
         outline=RENK_KART_BORDER,
         width=2,
     )
-    draw.text((kuresel_x + 18, kuresel_y + 10), "› KÜRESEL PİYASALAR & KRİPTO", font=f_sektor, fill=(246, 243, 236))
+    draw.text((kuresel_x + 18, kuresel_y + 10), "› KÜRESEL PİYASALAR & KRİPTO   ·   grafikler: son 5 gün", font=f_sektor, fill=(246, 243, 236))
 
     kuresel_ogeler = sektor_verileri.get("KÜRESEL PİYASALAR & KRİPTO", [])
     ky2 = kuresel_y + ribbon_h + 8
@@ -599,7 +599,11 @@ def _ciz_piyasa_karti_icerik(
     draw.line([(45, y_offset + 1228), (1035, y_offset + 1228)], fill=(24, 75, 85), width=1)
 
     skala_y = y_offset + 1244
-    draw.text((45, skala_y), "DEĞİŞİM ARALIĞI", font=_font(14, 800.0), fill=RENK_GRI_METIN)
+    # ⚠️ DÖNEM ETİKETİ ZORUNLU (9 Eyl 2026): kartta İKİ FARKLI dönem
+    # yan yana duruyor — yüzdeler GÜNLÜK, sparkline grafikleri 5 GÜNLÜK.
+    # Hiçbiri yazılı değildi ve okuyucu ikisini aynı sanıyordu.
+    draw.text((45, skala_y), "GÜNLÜK DEĞİŞİM  ·  dünkü kapanışa göre",
+              font=_font(14, 800.0), fill=RENK_GRI_METIN)
 
     skala_noktalari = [
         ("≤ -3%", (225, 35, 35)),

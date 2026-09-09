@@ -347,7 +347,7 @@ def _ciz_piyasa_tablosu_icerik(
     # --- 3. FOOTER (ALT BİLGİ & YASAL UYARI) ---
     draw.line([(45, y_offset + 1228), (1035, y_offset + 1228)], fill=(24, 75, 85), width=1)
     skala_y = y_offset + 1244
-    not_txt1 = "DailyBrief · 30 Enstrümanlı Canlı Piyasa Karnesi"
+    not_txt1 = "DailyBrief · 30 Enstrümanlı Canlı Piyasa Karnesi · günlük değişim"
     not_txt2 = "Yatırım tavsiyesi değildir · Kaynak: Matriks, TradingView"
 
     draw.text((45, skala_y), not_txt1, font=_font(15, 700.0), fill=RENK_BEYAZ)
