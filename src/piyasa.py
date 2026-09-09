@@ -287,6 +287,26 @@ ISI_HARITASI_SEKTORLERI = {
 }
 
 
+def isi_haritasi_eksikleri(sektor_verileri: dict) -> list[str]:
+    """
+    Karta basılan ısı haritasında canlı veri alınamayan varlıkların adları.
+
+    Boş liste = her şey canlı. Dolu liste = o bülten yayınlanmamalı;
+    kartta koda gömülü bir yüzde canlı veriymiş gibi görünür.
+
+    ⚠️ `eksik_varliklar` ile AYNI ŞEY DEĞİL: o, `piyasa_verileri_getir`
+    çıktısını (caption metnini besleyen 7 varlık) denetliyor. Karta
+    basılan veri ise ısı haritasından geliyor ve 23 sembol taşıyor —
+    yani iki ayrı veri kümesi, iki ayrı kapı gerekiyor.
+    """
+    eksik = []
+    for ogeler in (sektor_verileri or {}).values():
+        for oge in ogeler:
+            if isinstance(oge, dict) and oge.get("veri_yok"):
+                eksik.append(oge.get("etiket") or oge.get("sym") or "?")
+    return eksik
+
+
 def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
     """
     Tüm ısı haritası sektörlerindeki hisse ve varlıkların canlı verilerini paralel çeker.
@@ -365,9 +385,23 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
             sym_raw = oge["sym"]
             sym = sym_raw.replace("_ONS", "") if sym_raw.endswith("_ONS") else sym_raw
             canli = fiyat_verileri.get(sym)
+
+            # ⚠️ ÜÇÜNCÜ UYDURMA YOLU — 9 Eyl 2026'da kapatıldı.
+            # Veri gelmezse `oge["varsayilan"]` yani KODA GÖMÜLÜ bir yüzde
+            # basılıyordu ve kartta canlı veriden ayırt edilemiyordu
+            # (23 sembolün 23'ünde varsayılan tanımlı). Bu, 6 Eyl'de
+            # sayfa 1 (`VARSAYILAN_VERILER`) ve sayfa 2 (`piyasa_tablo`)
+            # için kapatılan kusurun AYNISI — ve en önemlisi, karta
+            # BASILAN veri bu yoldan geliyor.
+            # ⚠️ Yayın kapısı bunu göremiyordu: `eksik_varliklar` yalnızca
+            # `piyasa_verileri_getir` çıktısına bakıyor, o veri ise karta
+            # hiç girmiyor (kart kendi ısı haritasını çekiyor).
+            # Varsayılan SİLİNMEDİ — çizim kodu `degisim`/`fiyat` bekliyor;
+            # bunun yerine İŞARETLENİYOR ve yayın kapısı bülteni durduruyor.
             degisim = canli["chg"] if canli else oge["varsayilan"]
             fiyat = canli["price"] if canli else 0.0
             sparkline = canli.get("sparkline", []) if canli else []
+            veri_yok = canli is None
 
             # Gram TL Çevrimleri
             if sym_raw == "GC=F" and fiyat:
@@ -385,6 +419,7 @@ def isi_haritasi_verileri_getir() -> dict[str, list[dict]]:
                 "degisim": degisim,
                 "fiyat": fiyat,
                 "sparkline": sparkline,
+                "veri_yok": veri_yok,
             })
         sonuclar[sektor] = sektor_ogeleri
 

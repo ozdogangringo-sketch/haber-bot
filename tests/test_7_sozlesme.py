@@ -3795,6 +3795,79 @@ def test_iki_piyasa_sayfasi_ayni_donemi_gosteriyor() -> None:
 
 
 
+def test_karta_basilan_veri_kapidan_geciyor() -> None:
+    """
+    Piyasa kartında koda gömülü yedek yüzde canlı veriymiş gibi basılıyor mu?
+
+    ⚠️ ÜÇÜNCÜ KEZ AYNI KUSUR (9 Eyl 2026). 6 Eyl'de sayfa 1
+    (`VARSAYILAN_VERILER`) ve sayfa 2 (`piyasa_tablo`) için kapatılmıştı;
+    `isi_haritasi_verileri_getir` açık kalmıştı ve **karta basılan veri
+    tam olarak bu yoldan geliyor**. Veri gelmezse `oge["varsayilan"]`
+    yani koda gömülü bir yüzde yeşil/kırmızı okla basılıyordu —
+    ölçüldü, 23 sembolün 23'ünde varsayılan tanımlı.
+
+    ⚠️ YAYIN KAPISI BUNU GÖREMİYORDU. `piyasa_karti_uret_9_16` kendisine
+    verilen sözlükte "BİST & TÜRKİYE HİSSELERİ" anahtarını arıyor;
+    akışın verdiği `piyasa_verileri` sözlüğünde o anahtar YOK, dolayısıyla
+    veri sessizce atılıyor ve fonksiyon ısı haritasını kendi çekiyordu.
+    Yani kapı, karta hiç girmeyen bir veri kümesini denetliyordu.
+    """
+    import ast as _ast
+    sys.path.insert(0, str(KOK))
+    from src import piyasa
+
+    # --- 1. DAVRANIŞ: çekim tamamen patlarsa işaretleniyor mu ---
+    def _patla(*a, **k):
+        raise OSError("test: ağ yok")
+    eski = piyasa.requests.get
+    try:
+        piyasa.requests.get = _patla
+        isi = piyasa.isi_haritasi_verileri_getir()
+    finally:
+        piyasa.requests.get = eski
+
+    ogeler = [o for lst in isi.values() for o in lst]
+    denetle(bool(ogeler), "ısı haritası öge üretiyor", "yapı değişmiş")
+    if ogeler:
+        denetle(all(o.get("veri_yok") for o in ogeler),
+                "canlı veri yokken her öge işaretleniyor",
+                "koda gömülü yedek yüzde canlı veriden ayırt edilemiyor")
+        eksik = piyasa.isi_haritasi_eksikleri(isi)
+        denetle(len(eksik) == len(ogeler),
+                f"eksik varlıklar kapıya bildiriliyor ({len(eksik)})",
+                "yayın kapısı eksik veriyi göremez")
+
+    # --- 2. Canlı veride yanlış alarm yok ---
+    denetle(piyasa.isi_haritasi_eksikleri(
+        {"X": [{"etiket": "A", "veri_yok": False}]}) == [],
+            "canlı veride yanlış alarm yok",
+            "her bülten engellenir")
+
+    # --- 3. YAPI: akış kapıyı çağırıyor VE karta AYNI veriyi veriyor ---
+    # ⚠️ İkisi birlikte denetlenmeli: kapıdan geçirilen veri karta
+    # verilmezse kart yine kendi verisini çeker ve kapı anlamsızlaşır.
+    kaynak = (KOK / "scripts/piyasa_otomatik.py").read_text(encoding="utf-8")
+    agac = _ast.parse(kaynak)
+    cagrilar = {n.func.attr for n in _ast.walk(agac)
+                if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)}
+    denetle("isi_haritasi_eksikleri" in cagrilar,
+            "kart verisi yayın kapısından geçiyor",
+            "eksik veri sessizce yayınlanır")
+
+    kart_cagrisi = [n for n in _ast.walk(agac)
+                    if isinstance(n, _ast.Call)
+                    and isinstance(n.func, _ast.Attribute)
+                    and n.func.attr == "piyasa_karti_uret_9_16"]
+    denetle(bool(kart_cagrisi), "kart üretimi çağrılıyor", "çağrı yok")
+    if kart_cagrisi:
+        arg = kart_cagrisi[0].args[0] if kart_cagrisi[0].args else None
+        denetle(isinstance(arg, _ast.Name) and arg.id == "sektor_verileri",
+                "karta, kapıdan geçen veri veriliyor",
+                "karta başka bir sözlük veriliyor; kart onu atıp kendi "
+                "verisini çeker ve kapı denetlediği şeyi göstermez")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -3868,6 +3941,7 @@ def main() -> int:
         test_markdown_yildizi_slayta_sizmiyor,
         test_gecici_ag_hatasinda_tekrar_deneniyor,
         test_iki_piyasa_sayfasi_ayni_donemi_gosteriyor,
+        test_karta_basilan_veri_kapidan_geciyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
     ):
         try:

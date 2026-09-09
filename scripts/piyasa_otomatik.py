@@ -129,8 +129,32 @@ def main() -> int:
     # 4. Canlı piyasa verilerini çek
     piyasa_verileri = piyasa.piyasa_verileri_getir()
 
-    # 5. %100 Native 1080x1920 (9:16 Full-bleed) Slaytları Üret (Sıfır Çerçeve, Sıfır Blur)
-    kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(piyasa_verileri)
+    # 5. %100 Native 1080x1920 (9:16 Full-bleed) Slaytları Üret
+    #
+    # ⚠️ KARTA BASILAN VERİ BU — `piyasa_verileri` DEĞİL (9 Eyl 2026).
+    # `piyasa_karti_uret_9_16` kendisine verilen sözlükte
+    # "BİST & TÜRKİYE HİSSELERİ" anahtarını arıyor; `piyasa_verileri`de
+    # o anahtar yok, dolayısıyla veri SESSİZCE ATILIYOR ve fonksiyon
+    # ısı haritasını kendi çekiyordu. Sonuç: yayın kapısı karta hiç
+    # girmeyen bir veriyi denetliyordu. Artık ısı haritası burada BİR
+    # KEZ çekiliyor, kapıdan geçiriliyor ve karta o veri veriliyor.
+    # ⚠️ `piyasa_verileri` yine gerekli — caption ve Twitter metnini o
+    # besliyor (aşağıda), yani ikisi ayrı amaca hizmet ediyor.
+    sektor_verileri = piyasa.isi_haritasi_verileri_getir()
+    eksik_kart = piyasa.isi_haritasi_eksikleri(sektor_verileri)
+    if eksik_kart and not args.zorla:
+        sebep_k = "kart verisi alınamadı: " + ", ".join(eksik_kart[:6])
+        log.warning("Piyasa bülteni atlandı — %s", sebep_k)
+        telegram_bot.mesaj_gonder(
+            f"⚠️ <b>Piyasa bülteni yayınlanmadı</b>\n{sebep_k}.\n\n"
+            "Koda gömülü yedek yüzde basmak yerine atlandı — bir "
+            "sonraki pencerede yeniden denenecek.",
+            html=True,
+        )
+        con.close()
+        return 0
+
+    kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(sektor_verileri)
     # ⚠️ SAYFA 1 DENETİMİ: canlı veri alınamayan varlık varsa bülten
     # yayınlanmıyor. `piyasa_verileri_getir` eksik varlığı varsayılanla
     # dolduruyor (BIST 100 için sabit 14.500 puan) ve kartta gerçek
