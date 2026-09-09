@@ -581,6 +581,19 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     # başka kulübün fotoğrafı. Kullanıcı "bu yanlış" demiyor, "bu
     # kalitesiz" diyor; en iyi kaynağı terk etmek yanlış cevap.
     if not haber_gorseli_atla and atlanacak == 0:
+        ozel_dosya = Path("data") / f"haber_{_alan(haber, 'id')}.jpg"
+        if ozel_dosya.exists():
+            try:
+                foto = Image.open(ozel_dosya).convert("RGB")
+                log.info("arka plan: yerel özel basın görseli kullanıldı (#%s)", _alan(haber, "id"))
+                return (
+                    make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                    "haber",
+                    f"Foto: {make_image.kaynak_gosterim_adi(haber['kaynak'], ayarlar)}",
+                )
+            except Exception as e:  # noqa: BLE001
+                log.warning("yerel özel görsel okunamadı: %s", e)
+
         foto, foto_kaynak = _en_iyi_haber_gorseli(haber, g, con)
         if foto is not None:
             return (
@@ -871,6 +884,7 @@ def slayt_uret(haber, ayarlar: dict,
             ulke_kodu=_alan(haber, "ulke_kodu") or None,
             ulke_adi=_alan(haber, "ulke_adi") or None,
             son_slayt=son_slayt,
+            haber=dict(haber),
         )
         story_gorsel.save(story_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True, exif=exif_meta)
     except Exception as e:
@@ -1086,6 +1100,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         ulke_adi=_alan(haber, "ulke_adi") or None,
         veri_karti=veri_karti,
         arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
+        haber=dict(haber),
     )
     yol_kapak = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
     gorsel_kapak.save(yol_kapak, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)

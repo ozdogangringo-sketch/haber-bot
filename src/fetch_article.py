@@ -226,6 +226,12 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
         u = u.strip()
         if u.startswith("//"):
             u = "https:" + u
+        # DH cache-v2 wrapper'ını çöz ve tam boy orijinal galeri görseline ulaş
+        if "donanimhaber.com" in u and "path=" in u:
+            m = re.search(r"path=(https?://[^\&]+)", u)
+            if m:
+                u = m.group(1)
+            u = re.sub(r"\d+x\d+_", "", u)
         # Anadolu Ajansı (AA) thumbs_ öneklerini kaldırarak ham 5K/4K görsele ulaş
         if "aa.com.tr" in u and "thumbs_" in u:
             u = re.sub(r"thumbs_[a-z0-9_]+_", "", u)
@@ -238,6 +244,30 @@ def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
         # WordPress vb. thumbnail uzantılarını orijinaline çevir (örn: resim-300x200.jpg -> resim.jpg)
         u = re.sub(r"-\d{3,4}x\d{3,4}(\.[a-zA-Z]{3,4})$", r"\1", u)
         return u
+
+    # 0. Donanım Haber Makale İçi Temiz Basın Görselleri ve Galerisi
+    # DH, JSON-LD ve og:image alanına kendi kırmızı banner'ını basıyor.
+    # Makale galerisindeki fotoğraflar ise orijinal ve temiz lansman fotoğraflarıdır.
+    if "donanimhaber.com" in link:
+        galeri_adaylar = []
+        for img_el in corba.find_all("img"):
+            src = img_el.get("src") or img_el.get("data-src") or ""
+            if "galeri" in src and _gecerli_url_mi(src):
+                u = _temiz_url(src)
+                if u not in galeri_adaylar:
+                    galeri_adaylar.append(u)
+        if galeri_adaylar:
+            # -3.jpg veya -4.jpg / -2.jpg genelde ana ürünün en net ve temiz açılı basın karesidir
+            # (-1.jpg ortak lansmanlarda telefon veya aksesuara denk gelebiliyor)
+            for tercih in ("-3.jpg", "-4.jpg", "-2.jpg", "-5.jpg"):
+                for u in galeri_adaylar:
+                    if tercih in u:
+                        return u
+            return galeri_adaylar[0]
+        for img_el in corba.find_all("img"):
+            src = img_el.get("src") or img_el.get("data-src") or ""
+            if "/src/" in src and _gecerli_url_mi(src):
+                return _temiz_url(src)
 
     # 1. JSON-LD Yapılandırılmış Veri (Sitenin doğrudan sunduğu orijinal yüksek çözünürlüklü basın görseli)
     for script in corba.find_all("script", attrs={"type": "application/ld+json"}):

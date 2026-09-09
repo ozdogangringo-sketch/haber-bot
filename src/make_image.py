@@ -959,6 +959,7 @@ def yaziyi_bas(
     son_slayt: bool = False,
     veri_karti: dict | None = None,
     son_dakika: bool = False,
+    haber: dict | None = None,
 ) -> Image.Image:
     """
     Arka planın üstüne başlığı, varsa özeti ve alt bilgiyi yazar.
@@ -1045,6 +1046,15 @@ def yaziyi_bas(
     for satir in ozet_satirlari:
         _formatli_satir_ciz(ciz, kenar, y, satir, punto=34, spot=True, varsayilan_renk=(226, 232, 240))
         y += ozet_satir_y
+
+    # --- 3.5) Editoryal Hook (Kanca) Çizimi (Yalnızca 9:16 / 1080x1920 Kapak Slaytlarında) ---
+    if haber and yukseklik >= 1800:
+        try:
+            from . import hook_motoru
+            gorsel = hook_motoru.hook_uygula(gorsel, haber, baslik_ust, ayarlar)
+            ciz = ImageDraw.Draw(gorsel)
+        except Exception as e:
+            log.warning("hook çiziminde hata: %s", e)
 
     # Son slayt Call-To-Action (CTA) etkileşim rozeti
     if son_slayt:
@@ -1527,6 +1537,7 @@ def story_haber(
     son_slayt: bool = False,
     veri_karti: dict | None = None,
     arsiv_ibaresi: bool = False,
+    haber: dict | None = None,
 ) -> Image.Image:
     """
     Tek haberin %100 Native 9:16 (1080x1920) Kapak Slaytı.
@@ -1558,6 +1569,7 @@ def story_haber(
         kategori=kategori,
         veri_karti=veri_karti,
         son_dakika=son_dakika,
+        haber=haber,
     )
 
     # ⚠️ SON DAKİKA ETİKETİ ARTIK BURADA ÇİZİLMİYOR — `yaziyi_bas`

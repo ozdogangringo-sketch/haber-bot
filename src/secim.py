@@ -247,6 +247,9 @@ ETKISIZ_KELIMELER = {
     # Bunlar olayı ayırt etmiyor, yalnızca haberin biçimini anlatıyor.
     "resmi", "gazete", "yayımlandı", "yayimlandi", "açıklama",
     "bakanlığı", "başkanlığı", "cumhurbaşkanı", "bakan", "başkan",
+    # Genel duyuru ve lansman kalıpları (farklı ürünleri aynı haber sanmamak için)
+    "satışa", "satışta", "satışlar", "satış", "çıktı", "işte", "belli",
+    "özellikleri", "özellikler", "tarihi", "fiyatı", "duyuruldu", "rekor", "kırdı",
 }
 
 
