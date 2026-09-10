@@ -72,67 +72,73 @@ def _bant_yogunlugu(edges, x0: int, y0: int, x1: int, y1: int) -> float:
     return ImageStat.Stat(edges.crop((x0, y0, x1, y1))).mean[0]
 
 
-def uygun_alan_tespit_et(gorsel, baslik_ust: int, hook_h: int = 160) -> tuple[str, int]:
+def uygun_alan_tespit_et(gorsel, baslik_ust: int, hook_h: int = 180) -> tuple[str, int]:
     """
-    Kancanın oturacağı EN SAKİN bandı seçer.
+    Kancayı fotoğrafın EN MÜSAİT alanına yerleştirir.
 
-    ⚠️ NİYE DEĞİŞTİ (9 Eyl 2026): eski sürüm yalnızca İKİ bandı
-    karşılaştırıyor ve neredeyse her zaman "zemin"e düşüyordu. Ürün
-    fotoğrafı / infografik gibi YAZILI görsellerde her yer yoğun
-    olduğundan ayrım yapamıyor, kanca fotoğrafın kendi yazısının
-    üstüne oturuyordu — kullanıcının gönderdiği iPhone slaytında
-    kancanın arkasında *"Başlangıç fiyatı: 137.999 TL"* okunuyordu.
+    ⚠️ KULLANICI İSTEĞİ (9 Eyl 2026): *"hook metni görselin müsait bir
+    alanında olsun demiştim, hep aynı yerde görüyorum, özellikle
+    başlığın hemen üstünde olunca onunla birleşik gibi oluyor."*
 
-    Yeni davranış: dört aday bant ölçülüyor, en sakini seçiliyor.
-    ⚠️ HİÇBİRİ SAKİN DEĞİLSE en ALTTAKİ bant seçiliyor — orada okuma
-    perdesi en koyu, yani fotoğraf ne kadar kalabalık olursa olsun
-    metin okunur kalıyor. "En az kötü" seçeneği bilerek tercih
-    ediliyor; kanca çizilmeyecekse bunu `hook_olustur` söyler.
+    ⚠️ BENİM YANLIŞ TEŞHİSİM — kayda geçiyor. Aynı gün, bir ekran
+    görüntüsünde kancayı üstte görüp *"havada duruyor, hiçbir bloğa ait
+    değil"* diye yorumladım ve bantları aşağıdan yukarı gezip **ilk
+    sakin** olanı seçtirdim. ÖLÇÜLDÜ: 30 farklı fotoğrafta kanca
+    **30/30 aynı yere** (y=960) gitti. Sebep: en alt bandın üstünde
+    okuma perdesi var, yani orası neredeyse HER ZAMAN sakin çıkıyor ve
+    "aşağıdan ilk sakin" kuralı hiç yukarı çıkmıyor. Üstelik o bant
+    başlığa yalnızca 30 piksel uzaktaydı — kanca ile başlık tek blok
+    gibi okunuyordu.
+    ⚠️ Ders: *bir ekran görüntüsüne bakıp "şurada dursa daha iyi olur"
+    demek ÖLÇÜM DEĞİL.* Kullanıcının tarif ettiği kural (müsait alan)
+    zaten doğruydu; ben onu kendi estetik yorumumla değiştirdim.
+
+    Yeni davranış iki şeyi birden garanti ediyor:
+
+    1. **ÇEŞİTLİLİK** — dört sabit bant yerine fotoğraf alanı boyunca
+       çok sayıda aday taranıyor ve gerçekten en sakini seçiliyor.
+       Fotoğraf değişince kancanın yeri de değişiyor.
+    2. **AYRIŞMA** — kancanın altı ile başlığın üstü arasında en az
+       `AYRIM_PAYI` piksel var. Başlığa yapışabileceği aday hiç
+       üretilmiyor, yani "birleşik görünme" yapısal olarak imkânsız.
     """
     from PIL import ImageFilter
 
-    varsayilan_y = max(400, baslik_ust - hook_h - 30)
+    en_alt = baslik_ust - hook_h - AYRIM_PAYI
+    varsayilan_y = max(360, en_alt)
     try:
         genislik, _ = gorsel.size
         edges = gorsel.convert("L").filter(ImageFilter.FIND_EDGES)
-        sag = min(genislik - 74, 1006)
+        sag = min(genislik - SAG_PAY, 1006)
 
-        adaylar = [
-            ("zemin", max(350, baslik_ust - hook_h - 30)),
-            ("zemin_ust", max(350, baslik_ust - hook_h - 200)),
-            ("orta", max(350, baslik_ust - hook_h - 380)),
-            ("ust_bosluk", 485),
-        ]
-        olculen = []
-        for ad, y in adaylar:
-            yog = _bant_yogunlugu(edges, 74, y, sag, y + hook_h)
-            olculen.append((yog, ad, y))
-        SAKIN_ESIK = 18.0
+        # ⚠️ Aday aralığı fotoğrafın İÇİ, logo şeridinin ALTI.
+        # ÖLÇÜLDÜ (9 Eyl 2026): logo + amber çizgi kutusu
+        # **y=314..465** (x=78..318). İlk denememde üst sınırı 360
+        # yapmıştım ve alt tarafı kalabalık bir fotoğrafta kanca
+        # y=415'e çıkıp **logonun üstüne bindi** — "EHLİYETİNE"
+        # yazısı DB logosunun içinden geçiyordu.
+        adaylar = list(range(LOGO_ALT_SINIR, max(LOGO_ALT_SINIR + 1, en_alt + 1), 55))
+        if not adaylar:
+            return "zemin", varsayilan_y
 
-        # ⚠️ EN SAKİN BANT DEĞİL, BAŞLIĞA EN YAKIN SAKİN BANT (9 Eyl 2026).
-        # İlk yazımda bantlar yoğunluğa göre sıralanıp GLOBAL en sakini
-        # seçiliyordu ve kanca sık sık en üste (y=485) fırlıyordu; gerçek
-        # slaytta ölçüldü, kanca ile başlık arasında **~500 piksel boşluk**
-        # kalıyor ve kanca hiçbir bloğa ait olmayan, havada duran bir
-        # yazıya dönüşüyordu. Kanca başlığın ÜST SATIRI gibi okunmalı.
-        # Bu yüzden bantlar aşağıdan yukarı geziliyor: yeteri kadar sakin
-        # olan İLK bant kazanıyor, yukarı çıkmak için aşağıdakinin
-        # gerçekten kalabalık olması gerekiyor.
-        for yog, ad, y in sorted(olculen, key=lambda t: -t[2]):
-            if yog <= SAKIN_ESIK:
-                log.debug("Hook bandı: %s (yoğunluk %.1f)", ad, yog)
-                return ad, y
+        olculen = [(_bant_yogunlugu(edges, SAG_PAY, y, sag, y + hook_h), y)
+                   for y in adaylar]
+        en_dusuk = min(t[0] for t in olculen)
 
-        # Hepsi kalabalık → perdenin en koyu olduğu EN ALT bandı seç
-        en_alt = max(adaylar, key=lambda t: t[1])
-        log.debug("Hook bandı: hepsi yoğun (en düşük %.1f), perdeye iniliyor",
-                  min(t[0] for t in olculen))
-        return en_alt[0], en_alt[1]
+        # ⚠️ BERABERLİK PAYI: düz/gradyanlı bir zeminde onlarca adayın
+        # yoğunluğu birbirine çok yakın çıkıyor ve saf `min` kılpayı
+        # farklarla zıplıyor. Neredeyse eşit olanlar arasında EN ALTTAKİ
+        # seçiliyor — orada okuma perdesi daha koyu, metin daha okunur.
+        BERABERLIK = 2.0
+        y_sec = max(y for yog, y in olculen if yog <= en_dusuk + BERABERLIK)
+
+        log.debug("Hook alanı: y=%d (yoğunluk %.1f, %d aday tarandı)",
+                  y_sec, en_dusuk, len(adaylar))
+        return ("zemin" if y_sec >= en_alt - 55 else "foto"), y_sec
 
     except Exception as e:                             # noqa: BLE001
         log.warning("Hook alan tespitinde hata, varsayılan kullanılıyor: %s", e)
         return "zemin", varsayilan_y
-
 
 # Tuval ve kenar payları — hook metni bu sınırın dışına TAŞAMAZ.
 TUVAL_GENISLIK = 1080
@@ -674,10 +680,21 @@ def hook_olustur(haber: dict) -> dict | None:
     }
 
 
-# Kanca ile başlık bloğu arasında bırakılacak en az boşluk.
-# Projenin kendi aralık standardı: detay paragrafları 24px, başlık-özet
-# arası 26px. Kanca da aynı ailede olmalı.
-NEFES_PAYI = 30
+# Kanca ile başlık bloğu arasında bırakılacak EN AZ boşluk.
+#
+# ⚠️ Önce 30'du (projenin paragraf aralığı standardı) ve YETMEDİ:
+# kullanıcı *"başlığın hemen üstünde olunca onunla birleşik gibi
+# oluyor"* dedi. 30 piksel iki paragrafı ayırmaya yeter ama 64 puntoluk
+# bir kancayı 72 puntoluk bir başlıktan AYRI BİR ÖĞE gibi göstermeye
+# yetmiyor — göz ikisini tek blok okuyor. Kanca fotoğrafın içinde
+# durmalı, metin rafının üstüne oturmamalı.
+AYRIM_PAYI = 130
+
+# Kancanın çıkabileceği EN ÜST nokta. Logo + amber çizgi kutusu ölçüldü:
+# y=314..465. 500 ona 35 piksel pay bırakıyor.
+# ⚠️ Logo konumu `gorsel.dikey_guvenli_pay` (330) ile birlikte kayar —
+# o değer değişirse burayı da ölç.
+LOGO_ALT_SINIR = 500
 
 
 def _metin_kutusu(oncesi: Image.Image, sonrasi: Image.Image) -> tuple | None:
@@ -764,11 +781,11 @@ def hook_uygula(
     # slaytlarda (haberlerin %18'i).
     kutu = _metin_kutusu(gorsel, sonuc)
     if kutu:
-        tasma = kutu[3] - (baslik_ust - NEFES_PAYI)
+        tasma = kutu[3] - (baslik_ust - AYRIM_PAYI)
         if tasma > 0:
             y = max(120, y - int(tasma))
             sonuc = _ciz(gorsel, y)
-            log.debug("Hook %d piksel yukarı alındı (nefes payı %d)", tasma, NEFES_PAYI)
+            log.debug("Hook %d piksel yukarı alındı (nefes payı %d)", tasma, AYRIM_PAYI)
 
     log.info("Hook çizildi: format=%s, renk=%s, konum=%s (y=%d)",
              fmt, hook_veri.get("renk"), konum, y)

@@ -4154,8 +4154,11 @@ def test_kanca_baslikla_yarismiyor() -> None:
             f"kanca yazılı zeminden kaçıyor (y={y_sec})",
             "fotoğrafın kendi yazısının üstüne oturuyor")
 
-    # ⚠️ Her yer kalabalıksa perdenin en koyu olduğu ALT banda inmeli —
-    # "en az kötü" seçenek; kanca çizilmeyecekse bunu hook_olustur söyler.
+    # ⚠️ Her yer kalabalıksa perdenin en koyu olduğu EN ALT ADAYA inmeli —
+    # "en az kötü" seçenek. ⚠️ ESKİ SÖZLEŞME `y >= 900` diyordu ve o,
+    # kancanın başlığa 30 piksel kalana kadar inebildiği döneme aitti;
+    # kullanıcı *"başlığın hemen üstünde olunca birleşik gibi oluyor"*
+    # deyince en alt aday `1150 - 180 - AYRIM_PAYI` = 840'a çekildi.
     import random
     gurultu = Image.new("RGB", (1080, 1920))
     px = gurultu.load()
@@ -4165,8 +4168,9 @@ def test_kanca_baslikla_yarismiyor() -> None:
             v = random.randint(0, 255)
             px[xx, yy] = (v, v, v)
     _, y_gur = hm.uygun_alan_tespit_et(gurultu, baslik_ust=1150)
-    denetle(y_gur >= 900,
-            f"her yer kalabalıkken perdeye iniyor (y={y_gur})",
+    en_alt = 1150 - 180 - hm.AYRIM_PAYI
+    denetle(y_gur > en_alt - 60,
+            f"her yer kalabalıkken en alt adaya iniyor (y={y_gur})",
             "kalabalık üst alana çıkıp okunmaz oluyor")
 
 
@@ -4234,29 +4238,76 @@ def test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor() -> None:
         h = {**ORTAK, "onem_puani": 7, "kanca": kanca}
         k = (ImageChops.difference(z, hm.hook_uygula(z.copy(), h, 1150, None))
              .convert("L").point(lambda v: 255 if v > 110 else 0).getbbox())
-        if k and (1150 - k[3]) < hm.NEFES_PAYI:
+        if k and (1150 - k[3]) < hm.AYRIM_PAYI:
             dar += 1
     denetle(dar == 0,
-            f"kanca başlığa {hm.NEFES_PAYI}px'ten fazla yaklaşmıyor",
+            f"kanca başlığa {hm.AYRIM_PAYI}px'ten fazla yaklaşmıyor",
             "kanca ile başlık tek blok gibi okunuyor (ölçülen en dar: 9px)")
 
-    # --- ③ sakin zeminde kanca başlığa YAKIN bantta kalıyor ---
-    # ⚠️ VERİ TUZAĞI: ilk yazımda DÜMDÜZ bir zemin kullanıldı; orada
-    # bütün bantların yoğunluğu 0 olduğu için "global en sakini seç" ve
-    # "en alttaki sakini seç" AYNI sonucu veriyor ve sabotaj temiz
-    # geçiyordu. Ayırt eden zemin ölçülerek kuruldu: alt bant HAFİF
-    # dokulu (2.67 — eşiğin çok altında, yani hâlâ "sakin"), üsttekiler
-    # tamamen boş (0.00). Global kural üste çıkar, doğru kural altta
-    # kalır.
+    # --- ③ KANCA GÖRSELİN MÜSAİT ALANINI TAKİP EDİYOR ---
+    # ⚠️ BU DENETİM BİR KEZ YANLIŞ YAZILDI — kayda geçiyor. İlk hâli
+    # *"kanca başlığa yakın bantta kalmalı (y>900)"* diyordu; bunu bir
+    # ekran görüntüsüne bakıp "havada duruyor" diye yorumlayarak
+    # yazmıştım. Kullanıcı tam tersini söyledi: *"hook metni görselin
+    # müsait bir alanında olsun demiştim, hep aynı yerde görüyorum,
+    # özellikle başlığın hemen üstünde olunca onunla birleşik gibi
+    # oluyor."* ÖLÇÜLDÜ: o kuralla 30 farklı fotoğrafta kanca **30/30
+    # aynı yere** gidiyordu.
+    # Doğru sözleşme İKİ ŞART: (a) kalabalık alandan kaçıp boş alana
+    # gitmek, (b) başlığa ve logoya asla yapışmamak.
     from PIL import ImageDraw as _ID
-    zeminli = Image.new("RGB", (1080, 1920), (40, 46, 60))
-    _ciz = _ID.Draw(zeminli)
-    for _y in range(965, 1120, 26):
-        _ciz.line([(80, _y), (1000, _y)], fill=(52, 58, 74), width=1)
-    _, y_duz = hm.uygun_alan_tespit_et(zeminli, baslik_ust=1150)
-    denetle(y_duz > 900,
-            f"kanca sakinken başlığa yakın bantta kalıyor (y={y_duz})",
-            "kanca tuvalin ortasında havada kalıyor, başlıkla arasında ~500px boşluk")
+    import random as _rnd
+
+    def _yarisi_dokulu(ust_kalabalik: bool) -> Image.Image:
+        _rnd.seed(5)
+        im = Image.new("RGB", (1080, 1920), (86, 92, 108))
+        d = _ID.Draw(im)
+        y0, y1 = (300, 800) if ust_kalabalik else (830, 1140)
+        for _ in range(2600):
+            xx, yy = _rnd.randint(0, 1080), _rnd.randint(y0, y1)
+            d.rectangle([xx, yy, xx + _rnd.randint(3, 14), yy + _rnd.randint(3, 14)],
+                        fill=tuple(_rnd.randint(20, 240) for _ in range(3)))
+        return im
+
+    _, y_ust_dolu = hm.uygun_alan_tespit_et(_yarisi_dokulu(True), baslik_ust=1150)
+    _, y_alt_dolu = hm.uygun_alan_tespit_et(_yarisi_dokulu(False), baslik_ust=1150)
+    denetle(y_ust_dolu != y_alt_dolu,
+            f"kanca fotoğrafın boş alanını takip ediyor ({y_alt_dolu} / {y_ust_dolu})",
+            "kanca fotoğraf ne olursa olsun hep aynı yere basılıyor")
+    denetle(y_ust_dolu > y_alt_dolu,
+            f"üst kalabalıkken aşağı, alt kalabalıkken yukarı gidiyor",
+            "kanca kalabalığın üstüne oturuyor")
+
+    # (b) iki sınır: başlığa yapışmıyor, logoya binmiyor
+    # ⚠️ SAYILAR BAĞIMSIZ — `hm.AYRIM_PAYI` / `hm.LOGO_ALT_SINIR`
+    # KULLANILMIYOR. İlk yazımda modülün kendi sabitlerine bakıyordum
+    # ve sabotaj TEMİZ GEÇTİ: sabiti 130'dan 30'a düşürünce iddia da
+    # onunla birlikte düşüyor, yani test ölçtüğü kuralın kendisiyle
+    # ölçüm yapıyordu. Bu projede aynı döngüsellik daha önce
+    # `caption._etiket_anahtari` ve görsel alaka kapısında yaşandı.
+    # Aşağıdaki 120 ve 480 ÖLÇÜLMÜŞ değerler: başlık y=1150'de
+    # başlıyor, logo kutusu y=314..465.
+    # ⚠️ LOGO SINIRI İÇİN AYRI GÖRSEL GEREKTİ: yukarıdaki iki görselde
+    # 480'in altı zaten seçilmiyordu, yani sınır HİÇ SINANMIYORDU —
+    # sabotaj (sınırı 360'a çekmek) temiz geçti. Ayırt eden kurgu:
+    # fotoğrafın TEK boş yeri logo şeridi olsun. Sınır kalkarsa kanca
+    # oraya gider ve yazı logonun üstünden geçer.
+    _rnd.seed(9)
+    _sadece_ust_bos = Image.new("RGB", (1080, 1920), (86, 92, 108))
+    _d2 = _ID.Draw(_sadece_ust_bos)
+    for _ in range(3400):
+        xx, yy = _rnd.randint(0, 1080), _rnd.randint(540, 1140)
+        _d2.rectangle([xx, yy, xx + _rnd.randint(3, 14), yy + _rnd.randint(3, 14)],
+                      fill=tuple(_rnd.randint(20, 240) for _ in range(3)))
+    _, y_dar = hm.uygun_alan_tespit_et(_sadece_ust_bos, baslik_ust=1150)
+
+    for _y in (y_ust_dolu, y_alt_dolu, y_dar):
+        denetle(_y + 180 <= 1150 - 120,
+                f"kanca başlıktan en az 120px ayrı (y={_y}, kanca altı ≈{_y+180})",
+                "kanca ile başlık tek blok gibi okunuyor")
+        denetle(_y >= 480,
+                f"kanca logo şeridine binmiyor (y={_y})",
+                "yazı DB logosunun üstünden geçiyor — ölçüldü, logo y=314..465")
 
     # --- ④ `kanca` alanı DÖRT yerde tanımlı + motorda kullanılıyor ---
     gt = (KOK / "src" / "generate_text.py").read_text(encoding="utf-8")
