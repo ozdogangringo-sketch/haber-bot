@@ -82,7 +82,7 @@ def _bant_yogunlugu(edges, x0: int, y0: int, x1: int, y1: int) -> float:
     return ImageStat.Stat(edges.crop((x0, y0, x1, y1))).mean[0]
 
 
-def uygun_alan_tespit_et(gorsel, baslik_ust: int, hook_h: int = 180) -> tuple[str, int]:
+def uygun_alan_tespit_et(gorsel, baslik_ust: int, hook_h: int = 240) -> tuple[str, int]:
     """
     Kancayı fotoğrafın EN MÜSAİT alanına yerleştirir.
 
@@ -292,9 +292,20 @@ def ciz_minimal_vurgu(
     """Kutulardan arınmış, en yalın editoryal minimal kicker + dev başlık formatı."""
     out = gorsel.copy()
     f_kicker = _font(22, 800.0)
-    # ⚠️ Sığdırma: 64 punto bu formatta en riskliydi (bkz. _sigdiran_font).
     minimal_alan = max(160, (TUVAL_GENISLIK - SAG_PAY) - x)
-    f_title = _sigdiran_font([t1, t2], 64, minimal_alan)
+
+    # ⚠️ TAVAN 64 → 92 (9 Eyl 2026). Kullanıcı: *"bu hook metninin maks
+    # boyutu neye göre değişiyor, bazen küçük kalıyor gibi hissediyorum"*.
+    # ÖLÇÜLDÜ ve his doğruydu: `_sigdiran_font` yalnızca KÜÇÜLTÜYOR,
+    # tavandan aşağı arıyor. Gerçek kanca metinleri kısa (3-5 kelime)
+    # olduğu için küçülme yoluna HİÇ girmiyordu — **48/48 kanca 64
+    # puntoda** kaldı ve 932 pikselik alanın yalnızca **%53-61'ini**
+    # dolduruyordu. Yani sorun "bazen küçülüyor" değil, tavanın kendisi.
+    # 92 ile aynı metinler %78-89 doluluğa çıkıyor; uzun metin zaten
+    # kendiliğinden küçülüyor (ölçüldü: 56 punto, %99 dolu).
+    # ⚠️ Başlık tavanı 72 — kanca dikkat çekmesi beklenen öğe ve
+    # başlıktan KÜÇÜKTÜ.
+    f_title = _sigdiran_font([t1, t2], 92, minimal_alan)
     t1 = _kirp(t1, f_title, minimal_alan)
     t2 = _kirp(t2, f_title, minimal_alan)
     kicker = _kirp(kicker, f_kicker, minimal_alan)
@@ -303,12 +314,20 @@ def ciz_minimal_vurgu(
     # sebepsiz bir boşluk kalır ve kanca yine havada durur.
     ust = 36 if kicker else 0
 
-    shadow = Image.new("RGBA", (minimal_alan + 60, 220), (0, 0, 0, 0))
+    # ⚠️ SATIR ARALIĞI PUNTOYLA ORANTILI OLMALI — sabit 70 kodluydu ve o
+    # sayı tam olarak `64 × 1.1` idi, yani orantının kendisi elle
+    # yazılmıştı. Tavan 92'ye çıkarılınca 70 aralık 92 puntoluk satırları
+    # ÜST ÜSTE BİNDİRİYORDU. Bu, projedeki "aynı kural iki yerde yaşıyor"
+    # tuzağının sayı hâli: punto bir yerde, ona bağlı aralık başka yerde.
+    satir_y = int(f_title.size * 1.1)
+    govde_h = ust + satir_y + int(f_title.size * 1.35)
+
+    shadow = Image.new("RGBA", (minimal_alan + 60, govde_h + 60), (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow)
     if kicker:
         sdraw.text((30, 20), kicker, font=f_kicker, fill=(0, 0, 0, 255))
     sdraw.text((30, 20 + ust), t1, font=f_title, fill=(0, 0, 0, 255))
-    sdraw.text((30, 90 + ust), t2, font=f_title, fill=(0, 0, 0, 255))
+    sdraw.text((30, 20 + ust + satir_y), t2, font=f_title, fill=(0, 0, 0, 255))
     shadow = shadow.filter(ImageFilter.GaussianBlur(14))
     out.paste(shadow, (x - 30, y - 20), shadow)
 
@@ -316,7 +335,7 @@ def ciz_minimal_vurgu(
     if kicker:
         draw.text((x, y), kicker, font=f_kicker, fill=renk)
     draw.text((x, y + ust), t1, font=f_title, fill=WHITE)
-    draw.text((x, y + 70 + ust), t2, font=f_title, fill=renk)
+    draw.text((x, y + ust + satir_y), t2, font=f_title, fill=renk)
 
     return out
 

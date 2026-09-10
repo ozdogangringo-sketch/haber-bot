@@ -4168,10 +4168,20 @@ def test_kanca_baslikla_yarismiyor() -> None:
             v = random.randint(0, 255)
             px[xx, yy] = (v, v, v)
     _, y_gur = hm.uygun_alan_tespit_et(gurultu, baslik_ust=1150)
-    en_alt = 1150 - 180 - hm.AYRIM_PAYI
-    denetle(y_gur > en_alt - 60,
-            f"her yer kalabalıkken en alt adaya iniyor (y={y_gur})",
+    # ⚠️ SABİTE BAĞLAMA: ilk yazımda `1150 - 180 - hm.AYRIM_PAYI` diye
+    # hesaplıyordum ve 180 (kanca yüksekliği varsayımı) 240'a çıkınca
+    # test kırıldı — hâlbuki davranış doğruydu. Bağımsız ölçüt: TEKDÜZE
+    # bir görselde (ister baştan sona gürültülü, ister baştan sona düz)
+    # kanca aynı yere, izin verilen EN ALT noktaya gitmeli. İki durumu
+    # birbiriyle karşılaştırmak sabit gerektirmiyor.
+    duz_tekduze = Image.new("RGB", (1080, 1920), (70, 76, 90))
+    _, y_duz_t = hm.uygun_alan_tespit_et(duz_tekduze, baslik_ust=1150)
+    denetle(y_gur == y_duz_t,
+            f"tekdüze görselde kanca hep en alt adaya iniyor (gürültü {y_gur} / düz {y_duz_t})",
             "kalabalık üst alana çıkıp okunmaz oluyor")
+    denetle(y_gur >= 700,
+            f"her yer kalabalıkken perdeye yakın duruyor (y={y_gur})",
+            "kanca fotoğrafın tepesinde, perdesiz alanda kalıyor")
 
 
 
@@ -4427,6 +4437,56 @@ def test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor() -> None:
                     f"vurgu rengi AMBER (ortalama yeşil kanal {_g:.0f})",
                     "kırmızıya dönülmüş — amber G=158, kırmızı G=68; "
                     "kırmızı bu zeminde kontrast 2.02 veriyor, eşik 3.0")
+
+    # --- ⑧ PUNTO ALANI DOLDURUYOR, SATIR ARALIĞI ORANTILI ---
+    # Kullanıcı: *"bu hook metninin maks boyutu neye göre değişiyor,
+    # bazen küçük kalıyor gibi hissediyorum"* (9 Eyl 2026). ÖLÇÜLDÜ, his
+    # doğruydu: `_sigdiran_font` yalnızca KÜÇÜLTÜYOR ve gerçek kanca
+    # metinleri kısa olduğu için o yola hiç girmiyordu — **48/48 kanca
+    # 64 puntoda** kalıp 932px alanın yalnızca **%53-61'ini** dolduruyordu.
+    #
+    # ⚠️ BU DENETİM İKİ KEZ YANLIŞ YAZILDI:
+    #   (a) `_sigdiran_font`u DOĞRUDAN 92 vererek çağırıyordum — yani
+    #       yardımcıyı sınıyordum, çizim kodunun ne kullandığını değil.
+    #       Tavanı 64'e çeken sabotaj temiz geçti.
+    #   (b) Satır binmesini "blok sayısı ≥ 2" ile arıyordum; seçtiğim
+    #       metin 70 aralıkla da binmiyordu, kural sınanmıyordu.
+    # Şimdi ikisi de ÇİZİLEN piksel üzerinden ölçülüyor.
+    _zz = Image.new("RGB", (1080, 1920), (28, 32, 44))
+    _ik = hm.hook_uygula(_zz.copy(), {"kategori": "turkiye", "onem_puani": 7,
+                                      "ig_baslik": "Kısa bir haber başlığı",
+                                      "kanca": "İKİ İLDE OKULLAR TATİL"}, 1150, None)
+    _m = ImageChops.difference(_zz, _ik).convert("L").point(lambda v: 255 if v > 110 else 0)
+    _kt = _m.getbbox()
+    _dolu = [any(_m.getpixel((xx, yy)) for xx in range(_kt[0], _kt[2], 3))
+             for yy in range(_kt[1], _kt[3])]
+    _bloklar, _i = [], 0
+    while _i < len(_dolu):
+        if _dolu[_i]:
+            _j = _i
+            while _j < len(_dolu) and _dolu[_j]:
+                _j += 1
+            _bloklar.append((_i, _j - _i)); _i = _j
+        else:
+            _i += 1
+    # Harf gövdeleri (yüksek bloklar); kısa olanlar Türkçe İ noktaları
+    _govdeler = [b for b in _bloklar if b[1] > 40]
+
+    denetle(len(_govdeler) >= 2,
+            f"kancanın iki satırı ayrı çiziliyor ({len(_govdeler)} gövde)",
+            "satırlar üst üste binmiş")
+    if len(_govdeler) >= 2:
+        # ÖLÇÜLDÜ: doğru hâlde gövde 68-70px, tavan 64'e çekilince 47-48px
+        denetle(_govdeler[0][1] >= 60,
+                f"kısa kanca alanı dolduracak kadar iri ({_govdeler[0][1]}px gövde)",
+                "tavan düşük — 932px alanın yarısı boş kalıyor")
+        # Aralık ORANTILI mı? ÖLÇÜLDÜ: ×1.1 ile mesafe/gövde ≈ 1.49,
+        # sabit 70 ile ≈ 1.03. Ölçüt puntodan bağımsız.
+        _mesafe = _govdeler[1][0] - _govdeler[0][0]
+        _oran = _mesafe / _govdeler[0][1]
+        denetle(_oran > 1.25,
+                f"satır aralığı puntoyla orantılı (mesafe/gövde = {_oran:.2f})",
+                "aralık sabit kodlanmış — punto büyüyünce satırlar biniyor")
 
     # --- Sayıyı biriminden ayırma ---
     a, b = hm._dengeli_bol("ZARAR 12 MİLYON LİRA".split())
