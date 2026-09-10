@@ -4171,6 +4171,147 @@ def test_kanca_baslikla_yarismiyor() -> None:
 
 
 
+def test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor() -> None:
+    """
+    Kancanın tasarım/yerleşim elden geçirmesi (9 Eyl 2026, kullanıcı: *"hook
+    tasarımı konumlandırması vs gibi genel durumunu incelemeni ve önerilerini
+    bekliyorum"* → *"hepsini"*).
+
+    Beş ayrı kural, hepsi ÖLÇÜMDEN doğdu:
+
+    ① "SON DAKİKA" ibaresi önem puanına bağlı. Kicker yalnızca RENGE
+       bakıyordu; ölçüldü, 12 kancanın **9'u** (%75) puanı 9'un altındayken
+       "SON DAKİKA GELİŞMESİ" basıyordu — rutin trafik cezası (7), istifa
+       (7). `config → son_dakika_etiket_esigi: 9` var ve `slaytlar.py` ile
+       `caption.py` ona uyuyor; kanca üçüncü kapıydı ve uymuyordu.
+
+    ② Nefes payı. Ölçüldü: kanca ile başlık arası ortanca 21px ama **en dar
+       9px**, 51 kancanın 9'u 20px altında. Sebep: yerleşim kancayı 160px
+       varsayıyor, `minimal_vurgu` gerçekte **180px**. Artık kanca çizilip
+       GERÇEK yüksekliği ölçülüyor ve gerekirse yukarı alınıyor.
+
+    ③ Bant seçimi başlığa en yakın SAKİN bant. Global en sakini seçmek
+       kancayı en üste (y=485) fırlatıyor ve başlıkla arasında ~500px boşluk
+       bırakıyordu — kanca hiçbir bloğa ait olmayan bir yazıya dönüşüyordu.
+
+    ④ `kanca` alanı — ASIL ÇÖZÜM. Metin başlıktan türetildiği sürece yeni
+       bilgi taşıyamaz; ölçüldü, 120 haberin **99'u** (%82) bastırılıyordu.
+       Alan Gemini şemasına eklendi ve makale GÖVDESİNDEN üretiliyor.
+       ⚠️ ZORUNLU DEĞİL: doldurmaya zorlamak uydurmayı davet eder
+       (`vurgu_sayi` / `alinti` ile aynı gerekçe).
+
+    ⑤ `gorsel.kanca_ciz` — projedeki her özellik kapatılabiliyor, bunun
+       anahtarı yoktu.
+    """
+    sys.path.insert(0, str(KOK))
+    import ast as _ast
+    from PIL import Image, ImageChops
+    from src import hook_motoru as hm
+
+    ORTAK = {"kategori": "turkiye", "ig_baslik": "Bir kentte sağanak etkili oldu"}
+
+    # --- ① SON DAKİKA puana bağlı ---
+    # ⚠️ VERİ TUZAĞI (bu oturumda ÜÇÜNCÜ kez): ilk yazımda `kanca`
+    # verilmiyordu, dolayısıyla türetilen metin başlığı tekrarlıyor ve
+    # A kuralı kancayı ZATEN bastırıyordu — kicker kuralı hiç
+    # çalışmadan test "geçiyordu". İki senaryonun TEK farkı puan olmalı.
+    SD = {**ORTAK, "ig_baslik": "Sürücüye ceza kesildi ve gözaltına alındı",
+          "kanca": "EHLİYETİNE 60 GÜN EL KONDU"}
+    dusuk = hm.hook_olustur({**SD, "onem_puani": 7})
+    yuksek = hm.hook_olustur({**SD, "onem_puani": 10})
+    denetle(not (dusuk and "SON DAKİKA" in dusuk.get("kicker", "")),
+            "puanı düşük haber kancada SON DAKİKA demiyor",
+            "ibare değersizleşiyor — config eşiği 9, kanca onu baypas ediyor")
+    denetle(bool(yuksek and "SON DAKİKA" in yuksek.get("kicker", "")),
+            "puanı yüksek haberde SON DAKİKA basılabiliyor",
+            "kural fazla katı, ibare hiç kullanılamıyor")
+
+    # --- ② nefes payı: kanca başlığa yapışmıyor ---
+    z = Image.new("RGB", (1080, 1920), (28, 32, 44))
+    dar = 0
+    for kanca in ("EHLİYETİNE 60 GÜN EL KONDU", "BAĞIMSIZ DEVAM EDECEKLER",
+                  "ÇOK UZUN BİR KANCA METNİ BURADA DURUYOR VE TAŞIYOR"):
+        h = {**ORTAK, "onem_puani": 7, "kanca": kanca}
+        k = (ImageChops.difference(z, hm.hook_uygula(z.copy(), h, 1150, None))
+             .convert("L").point(lambda v: 255 if v > 110 else 0).getbbox())
+        if k and (1150 - k[3]) < hm.NEFES_PAYI:
+            dar += 1
+    denetle(dar == 0,
+            f"kanca başlığa {hm.NEFES_PAYI}px'ten fazla yaklaşmıyor",
+            "kanca ile başlık tek blok gibi okunuyor (ölçülen en dar: 9px)")
+
+    # --- ③ sakin zeminde kanca başlığa YAKIN bantta kalıyor ---
+    # ⚠️ VERİ TUZAĞI: ilk yazımda DÜMDÜZ bir zemin kullanıldı; orada
+    # bütün bantların yoğunluğu 0 olduğu için "global en sakini seç" ve
+    # "en alttaki sakini seç" AYNI sonucu veriyor ve sabotaj temiz
+    # geçiyordu. Ayırt eden zemin ölçülerek kuruldu: alt bant HAFİF
+    # dokulu (2.67 — eşiğin çok altında, yani hâlâ "sakin"), üsttekiler
+    # tamamen boş (0.00). Global kural üste çıkar, doğru kural altta
+    # kalır.
+    from PIL import ImageDraw as _ID
+    zeminli = Image.new("RGB", (1080, 1920), (40, 46, 60))
+    _ciz = _ID.Draw(zeminli)
+    for _y in range(965, 1120, 26):
+        _ciz.line([(80, _y), (1000, _y)], fill=(52, 58, 74), width=1)
+    _, y_duz = hm.uygun_alan_tespit_et(zeminli, baslik_ust=1150)
+    denetle(y_duz > 900,
+            f"kanca sakinken başlığa yakın bantta kalıyor (y={y_duz})",
+            "kanca tuvalin ortasında havada kalıyor, başlıkla arasında ~500px boşluk")
+
+    # --- ④ `kanca` alanı DÖRT yerde tanımlı + motorda kullanılıyor ---
+    gt = (KOK / "src" / "generate_text.py").read_text(encoding="utf-8")
+    agac = _ast.parse(gt)
+    sema_var = req_var = False
+    for d in _ast.walk(agac):
+        if isinstance(d, _ast.Assign) and any(
+                getattr(t, "id", "") == "CEVAP_SEMASI" for t in d.targets):
+            metin = _ast.dump(d)
+            sema_var = "'kanca'" in metin or '"kanca"' in metin
+            req_var = metin.count("kanca") >= 2      # properties + required
+    denetle(sema_var and req_var,
+            "`kanca` Gemini şemasında (properties + required) tanımlı",
+            "alan sessizce NULL kalır — hata VERMEZ")
+    denetle("- kanca:" in gt,
+            "`kanca` prompt'ta tarif edilmiş",
+            "model alanın ne olduğunu bilmiyor, boş ya da başlık kopyası dönüyor")
+
+    dbk = (KOK / "src" / "db.py").read_text(encoding="utf-8")
+    denetle('"kanca": "TEXT"' in dbk and "kanca             = ?" in dbk,
+            "`kanca` db kolonu + metin_kaydet SQL'inde var",
+            "üretilen değer veritabanına HİÇ yazılmıyor")
+
+    hmk = (KOK / "src" / "hook_motoru.py").read_text(encoding="utf-8")
+    denetle('haber.get("kanca")' in hmk,
+            "hook_motoru `kanca` alanını okuyor",
+            "alan üretiliyor ama kullanılmıyor — 'yazılıp okunmayan kayıt'")
+
+    # Davranış: alan doluyken kanca çiziliyor, boşken uydurulmuyor
+    dolu = hm.hook_olustur({**ORTAK, "onem_puani": 7,
+                            "ig_baslik": "Apple iPhone fiyatlarına %25 zam yaptı",
+                            "kanca": "GARANTİ SÜRESİ DE KISALDI"})
+    bos = hm.hook_olustur({**ORTAK, "onem_puani": 7,
+                           "ig_baslik": "Apple iPhone fiyatlarına %25 zam yaptı",
+                           "kanca": ""})
+    denetle(dolu is not None,
+            "gövdeden gelen kanca çiziliyor",
+            "asıl çözüm devrede değil, kanca yine %82 bastırılıyor")
+    denetle(bos is None,
+            "kanca boşken uydurulmuyor, çizilmiyor",
+            "zayıf gövdede model boşluğu doldurur — projenin en temel kuralı")
+
+    # --- ⑤ kapatma anahtarı ---
+    denetle('kanca_ciz' in (KOK / "src" / "make_image.py").read_text(encoding="utf-8"),
+            "`gorsel.kanca_ciz` ayarı üretim kodunda okunuyor",
+            "özellik kapatılamıyor")
+
+    # --- Sayıyı biriminden ayırma ---
+    a, b = hm._dengeli_bol("ZARAR 12 MİLYON LİRA".split())
+    denetle(not re.fullmatch(r"[%₺$€]?[\d.,]+[%₺$€]?", a.split()[-1]),
+            f"bölme sayıyı biriminden ayırmıyor ({a} / {b})",
+            "satır sonunda yalnız kalan sayı ne olduğunu söylemiyor")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -4248,6 +4389,7 @@ def main() -> int:
         test_piyasa_bulteni_tek_veri_kaynagindan_besleniyor,
         test_hook_tuvali_tasmiyor_ve_uydurmuyor,
         test_kanca_baslikla_yarismiyor,
+        test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
     ):
         try:

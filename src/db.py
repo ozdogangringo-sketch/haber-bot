@@ -235,6 +235,7 @@ EK_KOLONLAR = {
     # Detay sayfalarında iri rakam ve alıntı bloğu olarak basılıyor.
     # Alıntı kaynakta birebir doğrulanıyor (dogrula.alintiyi_denetle);
     # doğrulanamazsa kullanılmıyor — uydurma alıntı en ağır hata.
+    "kanca": "TEXT",
     "vurgu_sayi": "TEXT",
     "vurgu_etiket": "TEXT",
     "alinti": "TEXT",
@@ -387,6 +388,7 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
                onem_puani        = ?,
                slayt_ozet        = ?,
                detay_metni       = ?,
+               kanca             = ?,
                vurgu_sayi        = ?,
                vurgu_etiket      = ?,
                alinti            = ?,
@@ -419,6 +421,7 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
             uretilen.get("onem_puani"),
             uretilen.get("slayt_ozet"),
             uretilen.get("detay_metni"),
+            (uretilen.get("kanca") or "").strip() or None,
             (uretilen.get("vurgu_sayi") or "").strip() or None,
             (uretilen.get("vurgu_etiket") or "").strip() or None,
             (uretilen.get("alinti") or "").strip() or None,

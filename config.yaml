@@ -411,6 +411,16 @@ gorsel:
   # demektir — Vision denetimi devreye girene kadar açma.
   web_gorsel_ara: false
 
+  # ⚠️ EDİTORYAL KANCA (hook) — 9:16 kapak slaytında fotoğrafın üstüne
+  # basılan iri iki satırlık vurgu. `src/hook_motoru.py`.
+  #
+  # Projedeki her özellik kapatılabiliyor; bunun anahtarı YOKTU.
+  # Ölçüldü (9 Eyl 2026, 200 haber): kanca haberlerin yalnızca
+  # %18'inde çiziliyor — kalan %82 başlığı tekrarladığı için bilerek
+  # bastırılıyor (A kuralı). Yani kapatmanın görünür bedeli zaten
+  # küçük, ama beğenilmezse tek satırla kapanmalı.
+  kanca_ciz: true
+
   # ⚠️ VISION DENETİMİ — fotoğrafın İÇİNE bakar (3 Eyl 2026).
   #
   # Bu projedeki bütün doğruluk denetimleri METNE bakıyordu

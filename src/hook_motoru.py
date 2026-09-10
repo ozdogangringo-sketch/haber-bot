@@ -12,8 +12,14 @@ kanca (hook) çizim ve kompozisyon motoru.
      - Zümrüt Yeşili (#10B981): Şampiyonluk, zafer, müjde, tarihi başarı.
   2. 3 Tipografik Format:
      - stat_punch: İri rakam + birim + dikey ayraç + 2-3 satır vurgu.
-     - kinetik_cubuk: Sol degrade dikey çentik + kicker + 2 satır başlık.
      - minimal_vurgu: ● Kicker + dev 2 satır vurgu (en yalın editoryal stil).
+
+    ⚠️ ÜÇÜNCÜ BİR FORMAT VARDI — `kinetik_cubuk` SİLİNDİ (9 Eyl 2026).
+    `hook_olustur` yalnızca `stat_punch` ve `minimal_vurgu` üretiyor;
+    ölçüldü, 200 gerçek haberde `kinetik_cubuk` **0 kez** seçildi ve
+    55 satırlık çizim fonksiyonu hiçbir zaman çalışmadı. Ölü kodun
+    asıl zararı yer değil YANLIŞ HARİTA: okuyan 'üç format var'
+    sanıyor ve olmayan bir davranışa göre karar veriyor.
   3. Akıllı Boşluk Tespiti (Smart Negative Space Detection):
      - Pillow FIND_EDGES ile fotoğraf taranır.
      - İnsan yüzü/omzu veya detaylı nesne alt zemindeyse, metin otomatik olarak
@@ -101,18 +107,26 @@ def uygun_alan_tespit_et(gorsel, baslik_ust: int, hook_h: int = 160) -> tuple[st
         for ad, y in adaylar:
             yog = _bant_yogunlugu(edges, 74, y, sag, y + hook_h)
             olculen.append((yog, ad, y))
-        olculen.sort(key=lambda t: t[0])
-
         SAKIN_ESIK = 18.0
-        en_sakin_yog, en_sakin_ad, en_sakin_y = olculen[0]
-        if en_sakin_yog <= SAKIN_ESIK:
-            log.debug("Hook bandı: %s (yoğunluk %.1f)", en_sakin_ad, en_sakin_yog)
-            return en_sakin_ad, en_sakin_y
+
+        # ⚠️ EN SAKİN BANT DEĞİL, BAŞLIĞA EN YAKIN SAKİN BANT (9 Eyl 2026).
+        # İlk yazımda bantlar yoğunluğa göre sıralanıp GLOBAL en sakini
+        # seçiliyordu ve kanca sık sık en üste (y=485) fırlıyordu; gerçek
+        # slaytta ölçüldü, kanca ile başlık arasında **~500 piksel boşluk**
+        # kalıyor ve kanca hiçbir bloğa ait olmayan, havada duran bir
+        # yazıya dönüşüyordu. Kanca başlığın ÜST SATIRI gibi okunmalı.
+        # Bu yüzden bantlar aşağıdan yukarı geziliyor: yeteri kadar sakin
+        # olan İLK bant kazanıyor, yukarı çıkmak için aşağıdakinin
+        # gerçekten kalabalık olması gerekiyor.
+        for yog, ad, y in sorted(olculen, key=lambda t: -t[2]):
+            if yog <= SAKIN_ESIK:
+                log.debug("Hook bandı: %s (yoğunluk %.1f)", ad, yog)
+                return ad, y
 
         # Hepsi kalabalık → perdenin en koyu olduğu EN ALT bandı seç
         en_alt = max(adaylar, key=lambda t: t[1])
         log.debug("Hook bandı: hepsi yoğun (en düşük %.1f), perdeye iniliyor",
-                  en_sakin_yog)
+                  min(t[0] for t in olculen))
         return en_alt[0], en_alt[1]
 
     except Exception as e:                             # noqa: BLE001
@@ -250,61 +264,6 @@ def ciz_stat_punch(
     return out
 
 
-def ciz_kinetik_cubuk(
-    gorsel: Image.Image,
-    x: int,
-    y: int,
-    kicker: str,
-    t1: str,
-    t2: str,
-    renk: tuple[int, int, int] = AMBER,
-) -> Image.Image:
-    """Sol degrade çentikli kinetik format (Rakamsız haberler için)."""
-    out = gorsel.copy()
-    f_kicker = _font(22, 800.0)
-    tx = x + 26
-    # ⚠️ Sığdırma: bu format da genişlik denetimsizdi (bkz. _sigdiran_font).
-    kinetik_alan = max(160, (TUVAL_GENISLIK - SAG_PAY) - tx)
-    f_title = _sigdiran_font([t1, t2], 56, kinetik_alan)
-    t1 = _kirp(t1, f_title, kinetik_alan)
-    t2 = _kirp(t2, f_title, kinetik_alan)
-    kicker = _kirp(kicker, f_kicker, kinetik_alan)
-    y_kicker = y
-    y_t1 = y + 32
-    y_t2 = y + 96
-
-    bb_k = f_kicker.getbbox(kicker)
-    bb_t2 = f_title.getbbox(t2)
-    bar_top = y_kicker + bb_k[1]
-    bar_bottom = y_t2 + bb_t2[3]
-    bar_h = max(30, bar_bottom - bar_top)
-
-    notch = Image.new("RGBA", (8, bar_h), (0, 0, 0, 0))
-    ndraw = ImageDraw.Draw(notch)
-    for ny in range(bar_h):
-        t = ny / bar_h
-        r = int(renk[0] * (1 - t) + (renk[0] * 0.8) * t)
-        g = int(renk[1] * (1 - t) + (renk[1] * 0.8) * t)
-        b = int(renk[2] * (1 - t) + (renk[2] * 0.8) * t)
-        ndraw.line([(0, ny), (7, ny)], fill=(r, g, b, 255))
-    out.paste(notch, (x, bar_top), notch)
-
-    shadow = Image.new("RGBA", (kinetik_alan + 60, 220), (0, 0, 0, 0))
-    sdraw = ImageDraw.Draw(shadow)
-    sdraw.text((30, 20), kicker, font=f_kicker, fill=(0, 0, 0, 255))
-    sdraw.text((30, 52), t1, font=f_title, fill=(0, 0, 0, 255))
-    sdraw.text((30, 116), t2, font=f_title, fill=(0, 0, 0, 255))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(14))
-    out.paste(shadow, (tx - 30, y - 20), shadow)
-
-    draw = ImageDraw.Draw(out)
-    draw.text((tx, y_kicker), kicker, font=f_kicker, fill=renk)
-    draw.text((tx, y_t1), t1, font=f_title, fill=WHITE)
-    draw.text((tx, y_t2), t2, font=f_title, fill=renk)
-
-    return out
-
-
 def ciz_minimal_vurgu(
     gorsel: Image.Image,
     x: int,
@@ -365,21 +324,43 @@ def _dengeli_bol(kelimeler: list[str]) -> tuple[str, str]:
     if len(kelimeler) < 2:
         return " ".join(kelimeler), ""
 
-    toplam = sum(len(k) for k in kelimeler) + len(kelimeler) - 1
-    en_iyi, en_iyi_fark = 1, None
-    for i in range(1, len(kelimeler)):
-        sol = " ".join(kelimeler[:i])
-        sag = " ".join(kelimeler[i:])
-        # Tek kısa kelimelik satır bırakma
-        if (len(kelimeler[:i]) < 2 and len(sol) < 8) or \
-           (len(kelimeler[i:]) < 2 and len(sag) < 8):
-            continue
-        fark = abs(len(sol) - len(sag))
-        if en_iyi_fark is None or fark < en_iyi_fark:
-            en_iyi, en_iyi_fark = i, fark
-    if en_iyi_fark is None:
-        en_iyi = (len(kelimeler) + 1) // 2
-    return " ".join(kelimeler[:en_iyi]), " ".join(kelimeler[en_iyi:])
+    # ⚠️ RAKAMI BİRİMİNDEN AYIRMA (9 Eyl 2026). `kanca` alanı devreye
+    # girince ilk çıktılardan biri `EHLİYETİNE 60 / GÜN EL KONDU` oldu —
+    # "60 gün" ikiye bölünmüş. Satır sonunda yalnız kalan sayı ne
+    # olduğunu söylemiyor; ardındaki birimle (gün, kişi, milyon, ₺…)
+    # aynı satırda kalmalı.
+    def _sayi_biriminden_kopuyor(i: int) -> bool:
+        return bool(re.fullmatch(r"[%₺$€]?[\d.,]+[%₺$€]?", kelimeler[i - 1]))
+
+    def _tek_kisa_satir(i: int) -> bool:
+        sol, sag = " ".join(kelimeler[:i]), " ".join(kelimeler[i:])
+        return ((len(kelimeler[:i]) < 2 and len(sol) < 8) or
+                (len(kelimeler[i:]) < 2 and len(sag) < 8))
+
+    # ⚠️ KISITLAR KATMAN KATMAN GEVŞETİLİYOR — düz ortadan bölmeye
+    # DÜŞÜLMÜYOR. İlk yazımda hiçbir aday iki kuralı birden sağlamazsa
+    # kod `(len+1)//2` ile ortadan bölüyordu ve bu, engellemeye
+    # çalıştığı kusuru geri getiriyordu: "ZARAR 12 MİLYON LİRA" bütün
+    # adaylarda elendiği için yedek dala düşüyor ve tam da yasak olan
+    # yerden — `ZARAR 12 / MİLYON LİRA` — bölünüyordu.
+    # Sıra önem sırasıdır: sayıyı biriminden ayırmak, kısa bir satır
+    # bırakmaktan daha kötü okunuyor.
+    for kisitlar in (
+        (_tek_kisa_satir, _sayi_biriminden_kopuyor),   # ikisi de
+        (_sayi_biriminden_kopuyor,),                   # kısa satıra izin ver
+        (),                                            # son çare
+    ):
+        en_iyi, en_iyi_fark = None, None
+        for i in range(1, len(kelimeler)):
+            if any(k(i) for k in kisitlar):
+                continue
+            fark = abs(len(" ".join(kelimeler[:i])) - len(" ".join(kelimeler[i:])))
+            if en_iyi_fark is None or fark < en_iyi_fark:
+                en_iyi, en_iyi_fark = i, fark
+        if en_iyi is not None:
+            return " ".join(kelimeler[:en_iyi]), " ".join(kelimeler[en_iyi:])
+
+    return " ".join(kelimeler), ""
 
 
 def _basliktan_hook_metinleri(baslik: str, konu: str = "") -> tuple[str, str]:
@@ -499,6 +480,29 @@ def _baslikta_sayi_var_mi(baslik: str) -> bool:
     return bool(_re.search(r"\d", baslik or ""))
 
 
+def _son_dakika_esigini_geciyor(haber: dict) -> bool:
+    """
+    Bu haber "SON DAKİKA" ibaresini hak ediyor mu?
+
+    Tek kaynak `config → genel.son_dakika_etiket_esigi` (varsayılan 9) —
+    `slaytlar.py` ve `caption.py` aynı eşiği kullanıyor. Puan yoksa
+    ibare BASILMIYOR: ölçülmemiş bir haberi "son dakika" ilan etmek,
+    ibareyi değersizleştirmenin en kolay yolu.
+    """
+    try:
+        import yaml
+        from pathlib import Path as _P
+        ayarlar = yaml.safe_load((_P(__file__).parent.parent / "config.yaml")
+                                .read_text(encoding="utf-8"))
+        esik = int(ayarlar.get("genel", {}).get("son_dakika_etiket_esigi", 9))
+    except Exception:                                   # noqa: BLE001
+        esik = 9
+    try:
+        return int(haber.get("onem_puani") or 0) >= esik
+    except (TypeError, ValueError):
+        return False
+
+
 def hook_olustur(haber: dict) -> dict | None:
     """
     Haber verisinden akıllı editoryal hook konfigürasyonunu çıkarır.
@@ -580,8 +584,20 @@ def hook_olustur(haber: dict) -> dict | None:
         }
 
     # 4. Sayısız Haberler (Konuya ve Duyguya Uygun Kicker + Minimal Vurgu)
-    if renk_adi == "kirmizi":
+    #
+    # ⚠️ "SON DAKİKA" İBARESİ PUANA BAĞLI — kural baypas ediliyordu
+    # (9 Eyl 2026). Kicker yalnızca RENGE bakıyordu ve renk de kelime
+    # desenlerinden geliyor; sonuç: ÖLÇÜLDÜ, 12 kancanın **9'u** (%75)
+    # önem puanı 9'un ALTINDAYKEN "SON DAKİKA GELİŞMESİ" basıyordu —
+    # rutin bir trafik cezası (7), bir istifa (7), hastane ilaç
+    # hırsızlığı (7). Oysa projenin kararı net: *"her önemli habere son
+    # dakika demek ibareyi değersizleştiriyor"*, eşik `config →
+    # son_dakika_etiket_esigi: 9` ve `slaytlar.py` ile `caption.py` ona
+    # uyuyor. Kanca uymuyordu. Aynı kural, aynı eşik, üçüncü kapı.
+    if renk_adi == "kirmizi" and _son_dakika_esigini_geciyor(haber):
         kicker = "● SON DAKİKA GELİŞMESİ"
+    elif renk_adi == "kirmizi":
+        kicker = "● DİKKAT ÇEKEN GELİŞME"
     elif renk_adi == "yesil":
         kicker = "● TARİHİ BAŞARI"
     elif any(w in metin_tum for w in ["savunma", "siha", "iha", "tusaş", "tsk", "nato", "baykar", "aselsan", "uçağı", "savaş uçağı"]):
@@ -597,10 +613,32 @@ def hook_olustur(haber: dict) -> dict | None:
     else:
         kicker = "● DİKKAT ÇEKEN GELİŞME"
 
-    t1, t2 = _basliktan_hook_metinleri(
-        haber.get("ig_baslik") or haber.get("baslik_orj") or "",
-        haber.get("gorsel_konu") or ""
-    )
+    # ⚠️ ÖNCE GEMİNİ'NİN `kanca` ALANI — asıl çözüm bu (9 Eyl 2026).
+    #
+    # `_basliktan_hook_metinleri` adı üstünde BAŞLIKTAN türetiyor;
+    # dolayısıyla ne kadar filtrelenirse filtrelensin yeni bilgi
+    # taşıyamaz. ÖLÇÜLDÜ: 120 haberin **99'unda** (%82) üretilen kanca
+    # başlığın yeniden ifadesiydi ve A kuralı tarafından bastırıldı.
+    # Kullanıcının şartı — *"kancayla başlık tamamen farklı olmalı"* —
+    # bu türetmeyle YAPISAL OLARAK karşılanamaz.
+    #
+    # `kanca` alanı makale GÖVDESİNDEN, başlıkta geçmeyen bir ayrıntı
+    # olarak üretiliyor (bkz. `generate_text.PROMPT`). Şema onu ZORUNLU
+    # DEĞİL, boş bırakılabilir yapıyor — `vurgu_sayi` ve `alinti` ile
+    # aynı gerekçe: doldurmaya zorlamak uydurmayı davet eder.
+    #
+    # ⚠️ Başlıktan türetme SİLİNMEDİ, yedek olarak duruyor: alan boş
+    # gelen ESKİ kayıtlar (1h dersi — kaynağı düzeltmek geçmiş
+    # kayıtları düzeltmiyor) yine eski yoldan geçiyor ve A kuralı
+    # onları zaten eliyor.
+    kanca = (haber.get("kanca") or "").strip()
+    if kanca:
+        t1, t2 = _dengeli_bol(tr_upper(kanca).split())
+    else:
+        t1, t2 = _basliktan_hook_metinleri(
+            haber.get("ig_baslik") or haber.get("baslik_orj") or "",
+            haber.get("gorsel_konu") or ""
+        )
     if not t2:
         t2 = tr_upper(haber.get("gorsel_konu") or "GÜNDEM")
 
@@ -617,6 +655,28 @@ def hook_olustur(haber: dict) -> dict | None:
         "t1": t1,
         "t2": t2,
     }
+
+
+# Kanca ile başlık bloğu arasında bırakılacak en az boşluk.
+# Projenin kendi aralık standardı: detay paragrafları 24px, başlık-özet
+# arası 26px. Kanca da aynı ailede olmalı.
+NEFES_PAYI = 30
+
+
+def _metin_kutusu(oncesi: Image.Image, sonrasi: Image.Image) -> tuple | None:
+    """
+    Çizilen kancanın GERÇEK metin sınırlarını döndürür.
+
+    ⚠️ Eşik 110: düşük eşik gölgeyi de sayıyor. Ölçüldü — gölge dahil
+    ölçüm kancayı başlığa 7-10px girmiş gösteriyordu, oysa METİN hiç
+    taşmıyordu. Yanlış alarm veren ölçüm, ölçüm yapmamaktan kötüdür.
+    """
+    try:
+        from PIL import ImageChops
+        return (ImageChops.difference(oncesi.convert("RGB"), sonrasi.convert("RGB"))
+                .convert("L").point(lambda v: 255 if v > 110 else 0).getbbox())
+    except Exception:                                   # noqa: BLE001
+        return None
 
 
 def hook_uygula(
@@ -641,39 +701,58 @@ def hook_uygula(
     renk = RENK_PALETI.get(hook_veri.get("renk", "amber"), AMBER)
     fmt = hook_veri.get("format", "stat_punch")
 
-    log.info("Hook çiziliyor: format=%s, renk=%s, konum=%s (y=%d)",
-             fmt, hook_veri.get("renk"), konum, y)
-
-    if fmt == "stat_punch":
-        return ciz_stat_punch(
-            gorsel,
-            x=x,
-            y=y,
-            num_txt=hook_veri.get("num_txt", ""),
-            unit_txt=hook_veri.get("unit_txt", ""),
-            lbl_txt=hook_veri.get("lbl_txt", ""),
-            t1=hook_veri.get("t1", ""),
-            t2=hook_veri.get("t2", ""),
-            t3=hook_veri.get("t3", ""),
-            renk=renk,
-        )
-    elif fmt == "kinetik_cubuk":
-        return ciz_kinetik_cubuk(
-            gorsel,
-            x=x,
-            y=y,
-            kicker=hook_veri.get("kicker", "● ÖNE ÇIKAN GELİŞME"),
-            t1=hook_veri.get("t1", ""),
-            t2=hook_veri.get("t2", ""),
-            renk=renk,
-        )
-    else:  # minimal_vurgu
+    def _ciz(hedef: Image.Image, ust: int) -> Image.Image:
+        """Kancayı verilen üst koordinata çizer — iki geçişte de aynı yol."""
+        if fmt == "stat_punch":
+            return ciz_stat_punch(
+                hedef,
+                x=x,
+                y=ust,
+                num_txt=hook_veri.get("num_txt", ""),
+                unit_txt=hook_veri.get("unit_txt", ""),
+                lbl_txt=hook_veri.get("lbl_txt", ""),
+                t1=hook_veri.get("t1", ""),
+                t2=hook_veri.get("t2", ""),
+                t3=hook_veri.get("t3", ""),
+                renk=renk,
+            )
         return ciz_minimal_vurgu(
-            gorsel,
+            hedef,
             x=x,
-            y=y,
+            y=ust,
             kicker=hook_veri.get("kicker", "● ÖNE ÇIKAN GELİŞME"),
             t1=hook_veri.get("t1", ""),
             t2=hook_veri.get("t2", ""),
             renk=renk,
         )
+
+    sonuc = _ciz(gorsel, y)
+
+    # ⚠️ NEFES PAYI — kanca başlığa 9 PİKSEL kalana kadar iniyordu
+    # (9 Eyl 2026, 51 kanca ölçüldü: ortanca 21px, en dar **9px**,
+    # 9 tanesi 20px'in altında). Projenin kendi aralık standardı 24-26px
+    # (detay paragrafları 24, başlık-özet arası 26); 9px'te kanca ile
+    # başlık tek blok gibi okunuyor ve ikisi birbirine yapışıyor.
+    #
+    # ⚠️ SEBEP: `uygun_alan_tespit_et` kancayı **160px** varsayıyor ama
+    # ölçüldü, `minimal_vurgu` gerçekte **180px**'e çıkıyor — 30px'lik
+    # pay 9'a böyle düşüyordu.
+    #
+    # ⚠️ YÜKSEKLİK NEDEN HESAPLANMIYOR DA ÖLÇÜLÜYOR: formül yazmak
+    # (kicker+36, t1+70, punto…) o hesabı çizim kodunun İKİZİ yapardı ve
+    # bu projedeki en sık hata sınıfı tam olarak bu — *aynı kural iki
+    # yerde yaşıyor, biri güncellenince diğeri unutuluyor*. Çizip ölçmek
+    # kendi kendini düzeltiyor: çizim değişirse ölçüm de değişir.
+    # Maliyeti ölçüldü: **33 ms/slayt** ve yalnızca kanca çizilen
+    # slaytlarda (haberlerin %18'i).
+    kutu = _metin_kutusu(gorsel, sonuc)
+    if kutu:
+        tasma = kutu[3] - (baslik_ust - NEFES_PAYI)
+        if tasma > 0:
+            y = max(120, y - int(tasma))
+            sonuc = _ciz(gorsel, y)
+            log.debug("Hook %d piksel yukarı alındı (nefes payı %d)", tasma, NEFES_PAYI)
+
+    log.info("Hook çizildi: format=%s, renk=%s, konum=%s (y=%d)",
+             fmt, hook_veri.get("renk"), konum, y)
+    return sonuc

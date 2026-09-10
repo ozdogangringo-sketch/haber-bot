@@ -1048,7 +1048,9 @@ def yaziyi_bas(
         y += ozet_satir_y
 
     # --- 3.5) Editoryal Hook (Kanca) Çizimi (Yalnızca 9:16 / 1080x1920 Kapak Slaytlarında) ---
-    if haber and yukseklik >= 1800:
+    # ⚠️ `kanca_ciz` ayarı: projedeki her özellik kapatılabiliyor
+    # (`web_gorsel_ara`, `threadse_de_at`…), kancanın anahtarı yoktu.
+    if haber and yukseklik >= 1800 and g.get("kanca_ciz", True):
         try:
             from . import hook_motoru
             gorsel = hook_motoru.hook_uygula(gorsel, haber, baslik_ust, ayarlar)

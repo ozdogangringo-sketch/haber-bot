@@ -105,6 +105,7 @@ CEVAP_SEMASI = {
         "slayt_ozet": {"type": "string"},
         "detay_metni": {"type": "string"},
         # Vurgu öğeleri — yoksa boş string
+        "kanca": {"type": "string"},
         "vurgu_sayi": {"type": "string"},
         "vurgu_etiket": {"type": "string"},
         "alinti": {"type": "string"},
@@ -147,7 +148,7 @@ CEVAP_SEMASI = {
     },
     "required": [
         "baslik_alternatifleri", "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
-        "slayt_ozet", "detay_metni", "vurgu_sayi", "vurgu_etiket",
+        "slayt_ozet", "detay_metni", "kanca", "vurgu_sayi", "vurgu_etiket",
         "alinti", "alinti_sahibi", "gorsel_ozne_tipi", "gorsel_baglam",
         "gorsel_konu", "gorsel_temsili",
         "kategori", "ulke_kodu", "ulke_adi", "neden_onemli",
@@ -243,6 +244,44 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
       İYİ   "Resmi WLTP Menzili: 647 km → 936 km"
       İYİ   "Motorin Ton Fiyatı: 1.257 $ → 1.410 $"
       İYİ   "İş Arama Süresi: 5 saat → 2 dakika 51 saniye"
+- kanca: Kapak görselinin üstüne basılacak İKİ-ÜÇ KELİMELİK vurgu.
+
+  ⚠️ EN ÖNEMLİ KURAL: kanca BAŞLIĞIN ÖZETİ DEĞİLDİR. Başlıkta zaten
+  yazan şeyi kısaltırsan slaytta aynı cümle İKİ KEZ görünür ve kanca
+  hiçbir şey katmaz. Kanca, başlığı okuyan kişinin HENÜZ BİLMEDİĞİ
+  bir ayrıntıyı MAKALE GÖVDESİNDEN çıkarır.
+
+  ⚠️ ÖLÇÜLDÜ (9 Eyl 2026): kanca metni başlıktan türetildiğinde 120
+  haberin **99'unda** (%82) başlığın yeniden ifadesi çıkıyordu ve
+  bastırılmak zorunda kalıyordu. Bu alan tam olarak onun için var.
+
+  BİÇİM: en fazla 5 kelime, iki satıra bölünebilir uzunlukta, BÜYÜK
+  HARFE çevrilecek. Cümle değil, ETİKET.
+
+  ⚠️ `slayt_ozet` İLE DE ÇAKIŞMASIN. Kanca ile özet AYNI slaytta,
+  alt alta basılıyor. Ölçüldü (9 Eyl 2026): başlıktan kurtulan kanca
+  bu kez özeti tekrarlıyordu — başlık "…380 bin ₺ ceza kesildi",
+  kanca "EHLİYETİNE 60 GÜN EL KONDU", özet "Sürücünün ehliyetine ve
+  aracına 60 gün el konulurken…". Üçü de doğru, ama ikisi aynı şeyi
+  söylüyor. Kanca · başlık · özet ÜÇ FARKLI şey anlatmalı.
+
+  ⚠️ YOKSA BOŞ BIRAK — uydurma. Gövde zayıfsa, ya da başlıkta VE
+  özette geçmeyen çarpıcı bir ayrıntı yoksa bu alan boş kalmalı;
+  kanca çizilmez ve slayt hiçbir şey kaybetmez. Boş bırakmak,
+  doldurmaya çalışmaktan İYİDİR.
+
+      İYİ   Başlık: "Trafikte saldıran sürücüye 380 bin ₺ ceza kesildi"
+            kanca: "EHLİYETİNE 60 GÜN EL KONDU"
+            (gövdede var, başlıkta YOK — yeni bilgi katıyor)
+      İYİ   Başlık: "Akşehir Belediye Başkanı CHP'den istifa etti"
+            kanca: "14 MECLİS ÜYESİ DE AYRILDI"
+      KÖTÜ  Başlık: "Trafikte saldıran sürücüye 380 bin ₺ ceza kesildi"
+            kanca: "TRAFİK DENETİMİ CEZA KESİLDİ"
+            (başlığın kısaltması — hiçbir şey katmıyor)
+      KÖTÜ  Başlık: "Apple iPhone fiyatlarına %25 zam yaptı"
+            kanca: "APPLE İPHONE FİYATLARINA ZAM"
+            (birebir aynı cümle)
+
 - vurgu_sayi / vurgu_etiket: Başlıkta GEÇMEYEN ikinci en çarpıcı sayı ve etiketi (örn: "2.352 yıl" / "istenen ceza"). Yoksa boş bırak.
 
   ⚠️ ÖLÇÜLMÜŞ KÖTÜ ÖRNEKLER (5 Eyl 2026, gerçek çıktılar):
