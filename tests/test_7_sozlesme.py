@@ -4385,6 +4385,49 @@ def test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor() -> None:
             "alan bilgisi taşıyan kicker korunuyor",
             "temizlik fazla geniş, işe yarayan etiketler de silindi")
 
+    # --- ⑦ KANCA TEK RENK: AMBER ---
+    # Kullanıcı sordu: *"kırmızı çok dikkat çekici bir tonda değil,
+    # kırmızı renk tercihi doğru mu"* (9 Eyl 2026). ÖLÇÜLDÜ ve haklı
+    # çıktı — kırmızı #EF4444'ün göreli parlaklığı **0.229**, amberin
+    # (#F59E0B) yarısı; gölge dahil kontrast **2.02** ve büyük metin
+    # eşiği 3.0. Sebep fizik: göz parlaklığı ağırlıklı olarak YEŞİL
+    # kanaldan okuyor (WCAG R.21/G.72/B.07) ve doymuş kırmızının yeşili
+    # yok. Eşiği geçecek kadar açmak (#FCA5A5) onu pembe yapıyor.
+    # Kullanıcı kararı: **her şey amber** — zaten markanın rengi.
+    #
+    # ⚠️ DAVRANIŞA bakılıyor, sabit listesine değil: birisi paleti geri
+    # getirip `hook_olustur`u kırmızı döndürür hâle getirirse çizilen
+    # piksel yakalanır.
+    _z = Image.new("RGB", (1080, 1920), (28, 32, 44))
+    _acil = {"kategori": "turkiye", "onem_puani": 10,
+             "ig_baslik": "Depremde çok sayıda bina ağır hasar gördü",
+             "kanca": "İKİ İLDE OKULLAR TATİL"}
+    _cizili = hm.hook_uygula(_z.copy(), _acil, 1150, None)
+    # ⚠️ EŞİK 60, 110 DEĞİL: kırmızı metin (239,68,68) koyu zeminde
+    # yalnızca ~87 birim fark üretiyor ve 110 eşiğini GEÇEMİYOR —
+    # sabotajda maske boş kalıp yanlış denetim patlıyordu. (O boşluk
+    # kırmızının sönüklüğünü zaten kanıtlıyor ama teşhisi gizliyor.)
+    # Amber aynı zeminde ~143 üretiyor.
+    _fark = ImageChops.difference(_z, _cizili).convert("L") \
+        .point(lambda v: 255 if v > 60 else 0)
+    _kutu = _fark.getbbox()
+    denetle(_kutu is not None, "acil haberde kanca çiziliyor",
+            "renk denetimi ölçecek piksel bulamıyor")
+    if _kutu:
+        # Çizilen metin piksellerinin en doygun olanlarına bak
+        _px = _cizili.crop(_kutu).convert("RGB")
+        _maske = _fark.crop(_kutu)
+        _renkli = [pk for pk, m in zip(_px.getdata(), _maske.getdata())
+                   if m and pk[0] > 150 and pk[0] - pk[2] > 60]
+        denetle(bool(_renkli), "kancada vurgu rengi basılıyor",
+                "hiç sıcak renkli piksel yok")
+        if _renkli:
+            _g = sum(pk[1] for pk in _renkli) / len(_renkli)
+            denetle(_g > 120,
+                    f"vurgu rengi AMBER (ortalama yeşil kanal {_g:.0f})",
+                    "kırmızıya dönülmüş — amber G=158, kırmızı G=68; "
+                    "kırmızı bu zeminde kontrast 2.02 veriyor, eşik 3.0")
+
     # --- Sayıyı biriminden ayırma ---
     a, b = hm._dengeli_bol("ZARAR 12 MİLYON LİRA".split())
     denetle(not re.fullmatch(r"[%₺$€]?[\d.,]+[%₺$€]?", a.split()[-1]),

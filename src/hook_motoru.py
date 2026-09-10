@@ -41,20 +41,30 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageStat
 log = logging.getLogger(__name__)
 
 # --- 3 TEMEL EDİTORYAL RENK ---
+# ⚠️ KANCA TEK RENK: AMBER — kullanıcı kararı (9 Eyl 2026).
+# Kullanıcı sordu: *"kırmızı çok dikkat çekici bir tonda değil, kırmızı
+# renk tercihi doğru mu"*. ÖLÇÜLDÜ ve haklı çıktı:
+#
+#   renk               göreli parlaklık   kontrast (gölge dahil, orta ton foto)
+#   #EF4444 kırmızı          0.229                    2.02
+#   #F59E0B amber            0.439                    3.54
+#   büyük metin eşiği                                 3.00
+#
+# ⚠️ SEBEP FİZİK, ZEVK DEĞİL: göz parlaklığı ağırlıklı olarak YEŞİL
+# kanaldan okuyor (WCAG ağırlıkları R .21 / G .72 / B .07). Doymuş
+# kırmızının yeşil kanalı yok, dolayısıyla koyu bir zeminde "parlak"
+# değil KOYU bir renk. Kırmızı beyaz zeminde patlar, fotoğraf üstünde
+# sönük kalır. Eşiği geçecek kadar açmak (#FCA5A5) onu kırmızı olmaktan
+# çıkarıp pembe yapıyor — yani bu tasarımda güçlü kırmızı mümkün değil.
+#
+# ⚠️ KIRMIZI/YEŞİL SABİTLERİ SİLİNDİ, geri getirilmeden önce yukarıdaki
+# ölçümü tekrar oku. Amber zaten markanın rengi: logo çizgisi, vurgu
+# rakamı, alıntı çizgisi ve CTA hep amber.
 AMBER = (245, 158, 11)       # #F59E0B (Sıcak Kehribar Sarısı)
-KIRMIZI = (239, 68, 68)      # #EF4444 (Crimson Alert Kırmızısı)
-YESIL = (16, 185, 129)       # #10B981 (Zümrüt Yeşili)
 WHITE = (255, 255, 255)
 GRAY = (148, 163, 184)
 
-RENK_PALETI = {
-    "amber": AMBER,
-    "sari": AMBER,
-    "kirmizi": KIRMIZI,
-    "red": KIRMIZI,
-    "yesil": YESIL,
-    "green": YESIL,
-}
+
 
 
 def _font(punto: int, weight: float = 900.0) -> ImageFont.FreeTypeFont:
@@ -533,17 +543,11 @@ def hook_olustur(haber: dict) -> dict | None:
         r"fiyat artisi", r"zam", r"rekor zam",
         r"mahsur", r"kurtar", r"istifa", r"gozalti", r"gözaltı", r"patlama",
     ]
-    yesil_desenler = [
-        r"sampiyon", r"zafer", r"kupa", r"galibiyet", r"altin madalya",
-        r"yendi", r"devirdi", r"tarihi basari", r"rekor ihracat", r"zirvede",
-    ]
-
-    if any(re.search(d, metin_tum) for d in kirmizi_desenler):
-        renk_adi = "kirmizi"
-    elif kategori == "spor" and any(re.search(d, metin_tum) for d in yesil_desenler):
-        renk_adi = "yesil"
-    else:
-        renk_adi = "amber"
+    # ⚠️ Bu tespit artık RENK seçmiyor (kanca tek renk: amber).
+    # Tek işi kaldı: "SON DAKİKA" ibaresinin çıkabileceği haber türünü
+    # işaretlemek. Adı da onu söylüyor — `renk_adi` diye kalsaydı bir
+    # sonraki okuyan renk sanırdı.
+    acil_haber = any(re.search(d, metin_tum) for d in kirmizi_desenler)
 
     # ⚠️ KODA GÖMÜLÜ "XIAOMI SUV" ÖZEL DURUMU SİLİNDİ (9 Eyl 2026).
     # Haberde ne yazarsa yazsın sabit "750 mm · SU GEÇİŞ DERİNLİĞİ" ve
@@ -587,7 +591,6 @@ def hook_olustur(haber: dict) -> dict | None:
             return None
         return {
             "format": "stat_punch",
-            "renk": renk_adi,
             "num_txt": num_part,
             "unit_txt": unit_part,
             "lbl_txt": tr_upper(v_etiket or "KİLİT VERİ"),
@@ -621,7 +624,7 @@ def hook_olustur(haber: dict) -> dict | None:
     # ⚠️ Uyacak etiket yoksa kicker BOŞ kalıyor ve satır HİÇ ÇİZİLMİYOR;
     # yerine dolgu koymuyoruz. `vurgu_sayi` ve `alinti` alanlarındaki
     # kararla aynı: yoksa yok.
-    if renk_adi == "kirmizi" and _son_dakika_esigini_geciyor(haber):
+    if acil_haber and _son_dakika_esigini_geciyor(haber):
         kicker = "● SON DAKİKA GELİŞMESİ"
     elif any(w in metin_tum for w in ["savunma", "siha", "iha", "tusaş", "tsk", "nato", "baykar", "aselsan", "uçağı", "savaş uçağı"]):
         kicker = "● SAVUNMA SANAYİİ"
@@ -673,7 +676,6 @@ def hook_olustur(haber: dict) -> dict | None:
 
     return {
         "format": "minimal_vurgu",
-        "renk": renk_adi,
         "kicker": kicker,
         "t1": t1,
         "t2": t2,
@@ -732,7 +734,7 @@ def hook_uygula(
         y = max(400, baslik_ust - 190)
 
     x = 74
-    renk = RENK_PALETI.get(hook_veri.get("renk", "amber"), AMBER)
+    renk = AMBER
     fmt = hook_veri.get("format", "stat_punch")
 
     def _ciz(hedef: Image.Image, ust: int) -> Image.Image:
@@ -787,6 +789,5 @@ def hook_uygula(
             sonuc = _ciz(gorsel, y)
             log.debug("Hook %d piksel yukarı alındı (nefes payı %d)", tasma, AYRIM_PAYI)
 
-    log.info("Hook çizildi: format=%s, renk=%s, konum=%s (y=%d)",
-             fmt, hook_veri.get("renk"), konum, y)
+    log.info("Hook çizildi: format=%s, konum=%s (y=%d)", fmt, konum, y)
     return sonuc
