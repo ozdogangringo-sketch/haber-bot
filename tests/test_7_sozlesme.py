@@ -4304,6 +4304,36 @@ def test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor() -> None:
             "`gorsel.kanca_ciz` ayarı üretim kodunda okunuyor",
             "özellik kapatılamıyor")
 
+    # --- ⑥ İÇİ BOŞ KICKER BASILMIYOR ---
+    # Kullanıcı sordu: *"'dikkat çeken gelişme' cümlesine gerek var mı"*
+    # (9 Eyl 2026). ÖLÇÜLDÜ: 47 kicker'ın **26'sı (%55)** tam olarak o
+    # ifadeydi. Bir haber hesabındaki HER gönderi zaten "dikkat çeken
+    # gelişme"dir — ifade hiçbir şey söylemiyor ve silinince hiçbir
+    # bilgi kaybolmuyor. Gövde metninden `bos_ovgu_mu` ile ayıkladığımız
+    # ölçütün birebir aynısı. `TARİHİ BAŞARI` da gitti: bilgi değil HÜKÜM.
+    # ⚠️ Yerine dolgu KONMUYOR — uyacak etiket yoksa satır hiç çizilmiyor
+    # (`vurgu_sayi` / `alinti` kararıyla aynı: yoksa yok).
+    ICI_BOS = ("DİKKAT ÇEKEN", "TARİHİ BAŞARI", "ÖNE ÇIKAN GELİŞME")
+    kirli = []
+    for _b, _k in (("Bir kentte sağanak etkili oldu", "YOLLAR SU ALTINDA KALDI"),
+                   ("Milli takım finale yükseldi", "SETLERİ 3-0 ALDILAR"),
+                   ("Belediye başkanı görevden alındı", "YERİNE KAYYUM ATANDI")):
+        _c = hm.hook_olustur({"kategori": "turkiye", "ig_baslik": _b,
+                              "onem_puani": 7, "kanca": _k})
+        if _c and any(x in _c.get("kicker", "") for x in ICI_BOS):
+            kirli.append(_c["kicker"])
+    denetle(not kirli,
+            "içi boş kicker basılmıyor",
+            f"slaytta hiçbir şey söylemeyen dolgu satırı var: {kirli}")
+
+    # Bilgi taşıyan kicker'lar DURUYOR — kural fazla geniş olmasın
+    _eko = hm.hook_olustur({"kategori": "ekonomi", "onem_puani": 7,
+                            "ig_baslik": "Akaryakıta zam geldi",
+                            "kanca": "MOTORİN LİTRESİ ARTTI"})
+    denetle(bool(_eko and _eko.get("kicker")),
+            "alan bilgisi taşıyan kicker korunuyor",
+            "temizlik fazla geniş, işe yarayan etiketler de silindi")
+
     # --- Sayıyı biriminden ayırma ---
     a, b = hm._dengeli_bol("ZARAR 12 MİLYON LİRA".split())
     denetle(not re.fullmatch(r"[%₺$€]?[\d.,]+[%₺$€]?", a.split()[-1]),

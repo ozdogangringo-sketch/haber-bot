@@ -283,18 +283,24 @@ def ciz_minimal_vurgu(
     t2 = _kirp(t2, f_title, minimal_alan)
     kicker = _kirp(kicker, f_kicker, minimal_alan)
 
+    # ⚠️ Kicker boşsa satır YERİ DE ayrılmıyor — yoksa üstte 36 piksellik
+    # sebepsiz bir boşluk kalır ve kanca yine havada durur.
+    ust = 36 if kicker else 0
+
     shadow = Image.new("RGBA", (minimal_alan + 60, 220), (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow)
-    sdraw.text((30, 20), kicker, font=f_kicker, fill=(0, 0, 0, 255))
-    sdraw.text((30, 56), t1, font=f_title, fill=(0, 0, 0, 255))
-    sdraw.text((30, 126), t2, font=f_title, fill=(0, 0, 0, 255))
+    if kicker:
+        sdraw.text((30, 20), kicker, font=f_kicker, fill=(0, 0, 0, 255))
+    sdraw.text((30, 20 + ust), t1, font=f_title, fill=(0, 0, 0, 255))
+    sdraw.text((30, 90 + ust), t2, font=f_title, fill=(0, 0, 0, 255))
     shadow = shadow.filter(ImageFilter.GaussianBlur(14))
     out.paste(shadow, (x - 30, y - 20), shadow)
 
     draw = ImageDraw.Draw(out)
-    draw.text((x, y), kicker, font=f_kicker, fill=renk)
-    draw.text((x, y + 36), t1, font=f_title, fill=WHITE)
-    draw.text((x, y + 106), t2, font=f_title, fill=renk)
+    if kicker:
+        draw.text((x, y), kicker, font=f_kicker, fill=renk)
+    draw.text((x, y + ust), t1, font=f_title, fill=WHITE)
+    draw.text((x, y + 70 + ust), t2, font=f_title, fill=renk)
 
     return out
 
@@ -594,12 +600,23 @@ def hook_olustur(haber: dict) -> dict | None:
     # dakika demek ibareyi değersizleştiriyor"*, eşik `config →
     # son_dakika_etiket_esigi: 9` ve `slaytlar.py` ile `caption.py` ona
     # uyuyor. Kanca uymuyordu. Aynı kural, aynı eşik, üçüncü kapı.
+    # ⚠️ İÇİ BOŞ KICKER'LAR KALDIRILDI — kullanıcı sordu: *"'dikkat çeken
+    # gelişme' cümlesine gerek var mı"* (9 Eyl 2026). ÖLÇÜLDÜ: 47
+    # kicker'ın **26'sı (%55)** tam olarak o ifadeydi. Bir haber
+    # hesabındaki her gönderi zaten "dikkat çeken gelişme"dir; ifade
+    # hiçbir şey söylemiyor ve silinince hiçbir bilgi kaybolmuyor —
+    # gövde metninden ayıkladığımız *içi boş övgü* ölçütünün birebir
+    # aynısı. `TARİHİ BAŞARI` da aynı sebeple gitti: bilgi değil HÜKÜM.
+    #
+    # Kalanların hepsi bir şey SÖYLÜYOR: alanı (piyasa, spor, savunma,
+    # teknoloji), kimi ilgilendirdiğini (öğrenciler) ya da aciliyeti
+    # (son dakika — artık önem puanına bağlı).
+    #
+    # ⚠️ Uyacak etiket yoksa kicker BOŞ kalıyor ve satır HİÇ ÇİZİLMİYOR;
+    # yerine dolgu koymuyoruz. `vurgu_sayi` ve `alinti` alanlarındaki
+    # kararla aynı: yoksa yok.
     if renk_adi == "kirmizi" and _son_dakika_esigini_geciyor(haber):
         kicker = "● SON DAKİKA GELİŞMESİ"
-    elif renk_adi == "kirmizi":
-        kicker = "● DİKKAT ÇEKEN GELİŞME"
-    elif renk_adi == "yesil":
-        kicker = "● TARİHİ BAŞARI"
     elif any(w in metin_tum for w in ["savunma", "siha", "iha", "tusaş", "tsk", "nato", "baykar", "aselsan", "uçağı", "savaş uçağı"]):
         kicker = "● SAVUNMA SANAYİİ"
     elif any(w in metin_tum for w in ["öğrenci", "yurt", "ösym", "dgs", "yks", "kyk", "burs", "üniversite", "sınav"]):
@@ -611,7 +628,7 @@ def hook_olustur(haber: dict) -> dict | None:
     elif kategori == "spor":
         kicker = "● SPOR GÜNDEMİ"
     else:
-        kicker = "● DİKKAT ÇEKEN GELİŞME"
+        kicker = ""
 
     # ⚠️ ÖNCE GEMİNİ'NİN `kanca` ALANI — asıl çözüm bu (9 Eyl 2026).
     #
