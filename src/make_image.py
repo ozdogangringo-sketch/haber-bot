@@ -299,10 +299,56 @@ def _kelimeleri_satir_yap(kelimeler: list[tuple[str, bool]]) -> str:
     return satir
 
 
+UNVAN_VE_KISALTMALAR = {
+    "dr.", "dr", "doç.", "doç", "prof.", "prof", "av.", "av", "yrd.", "yrd",
+    "uzm.", "uzm", "müh.", "müh", "mim.", "mim", "sn.", "sn", "sayın",
+    "gen.", "gen", "alb.", "alb", "bnb.", "bnb", "yzb.", "yzb",
+    "tğm.", "tğm", "ütğm.", "ütğm", "astsb.", "astsb",
+    "md.", "md", "mad.", "mad", "sf.", "sf", "no.", "no", "nr.", "nr"
+}
+
+BUYUKLUK_KELIMELERI = {"bin", "milyon", "milyar", "trilyon"}
+PARA_BIRIMLERI = {"₺", "$", "€", "£", "tl", "try", "usd", "eur"}
+
+
+def _is_para_birimi(w: str) -> bool:
+    """Para sembolü, birim veya ekli halini (₺, ₺'ye, TL'de, $'a vb.) tespit eder."""
+    if not w:
+        return False
+    if w.startswith(("₺", "$", "€", "£")):
+        return True
+    clean = re.sub(r"[^\w₺$€£]", "", w.lower())
+    if clean in PARA_BIRIMLERI or any(clean.startswith(p) for p in ("₺", "tl", "try", "usd", "eur")):
+        return True
+    return bool(re.match(r"^(?:₺|\$|€|£|tl|try|usd|eur)(?:'[\wğüşıöç]+)?$", w, re.IGNORECASE))
+
+
+def _is_sayi(w: str) -> bool:
+    """Sayısal değer veya tutar (2.500, 45,50, 100 vb.) olup olmadığını denetler."""
+    if not w:
+        return False
+    clean = re.sub(r"[\.,]", "", w.strip("*_"))
+    return clean.isdigit()
+
+
+def _is_unvan_veya_on_ek(w: str) -> bool:
+    """Unvan, kısaltma veya sıra sayısı (Doç., Dr., Prof., 14. vb.) olup olmadığını denetler."""
+    if not w:
+        return False
+    clean = w.lower().strip("*_()[]")
+    if clean in UNVAN_VE_KISALTMALAR:
+        return True
+    if re.match(r"^\d+\.$", clean):
+        return True
+    return False
+
+
 def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
     """
     Kelime kelime ilerleyip satır genişliğini aşmadan böler.
     Satır bölünmelerinde **bold** etiketlerinin kopmasını önler.
+    ₺ gibi para birimlerinin önceki rakamdan ve unvanların sonraki kelimeden
+    kopmasını engelleyen akıllı yapışkanlık (glue) kurallarını uygular.
     """
     if not metin:
         return []
@@ -331,7 +377,7 @@ def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
     if not tokens:
         return []
 
-    # 2. Satırlara böl
+    # 2. Satırlara böl ve yapışkanlık kurallarını işlet
     satirlar = []
     gecerli_kelimeler = []
     gecerli_str = ""
@@ -342,10 +388,36 @@ def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
             gecerli_str = aday_str
             gecerli_kelimeler.append((word, bold))
         else:
+            tasinanlar = []
+
+            # Kural 1: Para / birim sembolü taşıyorsa önceki rakamı ve büyüklüğü beraberinde çeksin
+            if _is_para_birimi(word) and gecerli_kelimeler:
+                if (len(gecerli_kelimeler) >= 2
+                        and gecerli_kelimeler[-1][0].lower().strip("*") in BUYUKLUK_KELIMELERI
+                        and _is_sayi(gecerli_kelimeler[-2][0])):
+                    if len(gecerli_kelimeler) > 2:
+                        b = gecerli_kelimeler.pop()
+                        s = gecerli_kelimeler.pop()
+                        tasinanlar = [s, b]
+                elif _is_sayi(gecerli_kelimeler[-1][0]):
+                    if len(gecerli_kelimeler) > 1:
+                        tasinanlar = [gecerli_kelimeler.pop()]
+
+            # Kural 2: Büyüklük (bin, milyon) taşıyorsa önceki sayıyı çeksin
+            elif word.lower().strip("*") in BUYUKLUK_KELIMELERI and gecerli_kelimeler:
+                if _is_sayi(gecerli_kelimeler[-1][0]) and len(gecerli_kelimeler) > 1:
+                    tasinanlar = [gecerli_kelimeler.pop()]
+
+            # Kural 3: Satır sonunda unvan/ön ek kaldıysa (Doç., Dr., 14.), yeni satıra taşınsın
+            elif gecerli_kelimeler:
+                while len(gecerli_kelimeler) > 1 and _is_unvan_veya_on_ek(gecerli_kelimeler[-1][0]):
+                    tasinanlar.insert(0, gecerli_kelimeler.pop())
+
             if gecerli_kelimeler:
                 satirlar.append(_kelimeleri_satir_yap(gecerli_kelimeler))
-            gecerli_kelimeler = [(word, bold)]
-            gecerli_str = word
+
+            gecerli_kelimeler = tasinanlar + [(word, bold)]
+            gecerli_str = " ".join(w for w, _ in gecerli_kelimeler)
 
     if gecerli_kelimeler:
         satirlar.append(_kelimeleri_satir_yap(gecerli_kelimeler))
@@ -1656,29 +1728,100 @@ ALINTI_PUNTO = 40
 AZAMI_DETAY_SAYFA = 4
 
 
-def detay_sayfalara_bol(
-    detay: str, ayarlar: dict,
-    vurgu: tuple[str, str] | None = None,
-    alinti: tuple[str, str] | None = None,
-    neden_onemli: str | None = None,
-    sirada_ne_var: str | None = None,
-    trend_karti: Image.Image | None = None,
-    sana_etkisi: str | None = None,
-) -> list[list[dict]]:
+TURKCE_KISALTMALAR = {
+    "dr", "doc", "doç", "prof", "av", "yrd", "uzm", "muh", "müh", "mim",
+    "sn", "gen", "alb", "bnb", "yzb", "tgm", "tğm", "utgm", "ütğm", "astsb",
+    "emk", "bsk", "bşk", "mud", "müd", "vb", "vs", "sf", "s", "md", "mad",
+    "no", "nr", "bkz", "or", "ör", "orn", "örn", "fiz", "kim", "biy",
+    "ist", "ank", "izm", "cad", "sok", "apt", "al", "co", "inc", "ltd",
+    "sti", "şti", "as", "aş", "tc", "t.c", "v"
+}
+
+
+def cumlelere_bol(metin: str) -> list[str]:
     """
-    Detay metnini paragraflara ayırıp sayfalara dağıtır.
-    Smart Brevity formatını (Ne oldu / Sana Etkisi / Neden Önemli / Sırada Ne Var) ve Finans Trend Kartlarını destekler.
+    Türkçe unvan, kısaltma (Doç., Dr., vb.), sıra sayısı (14.) ve
+    özel karakterleri bozmadan metni gerçek cümle sınırlarından ayırır.
     """
-    g = ayarlar["gorsel"]
-    genislik, yukseklik = g["genislik"], g["yukseklik"]
-    kenar = g["kenar_bosluk"]
-    dikey_kenar = max(kenar, g.get("dikey_guvenli_pay", kenar))
+    if not metin or not metin.strip():
+        return []
+
+    cumleler = []
+    baslangic = 0
+    i = 0
+    uzunluk = len(metin)
+
+    while i < uzunluk:
+        ch = metin[i]
+        if ch in ".!?…":
+            # Ardışık noktalamaları geç (...)
+            j = i
+            while j < uzunluk and metin[j] in ".!?…":
+                j += 1
+
+            # Noktalamadan sonraki boşluğu kontrol et
+            k = j
+            while k < uzunluk and metin[k].isspace():
+                k += 1
+
+            if k == uzunluk:
+                # Metnin sonu
+                cumle = metin[baslangic:].strip()
+                if cumle:
+                    cumleler.append(cumle)
+                baslangic = uzunluk
+                break
+
+            if k > j:  # Noktalamadan sonra en az bir boşluk var
+                sonraki_karakter = metin[k]
+
+                # Tırnak veya parantez varsa bir sonraki karaktere bak
+                if sonraki_karakter in "\"'“”‘’()[]" and k + 1 < uzunluk:
+                    sonraki_karakter = metin[k + 1]
+
+                # Cümle sonu olma koşulu: Sonraki karakter büyük harf olmalı
+                buyuk_harf_mi = (sonraki_karakter.isupper()
+                                 or sonraki_karakter in "ÇĞİÖŞÜ")
+
+                # Noktadan önceki son kelimeyi bul
+                onceki_metin = metin[baslangic:i].strip()
+                kelimeler = re.findall(r"[a-zA-Z0-9çğıöşüÇĞİÖŞÜ]+", onceki_metin)
+                son_kelime = kelimeler[-1] if kelimeler else ""
+                son_kelime_kucuk = son_kelime.lower()
+
+                # Kontroller:
+                # a) Kısaltma mı? (Doç., Dr., vb.)
+                kisaltma_mi = son_kelime_kucuk in TURKCE_KISALTMALAR
+                # b) Sıra sayısı mı? (14., 2.)
+                sira_sayisi_mi = son_kelime.isdigit()
+                # c) Tek harfli baş harf mi? (M. Kemal)
+                tek_harf_mi = len(son_kelime) == 1 and son_kelime.isupper()
+
+                if buyuk_harf_mi and not kisaltma_mi and not sira_sayisi_mi and not tek_harf_mi:
+                    # Gerçek cümle sonu!
+                    cumle = metin[baslangic:j].strip()
+                    if cumle:
+                        cumleler.append(cumle)
+                    baslangic = k
+                    i = k
+                    continue
+            i = j
+        else:
+            i += 1
+
+    kalan = metin[baslangic:].strip()
+    if kalan:
+        cumleler.append(kalan)
+
+    return cumleler
+
 
 def _metni_paragraflara_ayir(metin: str, azami_cumle: int = 3) -> list[str]:
     """
     Uzun veya tek parça detay metnini okunaklı, ferah paragraflara böler.
     Satır sonlarını korur; 3'ten fazla cümle içeren uzun blokları 2-3 cümlelik
     doğal paragraflara ayırarak okumayı kolaylaştırır.
+    Türkçe kısaltma ve unvanları (Doç., Dr., vb.) korur.
     """
     if not metin or not metin.strip():
         return []
@@ -1687,9 +1830,13 @@ def _metni_paragraflara_ayir(metin: str, azami_cumle: int = 3) -> list[str]:
     sonuc = []
 
     for p in ham_paragraflar:
-        cumleler = [c.strip() for c in re.split(r"(?<=[.!?])\s+", p) if c.strip()]
+        cumleler = cumlelere_bol(p)
         if len(cumleler) <= azami_cumle:
             sonuc.append(p)
+        elif len(cumleler) == 4:
+            # 4 cümlede 3+1 yerine 2+2 daha dengeli ve ferah bir görünüm sunar
+            sonuc.append(" ".join(cumleler[:2]).strip())
+            sonuc.append(" ".join(cumleler[2:]).strip())
         else:
             for i in range(0, len(cumleler), azami_cumle):
                 parca = " ".join(cumleler[i : i + azami_cumle]).strip()
@@ -1721,7 +1868,7 @@ def detay_sayfalara_bol(
     olcu = ImageDraw.Draw(Image.new("RGB", (genislik, yukseklik)))
     alan = genislik - 2 * kenar - 32  # Sol çentik ve girinti payı (kenar + 24)
 
-    ust_blok = dikey_kenar + 150 + 3 * int(46 * 1.2) + 22 + 5 + 40
+    ust_blok = dikey_kenar + 120
     alt_bilgi_y = yukseklik - dikey_kenar - 34
     kullanilabilir = alt_bilgi_y - 40 - ust_blok
 
@@ -1758,15 +1905,22 @@ def detay_sayfalara_bol(
         satirlar = _satirlara_bol(metin, font, alan, olcu)
         yukseklik_px = int(punto * 1.5) * len(satirlar)
 
-        # Eğer tek paragraf tek sayfaya sığmıyorsa satırları böl
-        if yukseklik_px > kullanilabilir and len(satirlar) > 4:
-            yari = len(satirlar) // 2
-            satirlar_1 = satirlar[:yari]
-            satirlar_2 = satirlar[yari:]
-            bloklar.append({"tip": "metin", "satirlar": satirlar_1, "spot": spot,
-                            "yukseklik": int(punto * 1.5) * len(satirlar_1)})
-            bloklar.append({"tip": "metin", "satirlar": satirlar_2, "spot": False,
-                            "yukseklik": int(DETAY_PUNTO * 1.5) * len(satirlar_2)})
+        # Eğer tek paragraf tek sayfaya sığmıyorsa cümle sınırlarından böl
+        if yukseklik_px > kullanilabilir:
+            c_parcalar = cumlelere_bol(metin)
+            if len(c_parcalar) >= 2:
+                yari_c = max(1, len(c_parcalar) // 2)
+                metin_1 = " ".join(c_parcalar[:yari_c])
+                metin_2 = " ".join(c_parcalar[yari_c:])
+                sat_1 = _satirlara_bol(metin_1, font, alan, olcu)
+                sat_2 = _satirlara_bol(metin_2, _font(DETAY_PUNTO, EKSEN_OZET), alan, olcu)
+                bloklar.append({"tip": "metin", "satirlar": sat_1, "spot": spot,
+                                "yukseklik": int(punto * 1.5) * len(sat_1)})
+                bloklar.append({"tip": "metin", "satirlar": sat_2, "spot": False,
+                                "yukseklik": int(DETAY_PUNTO * 1.5) * len(sat_2)})
+            else:
+                bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
+                                "yukseklik": yukseklik_px})
         else:
             bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
                             "yukseklik": yukseklik_px})
@@ -1920,21 +2074,10 @@ def detay_slayti(
         )
         ciz.text((kenar + 162 + 14, dikey_kenar + 39), etiket, font=etiket_font,
                  fill=(255, 255, 255))
-        y = dikey_kenar + 150
-    else:
-        y = dikey_kenar + 150
 
-    # --- Başlık: küçük punto, bu slaytın yıldızı değil ---
-    b_font = _font(46, EKSEN_BASLIK)
-    b_satirlar = _satirlara_bol(baslik, b_font, baslik_genislik, ciz)[:3]
-    for satir in b_satirlar:
-        ciz.text((kenar, y), satir, font=b_font, fill=(255, 255, 255))
-        y += int(46 * 1.2)
-
-    # --- Ayırıcı çizgi ---
-    y += 22
-    ciz.rectangle([kenar, y, kenar + 92, y + 5], fill=(226, 170, 88))
-    y += 40
+    # Detay sayfalarında tekrarlayan devasa başlık kaldırıldı.
+    # Metin ferah ve geniş bir dikey alanda akar.
+    y = dikey_kenar + 120
 
     # --- Detay metni: asıl içerik ---
     alt_bilgi_y = yukseklik - dikey_kenar - 34
