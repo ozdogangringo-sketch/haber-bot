@@ -1800,7 +1800,8 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id, mod: str = "normal") -> int:
                         if m:
                             ek_metinler.append(m[:2000])
                 if ek_metinler:
-                    mevcut = h.get("makale_metni") or h.get("ozet_orj") or ""
+                    h_dict = dict(h)
+                    mevcut = h_dict.get("makale_metni") or h_dict.get("ozet_orj") or ""
                     yeni_govde = (
                         mevcut
                         + "\n\n[ÇOKLU AJANS / KARDEŞ KAYNAK DETAYLARI]:\n"
@@ -1962,7 +1963,7 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
 
     # Tekil / Son dakika haberi
     if len(haberler) == 1 or haberler[0]["son_dakika"]:
-        h = haberler[0]
+        h = dict(haberler[0])
         deneme = (h["gorsel_deneme"] or 0) + 1
         adet = int((ayarlar.get("gorsel") or {}).get("gorsel_aday_adedi", 3))
         if mod == "ai":
@@ -4232,7 +4233,8 @@ def main() -> int:
             return 0
 
         satirlar = ["☕ <b>DAILY BRIEF ANLIK HABER BÜLTENİ</b>\n"]
-        for idx, h in enumerate(taze, start=1):
+        for idx, row in enumerate(taze, start=1):
+            h = dict(row)
             kat = f"[{h['kategori'].upper()}] " if h.get("kategori") else ""
             satirlar.append(f"<b>{idx}. {kat}{h['ig_baslik']}</b>\n{h['ig_ozet']}\n")
         satirlar.append("<i>Bu haberler onay bekleyen tur havuzundan canlı derlenmiştir.</i>")
