@@ -63,6 +63,7 @@ MESAJSIZ_KOMUTLAR: set[str] = {
     "link",
     "arastir",
     "ozel",
+    "incele",
 
     # Makro & Piyasa Veri Kartları
     "faiz",
@@ -103,6 +104,7 @@ KOMUT_MENUSU: list[dict[str, str]] = [
     {"command": "kronoloji", "description": "✍️ <konu> olay/dava süreci özeti"},
     {"command": "arastir", "description": "✍️ <konu> webde araştır, post yap"},
     {"command": "ozel", "description": "✍️ <metin> kendi duyurundan post"},
+    {"command": "incele", "description": "✍️ <id> ile haber detayını incele"},
 
     # ── 📰 GÜNDEM & AKIŞ ──────────────────────────────────────────
     {"command": "sondakika", "description": "📰 Taze haberleri tara, öneri getir"},

@@ -519,18 +519,18 @@ def _basligi_yerlestir(metin: str, ciz, alan_genislik: int, alan_yukseklik: int)
     return font, satirlar, int(40 * 1.22)
 
 
-def _ozeti_yerlestir(metin: str, ciz, alan_genislik: int, azami_satir: int = 4):
+def _ozeti_yerlestir(metin: str, ciz, alan_genislik: int, azami_satir: int = 4, punto: int = 34):
     """
     Başlık altındaki özet satırını böler. Başlıktan farklı olarak punto
     sabit: özet her slaytta aynı boyda olmalı, yoksa carousel kayarken
     yazı boyu zıplıyor gibi görünür.
     """
-    font = _font(34, EKSEN_OZET)
+    font = _font(punto, EKSEN_OZET)
     satirlar = _satirlara_bol(metin, font, alan_genislik, ciz)
     if len(satirlar) > azami_satir:
         satirlar = satirlar[:azami_satir]
         satirlar[-1] = satirlar[-1].rstrip(" ,;:") + "…"
-    return font, satirlar, int(34 * 1.42)
+    return font, satirlar, int(punto * 1.42)
 
 
 def _perde_taban_alfa(arkaplan: Image.Image, kutu: tuple) -> int:
@@ -1057,10 +1057,14 @@ def yaziyi_bas(
     # --- 1) Ölçüm: bloklar nereye oturacak? (alttan yukarı doğru) ---
     alt_bilgi_y = yukseklik - dikey_kenar - 34
 
+    # Uzun başlıklarda (>2 satır veya >85 karakter) alt özet puntosunu adaptif
+    # olarak 34'ten 30'a çekerek üstteki kanca ve logoya ferah nefes alanı bırak.
+    ozet_punto = 30 if len(baslik or "") > 85 else 34
+
     ozet_font, ozet_satirlari, ozet_satir_y = None, [], 0
     if ozet:
         ozet_font, ozet_satirlari, ozet_satir_y = _ozeti_yerlestir(
-            ozet, ciz, alan_genislik
+            ozet, ciz, alan_genislik, punto=ozet_punto
         )
     ozet_yuksekligi = ozet_satir_y * len(ozet_satirlari)
 
@@ -1070,6 +1074,14 @@ def yaziyi_bas(
     font, satirlar, satir_yuksekligi = _basligi_yerlestir(
         baslik, ciz, alan_genislik, baslik_alani
     )
+
+    # Eğer başlık 2 satırı aşıyorsa ve özet henüz küçültülmediyse adaptif esnet
+    if len(satirlar) > 2 and ozet_punto > 30 and ozet:
+        ozet_punto = 30
+        ozet_font, ozet_satirlari, ozet_satir_y = _ozeti_yerlestir(
+            ozet, ciz, alan_genislik, punto=ozet_punto
+        )
+        ozet_yuksekligi = ozet_satir_y * len(ozet_satirlari)
 
     ozet_ust = alt_bilgi_y - (66 if son_slayt else 44) - ozet_yuksekligi
     baslik_ust = ozet_ust - (26 if ozet else 0) - satir_yuksekligi * len(satirlar)
@@ -1116,7 +1128,7 @@ def yaziyi_bas(
 
     y = ozet_ust
     for satir in ozet_satirlari:
-        _formatli_satir_ciz(ciz, kenar, y, satir, punto=34, spot=True, varsayilan_renk=(226, 232, 240))
+        _formatli_satir_ciz(ciz, kenar, y, satir, punto=ozet_punto, spot=True, varsayilan_renk=(226, 232, 240))
         y += ozet_satir_y
 
     # --- 3.5) Editoryal Hook (Kanca) Çizimi (Yalnızca 9:16 / 1080x1920 Kapak Slaytlarında) ---
@@ -1900,7 +1912,12 @@ def detay_sayfalara_bol(
     # Her paragrafı satırlara böl. İlki spot: daha iri punto.
     for i, metin in enumerate(paragraflar):
         spot = (i == 0)
-        punto = DETAY_SPOT_PUNTO if spot else DETAY_PUNTO
+        # Giriş (spot) paragrafı çok uzunsa (>140 karakter) veya dikey alan sıkışıkken
+        # nefes alanını korumak için puntoyu 46'dan 40'a esnet
+        if spot:
+            punto = 40 if len(metin) > 140 else DETAY_SPOT_PUNTO
+        else:
+            punto = DETAY_PUNTO
         font = _font(punto, EKSEN_OZET)
         satirlar = _satirlara_bol(metin, font, alan, olcu)
         yukseklik_px = int(punto * 1.5) * len(satirlar)
@@ -1915,14 +1932,18 @@ def detay_sayfalara_bol(
                 sat_1 = _satirlara_bol(metin_1, font, alan, olcu)
                 sat_2 = _satirlara_bol(metin_2, _font(DETAY_PUNTO, EKSEN_OZET), alan, olcu)
                 bloklar.append({"tip": "metin", "satirlar": sat_1, "spot": spot,
+                                "punto": punto,
                                 "yukseklik": int(punto * 1.5) * len(sat_1)})
                 bloklar.append({"tip": "metin", "satirlar": sat_2, "spot": False,
+                                "punto": DETAY_PUNTO,
                                 "yukseklik": int(DETAY_PUNTO * 1.5) * len(sat_2)})
             else:
                 bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
+                                "punto": punto,
                                 "yukseklik": yukseklik_px})
         else:
             bloklar.append({"tip": "metin", "satirlar": satirlar, "spot": spot,
+                            "punto": punto,
                             "yukseklik": yukseklik_px})
 
     # Sana / Piyasaya Etkisi (Zümrüt Yeşil Vurgulu Doğal Editoryal Blok)

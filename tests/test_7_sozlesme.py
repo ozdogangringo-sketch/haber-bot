@@ -3448,7 +3448,7 @@ def test_ici_bos_ovgu_slayta_basilmiyor() -> None:
 
 
 def test_markdown_yildizi_slayta_sizmiyor() -> None:
-    """
+    r"""
     `**` işaretleri slayta basılıyor mu?
 
     ⚠️ GERÇEK OLAY (7 Eyl 2026). Kullanıcı ekran görüntüsü gönderdi:
@@ -4427,7 +4427,7 @@ def test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor() -> None:
         # Çizilen metin piksellerinin en doygun olanlarına bak
         _px = _cizili.crop(_kutu).convert("RGB")
         _maske = _fark.crop(_kutu)
-        _renkli = [pk for pk, m in zip(_px.getdata(), _maske.getdata())
+        _renkli = [pk for pk, m in zip(_px.get_flattened_data(), _maske.get_flattened_data())
                    if m and pk[0] > 150 and pk[0] - pk[2] > 60]
         denetle(bool(_renkli), "kancada vurgu rengi basılıyor",
                 "hiç sıcak renkli piksel yok")

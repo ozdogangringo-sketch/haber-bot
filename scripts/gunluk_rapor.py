@@ -361,6 +361,15 @@ def main() -> int:
             # Temizlik raporu DÜŞÜRMEMELİ; rapor asıl iş.
             log.warning("temizlik yapılamadı: %s", e)
 
+        # Askıda kalmış, 12+ saat cevap verilmemiş onay turlarını havuza iade et
+        try:
+            from src import yonetim
+            askidaki = yonetim.askidaki_turlari_temizle(con)
+            if askidaki:
+                metin += f"\n\n♻️ {askidaki} askıda kalmış onay turu temizlendi ve havuza iade edildi."
+        except Exception as e:                        # noqa: BLE001
+            log.warning("askıdaki turlar temizlenemedi: %s", e)
+
     if kuru:
         print(metin)
         return 0

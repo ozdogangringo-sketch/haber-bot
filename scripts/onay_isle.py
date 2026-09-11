@@ -298,6 +298,28 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         if h["son_dakika"]:
             urller.extend(_detay_urlleri(h["detay_url"]))
 
+    # İlerleme çubuğu hesaplaması (Telegram canlı progress bar)
+    kanallar_sayisi = sum([
+        bool(paylas_reels or paylas_ig),
+        bool(paylas_story),
+        bool(paylas_fb),
+        bool(paylas_th),
+        bool(paylas_tw),
+        bool(paylas_yt),
+        bool(paylas_tt),
+    ])
+    toplam_yayin_adimi = max(1, kanallar_sayisi + 1)
+    guncel_yayin_adimi = 1
+
+    if mesaj_id:
+        telegram_bot.durum_guncelle(
+            mesaj_id,
+            "Yayın Başlatılıyor",
+            guncel_yayin_adimi,
+            toplam_yayin_adimi,
+            "Görseller ve Meta uyumluluğu doğrulanıyor…",
+        )
+
     # Görsellerin canlılığını ve Meta uyumluluğunu doğrula, süresi geçmiş/uguu olanları onar
     urller = _urlleri_dogrula_ve_onar(con, ayarlar, haberler, urller)
 
@@ -321,6 +343,18 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     post_id = None
     baglanti = None
     ig_notu = ""
+
+    if paylas_reels or paylas_ig:
+        guncel_yayin_adimi += 1
+        if mesaj_id:
+            telegram_bot.durum_guncelle(
+                mesaj_id,
+                "Yayınlanıyor",
+                guncel_yayin_adimi,
+                toplam_yayin_adimi,
+                "Reels videosu üretiliyor…" if paylas_reels else "Instagram Carousel paylaşılıyor…",
+            )
+
     if paylas_reels:
         # Reels Manuel Trend Müzik Modu: 1080x1920 MP4 üretilir + kopyalanabilir açıklama ile Telegram'a iletilir
         try:
@@ -363,6 +397,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     story_id = None
     story_url = next((h["story_url"] for h in haberler if h["story_url"]), None)
     if paylas_story and story_url:
+        guncel_yayin_adimi += 1
+        if mesaj_id:
+            telegram_bot.durum_guncelle(
+                mesaj_id,
+                "Yayınlanıyor",
+                guncel_yayin_adimi,
+                toplam_yayin_adimi,
+                "Instagram Story yükleniyor…",
+            )
         try:
             story_id = instagram.story_yayinla(story_url, ayarlar)
             story_notu = "\n📱 Story de paylaşıldı"
@@ -374,6 +417,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     fb_notu = ""
     fb_id = None
     if paylas_fb:
+        guncel_yayin_adimi += 1
+        if mesaj_id:
+            telegram_bot.durum_guncelle(
+                mesaj_id,
+                "Yayınlanıyor",
+                guncel_yayin_adimi,
+                toplam_yayin_adimi,
+                "Facebook Sayfasına aktarılıyor…",
+            )
         try:
             fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
             fb_notu = "\n📘 Facebook'a da paylaşıldı"
@@ -393,6 +445,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     th_gonderi_id = None
     th_yarim = False
     if paylas_th:
+        guncel_yayin_adimi += 1
+        if mesaj_id:
+            telegram_bot.durum_guncelle(
+                mesaj_id,
+                "Yayınlanıyor",
+                guncel_yayin_adimi,
+                toplam_yayin_adimi,
+                "Threads bilgi zinciri paylaşılıyor…",
+            )
         try:
             son_dakika_mi = bool(haberler[0]["son_dakika"])
             halkalar = caption.threads_halkalari(
@@ -426,6 +487,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     tw_notu = ""
     tw_gonderi_id = None
     if paylas_tw:
+        guncel_yayin_adimi += 1
+        if mesaj_id:
+            telegram_bot.durum_guncelle(
+                mesaj_id,
+                "Yayınlanıyor",
+                guncel_yayin_adimi,
+                toplam_yayin_adimi,
+                "X (Twitter) paylaşımı yapılıyor…",
+            )
         try:
             son_dakika_mi = bool(haberler[0]["son_dakika"]) if haberler else False
             if len(haberler) > 1 or (son_dakika_mi and len(urller) > 1):
@@ -457,6 +527,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     yt_notu = ""
     yt_url = None
     if paylas_yt:
+        guncel_yayin_adimi += 1
+        if mesaj_id:
+            telegram_bot.durum_guncelle(
+                mesaj_id,
+                "Yayınlanıyor",
+                guncel_yayin_adimi,
+                toplam_yayin_adimi,
+                "YouTube Shorts videosu yükleniyor…",
+            )
         if not paylasilan_video_yolu:
             yt_notu = "\n⚠️ YouTube Shorts videosu oluşturulamadı"
         else:
@@ -486,6 +565,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     tt_notu = ""
     tt_publish_id = None
     if paylas_tt:
+        guncel_yayin_adimi += 1
+        if mesaj_id:
+            telegram_bot.durum_guncelle(
+                mesaj_id,
+                "Yayınlanıyor",
+                guncel_yayin_adimi,
+                toplam_yayin_adimi,
+                "TikTok videosu yükleniyor…",
+            )
         if not paylasilan_video_yolu:
             tt_notu = "\n⚠️ TikTok videosu oluşturulamadı"
         else:
@@ -1886,23 +1974,51 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
             "ai": "🎨 <b>Yapay zeka görseli</b>",
         }.get(mod, f"🔄 <b>{adet} alternatif fotoğraf</b>")
 
-        telegram_bot.mesaj_gonder(
+        baslik_duz = {
+            "gercek": "Gerçek Fotoğraf Adayları",
+            "stok": "Pexels Stok Fotoğraf Adayları",
+            "ai": "Yapay Zeka Görseli",
+        }.get(mod, "Alternatif Fotoğraflar")
+
+        bilgi_id = telegram_bot.mesaj_gonder(
             f"{baslik_metin} hazırlanıyor…\n\n"
             f"{h['ig_baslik'] or h['baslik_orj']}\n"
             f"<i>Hepsi hazır olunca yan yana göstereceğim, sen seçeceksin.</i>",
             html=True,
         )
 
+        mevcut_detaylar = _detay_urlleri(h.get("detay_url"))
         adaylar = []
         for ek in range(adet):
+            if bilgi_id:
+                telegram_bot.durum_guncelle(
+                    bilgi_id,
+                    baslik_duz,
+                    ek + 1,
+                    adet,
+                    f"Aday #{ek + 1}/{adet} taranıyor ve hazırlanıyor…",
+                )
             try:
                 zorla_ai = (mod == "ai")
                 sonuclar = slaytlar.son_dakika_uret(
                     h, ayarlar, con=con, atlanacak=deneme + ek,
                     gorsel_modu=mod, zorla_ai=zorla_ai)
-                yuklemeler = upload_image.hepsini_yukle(
-                    [s["yol"] for s in sonuclar], ayarlar)
-                urller = [y["url"] for y in yuklemeler]
+                if not sonuclar:
+                    continue
+                # HIZLANDIRMA (12 yükleme -> 3 yükleme):
+                # Aday seçiminde Telegram'a sadece kapak fotoğrafı (slayt 1) gönderilir.
+                # Değişmeyen detay sayfalarını her aday için ImgBB'ye baştan yükleyip
+                # dakikalarca bekletmek yerine yalnızca kapak yüklenir ve mevcut detay URL'leri eklenir.
+                if not mevcut_detaylar and len(sonuclar) > 1:
+                    yuklemeler = upload_image.hepsini_yukle(
+                        [s["yol"] for s in sonuclar], ayarlar)
+                    urller = [y["url"] for y in yuklemeler]
+                else:
+                    kapak_yukleme = upload_image.hepsini_yukle(
+                        [sonuclar[0]["yol"]], ayarlar)
+                    if not kapak_yukleme:
+                        continue
+                    urller = [kapak_yukleme[0]["url"]] + (mevcut_detaylar or [])
             except Exception as e:                    # noqa: BLE001
                 log.warning("alternatif #%d üretilemedi: %s", deneme + ek, e)
                 continue
@@ -1919,6 +2035,12 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
                 "deneme": deneme + ek,
                 "tur": "son_dakika",
             })
+
+        if bilgi_id:
+            try:
+                telegram_bot.mesaj_sil(bilgi_id)
+            except Exception:
+                pass
 
         if not adaylar:
             telegram_bot.mesaj_gonder(
@@ -3500,9 +3622,18 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
     import son_dakika
 
     basarili, basarisiz = [], []
-    for hid in haber_idler:
+    toplam = len(haber_idler)
+    for i, hid in enumerate(haber_idler, start=1):
         if hid not in basliklar:
             continue
+        if mesaj_id:
+            telegram_bot.durum_guncelle(
+                mesaj_id,
+                "Haber Hazırlanıyor",
+                i,
+                toplam,
+                f"#{hid} '{basliklar[hid]}' analiz ediliyor ve slaytlar çiziliyor…",
+            )
         # ⚠️ KİLİDİ BIRAK. `son_dakika.main` kendi bağlantısını açıp
         # yazıyor; bizim açık işlemimiz dururken "database is locked"
         # alıyordu. Commit hem kilidi bırakıyor hem o ana kadarki
@@ -3540,6 +3671,15 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
         else:
             basarisiz.append((hid, basliklar[hid]))
 
+    if mesaj_id and basarili:
+        telegram_bot.durum_guncelle(
+            mesaj_id,
+            "Hazırlama Tamamlandı",
+            toplam,
+            toplam,
+            f"{len(basarili)}/{toplam} haber başarıyla üretildi ve onayına sunuldu.",
+        )
+
     if basarisiz:
         idler = ",".join(str(hid) for hid, _ in basarisiz)
         hata_listesi = "\n".join(f"• {b}" for _, b in basarisiz)
@@ -3552,6 +3692,74 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
             mesaj_id=f"hazirla:{idler}",
         )
     return 0 if basarili else 1
+
+
+def incele_islemi(con, ayarlar: dict, komut: str, mesaj_id: int = 0, basan: str = "") -> int:
+    """
+    Kullanıcıya seçtiği haberin detaylı özetini, Gemini puan gerekçesini,
+    kaynak ve kategori bilgilerini ve makale özetini Telegram kartı olarak sunar.
+    Altında tek tıkla '⚡ Bu Haberi Hazırla' butonu yer alır.
+    """
+    try:
+        if ":" in komut:
+            ham = komut.split(":", 1)[1].strip()
+        else:
+            ham = komut.split(" ", 1)[1].strip()
+        haber_id = int(ham)
+    except (IndexError, ValueError):
+        telegram_bot.mesaj_gonder("⚠️ Geçersiz haber numarası. Örnek kullanım: <code>/incele 1482</code>", html=True)
+        return 1
+
+    h = con.execute("SELECT * FROM haberler WHERE id = ?", (haber_id,)).fetchone()
+    if not h:
+        telegram_bot.mesaj_gonder(f"⚠️ #{haber_id} numaralı haber veritabanında bulunamadı.", html=True)
+        return 1
+
+    h = dict(h)
+    baslik = html.escape(h.get("baslik_orj") or "Başlıksız")
+    kaynak = html.escape(h.get("kaynak") or "Bilinmiyor")
+    kategori = html.escape((h.get("kategori") or "genel").upper())
+    puan = h.get("onem_puani") or 0.0
+    gerekce = html.escape(h.get("onem_gerekcesi") or "")
+    link = (h.get("link") or "").strip()
+    ozet = h.get("ozet_orj") or ""
+    makale = h.get("makale_metni") or ""
+
+    icerik = (makale.strip()[:400] if len(makale.strip()) > 50 else ozet.strip()[:400])
+    icerik_temiz = html.escape(icerik).strip()
+    if len(makale or ozet) > 400:
+        icerik_temiz += "…"
+
+    tarih_str = ""
+    if h.get("yayin_tarihi"):
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(h["yayin_tarihi"].replace("Z", "+00:00"))
+            tarih_str = dt.strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            tarih_str = str(h["yayin_tarihi"])[:16]
+
+    satirlar = [
+        f"🔍 <b>Haber İncelemesi #{haber_id}</b>",
+        "",
+        f"📰 <b>{baslik}</b>",
+        f"🏷️ <i>{kaynak} · {kategori}</i>" + (f" · 🕒 <i>{tarih_str}</i>" if tarih_str else ""),
+        f"⭐ <b>Önem Puanı:</b> {puan}/10",
+    ]
+    if gerekce:
+        satirlar.append(f"💡 <b>Puanlama Gerekçesi:</b> <i>{gerekce}</i>")
+
+    if icerik_temiz:
+        satirlar.extend(["", "📝 <b>Haber İçeriği / Giriş:</b>", f"<i>{icerik_temiz}</i>"])
+
+    if link and link.startswith("http"):
+        satirlar.extend(["", f"🔗 <a href=\"{link}\">Orijinal Haberi Kaynağında Oku</a>"])
+
+    menu = [
+        [{"text": f"⚡ #{haber_id} Numaralı Haberi Hazırla", "callback_data": f"hazirla:{haber_id}"}],
+    ]
+    telegram_bot.mesaj_gonder("\n".join(satirlar), butonlar=menu, html=True)
+    return 0
 
 
 
@@ -3775,6 +3983,8 @@ def main() -> int:
         return haber_ara(con, ayarlar, komut)
     if komut.startswith("hazirla:"):
         return oneriyi_hazirla(con, ayarlar, komut, mesaj_id)
+    if komut.startswith("incele:") or komut.startswith("incele "):
+        return incele_islemi(con, ayarlar, komut, mesaj_id, basan)
     if komut == "oneri_gec":
         telegram_bot.sonucu_yaz(mesaj_id, "⏭ Öneri geçildi.")
         log.info("öneri geçildi")
@@ -3847,7 +4057,25 @@ def main() -> int:
         if not yollar:
             telegram_bot.mesaj_gonder("⚠️ Video üretilecek slayt görseli bulunamadı.")
             return 0
-            
+
+        try:
+            video_yolu = video.slaytlardan_reels_uret(yollar)
+            telegram_bot.video_gonder(
+                video_yolu,
+                aciklama=(
+                    "🎬 <b>Daily Brief 9:16 Reels Videosu Hazır!</b>\n\n"
+                    f"📹 <i>{len(yollar)} slayttan derlendi. Galerine kaydedebilir veya doğrudan paylaşabilirsin.</i>"
+                ),
+            )
+            return 0
+        except Exception as e:
+            log.exception("video üretimi hatası: %s", e)
+            telegram_bot.mesaj_gonder(
+                f"⚠️ <b>Video üretimi başarısız:</b> <code>{html.escape(str(e))}</code>",
+                html=True,
+            )
+            return 1
+
     # ⚠️ `ekonomi_hazirla` BURAYA KATILDI (4 Eyl 2026).
     # Eskiden kendi dalı vardı ve `from scripts import ekonomi_turu`
     # çağırıyordu — ama o dosya `2aaa220` commit'inde SİLİNMİŞTİ

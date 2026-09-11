@@ -154,8 +154,36 @@ def _istek(metot: str, **parametreler) -> dict:
             time.sleep(2 * deneme)
             continue
 
-        # Medya indirme hatası: 400 geliyor ama GEÇİCİ (bkz. GECICI_MESAJLAR)
         aciklama = (veri.get("description") or "").lower()
+
+        # HTML etiket parse hatası: 400 gelir ama parse_mode kaldırılarak düz metinle anında kurtarılır
+        if cevap.status_code == 400 and ("can't parse entities" in aciklama or "entity" in aciklama):
+            if parametreler.get("parse_mode"):
+                log.warning(
+                    "Telegram HTML ayrıştırma hatası (%s), parse_mode kaldırılarak düz metinle deneniyor: %s",
+                    metot, veri.get("description", "")
+                )
+                parametreler.pop("parse_mode", None)
+                if "text" in parametreler and isinstance(parametreler["text"], str):
+                    parametreler["text"] = html.unescape(re.sub(r"<[^>]+>", "", parametreler["text"]))
+                if "caption" in parametreler and isinstance(parametreler["caption"], str):
+                    parametreler["caption"] = html.unescape(re.sub(r"<[^>]+>", "", parametreler["caption"]))
+                continue
+
+            if "media" in parametreler and isinstance(parametreler["media"], list):
+                degisti = False
+                for m in parametreler["media"]:
+                    if isinstance(m, dict) and m.pop("parse_mode", None):
+                        if "caption" in m and isinstance(m["caption"], str):
+                            m["caption"] = html.unescape(re.sub(r"<[^>]+>", "", m["caption"]))
+                        degisti = True
+                if degisti:
+                    log.warning(
+                        "Telegram sendMediaGroup HTML ayrıştırma hatası, parse_mode kaldırılarak deneniyor"
+                    )
+                    continue
+
+        # Medya indirme hatası: 400 geliyor ama GEÇİCİ (bkz. GECICI_MESAJLAR)
         if any(k in aciklama for k in GECICI_MESAJLAR):
             log.warning("Telegram medyayı indiremedi, %s sn sonra tekrar (%s/%s): %s",
                         MEDYA_BEKLEME_SANIYE, deneme, MEDYA_AZAMI_DENEME,
@@ -491,6 +519,8 @@ def slaytlari_gonder(
     Önce URL ile dener; eğer Telegram WEBPAGE_CURL_FAILED verirse
     görselleri indirip doğrudan multipart/form-data ile yükler.
     """
+    if not gorsel_urlleri:
+        return []
     import io
     medya = []
     for sira, url in enumerate(gorsel_urlleri, start=1):
@@ -845,6 +875,42 @@ def mesaj_gonder(metin: str, butonlar: list | None = None,
     return sonuc["message_id"]
 
 
+def durum_guncelle(message_id: int, baslik: str, adim: int, toplam_adim: int = 4, detay: str = "") -> None:
+    """
+    Uzun süren işlemlerde (özel haber, dosya, araştırma, görsel arama)
+    kullanıcıya Telegram grubunu kirletmeden canlı ilerleme çubuğu (progress bar) sunar.
+    """
+    if not message_id:
+        return
+    if toplam_adim < 1:
+        toplam_adim = 1
+    adim = max(1, min(adim, toplam_adim))
+    dolu = "▰" * adim
+    bos = "▱" * max(0, toplam_adim - adim)
+    yuzde = int((adim / toplam_adim) * 100)
+
+    satirlar = [
+        f"⏳ <b>{html.escape(baslik)}</b>",
+        f"<code>[{dolu}{bos}] %{yuzde} ({adim}/{toplam_adim})</code>",
+    ]
+    if detay:
+        satirlar.append(f"<i>{html.escape(detay)}</i>")
+
+    try:
+        _istek(
+            "editMessageText",
+            chat_id=_sohbet_id(),
+            message_id=message_id,
+            text="\n\n".join(satirlar),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+    except Exception as e:
+        if "not modified" not in str(e).lower():
+            log.debug("durum_guncelle hatası (%s): %s", message_id, e)
+
+
+
 def paylasim_bildir(kanal: str, basarili: bool, ayrinti: str = "",
                     baglanti: str = "") -> None:
     """
@@ -986,18 +1052,22 @@ def oneri_gonder(adaylar: list[dict], azami: int = 5,
             satirlar.append(f"     💬 <i>{_kacir(spot)}</i>")
 
         satirlar.append(
-            f"     <i>{_kacir(a.get('kaynak', ''))} · {_kacir(a.get('kategori', ''))}</i>"
+            f"     <i>{_kacir(a.get('kaynak', ''))} · {_kacir(a.get('kategori', ''))}</i> · <code>/incele_{a['id']}</code>"
         )
         satirlar.append("")
         secim_butonlari.append({"text": r_simge,
                                 "callback_data": f"sec:{a['id']}"})
 
-    satirlar.append("<i>Numaralara basarak istediğin kadar haber seç, "
-                    "sonra Hazırla'ya bas. Seçilenler sırayla üretilip "
-                    "onayına sunulur.</i>")
+    satirlar.append("<i>Numaralara basarak haber seçebilir, 🔍 butonlarıyla veya /incele &lt;id&gt; ile detaylarını önizleyebilirsin.</i>")
+
+    incele_butonlari = [
+        {"text": f"🔍 {i + 1}", "callback_data": f"incele:{a['id']}"}
+        for i, a in enumerate(gosterilecek)
+    ]
 
     menu = [
         secim_butonlari,
+        incele_butonlari,
         [{"text": "▶️ Hazırla (0)", "callback_data": "hazirla_secilenler"}],
         [{"text": "❌ Hiçbiri", "callback_data": "oneri_gec"}],
     ]
@@ -1030,14 +1100,20 @@ def video_gonder(
         files = {"video": f}
         cevap = requests.post(url, data=data, files=files, timeout=180)
 
-    veri = cevap.json() if cevap.content else {}
+    try:
+        veri = cevap.json() if cevap.content else {}
+    except Exception:
+        veri = {}
     if not veri.get("ok"):
         # Eğer HTML etiket parse hatası verirse parse_mode'suz güvenli dene
-        if "can't parse entities" in veri.get("description", ""):
+        if "can't parse entities" in (veri.get("description") or "").lower():
             data.pop("parse_mode", None)
             with open(p, "rb") as f2:
                 cevap2 = requests.post(url, data=data, files={"video": f2}, timeout=180)
-            veri2 = cevap2.json() if cevap2.content else {}
+            try:
+                veri2 = cevap2.json() if cevap2.content else {}
+            except Exception:
+                veri2 = {}
             if veri2.get("ok"):
                 return veri2["result"]["message_id"]
         raise RuntimeError(f"Telegram video gönderme hatası: {veri.get('description', cevap.text[:200])}")

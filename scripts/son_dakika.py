@@ -563,9 +563,10 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
         log.info("puanlanan %d başlığın hiçbiri eşiği geçmedi", len(puanlar))
         if elle_tetiklendi and not kuru:
             telegram_bot.mesaj_gonder(
-                f"⏳ <b>Şu an paylaşılmaya değer haber yok.</b>\n\n"
-                f"Son {tazelik} saatteki {len(puanlar)} haberden hiçbiri "
-                "yayın eşiğini geçemedi. Saatlik tarama devam ediyor."
+                f"🔍 <b>Son Dakika Taraması Tamamlandı</b>\n\n"
+                f"Son {tazelik} saatteki {len(puanlar)} güncel haber Gemini ile puanlandı ancak hiçbiri son dakika editoryal eşiğini geçemedi.\n\n"
+                "💡 <i>Aklında belirli bir haber varsa /link, /arastir veya /dosya komutlarıyla anında post hazırlatabilirsin.</i>",
+                html=True,
             )
         return 0
 
@@ -935,6 +936,7 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     kuru = "--kuru" in sys.argv
+    elle = elle or ("--elle" in sys.argv)
     if zorla_haber_id is None and "--haber-id" in sys.argv:
         zorla_haber_id = int(sys.argv[sys.argv.index("--haber-id") + 1])
     ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))

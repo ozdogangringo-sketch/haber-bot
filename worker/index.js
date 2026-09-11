@@ -152,6 +152,7 @@ const MAKRO_EYLEM = /^(makro|faiz|enflasyon|fed):.+$/;
 const LINK_EYLEM = /^link:.+$/;
 const VARLIK_EYLEM = /^(hisse|kripto):.+$/;
 const DOSYA_EYLEM = /^(dosya|kronoloji):.+$/;
+const INCELE = /^incele:\d{1,8}$/;
 
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 500) return false;
@@ -166,7 +167,7 @@ function eylemMi(veri) {
     || TUR_EYLEM.test(veri) || GORSEL_SEC.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
     || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
-    || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri);
+    || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri) || INCELE.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -436,6 +437,7 @@ const KOMUT_ADI = {
   hata: "Tur yeniden kuruluyor",
   kurtar: "Tur menüsü kurtarılıyor",
   retry_kanal: "Kanal yayını telafi ediliyor",
+  incele: "Haber inceleniyor",
 };
 
 /**
@@ -661,7 +663,8 @@ export default {
                 "• /dosya &lt;konu&gt; — Konunun A'dan Z'ye kronolojik dosyası\n" +
                 "• /kronoloji &lt;konu&gt; — Olay veya dava sürecini özetle\n" +
                 "• /arastir &lt;konu&gt; — Konuyu webde araştırıp posta dönüştür\n" +
-                "• /ozel &lt;metin&gt; — Kendi duyuru metninden post üret\n\n" +
+                "• /ozel &lt;metin&gt; — Kendi duyuru metninden post üret\n" +
+                "• /incele &lt;id&gt; — Haber detayını ve puan gerekçesini incele\n\n" +
 
                 "<b>📰 GÜNDEM &amp; AKIŞ</b>\n" +
                 "• /sondakika — Taze haberleri tara, öneri getir\n" +
@@ -713,6 +716,28 @@ export default {
             await mesajGonder(env, sohbet,
                 iletildi
                     ? `🌐 Link taranıyor ve özel haber hazırlanıyor…\n${url.slice(0, 70)}`
+                    : "⚠️ Komut iletilemedi, tekrar dene.");
+            return new Response("ok");
+        }
+
+        // /incele <ID> veya /incele_<ID> — Haberin detayını ve Gemini puanını inceler
+        if (komutMetni === "/incele" || komutMetni.startsWith("/incele_")) {
+            let id = "";
+            if (komutMetni.startsWith("/incele_")) {
+                id = komutMetni.slice("/incele_".length).trim();
+            } else {
+                id = msj.text.trim().slice(komutMetni.length).trim();
+            }
+            if (!id || !/^\d+$/.test(id)) {
+                await mesajGonder(env, sohbet,
+                    "⚠️ İncelemek istediğin haber numarasını yaz:\nÖrnek: /incele 1482");
+                return new Response("ok");
+            }
+            const iletildi = await githubaIlet(env, `incele:${id}`,
+                null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? `🔍 #${id} numaralı haber inceleniyor ve detayları getiriliyor…`
                     : "⚠️ Komut iletilemedi, tekrar dene.");
             return new Response("ok");
         }

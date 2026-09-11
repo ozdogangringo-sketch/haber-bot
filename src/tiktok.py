@@ -92,6 +92,16 @@ def token_yenile(con=None) -> str | None:
                 except Exception as e:
                     log.warning(".env TikTok jetonu güncellenemedi: %s", e)
 
+            # 4. GitHub Secrets güncelle (Actions ortamında kalıcılık için)
+            repo = os.getenv("GITHUB_REPOSITORY", "ozdogangringo-sketch/haber-bot")
+            try:
+                from . import refresh_token
+                refresh_token.github_secret_guncelle(yeni_token, repo, ad="TIKTOK_ACCESS_TOKEN")
+                if yeni_refresh:
+                    refresh_token.github_secret_guncelle(yeni_refresh, repo, ad="TIKTOK_REFRESH_TOKEN")
+            except Exception as e:
+                log.warning("TikTok secret güncellenemedi: %s", e)
+
             log.info("TikTok erişim jetonu başarıyla yenilendi.")
             return yeni_token
         else:

@@ -129,7 +129,9 @@ jobs:
             # Hafif mod: yalnızca zamanı gelen planlı yayınlar.
             python scripts/son_dakika.py --sadece-planli
           elif [ "${{ inputs.kuru }}" = "true" ]; then
-            python scripts/son_dakika.py --kuru
+            python scripts/son_dakika.py --kuru --elle
+          elif [ -n "${{ github.event.client_payload.komut }}" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python scripts/son_dakika.py --elle
           else
             python scripts/son_dakika.py
           fi

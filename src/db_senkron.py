@@ -160,7 +160,10 @@ def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
     # untracked files present" dedi, kod "nothing to commit" arıyordu,
     # eşleşmedi ve job KIRMIZI oldu. Ortada hiçbir arıza yoktu.
     tamam, cikti = _calistir("git", "commit", "-m", mesaj)
-    if not tamam and not _degisiklik_yok(cikti):
+    if not tamam:
+        if _degisiklik_yok(cikti):
+            log.info("db_senkron: değişiklik yok, commit ve push atlandı")
+            return True
         log.warning("db_senkron: commit başarısız: %s", cikti[:200])
         return False
 

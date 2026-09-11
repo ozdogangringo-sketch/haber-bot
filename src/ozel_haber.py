@@ -68,16 +68,30 @@ def _post_olustur_ve_onaya_sun(
     haber_id: int,
     kaynak: str,
     ozet_not: str = "",
+    durum_mesaj_id: int | None = None,
+    durum_baslik: str = "",
 ) -> int:
     """Oluşturulan haber kaydının slaytlarını üretir, yükler ve Telegram onayına sunar."""
     taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber_id,)).fetchone()
     if not taze:
         raise RuntimeError(f"Haber kaydı bulunamadı: {haber_id}")
 
+    if durum_mesaj_id and durum_baslik:
+        telegram_bot.durum_guncelle(
+            durum_mesaj_id, durum_baslik, 3, 4,
+            "1080x1920 infografik slaytlar ve story çiziliyor…"
+        )
+
     # 1. Slaytları ve Story'yi üret
     sonuclar = slaytlar.son_dakika_uret(taze, ayarlar, con=con)
     if not sonuclar:
         raise RuntimeError("Slayt görselleri üretilemedi.")
+
+    if durum_mesaj_id and durum_baslik:
+        telegram_bot.durum_guncelle(
+            durum_mesaj_id, durum_baslik, 4, 4,
+            "Slaytlar ImgBB'ye yükleniyor ve onay kartı hazırlanıyor…"
+        )
 
     # 2. %100 SAF NATIVE 9:16 Slaytları ImgBB'ye yükle
     yuklemeler = upload_image.hepsini_yukle([s["yol"] for s in sonuclar], ayarlar)
@@ -117,6 +131,12 @@ def _post_olustur_ve_onaya_sun(
         ),
     )
 
+    if durum_mesaj_id and durum_baslik:
+        telegram_bot.durum_guncelle(
+            durum_mesaj_id, durum_baslik, 4, 4,
+            "✅ Tamamlandı! Onay kartı ve slaytlar hazırlandı."
+        )
+
     con.execute(
         "UPDATE haberler SET durum = 'onay_bekliyor', son_dakika = 1, "
         "telegram_message_id = ?, gorsel_url = ?, detay_url = ?, "
@@ -138,7 +158,11 @@ def linkten_haber_uret(url: str, con, ayarlar: dict, basan: str = "") -> int:
         telegram_bot.mesaj_gonder("⚠️ Geçerli bir link giriniz:\n<code>/link https://bloomberg.com/...</code>", html=True)
         return 1
 
-    telegram_bot.mesaj_gonder(f"🌐 <b>Link taranıyor:</b>\n<code>{url}</code>\n\nMakale metni çekilip slaytlar üretiliyor…", html=True)
+    durum_id = telegram_bot.mesaj_gonder(
+        f"🌐 <b>Linkten Haber Hazırlanıyor…</b>\n<code>{url[:60]}</code>",
+        html=True,
+    )
+    telegram_bot.durum_guncelle(durum_id, "Linkten Haber Hazırlanıyor", 1, 4, "Web sayfası taranıyor ve makale metni ayıklanıyor…")
 
     try:
         baslik, govde, gorsel, kaynak = _baslik_ve_metin_ayikla(url)
@@ -173,12 +197,15 @@ def linkten_haber_uret(url: str, con, ayarlar: dict, basan: str = "") -> int:
             con.execute("UPDATE haberler SET gorsel_kaynagi = 'haber_gorseli' WHERE id = ?", (haber_id,))
             con.commit()
 
+        telegram_bot.durum_guncelle(durum_id, "Linkten Haber Hazırlanıyor", 2, 4, "Gemini ile manşet, özet ve slayt metinleri yazılıyor…")
+
         # Gemini ile metinleri üret
         kayit = con.execute("SELECT * FROM haberler WHERE id = ?", (haber_id,)).fetchone()
         generate_text.metinleri_uret(ayarlar=ayarlar, haberler=[kayit])
 
         return _post_olustur_ve_onaya_sun(
-            con, ayarlar, haber_id, kaynak=kaynak, ozet_not=f"🔗 LİNKTEN ÜRETİLEN ÖZEL HABER"
+            con, ayarlar, haber_id, kaynak=kaynak, ozet_not=f"🔗 LİNKTEN ÜRETİLEN ÖZEL HABER",
+            durum_mesaj_id=durum_id, durum_baslik="Linkten Haber Hazırlanıyor"
         )
 
     except Exception as e:
@@ -196,7 +223,11 @@ def arastir_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
         telegram_bot.mesaj_gonder("⚠️ Araştırmak istediğin konuyu daha detaylı yaz:\n<code>/arastir Nvidia yeni kuantum yapay zeka çipini duyurdu</code>", html=True)
         return 1
 
-    telegram_bot.mesaj_gonder(f"🔍 <b>Konu araştırılıyor:</b>\n<i>\"{konu}\"</i>\n\nGüncel bilgiler toplanıyor ve slaytlar hazırlanıyor…", html=True)
+    durum_id = telegram_bot.mesaj_gonder(
+        f"🔍 <b>Konu Araştırılıyor…</b>\n<i>\"{html.escape(konu[:60])}\"</i>",
+        html=True,
+    )
+    telegram_bot.durum_guncelle(durum_id, f"Araştırma: {konu[:30]}", 1, 4, "Canlı web kaynakları ve veriler taranıyor…")
 
     try:
         prompt = (
@@ -209,6 +240,8 @@ def arastir_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
             f"- Vurgu rakamı (vurgu_sayi) ve etiketi (vurgu_etiket) çıkar (örn: '500 Milyar $' / 'TOPLAM YATIRIM').\n"
             f"- Kategori (turkiye, dunya, ekonomi, teknoloji, bilim, spor) ve İngilizce Pexels stok arama kalıbı (gorsel_konu) belirle.\n"
         )
+
+        telegram_bot.durum_guncelle(durum_id, f"Araştırma: {konu[:30]}", 2, 4, "Gemini ile doğrulanmış editoryal haber yazılıyor…")
 
         yanit = generate_text.gemini_cagir(prompt, ayarlar)
         if not yanit or not isinstance(yanit, dict):
@@ -237,7 +270,8 @@ def arastir_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
         con.commit()
 
         return _post_olustur_ve_onaya_sun(
-            con, ayarlar, haber_id, kaynak="Canlı Web Araştırması", ozet_not="🔎 CANLI ARAŞTIRMA İLE ÜRETİLEN ÖZEL HABER"
+            con, ayarlar, haber_id, kaynak="Canlı Web Araştırması", ozet_not="🔎 CANLI ARAŞTIRMA İLE ÜRETİLEN ÖZEL HABER",
+            durum_mesaj_id=durum_id, durum_baslik=f"Araştırma: {konu[:30]}"
         )
 
     except Exception as e:
@@ -263,12 +297,13 @@ def dosya_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
         )
         return 1
 
-    telegram_bot.mesaj_gonder(
+    durum_id = telegram_bot.mesaj_gonder(
         f"📁 <b>A'dan Z'ye Dosya Haberi Hazırlanıyor:</b>\n"
         f"<i>\"{html.escape(konu)}\"</i>\n\n"
         f"Başından sonuna tüm kronoloji, dava/teftiş süreçleri ve perde arkası detaylar toplanıyor…",
         html=True,
     )
+    telegram_bot.durum_guncelle(durum_id, f"Dosya: {konu[:30]}", 1, 4, "A'dan Z'ye tüm kronoloji ve resmi süreçler toplanıyor…")
 
     try:
         prompt = (
@@ -293,7 +328,11 @@ def dosya_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
             f"11. gorsel_konu: Konuyla doğrudan ilgili gerçek kişinin adı-soyadı (örn: 'Haluk Levent', 'Dilan Polat'). Varsa Wikimedia Commons'tan portresi çekilecek.\n"
             f"12. gorsel_temsili: Somut İngilizce stok arama terimi (örn: 'courtroom gavel justice trial', 'charity donation aid boxes').\n"
             f"13. kategori: 'turkiye', 'dunya', 'ekonomi', 'teknoloji', 'bilim', 'spor'.\n"
+            f"14. alt_bilgi_kategori: 'HUKUKİ KRONOLOJİ', 'ÖZEL İNCELEME' veya 'PERDE ARKASI DOSYA'.\n"
+            f"Sadece saf JSON döndür."
         )
+
+        telegram_bot.durum_guncelle(durum_id, f"Dosya: {konu[:30]}", 2, 4, "Gemini ile 3 ferah paragraflı derinlemesine dosya yazılıyor…")
 
         yanit = generate_text.gemini_cagir(prompt, ayarlar)
         if not yanit or not isinstance(yanit, dict):
@@ -326,6 +365,8 @@ def dosya_haber_uret(konu: str, con, ayarlar: dict, basan: str = "") -> int:
             haber_id,
             kaynak="A'dan Z'ye Dosya",
             ozet_not="📁 A'DAN Z'YE DOSYA HABERİ & KRONOLOJİ",
+            durum_mesaj_id=durum_id,
+            durum_baslik=f"Dosya: {konu[:30]}",
         )
 
     except Exception as e:
@@ -346,7 +387,8 @@ def ozel_metin_haber_uret(metin: str, con, ayarlar: dict, basan: str = "") -> in
         telegram_bot.mesaj_gonder("⚠️ Post yapmak istediğin bülten veya duyuru metnini yaz:\n<code>/ozel Daily Brief mobil uygulamamız App Store ve Google Play'de yayına girdi...</code>", html=True)
         return 1
 
-    telegram_bot.mesaj_gonder("✍️ <b>Özel bülten metni işleniyor…</b>\nDaily Brief şablonuna ve slaytlara dönüştürülüyor…", html=True)
+    durum_id = telegram_bot.mesaj_gonder("✍️ <b>Özel bülten metni işleniyor…</b>\nDaily Brief şablonuna ve slaytlara dönüştürülüyor…", html=True)
+    telegram_bot.durum_guncelle(durum_id, "Özel Bülten Hazırlanıyor", 1, 4, "Bülten metni analiz ediliyor…")
 
     try:
         prompt = (
@@ -360,6 +402,8 @@ def ozel_metin_haber_uret(metin: str, con, ayarlar: dict, basan: str = "") -> in
             f"- Varsa metinden vurucu bir rakam (vurgu_sayi) ve etiketi (vurgu_etiket).\n"
             f"- Kategori (turkiye, dunya, ekonomi, teknoloji, bilim, spor) ve İngilizce Pexels stok arama kalıbı (gorsel_konu) belirle.\n"
         )
+
+        telegram_bot.durum_guncelle(durum_id, "Özel Bülten Hazırlanıyor", 2, 4, "Gemini ile Daily Brief formatına dönüştürülüyor…")
 
         yanit = generate_text.gemini_cagir(prompt, ayarlar)
         if not yanit or not isinstance(yanit, dict):
@@ -387,7 +431,8 @@ def ozel_metin_haber_uret(metin: str, con, ayarlar: dict, basan: str = "") -> in
         con.commit()
 
         return _post_olustur_ve_onaya_sun(
-            con, ayarlar, haber_id, kaynak="Özel Duyuru & Bülten", ozet_not="📢 ÖZEL DUYURU & BÜLTEN"
+            con, ayarlar, haber_id, kaynak="Özel Duyuru & Bülten", ozet_not="📢 ÖZEL DUYURU & BÜLTEN",
+            durum_mesaj_id=durum_id, durum_baslik="Özel Bülten Hazırlanıyor"
         )
 
     except Exception as e:
@@ -404,7 +449,8 @@ def makro_haber_uret(komut_metni: str, con, ayarlar: dict, basan: str = "", veri
     from . import makro_kart
 
     komut_metni = komut_metni.strip()
-    telegram_bot.mesaj_gonder(f"⚡ <b>Kritik Makro İnfografik Kartı Hazırlanıyor…</b>\nVeriler analiz ediliyor ve canlı piyasa reaksiyonu işleniyor…", html=True)
+    durum_id = telegram_bot.mesaj_gonder(f"⚡ <b>Kritik Makro İnfografik Kartı Hazırlanıyor…</b>\nVeriler analiz ediliyor ve canlı piyasa reaksiyonu işleniyor…", html=True)
+    telegram_bot.durum_guncelle(durum_id, "Makro Kart Hazırlanıyor", 1, 3, "Veriler analiz ediliyor…")
 
     try:
         prompt = (
@@ -438,6 +484,7 @@ def makro_haber_uret(komut_metni: str, con, ayarlar: dict, basan: str = "", veri
         ig_caption = yanit.get("ig_caption", spot_metin)
 
         # 1. 4:5 Post ve 9:16 Story Görsellerini Çiz
+        telegram_bot.durum_guncelle(durum_id, "Makro Kart Hazırlanıyor", 2, 3, "İnfografik ve story görselleri çiziliyor…")
         post_yolu = makro_kart.makro_karti_ciz(
             rozet_metni=rozet_metni,
             ana_deger=ana_deger,
@@ -458,6 +505,7 @@ def makro_haber_uret(komut_metni: str, con, ayarlar: dict, basan: str = "", veri
         )
 
         # 2. ImgBB / Barındırıcıya Yükle
+        telegram_bot.durum_guncelle(durum_id, "Makro Kart Hazırlanıyor", 3, 3, "Görseller ImgBB'ye yüklenip onay kartı sunuluyor…")
         yukleme_post = upload_image.gorsel_yukle(post_yolu, ayarlar)
         post_url = yukleme_post["url"]
 
