@@ -281,6 +281,9 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
       KÖTÜ  Başlık: "Apple iPhone fiyatlarına %25 zam yaptı"
             kanca: "APPLE İPHONE FİYATLARINA ZAM"
             (birebir aynı cümle)
+      KÖTÜ  Başlık: "İsmail Kartal istifa etti: Bir daha asla geri dönmeyeceğim"
+            kanca: "BİR DAHA ASLA DÖNMEYECEĞİM"
+            (başlıktaki alıntıyı kancaya kopyalama — başlıkla birebir çakışır)
 
 - vurgu_sayi / vurgu_etiket: Başlıkta GEÇMEYEN ikinci en çarpıcı sayı ve etiketi (örn: "2.352 yıl" / "istenen ceza"). Yoksa boş bırak.
 

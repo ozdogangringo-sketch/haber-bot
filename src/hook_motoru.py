@@ -568,6 +568,25 @@ def hook_olustur(haber: dict) -> dict | None:
     # sonraki okuyan renk sanırdı.
     acil_haber = any(re.search(d, metin_tum) for d in kirmizi_desenler)
 
+    # 2. Konuya ve Duyguya Uygun Kicker Belirleme
+    # ⚠️ "SON DAKİKA" İBARESİ PUANA BAĞLI — eşik config → son_dakika_etiket_esigi: 9.
+    # ⚠️ İÇİ BOŞ KICKER'LAR KALDIRILDI ("DİKKAT ÇEKEN GELİŞME", "TARİHİ BAŞARI" vb.).
+    # Uyacak etiket yoksa kicker BOŞ kalır ve satır hiç çizilmez.
+    if acil_haber and _son_dakika_esigini_geciyor(haber):
+        kicker = "● SON DAKİKA GELİŞMESİ"
+    elif any(w in metin_tum for w in ["savunma", "siha", "iha", "tusaş", "tsk", "nato", "baykar", "aselsan", "uçağı", "savaş uçağı"]):
+        kicker = "● SAVUNMA SANAYİİ"
+    elif any(w in metin_tum for w in ["öğrenci", "yurt", "ösym", "dgs", "yks", "kyk", "burs", "üniversite", "sınav"]):
+        kicker = "● ÖĞRENCİLERİN DİKKATİNE"
+    elif any(w in metin_tum for w in ["zam", "enflasyon", "bist", "faiz", "dolar", "euro", "petrol", "altın", "mevduat"]):
+        kicker = "● PİYASA & EKONOMİ"
+    elif kategori in ["teknoloji", "bilim"]:
+        kicker = "● TEKNOLOJİ DÜNYASI"
+    elif kategori == "spor":
+        kicker = "● SPOR GÜNDEMİ"
+    else:
+        kicker = ""
+
     # ⚠️ KODA GÖMÜLÜ "XIAOMI SUV" ÖZEL DURUMU SİLİNDİ (9 Eyl 2026).
     # Haberde ne yazarsa yazsın sabit "750 mm · SU GEÇİŞ DERİNLİĞİ" ve
     # "SUDA BATMAYAN KAMP ARACI" basıyordu. ÖLÇÜLDÜ: kaynağında 400 mm
@@ -580,7 +599,30 @@ def hook_olustur(haber: dict) -> dict | None:
     # `vurgu_sayi` alanından gelmeli — o alan makale metninden üretiliyor
     # ve `dogrula` denetiminden geçiyor.
 
-    # 3. Sayısal Vurgu Varsa (stat_punch)
+    # 3. ÖNCELİK: Gemini kanca alanı (gövdeden gelen kilit detay)
+    # ⚠️ ASIL ÇÖZÜM BU (9 Eyl 2026).
+    # `kanca` alanı makale GÖVDESİNDEN, başlıkta geçmeyen bir ayrıntı
+    # olarak üretiliyor (bkz. generate_text.PROMPT). Şema onu zorunlu
+    # değil yapıyor — boşsa uydurma veri yerine pas geçilir.
+    # ⚠️ `vurgu_sayi` bu alanı EZMEMELİDİR: Gemini neredeyse her habere
+    # vurgu_sayi ürettiği için, stat_punch önceden bu alanı gasp edip
+    # başlıkla çakışarak kancayı tamamen bastırıyordu (10 Eyl link vakası).
+    kanca = (haber.get("kanca") or "").strip()
+    if kanca:
+        t1, t2 = _dengeli_bol(tr_upper(kanca).split())
+        if not t2:
+            t2 = tr_upper(haber.get("gorsel_konu") or "GÜNDEM")
+        # ⚠️ A KURALI — KULLANICI KARARI: kanca başlığı tekrarlıyorsa HİÇ
+        # ÇİZİLMEZ. Bilgi eklemeyen bir kanca gürültüdür.
+        if _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+            return {
+                "format": "minimal_vurgu",
+                "kicker": kicker,
+                "t1": t1,
+                "t2": t2,
+            }
+
+    # 4. Sayısal Vurgu Varsa (stat_punch) — yalnızca kanca yoksa ve başlıkta sayı yoksa
     v_sayi = haber.get("vurgu_sayi")
     v_etiket = haber.get("vurgu_etiket")
 
@@ -606,99 +648,36 @@ def hook_olustur(haber: dict) -> dict | None:
             haber.get("ig_baslik") or haber.get("baslik_orj") or "",
             haber.get("gorsel_konu") or ""
         )
-        if not _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
-            return None
-        return {
-            "format": "stat_punch",
-            "num_txt": num_part,
-            "unit_txt": unit_part,
-            "lbl_txt": tr_upper(v_etiket or "KİLİT VERİ"),
-            "t1": t1,
-            "t2": t2,
-        }
+        if _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+            return {
+                "format": "stat_punch",
+                "num_txt": num_part,
+                "unit_txt": unit_part,
+                "lbl_txt": tr_upper(v_etiket or "KİLİT VERİ"),
+                "t1": t1,
+                "t2": t2,
+            }
 
-    # 4. Sayısız Haberler (Konuya ve Duyguya Uygun Kicker + Minimal Vurgu)
-    #
-    # ⚠️ "SON DAKİKA" İBARESİ PUANA BAĞLI — kural baypas ediliyordu
-    # (9 Eyl 2026). Kicker yalnızca RENGE bakıyordu ve renk de kelime
-    # desenlerinden geliyor; sonuç: ÖLÇÜLDÜ, 12 kancanın **9'u** (%75)
-    # önem puanı 9'un ALTINDAYKEN "SON DAKİKA GELİŞMESİ" basıyordu —
-    # rutin bir trafik cezası (7), bir istifa (7), hastane ilaç
-    # hırsızlığı (7). Oysa projenin kararı net: *"her önemli habere son
-    # dakika demek ibareyi değersizleştiriyor"*, eşik `config →
-    # son_dakika_etiket_esigi: 9` ve `slaytlar.py` ile `caption.py` ona
-    # uyuyor. Kanca uymuyordu. Aynı kural, aynı eşik, üçüncü kapı.
-    # ⚠️ İÇİ BOŞ KICKER'LAR KALDIRILDI — kullanıcı sordu: *"'dikkat çeken
-    # gelişme' cümlesine gerek var mı"* (9 Eyl 2026). ÖLÇÜLDÜ: 47
-    # kicker'ın **26'sı (%55)** tam olarak o ifadeydi. Bir haber
-    # hesabındaki her gönderi zaten "dikkat çeken gelişme"dir; ifade
-    # hiçbir şey söylemiyor ve silinince hiçbir bilgi kaybolmuyor —
-    # gövde metninden ayıkladığımız *içi boş övgü* ölçütünün birebir
-    # aynısı. `TARİHİ BAŞARI` da aynı sebeple gitti: bilgi değil HÜKÜM.
-    #
-    # Kalanların hepsi bir şey SÖYLÜYOR: alanı (piyasa, spor, savunma,
-    # teknoloji), kimi ilgilendirdiğini (öğrenciler) ya da aciliyeti
-    # (son dakika — artık önem puanına bağlı).
-    #
-    # ⚠️ Uyacak etiket yoksa kicker BOŞ kalıyor ve satır HİÇ ÇİZİLMİYOR;
-    # yerine dolgu koymuyoruz. `vurgu_sayi` ve `alinti` alanlarındaki
-    # kararla aynı: yoksa yok.
-    if acil_haber and _son_dakika_esigini_geciyor(haber):
-        kicker = "● SON DAKİKA GELİŞMESİ"
-    elif any(w in metin_tum for w in ["savunma", "siha", "iha", "tusaş", "tsk", "nato", "baykar", "aselsan", "uçağı", "savaş uçağı"]):
-        kicker = "● SAVUNMA SANAYİİ"
-    elif any(w in metin_tum for w in ["öğrenci", "yurt", "ösym", "dgs", "yks", "kyk", "burs", "üniversite", "sınav"]):
-        kicker = "● ÖĞRENCİLERİN DİKKATİNE"
-    elif any(w in metin_tum for w in ["zam", "enflasyon", "bist", "faiz", "dolar", "euro", "petrol", "altın", "mevduat"]):
-        kicker = "● PİYASA & EKONOMİ"
-    elif kategori in ["teknoloji", "bilim"]:
-        kicker = "● TEKNOLOJİ DÜNYASI"
-    elif kategori == "spor":
-        kicker = "● SPOR GÜNDEMİ"
-    else:
-        kicker = ""
-
-    # ⚠️ ÖNCE GEMİNİ'NİN `kanca` ALANI — asıl çözüm bu (9 Eyl 2026).
-    #
-    # `_basliktan_hook_metinleri` adı üstünde BAŞLIKTAN türetiyor;
-    # dolayısıyla ne kadar filtrelenirse filtrelensin yeni bilgi
-    # taşıyamaz. ÖLÇÜLDÜ: 120 haberin **99'unda** (%82) üretilen kanca
-    # başlığın yeniden ifadesiydi ve A kuralı tarafından bastırıldı.
-    # Kullanıcının şartı — *"kancayla başlık tamamen farklı olmalı"* —
-    # bu türetmeyle YAPISAL OLARAK karşılanamaz.
-    #
-    # `kanca` alanı makale GÖVDESİNDEN, başlıkta geçmeyen bir ayrıntı
-    # olarak üretiliyor (bkz. `generate_text.PROMPT`). Şema onu ZORUNLU
-    # DEĞİL, boş bırakılabilir yapıyor — `vurgu_sayi` ve `alinti` ile
-    # aynı gerekçe: doldurmaya zorlamak uydurmayı davet eder.
-    #
-    # ⚠️ Başlıktan türetme SİLİNMEDİ, yedek olarak duruyor: alan boş
-    # gelen ESKİ kayıtlar (1h dersi — kaynağı düzeltmek geçmiş
+    # 5. Kancasız Eski Kayıtlar İçin Başlıktan Türetme (Yedek)
+    # Alan boş gelen ESKİ kayıtlar (1h dersi — kaynağı düzeltmek geçmiş
     # kayıtları düzeltmiyor) yine eski yoldan geçiyor ve A kuralı
     # onları zaten eliyor.
-    kanca = (haber.get("kanca") or "").strip()
-    if kanca:
-        t1, t2 = _dengeli_bol(tr_upper(kanca).split())
-    else:
+    if not kanca:
         t1, t2 = _basliktan_hook_metinleri(
             haber.get("ig_baslik") or haber.get("baslik_orj") or "",
             haber.get("gorsel_konu") or ""
         )
-    if not t2:
-        t2 = tr_upper(haber.get("gorsel_konu") or "GÜNDEM")
+        if not t2:
+            t2 = tr_upper(haber.get("gorsel_konu") or "GÜNDEM")
+        if _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+            return {
+                "format": "minimal_vurgu",
+                "kicker": kicker,
+                "t1": t1,
+                "t2": t2,
+            }
 
-    # ⚠️ A KURALI — KULLANICI KARARI: kanca başlığı tekrarlıyorsa HİÇ
-    # ÇİZİLMEZ. Koddaki eski *"Hook ASLA pas geçilmez"* kararı bu
-    # noktada terk edildi: bilgi eklemeyen bir kanca gürültüdür.
-    if not _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
-        return None
-
-    return {
-        "format": "minimal_vurgu",
-        "kicker": kicker,
-        "t1": t1,
-        "t2": t2,
-    }
+    return None
 
 
 # Kanca ile başlık bloğu arasında bırakılacak EN AZ boşluk.
