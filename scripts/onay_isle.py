@@ -3439,6 +3439,8 @@ def haber_ara(con, ayarlar, komut: str) -> int:
     adaylar = [{"id": h["id"], "puan": h["onem_puani"] or 0,
                 "baslik": h["baslik_orj"], "kaynak": h["kaynak"],
                 "kategori": h["kategori"] or "-",
+                "link": h["link"] if "link" in h.keys() else "",
+                "ozet": (h["ozet_orj"] if "ozet_orj" in h.keys() else "") or (h["slayt_ozet"] if "slayt_ozet" in h.keys() else ""),
                 "yayin_tarihi": h["yayin_tarihi"] or ""}
                for h in bulunan]
     # En güncel haberler en üstte, ardından puan sırasıyla

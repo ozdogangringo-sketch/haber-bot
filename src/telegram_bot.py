@@ -928,10 +928,37 @@ def _kacir(metin: str) -> str:
     return html.escape(metin or "", quote=False)
 
 
+def _kacir_url(url: str) -> str:
+    """URL'yi HTML href niteliği için güvenli hale getirir."""
+    return html.escape(url or "", quote=True)
+
+
+def _spot_temizle(metin: str, azami: int = 120) -> str:
+    """
+    Haber özetini/spotunu 1-2 cümlelik ferah bir Telegram satırına dönüştürür.
+    HTML etiketlerini temizler ve fazla uzamadan cümle/kelime sınırından keser.
+    """
+    if not metin:
+        return ""
+    temiz = re.sub(r"<[^>]+>", " ", metin)
+    temiz = " ".join(temiz.split()).strip()
+    if not temiz:
+        return ""
+    m = re.search(r"^(.*?[.!?])(?:\s+[A-ZÇĞİÖŞÜ0-9]|$)", temiz)
+    if m and 25 <= len(m.group(1)) <= azami:
+        return m.group(1)
+    if len(temiz) > azami:
+        kesilmis = temiz[:azami].rsplit(" ", 1)[0]
+        return f"{kesilmis}…"
+    return temiz
+
+
 def oneri_gonder(adaylar: list[dict], azami: int = 5,
                  baslik_metni: str = "📰 <b>Günün Öne Çıkan Haber Adayları</b>") -> int:
     """
     Kullanıcıya saatlik tekil post için seçebileceği 5 taze başlığı önerir.
+    Başlıklar tıklanabilir orijinal haber linkiyle sunulur; altına 1 cümlelik
+    spot açıklama eklenerek tek bakışta anlaşılması sağlanır.
     `[1️⃣] [2️⃣] [3️⃣] [4️⃣] [5️⃣]` butonları ile çoklu seçim yapılır.
     """
     if not adaylar:
@@ -945,9 +972,19 @@ def oneri_gonder(adaylar: list[dict], azami: int = 5,
     for i, a in enumerate(gosterilecek):
         r_simge = rakamlar[i]
         puan_str = f"[{a['puan']}] " if a.get("puan") is not None else ""
-        satirlar.append(
-            f"{r_simge} <b>{puan_str}</b>{_kacir(a['baslik'])}"
-        )
+        baslik = _kacir(a["baslik"])
+        link = (a.get("link") or "").strip()
+        if link and link.startswith("http"):
+            baslik_satiri = f"{r_simge} <b>{puan_str}</b><a href=\"{_kacir_url(link)}\">{baslik}</a>"
+        else:
+            baslik_satiri = f"{r_simge} <b>{puan_str}</b>{baslik}"
+        satirlar.append(baslik_satiri)
+
+        spot = _spot_temizle(a.get("ozet") or "")
+        baslik_ham = a.get("baslik") or ""
+        if spot and spot.lower() not in baslik_ham.lower() and baslik_ham.lower() not in spot.lower():
+            satirlar.append(f"     💬 <i>{_kacir(spot)}</i>")
+
         satirlar.append(
             f"     <i>{_kacir(a.get('kaynak', ''))} · {_kacir(a.get('kategori', ''))}</i>"
         )

@@ -553,7 +553,9 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
     adaylar = [{"id": h["id"], "puan": h["onem_puani"],
                 "baslik": h["baslik_orj"],
                 "kaynak": h["kaynak"],
-                "kategori": h["kategori"] or "-"}
+                "kategori": h["kategori"] or "-",
+                "link": h["link"] if "link" in h.keys() else "",
+                "ozet": (h["ozet_orj"] if "ozet_orj" in h.keys() else "") or (h["slayt_ozet"] if "slayt_ozet" in h.keys() else "")}
                for h in uygunlar]
     adaylar.sort(key=lambda a: a["puan"], reverse=True)
 
@@ -661,6 +663,8 @@ def populer_onerileri_gonder(con, ayarlar: dict, kuru: bool = False) -> int:
             "baslik": baslik,
             "kaynak": h["kaynak"],
             "kategori": h["kategori"] or "-",
+            "link": h["link"] if "link" in h.keys() else "",
+            "ozet": (h["ozet_orj"] if "ozet_orj" in h.keys() else "") or (h["slayt_ozet"] if "slayt_ozet" in h.keys() else ""),
         })
 
     gecerliler.sort(key=lambda x: x["puan"], reverse=True)
