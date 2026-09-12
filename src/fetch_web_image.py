@@ -8,9 +8,12 @@ olayın bizzat gerçekleştiği anı gösteren gerçek basın fotoğraflarını 
 
 from __future__ import annotations
 
+import html
 import io
+import json
 import logging
 import re
+import urllib.parse
 from typing import Any
 import requests
 from PIL import Image, ImageOps
@@ -74,6 +77,38 @@ def _ddg_gorsel_ara(sorgu: str) -> list[dict[str, Any]]:
         return []
 
 
+def _bing_gorsel_ara(sorgu: str) -> list[dict[str, Any]]:
+    """Bing Görsel Arama üzerinden yüksek çözünürlüklü basın ve haber fotoğraflarını çeker."""
+    try:
+        q = urllib.parse.quote(str(sorgu).strip())
+        url = f"https://www.bing.com/images/search?q={q}&form=HDRSC2&first=1"
+        res = requests.get(url, headers=HEADERS, timeout=10)
+        if res.status_code != 200:
+            return []
+        matches = re.findall(r'm=\"({[^\"]+})\"', res.text) or re.findall(r'm=(&quot;{[^&]+}&quot;)', res.text)
+        sonuclar = []
+        for m in matches:
+            s = html.unescape(m).strip('\"')
+            try:
+                d = json.loads(s)
+                img_url = (d.get("murl") or "").strip()
+                if img_url and img_url.startswith("http"):
+                    sonuclar.append({
+                        "image": img_url,
+                        "title": d.get("t") or d.get("desc") or "",
+                        "width": d.get("width") or 1200,
+                        "height": d.get("height") or 800,
+                        "source": "Bing",
+                        "url": d.get("purl") or "",
+                    })
+            except Exception:
+                continue
+        return sonuclar
+    except Exception as e:
+        log.warning("Bing görsel arama hatası (%s): %s", sorgu, e)
+        return []
+
+
 from . import gorsel_kalite
 
 
@@ -94,7 +129,9 @@ def fotograf_ara(
     for sorgu in sorgular:
         if not sorgu or not str(sorgu).strip():
             continue
-        ham_sonuclar = _ddg_gorsel_ara(str(sorgu).strip())
+        ham_sonuclar = _bing_gorsel_ara(str(sorgu).strip())
+        if not ham_sonuclar:
+            ham_sonuclar = _ddg_gorsel_ara(str(sorgu).strip())
         if not ham_sonuclar:
             continue
 

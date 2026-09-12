@@ -99,6 +99,7 @@ const GORSEL_SEC = /^gorsel_sec:[1-9]:([1-9]|10):\d{1,12}$/;
 // komut" alıyordu. Tur takıldığında açılan panelde, kurtaracak iki
 // düğmenin ikisi de ölüydü.
 const TUR_EYLEM = /^(yayinla|iptal):\d{1,12}$/;
+const FOTO_EYLEM = /^(foto_degistir|foto_gercek|foto_stok|foto_ai):\d{1,12}$/;
 
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
@@ -164,7 +165,7 @@ function eylemMi(veri) {
     || RETRY_KANAL.test(veri) || KURTAR.test(veri)
     || GORSEL_ONAY.test(veri)
     || KALDIR.test(veri) || AYAR_SEC.test(veri) || HATA_EYLEM.test(veri)
-    || TUR_EYLEM.test(veri) || GORSEL_SEC.test(veri)
+    || TUR_EYLEM.test(veri) || FOTO_EYLEM.test(veri) || GORSEL_SEC.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
     || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
     || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri) || INCELE.test(veri);
@@ -420,6 +421,9 @@ const KOMUT_ADI = {
   iptal: "Tur atlanıyor",
   metin_yenile: "Metinler yeniden üretiliyor",
   foto_degistir: "Alternatif fotoğraf aranıyor",
+  foto_gercek: "Gerçek basın fotoğrafı aranıyor",
+  foto_stok: "Pexels stok fotoğrafı aranıyor",
+  foto_ai: "AI görseli üretiliyor",
   foto_orijinal: "Orijinal görsel geri yükleniyor",
   ertele: "Erteleniyor",
   slayt_carpici: "Başlık daha dikkat çekici yapılıyor",

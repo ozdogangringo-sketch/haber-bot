@@ -345,7 +345,7 @@ def basliklari_sun(haberler: list) -> int:
         baslik = html.escape(h["ig_baslik"] or h["baslik_orj"] or "")
         etiket = html.escape((h["kategori"] or "?").upper())
         puan = h["onem_puani"] or "?"
-        satirlar.append(f"<b>{i}.</b> {baslik}")
+        satirlar.append(f"<b>{i}. {baslik}</b>")
         satirlar.append(f"    <i>{etiket} · {puan} puan</i>")
     satirlar += ["", "Onaylarsan slaytlar hazırlanıp tam onaya sunulacak."]
     return mesaj_gonder("\n".join(satirlar), html=True,
@@ -360,7 +360,7 @@ def basliklari_tazele(mesaj_id: int, haberler: list) -> None:
         baslik = html.escape(h["ig_baslik"] or h["baslik_orj"] or "")
         etiket = html.escape((h["kategori"] or "?").upper())
         puan = h["onem_puani"] or "?"
-        satirlar.append(f"<b>{i}.</b> {baslik}")
+        satirlar.append(f"<b>{i}. {baslik}</b>")
         satirlar.append(f"    <i>{etiket} · {puan} puan</i>")
     satirlar += ["", "Onaylarsan slaytlar hazırlanıp tam onaya sunulacak."]
     mesaji_guncelle(mesaj_id, "\n".join(satirlar), baslik_onay_menusu())
@@ -1041,9 +1041,9 @@ def oneri_gonder(adaylar: list[dict], azami: int = 5,
         baslik = _kacir(a["baslik"])
         link = (a.get("link") or "").strip()
         if link and link.startswith("http"):
-            baslik_satiri = f"{r_simge} <b>{puan_str}</b><a href=\"{_kacir_url(link)}\">{baslik}</a>"
+            baslik_satiri = f"{r_simge} <b>{puan_str}<a href=\"{_kacir_url(link)}\">{baslik}</a></b>"
         else:
-            baslik_satiri = f"{r_simge} <b>{puan_str}</b>{baslik}"
+            baslik_satiri = f"{r_simge} <b>{puan_str}{baslik}</b>"
         satirlar.append(baslik_satiri)
 
         spot = _spot_temizle(a.get("ozet") or "")

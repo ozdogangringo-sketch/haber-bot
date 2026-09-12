@@ -70,13 +70,27 @@ def turu_getir(con, mesaj_id: int) -> list:
     ⚠️ SIRALAMA: `slayt_sirasi` belirlenmişse (kullanıcı taşıdıysa) o sıra
     kullanılır; yoksa varsayılan puan ve tarih sırası geçerlidir.
     """
-    return list(con.execute(
+    satirlar = list(con.execute(
         "SELECT * FROM haberler WHERE telegram_message_id = ? "
         "ORDER BY CASE WHEN COALESCE(slayt_sirasi, 0) > 0 THEN slayt_sirasi ELSE 999 END ASC, "
         "COALESCE(daha_once_yayinlandi, 0) ASC, "
         "onem_puani DESC, yayin_tarihi DESC",
         (mesaj_id,),
     ))
+    if not satirlar and con is not None:
+        # Belki bu mesaj adaya/alt mesaja aittir (bağlı mesaj desteği)
+        try:
+            bagli = con.execute(
+                "SELECT deger FROM ayarlar WHERE anahtar = ?",
+                (f"bagli_mesaj_{mesaj_id}",)
+            ).fetchone()
+            if bagli and bagli["deger"] and str(bagli["deger"]).isdigit():
+                ana_mid = int(bagli["deger"])
+                if ana_mid != mesaj_id:
+                    return turu_getir(con, ana_mid)
+        except Exception:
+            pass
+    return satirlar
 
 
 def _detay_urlleri(ham) -> list[str]:
@@ -1981,9 +1995,10 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
             "ai": "Yapay Zeka Görseli",
         }.get(mod, "Alternatif Fotoğraflar")
 
+        baslik_metin_kalin = html.escape(h.get("ig_baslik") or h.get("baslik_orj") or "")
         bilgi_id = telegram_bot.mesaj_gonder(
             f"{baslik_metin} hazırlanıyor…\n\n"
-            f"{h['ig_baslik'] or h['baslik_orj']}\n"
+            f"<b>{baslik_metin_kalin}</b>\n"
             f"<i>Hepsi hazır olunca yan yana göstereceğim, sen seçeceksin.</i>",
             html=True,
         )
@@ -2005,6 +2020,9 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
                     h, ayarlar, con=con, atlanacak=deneme + ek,
                     gorsel_modu=mod, zorla_ai=zorla_ai)
                 if not sonuclar:
+                    continue
+                if mod == "gercek" and sonuclar[0].get("katman") in ("pexels", "gradyan"):
+                    log.info("gerçek mod: '%s' katmanı elendi, sadece gerçek basın karesi kabul edilir", sonuclar[0].get("katman"))
                     continue
                 # HIZLANDIRMA (12 yükleme -> 3 yükleme):
                 # Aday seçiminde Telegram'a sadece kapak fotoğrafı (slayt 1) gönderilir.
@@ -2073,15 +2091,29 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
         secim = [{"text": f"{i}\ufe0f\u20e3",
                   "callback_data": f"gorsel_sec:{i}:1:{mesaj_id}"}
                  for i in range(1, len(adaylar) + 1)]
-        telegram_bot.mesaj_gonder(
+        cb_baska = f"foto_{mod}:{mesaj_id}" if mod in ("gercek", "stok", "ai") else f"foto_degistir:{mesaj_id}"
+        alt_butonlar = [
+            secim,
+            [
+                {"text": "🔄 Başka adaylar", "callback_data": cb_baska},
+                {"text": "↩️ Mevcut Görsel Kalsın", "callback_data": f"kurtar:{mesaj_id}"},
+            ],
+        ]
+        aday_mid = telegram_bot.mesaj_gonder(
             f"🎨 <b>{len(adaylar)} alternatif kapak</b>\n"
-            f"{h['ig_baslik'] or h['baslik_orj']}\n\n"
+            f"<b>{baslik_metin_kalin}</b>\n\n"
             f"Beğendiğin numaraya bas. Seçim yapmazsan mevcut görsel kalır.",
             html=True,
-            butonlar=[secim,
-                      [{"text": "🔄 Başka adaylar",
-                        "callback_data": "foto_degistir"}]],
+            butonlar=alt_butonlar,
         )
+        if aday_mid and con is not None:
+            try:
+                db.ayar_yaz(con, f"bagli_mesaj_{aday_mid}", str(mesaj_id))
+            except Exception:
+                pass
+
+        # Ana onay mesajının menüsünü geri koy (işleniyor yazısını ve butonları tazele)
+        menuyu_geri_koy(con, mesaj_id)
         return 0
 
     else:
@@ -3174,7 +3206,9 @@ def menuyu_geri_koy(con, mesaj_id: int, en_alta_tasi: bool = False) -> int:
         ilk_h = dict(haberler[0]) if haberler else {}
         if len(haberler) == 1 and ilk_h.get("son_dakika"):
             adet = 1 + len(_detay_urlleri(ilk_h.get("detay_url")))
-            ozet = (f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {ilk_h.get('onem_puani', 8)}/10\n"
+            baslik_goster = html.escape(ilk_h.get("ig_baslik") or ilk_h.get("baslik_orj") or "")
+            ozet = (f"🔴 <b>SON DAKİKA ÖNERİSİ</b>  ·  puan {ilk_h.get('onem_puani', 8)}/10\n"
+                    f"📰 <b>{baslik_goster}</b>\n"
                     f"⌛️ 24 saat boyunca onaya hazır bekler")
             metin = caption.son_dakika_caption(haberler[0], _sonuclari_kur(haberler), ayarlar=_ayarlar_onbellek)
         elif ilk_h.get("tur") == "ekonomi":
@@ -3834,12 +3868,12 @@ def main() -> int:
     # `turu_getir`, kanal seçimi hepsi kendiliğinden devreye giriyor.
     # Ayrı bir dal yazmak o kuralları İKİNCİ KEZ yazmak demekti ve bu
     # projenin en sık hatası tam olarak bu.
-    for _on in ("yayinla", "iptal"):
+    for _on in ("yayinla", "iptal", "foto_degistir", "foto_gercek", "foto_stok", "foto_ai"):
         if komut.startswith(f"{_on}:"):
             _hedef = komut.split(":", 1)[1]
             if _hedef.isdigit():
                 komut, mesaj_id = _on, int(_hedef)
-                log.info("kurtarma paneli: %s -> tur #%s", _on, mesaj_id)
+                log.info("ayrı mesaj komut normalizasyonu: %s -> tur #%s", _on, mesaj_id)
             break
 
     # ⚠️ `/durum` bir onay mesajına BAĞLI DEĞİL, dolayısıyla `mesaj_id`

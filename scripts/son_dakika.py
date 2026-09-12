@@ -24,6 +24,7 @@ NEDEN ONAY KALDIRILMADI:
     python scripts/son_dakika.py --kuru    (Telegram'a GÖNDERME)
 """
 
+import html
 import json
 import logging
 import re
@@ -899,10 +900,12 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
             etiketler.append(f"Ayrıntı {idx}/{len(telegram_urller)-1}")
 
     albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
+    baslik_goster = html.escape(taze.get("ig_baslik") or taze.get("baslik_orj") or "")
     mesaj_id = telegram_bot.onay_iste(
         metin, len(telegram_urller),
         uyari=(uyari or ""),
-        ozet=(f"🔴 SON DAKİKA ÖNERİSİ  ·  puan {taze['onem_puani']}/10\n"
+        ozet=(f"🔴 <b>SON DAKİKA ÖNERİSİ</b>  ·  puan {taze['onem_puani']}/10\n"
+              f"📰 <b>{baslik_goster}</b>\n"
               "⌛️ 24 saat boyunca onaya hazır bekler\n"
               + ("\n".join(katman_raporu) if katman_raporu else "")),
     )

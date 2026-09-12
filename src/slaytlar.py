@@ -690,25 +690,28 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     # yapılıyor; bu konumdaki eski blok kaldırıldı.
 
     # --- 2) Pexels: temsili fotoğraf ---
-    _SON_STOK_ID.clear()
-    terim = _alan(haber, "gorsel_temsili")
-    if terim:
-        try:
-            sonuc = fetch_stock.konu_icin_fotograf(
-                terim, atlanacak=atlanacak,
-                kullanilmis=_kullanilmis_stok_idler()
-            )
-            if sonuc:
-                foto, kayit = sonuc
-                _SON_STOK_ID.append(kayit.get("id"))
-                return (
-                    make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
-                    "pexels",
-                    fetch_stock.atif_metni(kayit),
+    # ⚠️ GERÇEK FOTOĞRAF MODUNDA STOK ATLANIR: kullanıcı özellikle gerçek
+    # basın karesi istediğinde Pexels stok fotoğrafı getirilmemeli.
+    if gorsel_modu != "gercek":
+        _SON_STOK_ID.clear()
+        terim = _alan(haber, "gorsel_temsili")
+        if terim:
+            try:
+                sonuc = fetch_stock.konu_icin_fotograf(
+                    terim, atlanacak=atlanacak,
+                    kullanilmis=_kullanilmis_stok_idler()
                 )
-            log.info("Pexels'te bulunamadı: %s", terim)
-        except Exception as e:
-            log.warning("Pexels katmanı patladı (%s): %s", terim, e)
+                if sonuc:
+                    foto, kayit = sonuc
+                    _SON_STOK_ID.append(kayit.get("id"))
+                    return (
+                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                        "pexels",
+                        fetch_stock.atif_metni(kayit),
+                    )
+                log.info("Pexels'te bulunamadı: %s", terim)
+            except Exception as e:
+                log.warning("Pexels katmanı patladı (%s): %s", terim, e)
 
     # --- 2.5) SON ÇARE: internette görsel arama ---
     #
