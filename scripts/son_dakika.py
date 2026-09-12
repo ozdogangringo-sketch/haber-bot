@@ -879,7 +879,8 @@ def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
 
 def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
               uyari, katman_raporu, story_detay_url: str | None = None,
-              story_detay_urller: list[str] | None = None) -> int:
+              story_detay_urller: list[str] | None = None,
+              yerel_yollar: list | None = None) -> int:
     """
     Hazırlanan tekil postu Telegram'da onaya sunar.
     """
@@ -905,7 +906,7 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
         else:
             etiketler.append(f"Ayrıntı {idx}/{len(telegram_urller)-1}")
 
-    albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, etiketler)
+    albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, etiketler, yerel_yollar=yerel_yollar)
     baslik_goster = html.escape(taze.get("ig_baslik") or taze.get("baslik_orj") or "")
     mesaj_id = telegram_bot.onay_iste(
         metin, len(telegram_urller),
@@ -1201,9 +1202,11 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
             return 0
 
 
+        yerel_yollar = [s["yol"] for s in sonuclar] if sonuclar else None
         return onaya_sun(con, ayarlar, aday, taze, urller,
                         story_url, metin, uyari, katman_raporu,
-                        story_detay_urller=story_detay_urller)
+                        story_detay_urller=story_detay_urller,
+                        yerel_yollar=yerel_yollar)
 
     except Exception as e:
         log.exception("son dakika turu hazırlanamadı")

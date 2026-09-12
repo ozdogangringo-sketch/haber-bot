@@ -149,10 +149,10 @@ def turu_tamamla(con, ayarlar: dict, secilen: list, kuru: bool = False) -> int:
         story_urller = urller
 
     # ⚠️ Albüm id'leri saklanıyor — slayt görseli değiştirilip
-    # onaylandığında albüm silinip yeniden gönderiliyor.
-    # Telegram'a gönderilen albüm 9:16 Story formatında sunulur!
+    yerel_storyler = [s["story_yol"] for s in sonuclar if s.get("story_yol")]
     albom_idler = telegram_bot.slaytlari_gonder(
-        story_urller, [h["ig_baslik"] or h["baslik_orj"] for h in secilen]
+        story_urller, [h["ig_baslik"] or h["baslik_orj"] for h in secilen],
+        yerel_yollar=yerel_storyler,
     )
     ozet = telegram_bot.tur_ozeti(secilen, isaretli)
     mesaj_id = telegram_bot.onay_iste(

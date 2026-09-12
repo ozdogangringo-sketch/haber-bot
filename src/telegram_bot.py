@@ -185,10 +185,16 @@ def _istek(metot: str, **parametreler) -> dict:
 
         # Medya indirme hatası: 400 geliyor ama GEÇİCİ (bkz. GECICI_MESAJLAR)
         if any(k in aciklama for k in GECICI_MESAJLAR):
+            if metot == "sendMediaGroup" and deneme >= 1:
+                # sendMediaGroup için WEBPAGE_CURL_FAILED durumunda slaytlari_gonder
+                # zaten doğrudan multipart dosya yükleme yedeğine sahip. 50 saniye boşuna
+                # beklemek yerine derhal yerel dosya/multipart fallback'ine geçiyoruz.
+                break
+            bekleme = 3 if metot == "sendMediaGroup" else MEDYA_BEKLEME_SANIYE
             log.warning("Telegram medyayı indiremedi, %s sn sonra tekrar (%s/%s): %s",
-                        MEDYA_BEKLEME_SANIYE, deneme, MEDYA_AZAMI_DENEME,
+                        bekleme, deneme, MEDYA_AZAMI_DENEME,
                         veri.get("description", "")[:80])
-            time.sleep(MEDYA_BEKLEME_SANIYE)
+            time.sleep(bekleme)
             continue
         break
 
@@ -511,17 +517,22 @@ KATMAN_SIMGE = {
 
 
 def slaytlari_gonder(
-    gorsel_urlleri: list[str], basliklar: list[str] | None = None
+    gorsel_urlleri: list[str],
+    basliklar: list[str] | None = None,
+    yerel_yollar: list[Path | str] | None = None,
 ) -> list[int]:
     """
     Slaytları albüm olarak gönderir. Mesaj id'lerini döner.
 
     Önce URL ile dener; eğer Telegram WEBPAGE_CURL_FAILED verirse
-    görselleri indirip doğrudan multipart/form-data ile yükler.
+    görselleri yerel diskten veya gerekirse indirerek doğrudan
+    multipart/form-data ile yükler.
     """
     if not gorsel_urlleri:
         return []
     import io
+    from . import upload_image
+
     medya = []
     for sira, url in enumerate(gorsel_urlleri, start=1):
         oge = {"type": "photo", "media": url}
@@ -538,29 +549,81 @@ def slaytlari_gonder(
         if "WEBPAGE_CURL_FAILED" in str(e) or "failed to send message" in str(e):
             log.warning("Telegram URL'den indiremedi, doğrudan dosya yüklemesine geçiliyor: %s", e)
             files = {}
+            file_handles = []
             multipart_medya = []
-            for sira, url in enumerate(gorsel_urlleri, start=1):
-                attach_name = f"foto_{sira}"
-                try:
-                    r = requests.get(url, timeout=15)
-                    files[attach_name] = (f"foto_{sira}.jpg", io.BytesIO(r.content), "image/jpeg")
-                    oge = {"type": "photo", "media": f"attach://{attach_name}"}
-                    if basliklar and sira <= len(basliklar):
-                        oge["caption"] = f"{sira}. {basliklar[sira - 1]}"[:1024]
-                    else:
-                        oge["caption"] = f"{sira}."
-                    multipart_medya.append(oge)
-                except Exception as dl_err:
-                    log.warning("görsel indirilemedi: %s", dl_err)
+            try:
+                for sira, url in enumerate(gorsel_urlleri, start=1):
+                    attach_name = f"foto_{sira}"
+                    icerik_stream = None
+                    dosya_adi = f"foto_{sira}.jpg"
 
-            if files and len(multipart_medya) == len(gorsel_urlleri):
-                url_api = TABAN.format(jeton=_jeton(), metot="sendMediaGroup")
-                data = {"chat_id": _sohbet_id(), "media": json.dumps(multipart_medya)}
-                res = requests.post(url_api, data=data, files=files, timeout=60)
-                res_json = res.json() if res.content else {}
-                if res_json.get("ok"):
-                    log.info("Telegram albümü doğrudan multipart ile başarıyla gönderildi.")
-                    return [m["message_id"] for m in res_json["result"]]
+                    # 1. Öncelik: Varsa yerel dosyayı doğrudan kullan (sıfır ağ gecikmesi, sıfır indirme hatası)
+                    yerel = None
+                    if yerel_yollar and (sira - 1) < len(yerel_yollar):
+                        p_cand = Path(yerel_yollar[sira - 1])
+                        if p_cand.exists():
+                            yerel = p_cand
+                    if not yerel:
+                        try:
+                            yerel = upload_image.yerel_karsiligi(url)
+                        except Exception:
+                            yerel = None
+                    if not yerel:
+                        temiz_ad = Path(str(url).split("?")[0]).name
+                        if temiz_ad and (Path("output") / temiz_ad).exists():
+                            yerel = Path("output") / temiz_ad
+
+                    if yerel and Path(yerel).exists():
+                        dosya_adi = Path(yerel).name
+                        fh = open(yerel, "rb")
+                        file_handles.append(fh)
+                        icerik_stream = fh
+                        log.info("Telegram albümü için yerel dosya kullanılıyor: %s", yerel)
+                    else:
+                        # 2. Öncelik: Yerel dosya bulunamazsa URL'den indir (User-Agent + 25s timeout + 2 deneme)
+                        tarayici_headers = {
+                            "User-Agent": (
+                                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                            )
+                        }
+                        for deneme_dl in range(2):
+                            try:
+                                r = requests.get(url, headers=tarayici_headers, timeout=25)
+                                if r.status_code == 200 and r.content:
+                                    icerik_stream = io.BytesIO(r.content)
+                                    break
+                            except Exception as dl_err:
+                                log.warning("görsel indirme denemesi %d başarısız (%s): %s", deneme_dl + 1, url, dl_err)
+                                time.sleep(2)
+
+                    if icerik_stream:
+                        files[attach_name] = (dosya_adi, icerik_stream, "image/jpeg")
+                        oge = {"type": "photo", "media": f"attach://{attach_name}"}
+                        if basliklar and sira <= len(basliklar):
+                            oge["caption"] = f"{sira}. {basliklar[sira - 1]}"[:1024]
+                        else:
+                            oge["caption"] = f"{sira}."
+                        multipart_medya.append(oge)
+                    else:
+                        log.warning("görsel temin edilemedi: %s", url)
+
+                if files and len(multipart_medya) == len(gorsel_urlleri):
+                    url_api = TABAN.format(jeton=_jeton(), metot="sendMediaGroup")
+                    data = {"chat_id": _sohbet_id(), "media": json.dumps(multipart_medya)}
+                    res = requests.post(url_api, data=data, files=files, timeout=90)
+                    res_json = res.json() if res.content else {}
+                    if res_json.get("ok"):
+                        log.info("Telegram albümü doğrudan multipart ile başarıyla gönderildi.")
+                        return [m["message_id"] for m in res_json["result"]]
+                    else:
+                        log.warning("Telegram multipart yükleme başarısız: %s", res_json)
+            finally:
+                for fh in file_handles:
+                    try:
+                        fh.close()
+                    except Exception:
+                        pass
         raise
 
 

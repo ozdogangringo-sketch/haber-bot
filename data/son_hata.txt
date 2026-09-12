@@ -1,7 +1,4 @@
-[12.09.2026 12:18 (TSİ)] son_dakika.py -> onaya_sun -> 1 Haber Hazırlanamadı
+[12.09.2026 21:25 (TSİ)] telegram_bot.py -> slaytlari_gonder -> Telegram slayt görsellerini indiremedi
 
-AttributeError: 'sqlite3.Row' object has no attribute 'get'
-  File "scripts/son_dakika.py", line 1197, in main
-    return onaya_sun(con, ayarlar, aday, taze, urller, ...
-  File "scripts/son_dakika.py", line 903, in onaya_sun
-    baslik_goster = html.escape(taze.get('ig_baslik') or taze.get('baslik_orj') or '')
+RuntimeError: Telegram hatası (sendMediaGroup): 400: Bad Request: failed to send message #2 with the error message "WEBPAGE_CURL_FAILED"
+HTTPSConnectionPool(host='i.ibb.co', port=443): Read timed out.
