@@ -3718,11 +3718,25 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
     if basarisiz:
         idler = ",".join(str(hid) for hid, _ in basarisiz)
         hata_listesi = "\n".join(f"• {b}" for _, b in basarisiz)
-        hata_bildir.bildir(
-            f"{len(basarisiz)} Haber Hazırlanamadı",
+        ham_hata_detay = ""
+        try:
+            if hata_bildir.SON_HATA_YOLU.exists():
+                ham_hata_detay = hata_bildir.SON_HATA_YOLU.read_text(encoding="utf-8").strip()
+        except Exception:
+            pass
+
+        hata_mesaji = (
             f"Seçilen haber(ler) için slayt üretimi tamamlanamadı:\n{hata_listesi}\n\n"
             + ("Diğer seçtiğin haberler başarıyla onayına sunuldu.\n" if basarili else "")
-            + "Hatanın sebebi geçici görsel indirme veya API yoğunluğu olabilir.",
+        )
+        if ham_hata_detay:
+            hata_mesaji += f"\nHata detayı:\n{ham_hata_detay[:1000]}"
+        else:
+            hata_mesaji += "Hatanın sebebi geçici görsel indirme veya API yoğunluğu olabilir."
+
+        hata_bildir.bildir(
+            f"{len(basarisiz)} Haber Hazırlanamadı",
+            hata_mesaji,
             nerede="Haber Seçimi & Slayt Hazırlama",
             mesaj_id=f"hazirla:{idler}",
         )

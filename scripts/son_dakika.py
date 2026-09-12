@@ -774,6 +774,9 @@ def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
     if not (gece_mi() and ayarlar["genel"].get("gece_otomatik_yayin", False)):
         return False, []
 
+    taze = dict(taze) if hasattr(taze, "keys") else (taze or {})
+    aday = dict(aday) if hasattr(aday, "keys") else (aday or {})
+
     uygun, katman_raporu = otomatik_onay.otomatik_yayinlanabilir(
         con, taze, ayarlar
     )
@@ -880,6 +883,9 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
     """
     Hazırlanan tekil postu Telegram'da onaya sunar.
     """
+    taze = dict(taze) if hasattr(taze, "keys") else (taze or {})
+    aday = dict(aday) if hasattr(aday, "keys") else (aday or {})
+
     # --- 6b) Onaya sun ---
     # Telegram'a gönderilen albüm 9:16 Story formatında sunulur (Kapak + Detay 1 + Detay 2...)
     telegram_urller = [story_url] if story_url else [urller[0]]
@@ -904,7 +910,7 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
     mesaj_id = telegram_bot.onay_iste(
         metin, len(telegram_urller),
         uyari=(uyari or ""),
-        ozet=(f"🔴 <b>SON DAKİKA ÖNERİSİ</b>  ·  puan {taze['onem_puani']}/10\n"
+        ozet=(f"🔴 <b>SON DAKİKA ÖNERİSİ</b>  ·  puan {taze.get('onem_puani', '?')}/10\n"
               f"📰 <b>{baslik_goster}</b>\n"
               "⌛️ 24 saat boyunca onaya hazır bekler\n"
               + ("\n".join(katman_raporu) if katman_raporu else "")),
@@ -1165,6 +1171,7 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
         sonuclar = slaytlar.son_dakika_uret(aday, ayarlar, con)
         taze = con.execute("SELECT * FROM haberler WHERE id = ?",
                            (aday["id"],)).fetchone()
+        taze = dict(taze) if taze else {}
 
         # %100 SAF NATIVE 9:16 (1080x1920) slaytların tümünü yükle (Kapak + Detay 1 + Detay 2)
         yuklemeler = upload_image.hepsini_yukle(

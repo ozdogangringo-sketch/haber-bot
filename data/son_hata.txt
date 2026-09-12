@@ -1,3 +1,7 @@
-[01.09.2026 20:09 (TSİ)] Sistem -> Instagram jetonu geçersiz
+[12.09.2026 12:18 (TSİ)] son_dakika.py -> onaya_sun -> 1 Haber Hazırlanamadı
 
-Instagram jetonu GEÇERSİZ. Otomatik yenileme çalışmaz — Graph API Explorer'dan elle yeni jeton alıp `python scripts/jeton_uzat.py` ile 60 güne çevirmen gerekiyor.
+AttributeError: 'sqlite3.Row' object has no attribute 'get'
+  File "scripts/son_dakika.py", line 1197, in main
+    return onaya_sun(con, ayarlar, aday, taze, urller, ...
+  File "scripts/son_dakika.py", line 903, in onaya_sun
+    baslik_goster = html.escape(taze.get('ig_baslik') or taze.get('baslik_orj') or '')
