@@ -92,9 +92,11 @@ def _bing_gorsel_ara(sorgu: str) -> list[dict[str, Any]]:
             try:
                 d = json.loads(s)
                 img_url = (d.get("murl") or "").strip()
+                thumb_url = (d.get("turl") or "").strip()
                 if img_url and img_url.startswith("http"):
                     sonuclar.append({
                         "image": img_url,
+                        "thumbnail": thumb_url,
                         "title": d.get("t") or d.get("desc") or "",
                         "width": d.get("width") or 1200,
                         "height": d.get("height") or 800,
@@ -112,6 +114,10 @@ def _bing_gorsel_ara(sorgu: str) -> list[dict[str, Any]]:
 from . import gorsel_kalite
 
 
+# Oturum / tur içi görsel adayı önbelleği (aynı haberin çoklu adayları için mükerrer aramayı önler)
+_GORSEL_ADAY_BELLEGI: dict[str, list[tuple[Image.Image, dict[str, Any]]]] = {}
+
+
 def fotograf_ara(
     sorgular: list[str],
     asgari_genislik: int = 800,
@@ -122,7 +128,17 @@ def fotograf_ara(
     Verilen sorgu listesini sırayla arar; 4K/HD çözünürlük ve kristal netlik kriterini
     karşılayan en uygun editoryal basın fotoğrafını indirir.
     atlanacak parametresine göre sıradaki farklı/alternatif fotoğrafı seçer.
+    Adaylar tükendiğinde wrap-around (döngüsel modülo) ile başa sarar, asla None dönüp
+    kullanıcı arayüzünü kapatmaz.
     """
+    cache_key = "___".join(s.strip().lower() for s in sorgular if s.strip())
+    if cache_key in _GORSEL_ADAY_BELLEGI and _GORSEL_ADAY_BELLEGI[cache_key]:
+        havuz = _GORSEL_ADAY_BELLEGI[cache_key]
+        secilen_idx = atlanacak % len(havuz)
+        log.info("Görsel adayı önbellekten çekildi (atlanacak=%d -> indeks=%d/%d)",
+                 atlanacak, secilen_idx, len(havuz))
+        return havuz[secilen_idx]
+
     tum_adaylar = []
     gorulen_urller = set()
 
@@ -161,38 +177,49 @@ def fotograf_ara(
     if not tum_adaylar:
         return None
 
-    # İndirme ve kalite filtresi: atlanacak kadar başarılı görseli atla
-    gecerli_sayac = 0
+    # İndirme ve kalite filtresi: geçerli adayları topla (en fazla 10 adet)
+    gecerli_adaylar: list[tuple[Image.Image, dict[str, Any]]] = []
     for aday in tum_adaylar:
-        url = aday["image"]
-        try:
-            cevap = requests.get(url, headers=HEADERS, timeout=12)
-            if cevap.status_code != 200:
+        if len(gecerli_adaylar) >= 10:
+            break
+
+        url_listesi = [aday["image"]]
+        if aday.get("thumbnail") and aday["thumbnail"] != aday["image"]:
+            url_listesi.append(aday["thumbnail"])
+
+        for url in url_listesi:
+            try:
+                cevap = requests.get(url, headers=HEADERS, timeout=10)
+                if cevap.status_code != 200:
+                    continue
+                ham_boyut_kb = len(cevap.content) / 1024.0
+                foto = Image.open(io.BytesIO(cevap.content))
+                foto = ImageOps.exif_transpose(foto)
+                foto.load()
+
+                # Piksel yoğunluğu, dikey kırpma ölçeği ve Laplacian netlik denetimi
+                kaliteli, sebep = gorsel_kalite.gorsel_kalite_denetle(foto, dosya_boyutu_kb=ham_boyut_kb)
+                if not kaliteli:
+                    log.info("Web görsel adayı elendi (%s): %s", url, sebep)
+                    continue
+
+                net_foto = gorsel_kalite.kristal_netlestir(foto.convert("RGB"))
+                gecerli_adaylar.append((net_foto, aday))
+                log.info("Webden temiz HD basın fotoğrafı onaylandı (%sx%s, %.1f KB): %s",
+                         foto.width, foto.height, ham_boyut_kb, url)
+                break
+            except Exception as e:
+                log.debug("Web görseli indirilemedi (%s): %s", url, e)
                 continue
-            ham_boyut_kb = len(cevap.content) / 1024.0
-            foto = Image.open(io.BytesIO(cevap.content))
-            foto = ImageOps.exif_transpose(foto)
-            foto.load()
 
-            # Piksel yoğunluğu, dikey kırpma ölçeği ve Laplacian netlik denetimi
-            kaliteli, sebep = gorsel_kalite.gorsel_kalite_denetle(foto, dosya_boyutu_kb=ham_boyut_kb)
-            if not kaliteli:
-                log.info("Web görsel adayı elendi (%s): %s", url, sebep)
-                continue
+    if not gecerli_adaylar:
+        return None
 
-            if gecerli_sayac < atlanacak:
-                gecerli_sayac += 1
-                log.info("Fotoğraf alternatifi için önceki aday atlandı (%d/%d): %s", gecerli_sayac, atlanacak, url)
-                continue
-
-            log.info("Webden temiz HD basın fotoğrafı onaylandı (%sx%s, %.1f KB): %s",
-                     foto.width, foto.height, ham_boyut_kb, url)
-            return gorsel_kalite.kristal_netlestir(foto.convert("RGB")), aday
-        except Exception as e:
-            log.debug("Web görseli indirilemedi (%s): %s", url, e)
-            continue
-
-    return None
+    _GORSEL_ADAY_BELLEGI[cache_key] = gecerli_adaylar
+    secilen_idx = atlanacak % len(gecerli_adaylar)
+    log.info("Web görsel adayı seçildi: %d/%d (atlanacak=%d)",
+             secilen_idx + 1, len(gecerli_adaylar), atlanacak)
+    return gecerli_adaylar[secilen_idx]
 
 
 def atif_metni(kayit: dict[str, Any] | None) -> str:
@@ -225,71 +252,68 @@ def atif_metni(kayit: dict[str, Any] | None) -> str:
     return f"Foto: {alan}"
 
 
-def haber_icin_fotograf(
-    haber: Any,
-    atlanacak: int = 0,
-) -> tuple[Image.Image, dict[str, Any]] | None:
+# Başlıktan ayıklanacak anlamsız bağlaç, edat ve dolgu kelimeleri
+STOPWORDS = {
+    "ve", "ile", "icin", "için", "bu", "su", "şu", "o", "bir", "de", "da", "te", "ta",
+    "den", "dan", "ten", "tan", "ye", "ya", "e", "a", "ne", "mi", "mu", "mü", "mı",
+    "gibi", "kadar", "sonra", "once", "önce", "yeni", "son", "dakika", "flas", "flaş",
+    "haber", "haberi", "haberleri", "gorusme", "aciklama", "duyuru", "belli", "oldu",
+    "gelisme", "gelişme", "var", "yok", "iste", "işte", "cok", "çok", "en", "daha",
+    "gore", "göre", "karsi", "karşı", "bomba", "sok", "şok", "iddiasi", "iddiası",
+    "mesaji", "mesajı", "tepkisi", "aciklamasi", "açıklaması", "karari", "kararı",
+    "fotograf", "fotoğraf", "resim", "video", "goruntu", "görüntü", "fotograflari"
+}
+
+CLEAN_PREFIX_RE = re.compile(
+    r"^(?:son dakika|flaş gelişme|flaş|canlı|sıcak gelişme|bomba iddia|resmen açıklandı|duyuruldu|dikkat|şok|özel haber)\s*[:!,-]?\s*",
+    re.IGNORECASE,
+)
+
+
+def akilli_haber_sorgulari(haber: Any) -> list[str]:
     """
-    Haber için en uygun editoryal basın arama kalıbını oluşturup webde gerçek HD fotoğraf arar.
-
-    ⚠️ BAŞLIK ÖNCELİKLİ SORGU (8 Eyl 2026):
-    Eskiden `gorsel_konu` (örn. "iPhone") önce geliyordu; bu da çok genel
-    sonuçlar üretiyordu. Artık başlıktaki tam ifade (örn. "iPhone 18 Pro
-    fiyatları sızdı") birinci sırada; `gorsel_konu` yalnızca destekleyici
-    sorgu olarak ikinci sıraya alındı.
-
-    Kişi, sıcak olay, şirket, kurum ve teknoloji kategorilerine göre
-    optimize edilmiş sorgular üretir.
+    Haber için en yüksek alaka düzeyine sahip editoryal basın arama kalıplarını üretir.
+    Haber başlığı ve Gemini tarafından çıkarılan somut aktör/varlık (gorsel_konu)
+    üzerinden doğrudan olay basın fotoğraflarına odaklanır.
+    Pexels İngilizce stok terimlerini (gorsel_temsili) asla web aramasına sokmaz.
     """
     h_dict = dict(haber) if hasattr(haber, "keys") else (haber or {})
     baslik = h_dict.get("baslik_orj") or h_dict.get("orijinal_baslik") or h_dict.get("ig_baslik") or h_dict.get("baslik") or ""
-    ulke = h_dict.get("ulke_adi") or ""
-    konu = h_dict.get("gorsel_konu") or ""
-    temsili = h_dict.get("gorsel_temsili") or ""
+    konu = (h_dict.get("gorsel_konu") or "").strip()
     kategori = h_dict.get("kategori") or ""
-
-    # Başlığı temizle (özel karakterleri ve tırnakları ayıkla)
-    temiz_baslik = re.sub(r'[^\w\sğüşıöçĞÜŞİÖÇ]', ' ', baslik).strip()
-    kelimeler = temiz_baslik.split()
-    kisa_baslik = " ".join(kelimeler[:6]) if len(kelimeler) > 6 else temiz_baslik
-    # Daha spesifik 4 kelimelik versiyon — model/kişi adlarını korur
-    ort_baslik = " ".join(kelimeler[:4]) if len(kelimeler) > 4 else temiz_baslik
 
     sorgular = []
 
-    # 1. ÖNCELİKLİ: Tam başlık — en spesifik, yanlış fotoğraf riskini minimize eder
-    if kisa_baslik:
-        sorgular.append(kisa_baslik)
-        sorgular.append(f"{kisa_baslik} fotoğraf")
+    # 1. Gemini'nin tespit ettiği somut varlık/özne/olay (en temiz ve direkt terim)
+    if konu and len(konu) >= 3:
+        sorgular.append(konu)
+        sorgular.append(f"{konu} haber")
 
-    # 2. Konu / Model / Marka (ikincil — başlıktan daha genel)
-    if konu:
-        # Başlık konu içeriyorsa tekrar ekleme
-        if konu.lower() not in temiz_baslik.lower():
-            sorgular.append(konu)
-            sorgular.append(f"{konu} press photo")
-        else:
-            # Başlıkta konu var ama İngilizce press photo ile zenginleştir
-            sorgular.append(f"{ort_baslik} press photo")
+    # 2. Başlıktan gereksiz önekleri ve tıklama tuzaklarını temizle
+    b_temiz = CLEAN_PREFIX_RE.sub("", baslik).strip()
 
-    # 3. Haber sitesi tarzı sorgular
-    if kisa_baslik:
-        sorgular.append(f"{kisa_baslik} haber")
+    # İki nokta (:) varsa sol taraf genelde özne/aktör, sağ taraf olaydır
+    if ":" in b_temiz:
+        sol, _, sag = b_temiz.partition(":")
+        parcalar = [sol, sag]
+    else:
+        parcalar = [b_temiz]
 
-    # 4. Temsili + ülke/bağlam (fallback)
-    if temsili:
-        if ulke:
-            sorgular.append(f"{ulke} {temsili} press photo")
-        sorgular.append(f"{temsili} news editorial photo")
-        sorgular.append(f"{temsili} HD")
+    for p in parcalar:
+        kelimeler = re.sub(r'[\'\"«»“”‘’:,!?()\[\]\-_/\\.]', ' ', p).split()
+        temiz = [k.strip() for k in kelimeler if len(k.strip()) > 1 and k.strip().lower() not in STOPWORDS]
+        if temiz:
+            if len(temiz) >= 3:
+                sorgular.append(" ".join(temiz[:4]))
+            sorgular.append(" ".join(temiz[:6]))
 
-    # 5. Kategoriye Özel Zenginleştirme
-    if kategori == "ekonomi" and kisa_baslik:
-        sorgular.append(f"{kisa_baslik} bloomberg reuters")
+    # 3. Kategoriye özel zenginleştirme (press kit / maç / resmi bülten)
+    if kategori == "spor" and konu:
+        sorgular.append(f"{konu} maç")
     elif kategori in ("teknoloji", "bilim") and konu:
-        sorgular.append(f"{konu} launch press kit")
+        sorgular.append(f"{konu} tanıtım")
 
-    # Dedupe queries while preserving order
+    # Tekilleştirirken sırayı koru
     tekil_sorgular = []
     gorulen = set()
     for sq in sorgular:
@@ -297,5 +321,20 @@ def haber_icin_fotograf(
         if s_temiz and s_temiz.lower() not in gorulen:
             gorulen.add(s_temiz.lower())
             tekil_sorgular.append(s_temiz)
+
+    return tekil_sorgular
+
+
+def haber_icin_fotograf(
+    haber: Any,
+    atlanacak: int = 0,
+) -> tuple[Image.Image, dict[str, Any]] | None:
+    """
+    Haber için en uygun editoryal basın arama kalıbını oluşturup webde gerçek HD fotoğraf arar.
+    Kişi, sıcak olay, şirket, kurum ve teknoloji kategorilerine göre optimize edilmiş sorgular üretir.
+    """
+    tekil_sorgular = akilli_haber_sorgulari(haber)
+    if not tekil_sorgular:
+        return None
 
     return fotograf_ara(tekil_sorgular, asgari_genislik=800, asgari_yukseklik=450, atlanacak=atlanacak)

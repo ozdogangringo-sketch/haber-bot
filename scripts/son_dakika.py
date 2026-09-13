@@ -841,13 +841,14 @@ def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
         # geçti. Beğenilmezse Instagram'dan silinebilir.
         telegram_bot.slaytlari_gonder(urller, ["Haber", "Ayrıntı"])
         bildirim_id = telegram_bot.mesaj_gonder(
-            "🌙 GECE OTOMATİK YAYINLANDI\n"
-            f"{taze['ig_baslik']}\n\n"
+            "🌙 <b>GECE OTOMATİK YAYINLANDI</b>\n\n"
+            f"📰 <b>{html.escape(taze['ig_baslik'] or '')}</b>\n\n"
             + "\n".join(katman_raporu)
             + f"\n\n{baglanti or post_id}\n\n"
             "Uygun bulmazsan aşağıdaki düğmeyle geri alabilirsin: "
             "Facebook ve Threads otomatik silinir, Instagram'ı "
-            "elle silmen gerekir."
+            "elle silmen gerekir.",
+            html=True,
         )
 
         # ⚠️ TUR KİMLİĞİ OLARAK BİLDİRİM MESAJININ ID'Sİ.

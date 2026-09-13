@@ -632,9 +632,9 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     # davranış sürüyor: her katman sırayla denenir. Sessizce yanlış
     # kaynağa gitmektense fazladan denemek yeğdir.
     ozne_tipi = _alan(haber, "gorsel_ozne_tipi")
-    commons_atla = ozne_tipi == "olay"
+    commons_atla = (ozne_tipi == "olay") or (gorsel_modu == "gercek")
     if commons_atla:
-        log.info("brief 'olay' diyor -> Commons atlanıyor, temsili fotoğrafa gidiliyor (#%s)",
+        log.info("brief 'olay' veya mod 'gercek' -> Commons atlanıyor (#%s)",
                  _alan(haber, "id"))
 
     # --- 1) Commons: İkili Aktör (Split-Screen) veya Tek Kişi ---

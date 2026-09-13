@@ -537,9 +537,11 @@ def slaytlari_gonder(
     for sira, url in enumerate(gorsel_urlleri, start=1):
         oge = {"type": "photo", "media": url}
         if basliklar and sira <= len(basliklar):
-            oge["caption"] = f"{sira}. {basliklar[sira - 1]}"[:1024]
+            temiz_b = html.escape(str(basliklar[sira - 1]).strip())
+            oge["caption"] = f"<b>{sira}. {temiz_b}</b>"[:1024]
         else:
-            oge["caption"] = f"{sira}."
+            oge["caption"] = f"<b>{sira}.</b>"
+        oge["parse_mode"] = "HTML"
         medya.append(oge)
 
     try:
@@ -601,9 +603,11 @@ def slaytlari_gonder(
                         files[attach_name] = (dosya_adi, icerik_stream, "image/jpeg")
                         oge = {"type": "photo", "media": f"attach://{attach_name}"}
                         if basliklar and sira <= len(basliklar):
-                            oge["caption"] = f"{sira}. {basliklar[sira - 1]}"[:1024]
+                            temiz_b = html.escape(str(basliklar[sira - 1]).strip())
+                            oge["caption"] = f"<b>{sira}. {temiz_b}</b>"[:1024]
                         else:
-                            oge["caption"] = f"{sira}."
+                            oge["caption"] = f"<b>{sira}.</b>"
+                        oge["parse_mode"] = "HTML"
                         multipart_medya.append(oge)
                     else:
                         log.warning("görsel temin edilemedi: %s", url)
@@ -701,7 +705,7 @@ def tur_ozeti(haberler: list, uyari_sayisi: int = 0) -> str:
         katman = (haber["gorsel_kaynagi"] or "gradyan").strip()
         simge = KATMAN_SIMGE.get(katman, "▫️")
         baslik = (haber["ig_baslik"] or haber["baslik_orj"] or "").strip()
-        satirlar.append(f"{sira:>2} {simge} {baslik[:58]}")
+        satirlar.append(f"{sira:>2} {simge} <b>{html.escape(baslik[:58])}</b>")
 
     durum = ("✅ denetim temiz" if not uyari_sayisi
              else f"⚠️ {uyari_sayisi} slaytta uyarı — aşağıya bak")
@@ -1104,7 +1108,7 @@ def oneri_gonder(adaylar: list[dict], azami: int = 5,
         baslik = _kacir(a["baslik"])
         link = (a.get("link") or "").strip()
         if link and link.startswith("http"):
-            baslik_satiri = f"{r_simge} <b>{puan_str}<a href=\"{_kacir_url(link)}\">{baslik}</a></b>"
+            baslik_satiri = f"{r_simge} <a href=\"{_kacir_url(link)}\"><b>{puan_str}{baslik}</b></a>"
         else:
             baslik_satiri = f"{r_simge} <b>{puan_str}{baslik}</b>"
         satirlar.append(baslik_satiri)

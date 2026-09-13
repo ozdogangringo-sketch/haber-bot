@@ -2021,8 +2021,8 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
                     gorsel_modu=mod, zorla_ai=zorla_ai)
                 if not sonuclar:
                     continue
-                if mod == "gercek" and sonuclar[0].get("katman") in ("pexels", "gradyan"):
-                    log.info("gerçek mod: '%s' katmanı elendi, sadece gerçek basın karesi kabul edilir", sonuclar[0].get("katman"))
+                if mod == "gercek" and sonuclar[0].get("katman") not in ("haber", "web_haber", "duckduckgo", "web"):
+                    log.info("gerçek mod: '%s' katmanı elendi, sadece gerçek haber/basın karesi kabul edilir", sonuclar[0].get("katman"))
                     continue
                 # HIZLANDIRMA (12 yükleme -> 3 yükleme):
                 # Aday seçiminde Telegram'a sadece kapak fotoğrafı (slayt 1) gönderilir.
@@ -2576,8 +2576,8 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         simge = telegram_bot.KATMAN_SIMGE.get(a["katman"], "▫️")
         telegram_bot.foto_gonder(
             a["url"],
-            f"{simge} {sira}. slayt için yeni görsel — {a['katman']}\n"
-            f"{taze['ig_baslik'] or ''}\n\n"
+            f"{simge} {sira}. slayt için yeni görsel — {a['katman']}\n\n"
+            f"📰 <b>{html.escape(taze['ig_baslik'] or '')}</b>\n\n"
             f"Beğendiysen onayla; onaylamazsan slayt eski görselle kalır.",
             butonlar=[[
                 {"text": "✅ Bunu kullan",
@@ -2606,8 +2606,8 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     secim = [{"text": f"{i}️⃣", "callback_data": f"gorsel_sec:{i}:{sira}:{mesaj_id}"}
              for i in range(1, len(adaylar) + 1)]
     telegram_bot.mesaj_gonder(
-        f"🎨 <b>{sira}. slayt için {len(adaylar)} aday</b>\n"
-        f"{taze['ig_baslik'] or ''}\n\n"
+        f"🎨 <b>{sira}. slayt için {len(adaylar)} aday</b>\n\n"
+        f"📰 <b>{html.escape(taze['ig_baslik'] or '')}</b>\n\n"
         f"Beğendiğin numaraya bas. Hiçbiri olmadıysa yenilerini isteyebilirsin; "
         f"seçim yapmazsan slayt eski görselle kalır.",
         html=True,
