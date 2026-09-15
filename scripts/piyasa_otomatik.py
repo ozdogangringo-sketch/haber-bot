@@ -232,6 +232,10 @@ def main() -> int:
         return 0
 
     # 7. Kanallara Yayını Başlat
+    # ImgBB CDN yayılımı (propagation) için bekleme:
+    # Meta'nın (Instagram/Facebook) ABD ve Avrupa crawler'larının görseli anında bulabilmesi için
+    time.sleep(6)
+
     sonuclar = []
     canli_link_dugmeleri = []
 
@@ -324,23 +328,33 @@ def main() -> int:
     baslik_etiket = "AÇILIŞ" if mod == "acilis" else "KAPANIŞ"
     rapor_metni = "\n".join(f"• {s}" for s in sonuclar)
     temiz_caption = html_lib.escape(ig_caption.strip())
-    
+
+    # Eğer ana platform olan Instagram'da yayın başarısız olduysa tek tıkla tekrar deneme butonu ekle
+    buton_satirlari = list(canli_link_dugmeleri)
+    if not post_id:
+        buton_satirlari.insert(0, [{"text": "🚀 Bülteni Şimdi Tekrar Yayınla", "callback_data": "piyasa_yayinla"}])
+
     telegram_bot.mesaj_gonder(
         f"📊 <b>GÜNLÜK PİYASA {baslik_etiket} BÜLTENİ OTOMATİK YAYINLANDI</b>\n\n"
         f"{rapor_metni}\n\n"
         f"📝 <b>Açıklama Metni (Kopyalamak için dokunun):</b>\n"
         f"<pre>{temiz_caption}</pre>",
         html=True,
-        butonlar=canli_link_dugmeleri if canli_link_dugmeleri else None,
+        butonlar=buton_satirlari if buton_satirlari else None,
     )
 
     if not args.kuru:
-        con.execute(
-            "INSERT INTO ayarlar (anahtar, deger) VALUES (?, ?) "
-            "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
-            (anahtar_bulten, datetime.now(timezone.utc).isoformat()),
-        )
-        con.commit()
+        # Yalnızca Instagram başarıyla yayınlandıysa (veya config'de kapalıysa) bülteni tamamlandı say
+        ig_aktif = bool(ayarlar.get("instagram", {}).get("hesap_kullanici_adi"))
+        if post_id or not ig_aktif:
+            con.execute(
+                "INSERT INTO ayarlar (anahtar, deger) VALUES (?, ?) "
+                "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+                (anahtar_bulten, datetime.now(timezone.utc).isoformat()),
+            )
+            con.commit()
+        else:
+            log.warning("Instagram yayını başarısız olduğu için %s bülteni tamamlandı olarak kilitlenmedi (telafi mümkün).", anahtar_bulten)
 
     con.close()
     log.info("Piyasa bülteni otomatik yayını tamamlandı.")

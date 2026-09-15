@@ -72,8 +72,17 @@ def _istek(yontem: str, yol: str, ayarlar: dict, **parametreler) -> dict:
             return cevap.json()
 
         son_hata = f"HTTP {cevap.status_code}: {cevap.text[:300]}"
-        if cevap.status_code in GECICI_HATALAR:
-            time.sleep(2 * deneme)
+        alt_kod = None
+        is_transient = False
+        try:
+            hata_obj = cevap.json().get("error", {})
+            alt_kod = hata_obj.get("error_subcode")
+            is_transient = bool(hata_obj.get("is_transient"))
+        except Exception:
+            pass
+
+        if cevap.status_code in GECICI_HATALAR or is_transient or alt_kod in (2069019, 2207003, 2207052):
+            time.sleep(5 * deneme)
             continue
         break
 

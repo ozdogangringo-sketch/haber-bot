@@ -1107,6 +1107,21 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
                         except Exception as e:
                             log.error("Piyasa bülteni telafi yayını hatası: %s", e)
 
+                # Akşam bülteni geciktiyse veya eksik kaldıysa (18:30 - 20:00 TR) otomatik telafi et
+                if (saat == 18 and dakika >= 30) or (saat == 19 and dakika <= 55):
+                    anahtar_kapanis = f"piyasa_bulteni_kapanis_{bugun_str}"
+                    zaten_kapanis = con.execute("SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_kapanis,)).fetchone()
+                    if not zaten_kapanis:
+                        log.warning("Akşam Piyasa Kapanış Bülteni henüz tamamlanmamış! Otomatik telafi yayını başlatılıyor...")
+                        try:
+                            from scripts import piyasa_otomatik
+                            eski_argv = sys.argv
+                            sys.argv = ["piyasa_otomatik.py", "--mod", "kapanis"]
+                            piyasa_otomatik.main()
+                            sys.argv = eski_argv
+                        except Exception as e:
+                            log.error("Piyasa kapanış bülteni telafi yayını hatası: %s", e)
+
         # --- 4) Taze haber çek, sonra aday ara ---
         # Yalnızca yüksek ağırlıklı gündem kaynakları — Actions kotası
         # için (bkz. fetch_news.haberleri_cek). Akşam turu hepsini tarıyor.
