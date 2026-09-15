@@ -78,6 +78,14 @@ KATALOG = [
         "eylem": "tur_metinsiz",
     },
     {
+        "desen": r"503.*(high demand|UNAVAILABLE|temporarily unavailable)|This model is currently experiencing high demand",
+        "ne_oldu": "Google Gemini sunucularında anlık aşırı yoğunluk (HTTP 503) oluştu.",
+        "neden": ("Google tarafındaki geçici sunucu yoğunluğu nedeniyle yapay zeka modeli "
+                  "anlık olarak yanıt veremedi. Bu durum genelde 1-2 dakika içinde kendiliğinden düzelir."),
+        "ne_yapilir": "'🔄 Haberi Tekrar Hazırla' butonuna basarak 1 dakika sonra işlemi tekrar deneyebilirsin.",
+        "eylem": "tur_tekrar",
+    },
+    {
         "desen": r"story yayınlanamadı|STORIES",
         "ne_oldu": "Post yayınlandı ama Instagram story'si atılamadı.",
         "neden": "Story görseli Instagram tarafından çekilemedi. Ana gönderi yayında.",
