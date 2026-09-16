@@ -894,6 +894,10 @@ sosyal:
   # kalıyor, yalnızca Telegram sonucuna not düşülüyor.
   facebooka_da_at: true
 
+  # Facebook Reels (9:16 video) de paylaşılsın mı?
+  # facebooka_da_at açıkken ve video üretilmişse Facebook Sayfasına Reels olarak da yüklenir.
+  facebook_reelse_de_at: true
+
   # Threads'e de paylaşılsın mı?
   # ⚠️ AYRI JETON: Instagram/Facebook jetonu Threads'te ÇALIŞMIYOR.
   # graph.threads.net kendi API'si ve kendi yetkilendirmesi var.
@@ -933,6 +937,7 @@ sosyal:
     reels: keşfet
     tiktok: keşfet
     instagram: keşfet
+    facebook_reels: Reels
 
   # TikTok Content Posting API v2 üzerinden video paylaşılsın mı?
   # ⚠️ .env'de TIKTOK_ACCESS_TOKEN gerekiyor.

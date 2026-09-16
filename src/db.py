@@ -156,6 +156,7 @@ EK_KOLONLAR = {
     # elle girmek gerekiyordu. Instagram'da silme API'den mümkün DEĞİL
     # (Graph API izin vermiyor), ama Facebook ve Threads silinebiliyor.
     "facebook_post_id": "TEXT",
+    "facebook_reel_id": "TEXT",
     # Story id'leri: story 24 saatte kendiliğinden düşüyor, yine de
     # yayından kaldırırken birlikte silinebilsin diye tutuluyor.
     "story_post_id": "TEXT",

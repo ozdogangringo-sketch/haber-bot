@@ -48,6 +48,8 @@ DEGISTIRILEBILIR: dict[str, tuple[str, list]] = {
         "🔢 Günlük son dakika sınırı", [1, 2, 3]),
     "sosyal.facebooka_da_at": (
         "📘 Facebook paylaşımı", [True, False]),
+    "sosyal.facebook_reelse_de_at": (
+        "📘 Facebook Reels paylaşımı", [True, False]),
     "sosyal.threadse_de_at": (
         "🧵 Threads paylaşımı", [True, False]),
 }

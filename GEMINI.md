@@ -63,7 +63,7 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 [onay_isle.py Router]
        │
        ├─► Instagram Graph API (1080x1920 Carousel & 1080x1920 Story)
-       ├─► Facebook Graph API (1080x1920 Albüm & 1080x1920 Story)
+       ├─► Facebook Graph API (1080x1920 Albüm, Story & 9:16 Reels)
        ├─► Threads API (6 Halkalı Bilgi Zinciri)
        ├─► X (Twitter) API v2 (1080x1920 Fotoğraflı Tweet)
        ├─► YouTube Data API v3 (9:16 Shorts Video)

@@ -81,8 +81,7 @@ def gunluk_yukleme_sayisi_artir(con=None) -> None:
 
 def youtube_icin_sesli_video_hazirla(video_yolu: Path | str) -> Path:
     """
-    SADECE YouTube Shorts için videoya hafif, telifsiz haber ambiyans fon müziği miksler.
-    Diğer platformlar (Instagram, TikTok, Facebook) bu fonksiyona uğramaz ve sessiz kalır.
+    YouTube Shorts ve Facebook Reels için videoya hafif, telifsiz haber ambiyans fon müziği miksler.
     """
     yol = Path(video_yolu)
     if not yol.exists():
@@ -103,12 +102,12 @@ def youtube_icin_sesli_video_hazirla(video_yolu: Path | str) -> Path:
                 break
 
         if ozel_muzik and ozel_muzik.exists():
-            # Harici fon müziğini arka plana hafif (-18dB) miksle
+            # Harici fon müziğini arka plana hafif (-14dB) miksle
             komut = [
                 ffmpeg_exe, "-y",
                 "-i", str(yol),
                 "-stream_loop", "-1", "-i", str(ozel_muzik),
-                "-filter_complex", "[1:a]volume=0.15[a1]",
+                "-filter_complex", "[1:a]volume=0.20[a1]",
                 "-map", "0:v", "-map", "[a1]",
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
                 "-shortest", "-movflags", "+faststart",

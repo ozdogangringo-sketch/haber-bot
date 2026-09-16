@@ -271,6 +271,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_ig = "ig" in k_set and not paylas_reels
         paylas_story = "story" in k_set
         paylas_fb = "facebook" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
+        paylas_fb_reels = paylas_fb and bool((ayarlar.get("sosyal", {}) or {}).get("facebook_reelse_de_at", True))
         paylas_th = "threads" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
         paylas_tw = ("twitter" in k_set or "x" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
         paylas_yt = ("youtube" in k_set or "yt" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("youtube_a_da_at"))
@@ -280,6 +281,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_ig = True
         paylas_story = True
         paylas_fb = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
+        paylas_fb_reels = paylas_fb and bool((ayarlar.get("sosyal", {}) or {}).get("facebook_reelse_de_at", True))
         paylas_th = bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
         paylas_tw = bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
         paylas_yt = bool((ayarlar.get("sosyal", {}) or {}).get("youtube_a_da_at"))
@@ -526,16 +528,16 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             log.warning("Twitter paylaşılamadı: %s", e)
             tw_notu = f"\n⚠️ X'e (Twitter) gitmedi: {type(e).__name__}"
 
-    # Ortak Video Üretimi (YouTube Shorts & TikTok için)
+    # Ortak Video Üretimi (YouTube Shorts, TikTok & Facebook Reels için)
     paylasilan_video_yolu = None
-    if (paylas_yt or paylas_tt) and urller:
+    if (paylas_yt or paylas_tt or paylas_fb_reels) and urller:
         try:
             from src import video
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
             if dikey_gorseller:
                 paylasilan_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
         except Exception as e:
-            log.exception("YouTube/TikTok için ortak video üretilemedi: %s", e)
+            log.exception("YouTube/TikTok/Facebook için ortak video üretilemedi: %s", e)
 
     # YouTube Shorts paylaşımı
     yt_notu = ""
@@ -616,41 +618,57 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 log.warning("TikTok paylaşılamadı: %s", e)
                 tt_notu = f"\n⚠️ TikTok hatası: {type(e).__name__}"
 
+    # Facebook Reels video paylaşımı
+    fb_reel_id = None
+    if paylas_fb_reels:
+        if not paylasilan_video_yolu:
+            fb_notu += " (⚠️ Reels: video oluşturulamadı)"
+        else:
+            try:
+                aciklama_fb = caption.aciklamayi_kur(
+                    metin, haberler, kanal="reels", ayarlar=ayarlar)
+                fb_reel_id = facebook.reels_yayinla(paylasilan_video_yolu, aciklama_fb, ayarlar)
+                if fb_reel_id:
+                    fb_notu += " (Reels dahil)"
+                    log.info("Facebook Reels: %s", fb_reel_id)
+            except Exception as e:
+                log.warning("Facebook Reels paylaşılamadı: %s", e)
+                fb_notu += f" (⚠️ Reels gitmedi: {type(e).__name__})"
+
     # ⚠️ TÜM PLATFORM ID'LERİ SAKLANMALI.
     con.execute(
         "UPDATE haberler SET durum = 'yayinlandi', ig_post_id = ?, "
-        "facebook_post_id = ?, threads_post_id = ?, story_post_id = ?, "
+        "facebook_post_id = ?, facebook_reel_id = ?, threads_post_id = ?, story_post_id = ?, "
         "twitter_post_id = ?, youtube_post_id = ?, tiktok_post_id = ? "
         "WHERE telegram_message_id = ?",
-        (post_id, fb_id, th_gonderi_id, story_id, tw_gonderi_id, yt_url, tt_publish_id, mesaj_id),
+        (post_id, fb_id, fb_reel_id, th_gonderi_id, story_id, tw_gonderi_id, yt_url, tt_publish_id, mesaj_id),
     )
     con.commit()
 
     # Doğrudan canlı gönderi link butonları
-    canli_link_dugmeleri = []
-    satir_1 = []
+    tum_linkler = []
     if baglanti:
-        satir_1.append({"text": "📸 Instagram'da Gör", "url": baglanti})
+        tum_linkler.append({"text": "📸 Instagram'da Gör", "url": baglanti})
     if th_gonderi_id:
         th_url = threads.post_baglantisi(th_gonderi_id)
         if th_url:
-            satir_1.append({"text": "🧵 Threads'te Gör", "url": th_url})
-    if satir_1:
-        canli_link_dugmeleri.append(satir_1)
-
-    satir_2 = []
+            tum_linkler.append({"text": "🧵 Threads'te Gör", "url": th_url})
     if fb_id:
         fb_url = facebook.post_baglantisi(fb_id)
         if fb_url:
-            satir_2.append({"text": "📘 Facebook'ta Gör", "url": fb_url})
+            tum_linkler.append({"text": "📘 Facebook'ta Gör", "url": fb_url})
+    if fb_reel_id:
+        fb_reel_url = facebook.reels_baglantisi(fb_reel_id)
+        if fb_reel_url:
+            tum_linkler.append({"text": "📘 Reels'te Gör", "url": fb_reel_url})
     if tw_gonderi_id:
         tw_url = twitter.post_baglantisi(tw_gonderi_id)
         if tw_url:
-            satir_2.append({"text": "🐦 X'te Gör", "url": tw_url})
+            tum_linkler.append({"text": "🐦 X'te Gör", "url": tw_url})
     if yt_url:
-        satir_2.append({"text": "▶️ Shorts'ta Gör", "url": yt_url})
-    if satir_2:
-        canli_link_dugmeleri.append(satir_2)
+        tum_linkler.append({"text": "▶️ Shorts'ta Gör", "url": yt_url})
+
+    canli_link_dugmeleri = [tum_linkler[i:i + 2] for i in range(0, len(tum_linkler), 2)]
 
     # Başarısız olan veya eksik kalan kanallar için anında tek tıkla telafi butonları
     telafi_dugmeleri = []
@@ -877,7 +895,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         else:
             sonuclar.append("⚠️ <b>Story:</b> Story görseli üretilemedi/yüklenemedi.")
 
-    # 2. FACEBOOK POST TELAFİSİ
+    # 2. FACEBOOK POST & REELS TELAFİSİ
     if kanal in ("facebook", "hepsi"):
         try:
             fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
@@ -889,7 +907,25 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
                 canli_linkler.append([{"text": "📘 Facebook'ta Gör", "url": fb_url}])
         except Exception as e:
             log.exception("Facebook telafi hatası: %s", e)
-            sonuclar.append(f"⚠️ <b>Facebook:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+            sonuclar.append(f"⚠️ <b>Facebook Albümü:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
+
+        if bool((ayarlar.get("sosyal", {}) or {}).get("facebook_reelse_de_at", True)):
+            try:
+                from src import video
+                dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+                if dikey_gorseller:
+                    v_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+                    aciklama_fb = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
+                    fb_reel_id = facebook.reels_yayinla(v_yolu, aciklama_fb, ayarlar)
+                    con.execute("UPDATE haberler SET facebook_reel_id = ? WHERE telegram_message_id = ?", (fb_reel_id, mesaj_id))
+                    con.commit()
+                    fb_reel_url = facebook.reels_baglantisi(fb_reel_id)
+                    sonuclar.append(f"📘 <b>Facebook Reels:</b> Başarıyla yayınlandı!")
+                    if fb_reel_url:
+                        canli_linkler.append([{"text": "📘 Reels'te Gör", "url": fb_reel_url}])
+            except Exception as e:
+                log.exception("Facebook Reels telafi hatası: %s", e)
+                sonuclar.append(f"⚠️ <b>Facebook Reels:</b> Başarısız ({type(e).__name__})")
 
     # 3. THREADS TELAFİSİ
     if kanal in ("threads", "hepsi"):
@@ -1259,6 +1295,13 @@ def yayindan_kaldir(con, ayarlar, haberler, mesaj_id, basan) -> int:
             satirlar.append("⚠️ Facebook postu silinemedi")
     else:
         satirlar.append("· Facebook: kayıtlı post id yok")
+
+    fb_reel = ilk["facebook_reel_id"] if "facebook_reel_id" in ilk.keys() else None
+    if fb_reel:
+        if facebook.postu_sil(fb_reel, ayarlar):
+            satirlar.append("📘 Facebook Reel silindi")
+        else:
+            satirlar.append("⚠️ Facebook Reel silinemedi")
 
     # --- Threads ---
     th = ilk["threads_post_id"]

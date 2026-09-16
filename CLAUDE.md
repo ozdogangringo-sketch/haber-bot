@@ -296,7 +296,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Ülkesiz haber | **Flama basılmaz.** Bilim, teknoloji, uzay, borsa gibi coğrafyaya bağlı olmayan haberlerde `ulke_kodu` boş bırakılır — zorlama ülke atamak yanlış yer bilgisi vermek olur. |
 | Kuruluş bayrağı | `ulke_kodu` yerine kuruluş kodu yazılabilir: `nato, un, eu, who, unesco, unicef, opec, oic, africanunion, arableague, commonwealth, redcross`. Commons'tan çekilir. **Spor kulübü / şirket / parti logosu YOK** — tescilli marka, haber sitesi fotoğrafıyla aynı gerekçe. |
 | Arşiv ibaresi | Fotoğraf kullanılan slaytlarda alt bilgiye `· ARŞİV GÖRSELİ` ekleniyor — görsel o olayın belgesi değil. |
-| Facebook (17 Ağu 2026) | Instagram'a yayınlanan içerik **aynı jetonla** Facebook sayfasına da gidiyor (`src/facebook.py`). Ek anahtar yok — `pages_manage_posts` izni uygulamaya eklendi ve mevcut sayfa jetonu onu kazandı. **Story de paylaşılıyor** (`/photo_stories`) — aynı 9:16 görsel, ayrı üretim yok. Carousel Facebook'ta **albüm**: görseller `published=false` ile yüklenip `/feed`'de `attached_media` ile tek posta bağlanıyor. İKİNCİL KANAL: patlarsa Instagram postu yayında kalır, Telegram sonucuna not düşülür. `config.yaml → sosyal.facebooka_da_at: false` ile kapatılır. |
+| Facebook & Reels (16 Eyl 2026) | Instagram'a yayınlanan içerik **aynı jetonla** Facebook sayfasına da gidiyor (`src/facebook.py`). Ek anahtar yok — `pages_manage_posts` izni mevcut sayfa jetonunda tanımlı. **Reels de paylaşılıyor** (`facebook.reels_yayinla`): 3 aşamalı resumable upload (start -> rupload binary -> finish) ile 9:16 video ve telifsiz haber fon müziği Facebook Sayfasına Reels olarak yayınlanır (`https://www.facebook.com/reel/{video_id}`). **Story de paylaşılıyor** (`/photo_stories`). Carousel Facebook'ta **albüm**: görseller `published=false` ile yüklenip `/feed`'de `attached_media` ile tek posta bağlanıyor. İKİNCİL KANAL: patlarsa ana yayın kalır, Telegram sonucuna not düşülür. `config.yaml → sosyal.facebooka_da_at` ve `sosyal.facebook_reelse_de_at` ile yönetilir. |
 | ⚠️ Çapraz paylaşım neden olmaz | Instagram'ın kendi "Facebook'a paylaş" ayarı denendi ve ELENDİ: o ayar Instagram UYGULAMASINDAN yapılan paylaşımlar için, API ile gidenleri tetiklemiyor. Ayrıca menüde yalnızca kişisel profil çıkıyor, sayfa çıkmıyor. |
 | Kanal ikonları | Slayt alt bilgisinde Instagram / X / Facebook ikonları, `config.yaml → sosyal.kanallar`. Resmi logolar SVG ve Pillow SVG okumuyor; Unicode sembolleri de fontta yok (ölçüldü, "NO GLYPH" çıkıyor). Bu yüzden Pillow ile çizilen tanınabilir sadeleştirmeler kullanılıyor. |
 | Threads (18 Ağu 2026) | **KURULDU, jeton alındı.** `src/threads.py`, carousel destekli (2-20 görsel). ⚠️ **Instagram/Facebook jetonu BURADA ÇALIŞMAZ** — `graph.threads.net` ayrı API, ayrı jeton: `THREADS_ACCESS_TOKEN` + `THREADS_USER_ID` (28048974518044795, @dailybrief.co). İkincil kanal: patlarsa Instagram postu yayında kalır. `config.yaml → sosyal.threadse_de_at: false` ile kapatılır. |
@@ -1498,7 +1498,7 @@ instabot/
 | Dosya | Satır | Görevi |
 |---|---|---|
 | `src/instagram.py` | 409 | Graph API carousel + story + kota + hesap koruması. |
-| `src/facebook.py` | 167 | Aynı jetonla FB sayfa albümü + story. |
+| `src/facebook.py` | 280 | Aynı jetonla FB sayfa albümü + story + 9:16 Reels. |
 | `src/threads.py` | 524 | Zincir yayını (carousel DEĞİL). 60 günlük jeton. |
 | `src/twitter.py` | 348 | X API v2. ⚠️ ÜCRETLİ, kredi gerekiyor. |
 | `src/x_paylas.py` | 141 | Eski X paylaşım modülü (280 karakter kurulumu). |

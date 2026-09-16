@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from pathlib import Path
 import time
 
 import requests
@@ -174,3 +175,106 @@ def postu_sil(post_id: str, ayarlar: dict) -> bool:
 def post_baglantisi(post_id: str) -> str:
     """Facebook post bağlantısı — Telegram sonucunda göstermek için."""
     return f"https://www.facebook.com/{post_id}"
+
+
+def reels_baglantisi(video_id: str) -> str:
+    """Facebook Reel doğrudan bağlantısı — Telegram sonucunda göstermek için."""
+    return f"https://www.facebook.com/reel/{video_id}"
+
+
+def reels_yayinla(
+    video_yolu: Path | str,
+    aciklama: str,
+    ayarlar: dict,
+) -> str:
+    """
+    Facebook Sayfasına 9:16 Reels videosu yükler ve yayınlar.
+    Yayınlanan Reel video ID'sini döner.
+
+    Üç Aşamalı Resumable Upload Akışı (Graph API v21.0+):
+      1. Başlatma (upload_phase=start) -> video_id ve upload_url (rupload.facebook.com) alınır.
+      2. İkili Yükleme -> rupload endpoint'ine Authorization, file_size ve offset header'ları ile video yüklenir.
+      3. Yayını Tamamlama (upload_phase=finish) -> video_state='PUBLISHED' ve temiz editoryal açıklama ile yayınlanır.
+    """
+    video_p = Path(video_yolu)
+    if not video_p.exists():
+        raise FileNotFoundError(f"Reels videosu bulunamadı: {video_p}")
+
+    # Müziksiz videolara hafif, telifsiz haber ambiyans fon müziğini miksle
+    try:
+        from . import youtube
+        video_p = youtube.youtube_icin_sesli_video_hazirla(video_p)
+    except Exception as e:
+        log.warning("Facebook Reels için fon müziği mikslenemedi, mevcut video ile devam: %s", e)
+
+    sayfa = sayfa_bilgisi(ayarlar)
+    sayfa_id = sayfa.get("id")
+    if not sayfa_id:
+        raise RuntimeError("Facebook sayfa ID'si alınamadı")
+
+    jeton = _jeton()
+    g = ayarlar.get("instagram", {})
+    api_surumu = g.get("api_surumu", "v21.0")
+    zaman_asimi = g.get("zaman_asimi", 30)
+    temiz_metin = filtre.markdown_temizle(aciklama)
+
+    # 1. Aşama: Oturumu başlat (upload_phase=start)
+    init_url = f"{TABAN}/{api_surumu}/{sayfa_id}/video_reels"
+    init_res = requests.post(
+        init_url,
+        data={
+            "upload_phase": "start",
+            "access_token": jeton,
+        },
+        timeout=zaman_asimi,
+    )
+    if init_res.status_code != 200:
+        raise RuntimeError(f"Facebook Reels başlatma hatası: HTTP {init_res.status_code} - {init_res.text[:250]}")
+
+    init_veri = init_res.json()
+    video_id = init_veri.get("video_id") or init_veri.get("id")
+    upload_url = init_veri.get("upload_url")
+    if not video_id or not upload_url:
+        raise RuntimeError(f"Facebook Reels video_id veya upload_url alınamadı: {init_veri}")
+
+    log.info("Facebook Reels upload oturumu açıldı: video_id=%s", video_id)
+
+    # 2. Aşama: İkili video dosyasını rupload.facebook.com'a yükle
+    dosya_boyutu = video_p.stat().st_size
+    headers = {
+        "Authorization": f"OAuth {jeton}",
+        "offset": "0",
+        "file_size": str(dosya_boyutu),
+        "Content-Type": "application/octet-stream",
+    }
+    with open(video_p, "rb") as f:
+        up_res = requests.post(
+            upload_url,
+            headers=headers,
+            data=f,
+            timeout=180,
+        )
+    if up_res.status_code not in (200, 201):
+        raise RuntimeError(f"Facebook Reels ikili yükleme hatası: HTTP {up_res.status_code} - {up_res.text[:250]}")
+
+    log.info("Facebook Reels video dosyası rupload'a yüklendi (%d bayt)", dosya_boyutu)
+
+    # 3. Aşama: Yayını tamamlama (upload_phase=finish)
+    finish_url = f"{TABAN}/{api_surumu}/{sayfa_id}/video_reels"
+    finish_res = requests.post(
+        finish_url,
+        data={
+            "upload_phase": "finish",
+            "access_token": jeton,
+            "video_id": video_id,
+            "video_state": "PUBLISHED",
+            "description": temiz_metin,
+        },
+        timeout=zaman_asimi,
+    )
+    if finish_res.status_code != 200:
+        raise RuntimeError(f"Facebook Reels yayını tamamlama hatası: HTTP {finish_res.status_code} - {finish_res.text[:250]}")
+
+    log.info("Facebook Reels başarıyla yayınlandı (%s): %s", sayfa.get("name"), video_id)
+    return str(video_id)
+
