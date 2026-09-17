@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/favicon.png">
+<title>Daily Brief — İletişim & Destek / Contact & Support</title>
+<style>
+/* Daily Brief — ortak stil.
+   Renkler: petrol #04181C zemin, kehribar #E2AA58 vurgu, turkuaz #06B6D4 ikincil. */
+:root{
+  --petrol:#04181C; --petrol-2:#07222a;
+  --kehribar:#E2AA58; --turkuaz:#06B6D4;
+  --metin:#dbe4e6; --soluk:#8ba0a5; --baslik:#f4f8f8;
+  --cizgi:rgba(226,170,88,.16); --kart:rgba(255,255,255,.028);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; padding:0 20px 64px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  font-size:16px; line-height:1.7; color:var(--metin);
+  background:var(--petrol);
+  background-image:
+    radial-gradient(1100px 520px at 50% -12%, rgba(226,170,88,.10), transparent 62%),
+    radial-gradient(760px 420px at 88% 6%, rgba(6,182,212,.07), transparent 60%);
+  background-repeat:no-repeat;
+}
+.sayfa{max-width:720px;margin:0 auto}
+
+/* üst şerit */
+.ust{display:flex;align-items:center;gap:11px;padding:26px 0 4px}
+.rozet{width:46px;height:46px;flex:none;display:block;border-radius:50%}
+.ust b{color:var(--baslik);font-size:15px;font-weight:650;letter-spacing:.2px}
+.ust span{color:var(--soluk);font-size:13px}
+
+h1{color:var(--baslik);font-size:30px;line-height:1.25;margin:26px 0 6px;letter-spacing:-.4px}
+h2{color:var(--kehribar);font-size:16px;margin:34px 0 8px;letter-spacing:.2px}
+h3{color:var(--baslik);font-size:16px;margin:0 0 6px}
+p{margin:0 0 14px}
+a{color:var(--kehribar);text-decoration:none;border-bottom:1px solid rgba(226,170,88,.32)}
+a:hover{border-bottom-color:var(--kehribar)}
+strong{color:var(--baslik);font-weight:650}
+code{background:rgba(255,255,255,.06);padding:1px 6px;border-radius:5px;font-size:.9em}
+ul{padding-left:20px;margin:0 0 14px}
+li{margin:5px 0}
+.updated{color:var(--soluk);font-size:13.5px;margin:0 0 22px}
+
+/* dil sekmeleri */
+.tabs{display:flex;gap:4px;margin:22px 0 26px;
+  border-bottom:1px solid rgba(255,255,255,.07)}
+.tab{padding:9px 16px;background:none;border:0;border-bottom:2px solid transparent;
+  color:var(--soluk);font-size:13.5px;font-weight:650;cursor:pointer;
+  font-family:inherit;transition:color .15s}
+.tab:hover{color:var(--metin)}
+.tab.active{color:var(--kehribar);border-bottom-color:var(--kehribar)}
+.lang{display:none}
+.lang.active{display:block}
+
+/* kartlar */
+.kart{border:1px solid rgba(255,255,255,.075);border-radius:14px;
+  background:var(--kart);padding:20px 22px;margin:14px 0}
+.kart p{color:var(--soluk);font-size:14.5px;margin:0}
+
+footer{margin-top:52px;padding-top:20px;border-top:1px solid rgba(255,255,255,.07);
+  color:var(--soluk);font-size:13px}
+footer a{color:var(--soluk);border-bottom-color:rgba(255,255,255,.14)}
+footer a:hover{color:var(--kehribar)}
+footer p{margin:0 0 6px}
+
+@media (max-width:560px){
+  h1{font-size:25px}
+  body{padding:0 16px 48px}
+}
+</style>
+</head>
+<body>
+<div class="sayfa">
+<div class="ust">
+  <a href="/"><img src="/logo.webp" alt="Daily Brief" class="rozet" width="46" height="46"></a>
+  <div><b>Daily Brief</b><br><span>dailybrief.ozbornstudio.com</span></div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" id="tab-tr" onclick="switchLang('tr')">Türkçe</button>
+  <button class="tab" id="tab-en" onclick="switchLang('en')">English</button>
+</div>
+
+<section class="lang active" id="lang-tr">
+<h1>İletişim & Destek</h1>
+<p class="updated">Son güncelleme: 17 Eylül 2026</p>
+
+<h2>1. İletişim Bilgileri</h2>
+<p>Daily Brief uygulaması, yayınlanan içerikler, API entegrasyonları veya telif hakkı bildirimleriniz için doğrudan bizimle iletişime geçebilirsiniz:</p>
+
+<div class="kart">
+  <h3>Doğrudan Destek E-Postası</h3>
+  <p><strong>E-posta:</strong> <a href="mailto:support@ozbornstudio.com">support@ozbornstudio.com</a></p>
+  <p><strong>Geliştirici / Kuruluş:</strong> Ozborn Studio</p>
+  <p><strong>Konum:</strong> İstanbul, Türkiye</p>
+  <p><strong>Web Sitesi:</strong> <a href="https://ozbornstudio.com">ozbornstudio.com</a></p>
+</div>
+
+<h2>2. Destek ve Yanıt Süresi</h2>
+<p>Platform inceleme ekipleri (TikTok App Review, Meta App Review, Google Trust & Safety) ve son kullanıcılar tarafından iletilen tüm destek, uyumluluk ve inceleme talepleri en geç <strong>24 ila 48 saat içinde</strong> yanıtlanır.</p>
+
+<h2>3. Telif Hakkı ve İçerik Kaldırma (DMCA / Takedown)</h2>
+<p>Daily Brief yalnızca kamuya açık RSS kaynaklarını ve açık basın bültenlerini işler. Yayınlanan bir görsel, haber metni veya grafik üzerinde telif hakkınız olduğunu düşünüyorsanız lütfen haber linkiyle birlikte bize <a href="mailto:support@ozbornstudio.com">support@ozbornstudio.com</a> adresinden ulaşın. İçerik derhal incelenir ve gerekli durumlarda 24 saat içinde tüm platformlardan kaldırılır.</p>
+</section>
+
+<section class="lang" id="lang-en">
+<h1>Contact & Support</h1>
+<p class="updated">Last updated: September 17, 2026</p>
+
+<h2>1. Contact Information</h2>
+<p>For any inquiries regarding Daily Brief, API integrations, developer verification, content credits, or support:</p>
+
+<div class="kart">
+  <h3>Direct Support Email</h3>
+  <p><strong>Email:</strong> <a href="mailto:support@ozbornstudio.com">support@ozbornstudio.com</a></p>
+  <p><strong>Organization / Developer:</strong> Ozborn Studio</p>
+  <p><strong>Location:</strong> Istanbul, Turkey</p>
+  <p><strong>Website:</strong> <a href="https://ozbornstudio.com">ozbornstudio.com</a></p>
+</div>
+
+<h2>2. Support Response Time</h2>
+<p>We actively monitor incoming requests from platform compliance auditors (TikTok App Review, Meta Developer Operations, Google API Verification) and users. We guarantee a response time within <strong>24 to 48 business hours</strong>.</p>
+
+<h2>3. Copyright & Content Takedown (DMCA)</h2>
+<p>Daily Brief indexes public news feeds with strict attribution to original publishers. If you are a copyright owner or legal representative wishing to request content correction or removal, please email <a href="mailto:support@ozbornstudio.com">support@ozbornstudio.com</a> with the URL of the post. Valid requests will be processed and removed within 24 hours.</p>
+</section>
+
+<footer>
+  <p>Daily Brief · <a href="https://ozbornstudio.com">Ozborn Studio</a></p>
+  <p><a href="/">Ana sayfa</a> · <a href="/privacy">Gizlilik Politikası</a> ·
+     <a href="/terms">Kullanım Koşulları</a> ·
+     <a href="/deletion">Veri Silme Yönergesi</a> ·
+     <a href="/contact">İletişim</a> ·
+     <a href="mailto:support@ozbornstudio.com">support@ozbornstudio.com</a></p>
+</footer>
+</div>
+<script>
+function switchLang(k){
+  document.querySelectorAll('.lang').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById('lang-'+k).classList.add('active');
+  document.getElementById('tab-'+k).classList.add('active');
+}
+</script>
+</body>
+</html>

@@ -17,11 +17,13 @@ YouTube'a yükleme yapabilmek için Google'ın consent screen'i şunları istiyo
 
 ## Dosyalar
 
-**Yayına yüklenecekler (5 dosya):**
+**Yayına yüklenecekler (7 dosya):**
 
 - `index.html` — tanıtım sayfası, 6 kanal bağlantısı
 - `privacy.html` — gizlilik politikası (TR/EN)
 - `terms.html` — kullanım koşulları (TR/EN)
+- `deletion.html` — kullanıcı veri silme yönergesi (TR/EN) (TikTok/Meta Audit)
+- `contact.html` — iletişim ve DMCA telif bildirim sayfası (TR/EN)
 - `logo.webp` — 256x256, **16 KB**
 - `favicon.png` — 64x64, sekme simgesi
 
