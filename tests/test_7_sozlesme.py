@@ -2406,6 +2406,190 @@ def test_paylasim_muafiyeti_reklami_geciriyor_mu() -> None:
             "alan şemada yoksa model üretmez ve muafiyet hiç tetiklenmez")
 
 
+def test_kaynak_mutabakati_buyuk_olayi_yakaliyor() -> None:
+    """
+    Aynı olayı kaç FARKLI kaynak işlediği seçim sıralamasına giriyor mu?
+
+    ⚠️ NEDEN GEREKTİ (18 Eyl 2026, kullanıcı sorusu): "Tera Holding ve
+    Katılımevim haberleri neden hiç önerilmedi?" ÖLÇÜLDÜ — ikisi de
+    günün en çok işlenen ekonomi olaylarıydı:
+        Katılımevim   6 FARKLI KAYNAK, 7 haber (5'i 100 dakika içinde)
+        Tera Holding  5 kaynak, 10 haber, 16 saate yayılan olay
+    ve hiçbiri 24 adaya giremedi (kategori içi sıraları 6., 14., 23.,
+    33., 45., 66., 84.).
+
+    ⚠️ SİNYAL ORADAYDI, TERS YÖNDE KULLANILIYORDU. Beş yayın
+    kuruluşunun aynı anda aynı olayı vermesi önemin en güçlü BEDAVA
+    kanıtıdır; sistem bunu "mükerrer" sayıp bastırıyordu. Aynı ölçüm
+    CLAUDE.md'de zaten vardı ("rutin haberde 0 ek kaynak, büyük olayda
+    6-12") ama yalnızca FOTOĞRAF seçiminde kullanılıyordu.
+
+    ⚠️ AYNI KAYNAĞIN N HABERİ MUTABAKAT DEĞİLDİR. Borsa Gündem tek
+    başına Tera'yı 5 kez yazdı; bu yayın temposu, mutabakat değil.
+    """
+    from src import secim as _secim
+
+    simdi = datetime.now(timezone.utc)
+    sayac = [0]
+
+    def H(baslik, kaynak, kategori="ekonomi"):
+        sayac[0] += 1
+        return {"id": sayac[0], "kaynak": kaynak, "kategori": kategori,
+                "agirlik": 8, "baslik_orj": baslik, "ig_baslik": None,
+                "yayin_tarihi": (simdi - timedelta(hours=1)).isoformat()}
+
+    # Aynı olay, BEŞ farklı kaynak
+    olay = [H("Emlak Katılım, Katılımevim ve Birevim'i satın alacak", k)
+            for k in ("AA", "TRT", "NTV", "Sözcü", "Habertürk")]
+    # Aynı kaynak, BEŞ farklı haber (mutabakat DEĞİL)
+    tempo = [H(f"Tekno Holding {i}. çeyrek bilançosunu açıkladı", "Borsa Gündem")
+             for i in range(5)]
+    tekil = [H("Ultragenyx hissesi gen terapisi onayıyla yükseldi", "Investing")]
+
+    m = _secim.kaynak_mutabakati(olay + tempo + tekil)
+    denetle(m[olay[0]["id"]] >= 5,
+            "aynı olayı işleyen farklı kaynaklar sayılıyor",
+            f"5 kaynak işledi ama mutabakat {m[olay[0]['id']]} çıktı")
+    denetle(m[tempo[0]["id"]] == 1,
+            "aynı kaynağın çok haberi mutabakat sayılmıyor",
+            f"tek kaynağın yayın temposu mutabakat sanıldı "
+            f"({m[tempo[0]['id']]})")
+    denetle(m[tekil[0]["id"]] == 1,
+            "tek kaynaklı haber mutabakat almıyor",
+            "yalnız haber yüksek mutabakat aldı — kümeleme çok gevşek")
+
+    # --- Sıralamaya GERÇEKTEN giriyor mu ---
+    # ⚠️ "Fonksiyon var" ile "fonksiyon çağrılıyor" ayrı sorulardır.
+    # Çok kaynaklı olay, daha taze ama tek kaynaklı haberin ÜSTÜNE
+    # çıkmalı.
+    ayarlar = {"secim": {"kategori_katsayilari": {"ekonomi": 0.8},
+                         "kategori_varsayilan_katsayi": 0.6,
+                         "kategori_sira_azalmasi": 0.88,
+                         "agirlik_katsayisi": 1.5,
+                         "kategori_slot_boleni": 40,
+                         "kategori_slot_tavani": 6,
+                         "konu_ortak_kelime_esigi": 2,
+                         "mutabakat_kaynak_puani": 8.0,
+                         "mutabakat_azami_puan": 30.0}}
+    sayac[0] = 100
+    coklu = [H("Emlak Katılım, Katılımevim ve Birevim'i satın alacak", k)
+             for k in ("AA", "TRT", "NTV", "Sözcü", "Habertürk")]
+    for h in coklu:                       # 3 saat eski
+        h["yayin_tarihi"] = (simdi - timedelta(hours=3)).isoformat()
+    yalniz = H("Ultragenyx hissesi yüzde 10 yükseldi, 5 milyon dolar", "Investing")
+    yalniz["yayin_tarihi"] = (simdi - timedelta(hours=0.2)).isoformat()
+
+    sonuc = _secim.oneri_adaylari(coklu + [yalniz], ayarlar, 1)
+    denetle(bool(sonuc) and "Katılımevim" in sonuc[0]["baslik_orj"],
+            "çok kaynaklı olay, taze tek kaynaklı habere üstün geliyor",
+            "mutabakat sıralamaya girmiyor demektir — büyük olay "
+            "24 adayın dışında kalır")
+
+    # --- Sinyal Telegram mesajında GÖRÜNÜYOR mu ---
+    # ⚠️ Tera GERÇEKTEN önerilmişti (`oneri_gonderildi=1`) ama listede
+    # yalnızca önem puanı görünüyordu; kullanıcı hangi haberin neden
+    # önemli olduğunu ayırt edemedi. Kusur seçimde değil SUNUMDAYDI.
+    import ast as _ast
+    tb = (KOK / "src/telegram_bot.py").read_text(encoding="utf-8")
+    tb_agac = _ast.parse(tb)
+    og = next((n for n in _ast.walk(tb_agac)
+               if isinstance(n, _ast.FunctionDef) and n.name == "oneri_gonder"),
+              None)
+    denetle(og is not None, "oneri_gonder bulundu", "fonksiyon yok")
+    if og is not None:
+        parca = _ast.get_source_segment(tb, og) or ""
+        denetle('"mutabakat"' in parca or "'mutabakat'" in parca,
+                "öneri mesajı mutabakat rozetini gösteriyor",
+                "kullanıcı hangi haberin neden önemli olduğunu göremiyor")
+        denetle('"paylasim"' in parca or "'paylasim'" in parca,
+                "öneri mesajı paylaşım rozetini gösteriyor",
+                "paylaşılabilirlik hesaplanıyor ama kullanıcıya "
+                "gösterilmiyor")
+    sd = (KOK / "scripts/son_dakika.py").read_text(encoding="utf-8")
+    denetle('"mutabakat": mutabakat.get(' in sd,
+            "mutabakat öneri listesine aktarılıyor",
+            "rozet kodu var ama veri hiç geçmiyor — rozet asla çizilmez")
+
+
+def test_bulten_haber_slayti_kategoriyi_dogruluyor() -> None:
+    """
+    Piyasa bülteninin haber slaytları GERÇEKTEN ekonomi haberi mi?
+
+    ⚠️ NEDEN GEREKTİ (18 Eyl 2026). `fetch_news` kategoriyi haberin
+    içeriğinden değil KAYNAĞIN tanımından alıyor (CLAUDE.md 1i).
+    ÖLÇÜLDÜ: `kategori='ekonomi'` etiketli 624 haberin içinde
+    "Hürmüz Boğazı'nda patlama", "39 ilin emniyet müdürü değişti",
+    "ABD ordusuna ait F-16 düştü" vardı. Bunlar ekonomi bülteninde
+    basılırsa bülten anlamsızlaşır.
+
+    İKİ KAPI birden olmalı:
+      1. `secim.bulten_adaylari` anahtar kelimeyle ÖN ELEME
+         (ucuz; ölçüldü %73 geçiriyor, tek başına YETMEZ)
+      2. metin üretiminden SONRA Gemini'nin `kategori` alanı
+         (asıl kapı; makalenin TAM METNİNE bakıyor, ek maliyeti yok)
+    """
+    import ast as _ast
+    from src import secim as _secim
+
+    # --- Ön eleme: alakasız haber elenmeli ---
+    for disari in ("Hürmüz Boğazı'nda patlama sesleri duyuldu",
+                   "39 ilin emniyet müdürü değişti",
+                   "ABD ordusuna ait F-16 savaş uçağı düştü"):
+        denetle(_secim.EKONOMI_SINYALI.search(disari) is None,
+                f"ekonomi dışı başlık ön elemede: {disari[:34]}",
+                "anahtar kelime süzgeci fazla geniş")
+    for iceri in ("BIST 100 rekor kırdı", "Enflasyon %31'e geriledi",
+                  "SPK 7 portföy şirketinin fon işlemlerini durdurdu"):
+        denetle(_secim.EKONOMI_SINYALI.search(iceri) is not None,
+                f"ekonomi başlığı ön elemeden geçiyor: {iceri[:34]}",
+                "süzgeç gerçek ekonomi haberini eliyor")
+
+    # --- Alaka KADEMELİ (kullanıcı kararı): TR > küresel > tekil yabancı ---
+    tr = _secim.bulten_alaka_puani("BIST 100 rekor kırdı")
+    kuresel = _secim.bulten_alaka_puani("Fed faiz kararını açıkladı")
+    yabanci = _secim.bulten_alaka_puani("Ultragenyx hissesi %10 yükseldi")
+    denetle(tr > kuresel > yabanci,
+            "alaka kademeli: TR > küresel > tekil yabancı hisse",
+            f"TR={tr} küresel={kuresel} yabancı={yabanci} — kullanıcı "
+            "kararı 'türk borsası katsayı olarak biraz daha üstte'")
+    denetle(yabanci == 0 and kuresel > 0,
+            "küresel gösterge haberi dışlanmıyor",
+            "ABD/küresel haber tamamen eleniyor — kullanıcı 'amerikan "
+            "borsasını da takip ediyor olabilir, tabii ki de' dedi")
+
+    # --- ASIL KAPI: üretimden sonra kategori doğrulaması ---
+    kaynak = (KOK / "scripts/piyasa_otomatik.py").read_text(encoding="utf-8")
+    agac = _ast.parse(kaynak)
+    fonk = next((n for n in _ast.walk(agac)
+                 if isinstance(n, _ast.FunctionDef)
+                 and n.name == "_haber_slaytlari_uret"), None)
+    denetle(fonk is not None, "_haber_slaytlari_uret bulundu", "fonksiyon yok")
+    if fonk is not None:
+        parca = _ast.get_source_segment(kaynak, fonk) or ""
+        denetle('!= "ekonomi"' in parca or '== "ekonomi"' in parca,
+                "üretimden sonra kategori doğrulanıyor",
+                "beslemenin 'ekonomi' demesine güveniliyor — savaş ve "
+                "asayiş haberi ekonomi bültenine girer")
+        denetle("metinleri_uret" in parca,
+                "metni olmayan haber için metin üretiliyor",
+                "ham RSS başlığı slayta basılır")
+        denetle("tur_uret" in parca,
+                "slaytlar ortak üreticiden geçiyor",
+                "ayrı bir slayt kodu doğmuş — görsel katman zinciri, "
+                "kanca ve kardeş havuzu devre dışı kalır")
+
+    # --- Bülten haber bulunamazsa DÜŞMEMELİ ---
+    ana = next((n for n in _ast.walk(agac)
+                if isinstance(n, _ast.FunctionDef) and n.name == "main"), None)
+    if ana is not None:
+        ana_parca = _ast.get_source_segment(kaynak, ana) or ""
+        denetle("_haber_slaytlari_uret" in ana_parca
+                and "except Exception" in ana_parca,
+                "haber slaytı patlarsa bülten devam ediyor",
+                "haber slaytı ÖN ŞART olmuş — piyasa verisi asıl ürün, "
+                "haber bir EK")
+
+
 def test_seo_copu_havuza_girmiyor() -> None:
     """
     SEO çöpü (rüya tabiri, loto sonucu, market kataloğu) RSS GİRİŞİNDE
@@ -4940,6 +5124,8 @@ def main() -> int:
         test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,
+        test_kaynak_mutabakati_buyuk_olayi_yakaliyor,
+        test_bulten_haber_slayti_kategoriyi_dogruluyor,
         test_seo_copu_havuza_girmiyor,
         test_puanlanip_elenen_haber_slot_isgal_etmiyor,
     ):
