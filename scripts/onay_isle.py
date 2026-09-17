@@ -1255,10 +1255,10 @@ def yonetim_saglik_testi_uygula(ayarlar: dict, mesaj_id: int | None) -> int:
     return 0
 
 
-def yonetim_kota_raporu_uygula(con, ayarlar: dict, mesaj_id: int | None) -> int:
+def yonetim_kota_raporu_uygula(con, ayarlar: dict, mesaj_id: int | None, kategori: int | str = "menu") -> int:
     """Canlı kota ve durum raporunu Telegram'a gönderir."""
     from src import kota_uretici
-    kota_uretici.kota_gonder(mesaj_id)
+    kota_uretici.kota_gonder(mesaj_id, kategori=kategori)
     return 0
 
 
@@ -4063,8 +4063,11 @@ def main() -> int:
         return yonetim_devam_et_uygula(con, ayarlar, mesaj_id, basan)
     if komut in ("saglik_testi", "saglik"):
         return yonetim_saglik_testi_uygula(ayarlar, mesaj_id)
-    if komut in ("kota_raporu", "kota", "kota_tazele", "kota_goster", "rapor", "kullanim"):
-        return yonetim_kota_raporu_uygula(con, ayarlar, mesaj_id)
+    if komut in ("kota_raporu", "kota", "kota_tazele", "kota_goster", "rapor", "kullanim", "kota_menu"):
+        return yonetim_kota_raporu_uygula(con, ayarlar, mesaj_id, kategori="menu")
+    if komut.startswith("kota_kat:"):
+        kat = komut.split(":", 1)[1]
+        return yonetim_kota_raporu_uygula(con, ayarlar, mesaj_id, kategori=kat)
     if komut in ("tur_temizle", "temizle"):
         return yonetim_tur_temizle_uygula(con, ayarlar, mesaj_id)
     if komut in ("durdur", "duraklat", "duraklat_menu"):

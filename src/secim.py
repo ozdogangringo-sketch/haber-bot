@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 log = logging.getLogger(__name__)
 
@@ -385,6 +385,160 @@ def _instagram_gecmisi(ayarlar: dict) -> list[str]:
         log.warning("Instagram geçmişi alınamadı: %s", e)
         _IG_GECMIS_ONBELLEK = []
     return _IG_GECMIS_ONBELLEK
+
+
+# ⚠️ BESLEMENİN "ekonomi" DEMESİ YETMİYOR (18 Eyl 2026).
+#
+# `fetch_news` kategoriyi haberin içeriğinden değil KAYNAĞIN
+# tanımından alıyor (CLAUDE.md 1i). Ölçüldü: `kategori='ekonomi'`
+# etiketli 624 haberin içinde şunlar vardı —
+#     "Hürmüz Boğazı'nda patlama sesleri duyuldu"      (Borsa Gündem)
+#     "ABD, İsrail'e 40 bin adet bomba satışına..."    (Borsa Gündem)
+#     "Canlı hayvan nakil yönetmeliğinde değişiklik"   (AA Ekonomi)
+#     "39 ilin emniyet müdürü değişti"                 (Borsa Gündem)
+# Bunları ekonomi bülteninde basmak bülteni anlamsızlaştırır.
+#
+# ⚠️ BU SÜZGEÇ TEK BAŞINA YETMEZ, ÖN ELEMEDİR. Ölçüldü: 624 haberin
+# %73'ünü geçiriyor ve iki yönde de hata yapıyor —
+#     GEÇİYOR ama ekonomi değil : "İsrail ordusuna ayrılan milyarlarca
+#                                  şekellik kaynakta kriz" ("milyar")
+#     ELENİYOR ama ekonomi      : "SK Hynix sendikası ödeme anlaşması"
+# Asıl kapı metin üretiminden SONRA: Gemini `kategori` alanını haberin
+# TAM METNİNE bakarak dolduruyor (20 Ağu 2026'da eklendi) ve o değer
+# 'ekonomi' değilse haber bültene alınmıyor. Bu süzgeç yalnızca boşa
+# metin üretilmesini azaltıyor.
+EKONOMI_SINYALI = re.compile(
+    r"\b(borsa|bist|hisse|endeks|faiz|enflasyon|dolar|euro|avro|alt[iı]n|"
+    r"g[uü]m[uü][sş]|tcmb|merkez bankas|piyasa|yat[iı]r[iı]m|fon\b|portf[oö]y|"
+    r"tahvil|kripto|bitcoin|d[oö]viz|kur\b|ihracat|ithalat|b[uü]t[cç]e|vergi|"
+    r"zam\b|fiyat|[uü]cret|maa[sş]|asgari|emekli|kredi|banka|bilan[cç]o|"
+    r"ciro|halka arz|spk\b|rezerv|cari a[cç][iı]k|b[uü]y[uü]me|gsyh|"
+    r"i[sş]sizlik|t[uü]fe|[uü]fe\b|resesyon|ekonomi|petrol|do[gğ]al gaz|"
+    r"emtia|brent|ons\b|fed\b|ecb\b|imf\b|moody|fitch)",
+    re.IGNORECASE,
+)
+
+
+# ⚠️ BÜLTEN İÇİN "EKONOMİ OLMAK" YETMİYOR, ALAKA KADEMELİ.
+#
+# Ölçüldü (18 Eyl 2026): düz skor sıralaması "Ultragenyx hissesi gen
+# terapisi onayıyla %10 yükseldi" (ABD'li mikro-kap biyotek) haberini
+# öne çıkardı. Teknik olarak ekonomi haberi ama bülten malzemesi
+# değil — üstelik Investing beslemesinin gövdesi HTTP 403 ile
+# çekilemediği için metni de zayıf çıkardı.
+#
+# ⚠️ ÇÖZÜM DIŞLAMAK DEĞİL, KADEMELENDİRMEK (kullanıcı kararı,
+# 18 Eyl 2026): "türk takipçi amerikan borsasını da takip ediyor
+# olabilir, tabii ki de — ama türk borsası haberleri katsayı olarak
+# biraz daha üstte". Yani ABD haberi elenmiyor, TR haberi önce
+# geliyor. Üç kademe:
+#
+#   TR PİYASASI      +30  BIST, TL, TCMB, asgari ücret, emekli, zam
+#   KÜRESEL GÖSTERGE +15  Fed, dolar, altın, brent, bitcoin, ECB
+#   tekil yabancı hisse  0  (Ultragenyx, Nucor, Moonpig…)
+#
+# Bülten zaten dolar/altın/brent/bitcoin taşıyor, yani küresel
+# gösterge haberi gerçekten alakalı. Alakasız olan tek bir yabancı
+# şirketin hisse hareketi — onun da kapısı kapalı değil, sadece
+# önceliği yok: havuzda başka bir şey yoksa yine seçilebiliyor.
+BULTEN_ALAKA_TR = re.compile(
+    r"\b(bist|borsa istanbul|t[uü]rkiye|t[uü]rk\b|tcmb|merkez bankas|"
+    r"lira|₺|\btl\b|asgari [uü]cret|emekli|maa[sş]|zam\b|vergi|"
+    r"b[uü]t[cç]e|ihracat|ithalat|cari a[cç][iı]k|t[uü]fe|[uü]fe\b|"
+    r"i[sş]sizlik|gsyh|hazine|spk\b|bddk|kkm|mevduat|konut kredis)",
+    re.IGNORECASE,
+)
+
+BULTEN_ALAKA_KURESEL = re.compile(
+    r"\b(fed\b|ecb\b|imf\b|moody|fitch|dolar|euro|avro|alt[iı]n|"
+    r"g[uü]m[uü][sş]|brent|petrol|do[gğ]al gaz|emtia|bitcoin|kripto|"
+    r"resesyon|enflasyon|faiz|k[uü]resel|d[uü]nya ekonomi|"
+    r"wall street|nasdaq|s&p ?500|dow jones)",
+    re.IGNORECASE,
+)
+
+# Ölçüldü: ham skor farkları 10-25 bandında. TR bonusu belirleyici
+# ama mutlak değil — çok daha taze ve güçlü bir küresel haber yine
+# öne geçebilir. İkisini de 0 yaparsan sıralama saf `on_skor` olur.
+BULTEN_ALAKA_TR_PUANI = 30.0
+BULTEN_ALAKA_KURESEL_PUANI = 15.0
+
+
+def bulten_alaka_puani(baslik: str) -> float:
+    """Bülten alakası: TR piyasası > küresel gösterge > tekil yabancı hisse."""
+    b = baslik or ""
+    if BULTEN_ALAKA_TR.search(b):
+        return BULTEN_ALAKA_TR_PUANI
+    if BULTEN_ALAKA_KURESEL.search(b):
+        return BULTEN_ALAKA_KURESEL_PUANI
+    return 0.0
+
+
+def bulten_adaylari(con, ayarlar: dict, adet: int = 3,
+                    tazelik_saat: int = 12) -> list:
+    """
+    Piyasa bülteninin haber slaytları için ekonomi haberi seçer.
+
+    ⚠️ METNİ ZATEN HAZIR OLANLAR ÖNCE. Gemini kotası günde 40 ücretsiz
+    istek ve mevcut kullanım ~33; bülten günde 2 kez çalışıyor. Metni
+    hazır bir haberi tekrar üretmek bedava kotayı boşuna yakar.
+
+    ⚠️ MÜKERRER ENGELİ: son günlerde yayınlanmış konular eleniyor
+    (`yayinlanmis_konular`) ve liste içinde aynı olay bir kez alınıyor.
+    Bülten carousel'inde aynı haberin iki kaynaktan hâli olmasın.
+
+    Döner: en fazla `adet` haber, `on_skor`a göre sıralı.
+    """
+    sinir = (datetime.now(timezone.utc)
+             - timedelta(hours=tazelik_saat)).isoformat()
+    havuz = list(con.execute(
+        """SELECT * FROM haberler
+           WHERE kategori = 'ekonomi'
+             AND durum IN ('yeni', 'metin_hazir')
+             AND yayin_tarihi >= ?
+             AND (sadece_tur IS NULL OR sadece_tur = 0)""",
+        (sinir,),
+    ))
+    if not havuz:
+        log.info("bülten: taze ekonomi haberi yok")
+        return []
+
+    havuz = [h for h in havuz
+             if EKONOMI_SINYALI.search(h["baslik_orj"] or "")]
+
+    # Metni hazır olanlar önce, sonra alaka + skor.
+    # ⚠️ `bool(ig_baslik)` BİRİNCİL ANAHTAR: metni hazır haberi tekrar
+    # üretmek bedava Gemini kotasını boşuna yakar (günde 40 istek,
+    # mevcut kullanım ~33, bülten günde 2 kez çalışıyor).
+    def _sira(h):
+        return (bool(h["ig_baslik"]),
+                on_skor(h) + bulten_alaka_puani(h["baslik_orj"]))
+
+    havuz.sort(key=_sira, reverse=True)
+
+    gecmis = yayinlanmis_konular(con, ayarlar)
+    s = ayarlar.get("secim", {}) or {}
+    ortak_esik = s.get("konu_ortak_kelime_esigi", 2)
+    gecmis_esik = s.get("gecmis_ortak_kelime_esigi", ortak_esik + 1)
+
+    secilen, imzalar = [], []
+    for h in havuz:
+        if len(secilen) >= adet:
+            break
+        kelimeler, isimler = konu_imzasi(h["baslik_orj"] or "")
+        if any(len(ortak_kelime(kelimeler, pk)) >= ortak_esik
+               and ortak_kelime(isimler, pi) for pk, pi in imzalar):
+            continue
+        if any(len(ortak_kelime(kelimeler, ok)) >= gecmis_esik
+               and ortak_kelime(isimler, oi) for ok, oi in gecmis):
+            continue
+        secilen.append(h)
+        imzalar.append((kelimeler, isimler))
+
+    log.info("bülten: %d ekonomi haberinden %d aday (%d tanesinin metni hazır)",
+             len(havuz), len(secilen),
+             sum(1 for h in secilen if h["ig_baslik"]))
+    return secilen
 
 
 def oneri_adaylari(havuz: list, ayarlar: dict, azami: int) -> list:

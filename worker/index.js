@@ -39,7 +39,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
                   "metin_ozetle", "metin_detaylandir", "metin_kaynak_arastir",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
-                  "kota", "kota_raporu", "kota_tazele", "kota_goster", "tur_temizle", "tur_hazirla", "ekonomi_hazirla", "ekonomi",
+                  "kota", "kota_raporu", "kota_tazele", "kota_goster", "kota_menu", "tur_temizle", "tur_hazirla", "ekonomi_hazirla", "ekonomi",
                   "piyasa", "piyasa_ozet", "piyasa_yayinla", "piyasa_onizle", "ekonomi_yayinla",
                   "bulten", "sonpostlar", "son_postlar",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
@@ -47,6 +47,9 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
 const PARAMETRELI_EYLEM =
   /^(slayt_carpici|slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil|slayt_yukari|slayt_asagi|slayt_basa|sansur_kaldir|sansur_uygula|metin_uzat|metin_kisalt|cope_at_tekil):([1-9]|10)$/;
+
+// Kota kategori eylemleri: "kota_kat:1", "kota_kat:2", "kota_kat:menu"
+const KOTA_KAT = /^kota_kat:(1|2|menu)$/;
 
 // Botu duraklatma (1s, 6s, 12s, 24s)
 const DURAKLAT = /^duraklat:(1|6|12|24)$/;
@@ -168,7 +171,8 @@ function eylemMi(veri) {
     || TUR_EYLEM.test(veri) || FOTO_EYLEM.test(veri) || GORSEL_SEC.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
     || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
-    || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri) || INCELE.test(veri);
+    || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri) || INCELE.test(veri)
+    || KOTA_KAT.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -899,7 +903,17 @@ export default {
 
         if (["/durum", "/kota", "/rapor", "/kullanim", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/populer", "/popüler", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
-            if (komut === "rapor" || komut === "kullanim") komut = "kota";
+            if (komut === "rapor" || komut === "kullanim" || komut === "kota") {
+                const parcalar = msj.text.trim().split(/\s+/);
+                if (parcalar.length > 1) {
+                    const p = parcalar[1].toLowerCase();
+                    if (p === "1" || p === "bulut" || p === "api") komut = "kota_kat:1";
+                    else if (p === "2" || p === "sosyal" || p === "yayin") komut = "kota_kat:2";
+                    else komut = "kota";
+                } else {
+                    komut = "kota";
+                }
+            }
             if (komut === "panel") komut = "yonetim";
             if (komut === "hazirla") komut = "tur";
             if (komut === "temizle") komut = "tur_temizle";
