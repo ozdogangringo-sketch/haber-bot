@@ -2085,102 +2085,144 @@ def test_video_etiketleri_habere_ozel() -> None:
 
 def test_metin_uretimi_icerik_sinyaline_bakiyor() -> None:
     """
-    Günlük akış hangi habere metin üreteceğine İÇERİK SİNYALİNE bakarak
-    karar vermeli — yalnızca kaynak ağırlığına ve tazeliğe değil.
+    Öneri kapısı (`secim.oneri_adaylari`) hangi haberin Gemini'ye
+    puanlatılacağına karar veriyor. Bu sistemin EN DAR BOĞAZI: 8
+    saatlik pencerede ~600 haberden 24'ü seçiliyor, yani %4'ü.
 
-    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): `son_dakika.taze_adaylar` düpedüz
-    `ORDER BY agirlik DESC, yayin_tarihi DESC` diyordu. ÖLÇÜLDÜ:
-    tazelik penceresine giren 60 haberin **54'ünün ağırlığı 10**, yani
-    ağırlık neredeyse hep berabere bitiyor ve sıralamayı fiilen SAF
-    TAZELİK belirliyordu.
+    ⚠️ BU TEST 18 EYL 2026'DA YENİDEN YAZILDI — ÖNCESİNDE ÖLÜ KODU
+    ÖLÇÜYORDU. Hedefi `son_dakika.taze_adaylar` idi ve o fonksiyonun
+    TEK ÇAĞIRANI ~20 Ağustos'taki `aday.py` refactor'ünde kaldırılmıştı.
+    4 Eylül'de "içerik sinyali asıl akışta hiç çalışmıyordu" diye bir
+    düzeltme yapıldı, ölçüldü ("Girne gemi kazası 45. sıradaydı"),
+    CLAUDE.md'ye işlendi ve bu test yazıldı — hepsi ÇAĞRILMAYAN bir
+    fonksiyon üzerine. Test yeşil kalıyor ve "içerik sinyali devrede"
+    diyordu; gerçekte devrede değildi.
 
-    Somut sonuç: *"Yaz bitti, işbaşı sendromunu nasıl atlatabilirsiniz"*
-    (içerik puanı 0) Gemini metni alırken *"Girne'deki gemide can kaybı
-    12'ye yükseldi"* (içerik puanı 20) **45. sırada** bekliyordu.
+    ⚠️ DERS: bir testin yeşil olması ölçtüğü şeyin ÇALIŞTIĞINI
+    göstermez — önce o kod yolunun çağrıldığını doğrula. Projenin
+    kendi kuralı ("bir kusuru düzeltmeden önce o kod yolunun ne
+    sıklıkta çalıştığını ölç") aynı oturumda ihlal edilmişti.
 
-    ⚠️ İKİ AYRI SIRALAMA KURALI VARDI. `secim.on_eleme` içerik
-    sinyalini yıllardır kullanıyor ama o, cron'u KAPALI `hazirla.py`den
-    günde ~1 kez çağrılıyor; günde ~20 kez çalışan `taze_adaylar` ise
-    hiç kullanmıyordu. Formül artık `secim.on_skor`'da, tek yerde.
-    Projenin en sık tekrarlayan hatası: kural doğru, bir kod yolunda
-    uygulanmamış (1j · 1p · 1f).
+    Dört kural birden denetleniyor:
+      1. içerik sinyali sıralamayı etkiliyor
+      2. kaynak ağırlığı EŞİTLİĞİ BOZUYOR ama BELİRLEMİYOR
+      3. mükerrer olay SEÇİMDEN ÖNCE eleniyor
+      4. kategori slot tavanı bütçeyi boşa harcamıyor
     """
     import ast as _ast
     from src import secim as _secim
-    import scripts.son_dakika as _sd
 
     simdi = datetime.now(timezone.utc)
+    sayac = [0]
 
-    def _ekle(con, hid, baslik, agirlik, yas_saat):
-        con.execute(
-            "INSERT INTO haberler (id, kaynak, kategori, agirlik, baslik_orj,"
-            " link, ozet_orj, yayin_tarihi, durum) VALUES (?,?,?,?,?,?,?,?,?)",
-            (hid, "K", "turkiye", agirlik, baslik, f"http://x/{hid}", "",
-             (simdi - timedelta(hours=yas_saat)).isoformat(), "yeni"))
+    def H(baslik, agirlik=10, yas=1.0, kategori="turkiye"):
+        sayac[0] += 1
+        return {"id": sayac[0], "kaynak": f"K{agirlik}", "kategori": kategori,
+                "agirlik": agirlik, "baslik_orj": baslik,
+                "yayin_tarihi": (simdi - timedelta(hours=yas)).isoformat()}
 
-    con = gecici_db()
-    # DAHA TAZE ama içi boş (açıklama kalıbı, içerik puanı düşük)
-    _ekle(con, 1, "Bakan konuyu değerlendirdi ve mesaj yayımladı", 10, 0.5)
-    # DAHA ESKİ ama olay haberi (rakam + olay fiili)
-    _ekle(con, 2, "Gemide can kaybı 12'ye yükseldi, 3 kişi tutuklandı", 10, 3.0)
-    con.commit()
+    ayarlar = {"secim": {"kategori_katsayilari": {"turkiye": 1.0, "spor": 0.75},
+                         "kategori_varsayilan_katsayi": 0.6,
+                         "kategori_sira_azalmasi": 0.88,
+                         "agirlik_katsayisi": 1.5,
+                         "kategori_slot_boleni": 40,
+                         "kategori_slot_tavani": 6,
+                         "konu_ortak_kelime_esigi": 2}}
 
-    ayarlar = {"genel": {"son_dakika_tazelik_saat": 8}}
-    secilen = _sd.taze_adaylar(con, ayarlar, 1)
-    denetle(bool(secilen) and secilen[0]["id"] == 2,
-            "metin üretimi içerik sinyaline bakıyor",
+    # --- 1) İÇERİK SİNYALİ ---
+    # DAHA TAZE ama içi boş (açıklama kalıbı) vs DAHA ESKİ olay haberi.
+    # ⚠️ VERİ TUZAĞI: ikisi de AYNI ağırlıkta olmalı. Farklı ağırlık
+    # verirsem testi ağırlık terimi geçirir ve içerik sinyali hiç
+    # sınanmamış olur (bu tuzak projede altı kez tekrarladı).
+    havuz = [H("Bakan konuyu değerlendirdi ve mesaj yayımladı", 10, 0.5),
+             H("Gemide can kaybı 12'ye yükseldi, 3 kişi tutuklandı", 10, 3.0)]
+    sonuc = _secim.oneri_adaylari(havuz, ayarlar, 1)
+    denetle(bool(sonuc) and "Gemide" in sonuc[0]["baslik_orj"],
+            "öneri kapısı içerik sinyaline bakıyor",
             "3 saatlik olay haberi, 0.5 saatlik açıklama haberine yenildi — "
-            "sıralama yine saf tazelik demektir")
+            "sıralamayı saf tazelik belirliyor demektir")
 
-    # ⚠️ ÖNCE PUANLA SONRA SINIRLA. SQL'de LIMIT kalırsa düşük ağırlıklı
-    # ama yüksek içerik sinyalli haber dilimin DIŞINDA kalır ve hiç
-    # puanlanmaz — kardeş görsel havuzunda birebir bu yaşandı.
-    # ⚠️ VERİ TUZAĞI — ilk yazımda dolgular ağırlık 10, olay haberi
-    # ağırlık 5 idi ve test HAKLI OLARAK kırmızı verdi: ağırlık ×10
-    # çarpanıyla giriyor, yani 50 puanlık farkı en fazla 20 puanlık
-    # içerik sinyali kapatamaz. Test, tasarımın hiç vaat etmediği bir
-    # şeyi ölçüyordu. Doğru kurgu: AYNI ağırlık, olay haberi DAHA ESKİ.
-    # Eski SQL (`ORDER BY agirlik, yayin_tarihi DESC LIMIT 3`) onu hiç
-    # çekmezdi; yeni kod puanlayıp öne alıyor.
-    con2 = gecici_db()
-    for i in range(30):                      # taze ama içi boş dolgu
-        _ekle(con2, 100 + i,
-              "Bakan konuyu değerlendirdi ve mesaj yayımladı", 10, 0.5)
-    _ekle(con2, 999, "Fabrikada yangın çıktı, dört kişi tutuklandı", 10, 3.0)
-    con2.commit()
-    s2 = _sd.taze_adaylar(con2, ayarlar, 3)
-    denetle(any(h["id"] == 999 for h in s2),
-            "eski ama önemli haber dilimin dışında kalmıyor",
-            "SQL'de puanlamadan önce LIMIT var demektir; haber hiç "
-            "değerlendirilmeden eleniyor (ÖNCE EŞLEŞTİR SONRA SIRALA)")
+    # --- 2a) AĞIRLIK EŞİTLİĞİ BOZUYOR ---
+    # Aynı içerik, aynı yaş, farklı kaynak: yüksek ağırlık kazanmalı.
+    havuz = [H("Fabrikada yangın çıktı, 4 kişi tutuklandı", 6, 1.0),
+             H("Limanda patlama oldu, 5 kişi gözaltına alındı", 10, 1.0)]
+    sonuc = _secim.oneri_adaylari(havuz, ayarlar, 1)
+    denetle(bool(sonuc) and sonuc[0]["agirlik"] == 10,
+            "eşit içerikte yüksek ağırlıklı kaynak kazanıyor",
+            "kaynak ağırlığı sıralamaya hiç girmiyor demektir; config'deki "
+            "`agirlik` alanı seçimde işe yaramıyor")
 
-    # --- Kural TEK YERDE mi (AST) ---
-    kaynak = (KOK / "scripts/son_dakika.py").read_text(encoding="utf-8")
-    agac = _ast.parse(kaynak)
+    # --- 2b) AMA AĞIRLIK İÇERİĞİ EZMİYOR (kullanıcı kararı) ---
+    # ⚠️ Bu, 2a'nın KARŞI ucu ve ayrı ayrı sınanmak ZORUNDA: yalnızca
+    # 2a olsaydı `agirlik × 10` da testi geçerdi ve havuz TRT/AA'ya
+    # kilitlenirdi (19 Ağu 2026'da birebir bu yaşandı: 25 adayın
+    # tamamı 2 kategoriden). Kullanıcı uyarısı: "ağırlığı sadece
+    # kaynağa verince daha taraflı ya da benzer haberler çıkabiliyor".
+    havuz = [H("Fabrikada yangın çıktı, 4 kişi tutuklandı", 6, 1.0),
+             H("Bakan konuyu değerlendirdi ve mesaj yayımladı", 10, 0.5)]
+    sonuc = _secim.oneri_adaylari(havuz, ayarlar, 1)
+    denetle(bool(sonuc) and sonuc[0]["agirlik"] == 6,
+            "ağırlık içerik sinyalini EZMİYOR",
+            "düşük ağırlıklı olay haberi, yüksek ağırlıklı açıklama "
+            "haberine yenildi — agirlik_katsayisi çok büyük demektir")
+
+    # --- 3) MÜKERRER ELEME SEÇİMDEN ÖNCE ---
+    # ⚠️ `aday.uygun_mu` mükerreri zaten eliyor AMA 24 seçildikten
+    # SONRA, yani slot çoktan yanmış oluyor. ÖLÇÜLDÜ (18 Eyl 2026):
+    # 24 adayın 3'ü mükerrerdi (Messi ×2, Gazze ×2).
+    havuz = [H("Messi 48. şampiyonluğuna ulaştı", 10, 1.0, "spor"),
+             H("Messi kariyerinin 48. şampiyonluğunu kazandı", 8, 1.2, "spor"),
+             H("Fenerbahçe derbiyi 3-1 kazandı", 9, 1.5, "spor")]
+    sonuc = _secim.oneri_adaylari(havuz, ayarlar, 3)
+    denetle(len(sonuc) == 2,
+            "mükerrer olay seçimden ÖNCE eleniyor",
+            f"{len(sonuc)} aday döndü; aynı Messi haberi iki slot yiyor "
+            "demektir")
+
+    # --- 4) TAVAN BÜTÇEYİ BOŞA HARCAMIYOR ---
+    # ⚠️ İlk yazımda tavan bir KOTA gibi davranıyordu ve ölçüldü:
+    # 8 kategoride tavan toplamı 22, mükerrer elemesinden sonra 17 aday
+    # çıkıyordu — 24 slotun 7'si boş kalıyordu. Tavan öncelik vermeli,
+    # üst sınır koymamalı.
+    havuz = [H(f"{i} kişi gözaltına alındı, {i} kilo madde ele geçirildi",
+               10, 1.0 + i * 0.1) for i in range(20)]
+    sonuc = _secim.oneri_adaylari(havuz, ayarlar, 10)
+    denetle(len(sonuc) == 10,
+            "kategori tavanı boş slot bırakmıyor",
+            f"tek kategoride 20 haber var ama {len(sonuc)} aday döndü; "
+            "tavan kota gibi davranıyor ve bütçe boşa gidiyor")
+
+    # --- 5) KURAL TEK KAPIDA (AST) ---
+    # ⚠️ `onerileri_gonder` içinde kopya bir sıralama vardı ve üç
+    # kusuru birden taşıyordu. Kopya geri gelirse iki sıralama kuralı
+    # doğar ve biri gün gelir unutulur — bu projenin en sık hatası.
+    sd_kaynak = (KOK / "scripts/son_dakika.py").read_text(encoding="utf-8")
+    agac = _ast.parse(sd_kaynak)
     fonk = next((n for n in _ast.walk(agac)
-                 if isinstance(n, _ast.FunctionDef) and n.name == "taze_adaylar"),
-                None)
-    denetle(fonk is not None, "taze_adaylar bulundu", "fonksiyon yok")
+                 if isinstance(n, _ast.FunctionDef)
+                 and n.name == "onerileri_gonder"), None)
+    denetle(fonk is not None, "onerileri_gonder bulundu", "fonksiyon yok")
     if fonk is not None:
-        on_skor_var = any(
-            isinstance(d, _ast.Attribute) and d.attr == "on_skor"
-            for d in _ast.walk(fonk))
-        denetle(on_skor_var,
-                "taze_adaylar secim.on_skor kullanıyor",
-                "formül yerel olarak yeniden yazılırsa iki sıralama kuralı "
-                "doğar ve biri gün gelir unutulur")
+        cagriyor = any(isinstance(d, _ast.Attribute)
+                       and d.attr == "oneri_adaylari"
+                       for d in _ast.walk(fonk))
+        denetle(cagriyor,
+                "onerileri_gonder secim.oneri_adaylari kullanıyor",
+                "sıralama yerel olarak yeniden yazılmış demektir")
+        yerel_kopya = any(isinstance(d, _ast.Attribute)
+                          and d.attr in ("_icerik_puani", "_yas_saat")
+                          for d in _ast.walk(fonk))
+        denetle(not yerel_kopya,
+                "onerileri_gonder sıralama formülünü kopyalamıyor",
+                "kategori-katmanlı sıralamanın ikinci bir kopyası doğmuş")
 
-    secim_agac = _ast.parse((KOK / "src/secim.py").read_text(encoding="utf-8"))
-    oe = next((n for n in _ast.walk(secim_agac)
-               if isinstance(n, _ast.FunctionDef) and n.name == "on_eleme"), None)
-    if oe is not None:
-        denetle(any(isinstance(d, _ast.Name) and d.id == "on_skor"
-                    for d in _ast.walk(oe)),
-                "on_eleme de aynı kapıdan geçiyor",
-                "iki akış farklı formül kullanırsa 'aynı kural iki yerde' "
-                "hatası geri gelir")
+    # --- 6) ÖLÜ KOD GERİ GELMESİN ---
+    denetle("def taze_adaylar" not in sd_kaynak,
+            "taze_adaylar geri gelmemiş",
+            "silinen ölü fonksiyon geri eklenmiş; testi ona bağlamak "
+            "yanlış güven üretiyordu")
 
-    # --- Formül B: yaş cezası saatte 1 puan (kullanıcı kararı) ---
+    # --- 7) Yaş cezası saatte ~1 puan (kullanıcı kararı, on_skor) ---
     a = {"agirlik": 10, "baslik_orj": "test",
          "yayin_tarihi": (simdi - timedelta(hours=0)).isoformat()}
     b = {"agirlik": 10, "baslik_orj": "test",
@@ -2190,6 +2232,156 @@ def test_metin_uretimi_icerik_sinyaline_bakiyor() -> None:
             "yaş cezası saatte ~1 puan",
             f"10 saatlik fark {fark:.1f} puan getirdi; kullanıcı kararı "
             "saatte 1 puandı (B varyantı) — 3 olsaydı gelişen haberler düşer")
+
+
+def test_seo_copu_havuza_girmiyor() -> None:
+    """
+    SEO çöpü (rüya tabiri, loto sonucu, market kataloğu) RSS GİRİŞİNDE
+    eleniyor mu — ve elemenin GERÇEKTEN çağrıldığı yerde mi?
+
+    ⚠️ NEDEN GEREKTİ (18 Eyl 2026). Öneri kapısı 8 saatlik pencerede
+    ~600 haberden 24'ünü Gemini'ye puanlatıyor. Kategori katmanlı
+    seçimde her kategorinin en iyi haberi garantili slot alıyor;
+    `yasam` kategorisinde havuzda 32 haber vardı ve EN İYİ İKİSİ
+    "Rüyada yılan öldürmek ne anlama gelir?" ile "Rüyada köpek
+    saldırısı görmek ne anlama gelir?" idi. Habertürk Yaşam
+    beslemesinin %73'ü (55 haberin 40'ı) rüya tabiri.
+
+    ⚠️ SEÇİM AŞAMASINDA ELEMEK GEÇ KALIR — 24 slot zaten dolmuş olur.
+    Bu yüzden kapı `fetch_news.haberleri_cek` içinde, DB'ye yazmadan
+    önce çalışıyor.
+
+    ⚠️ DESENLER YAYINLANMIŞ HABERİ ELEMEMELİ. Ölçüt bu: yayınlanmış
+    bir haberi eleyen desen yanlış pozitiftir. "sorgulama ekranı" ve
+    "nasıl yapılır" bu ölçütle ELENDİ (yayınlanmış KYK ve TÜBİTAK
+    haberlerini eliyorlardı).
+    """
+    import ast as _ast
+    from src import filtre as _filtre
+
+    ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    desenler = (ayarlar.get("icerik_filtresi", {}) or {}).get(
+        "baslik_elemeleri", []) or []
+    denetle(bool(desenler),
+            "config'de baslik_elemeleri tanımlı",
+            "SEO eleme desenleri yok; havuz rüya tabiriyle dolar")
+
+    # --- Desenler hedefi vuruyor mu ---
+    for cop in ("Rüyada yılan öldürmek ne anlama gelir?",
+                "Rüyada köpek saldırısı görmek ne anlama gelir?",
+                "SÜPER LOTO SONUÇ LİNKİ TIKLA ÖĞREN: 17 Eylül çekiliş",
+                "BİM'DEN BOMBA KAMPANYA! BİM'E BUGÜN HANGİ ÜRÜNLER GELİYOR?"):
+        denetle(_filtre.baslik_elenmeli(cop, desenler) is not None,
+                f"SEO çöpü eleniyor: {cop[:34]}",
+                "desen bu başlığı yakalamıyor")
+
+    # --- YANLIŞ POZİTİF: gerçek haber ELENMEMELİ ---
+    # ⚠️ Bu liste ölçümle seçildi: dördü de GERÇEKTEN yayınlanmış
+    # haberlerdir. Desen listesi büyütülürken bunlar kırmızı vermeli.
+    for gercek in ("KYK yurt sonuçları açıklandı mı, ne zaman açıklanacak?",
+                   "TÜBİTAK 660 personel alımı başvurusu nasıl yapılır?",
+                   "Merkez Bankası faiz kararını açıkladı",
+                   "Fenerbahçe derbiyi 3-1 kazandı",
+                   "Yeni vergi düzenlemesi ne anlama geliyor?"):
+        denetle(_filtre.baslik_elenmeli(gercek, desenler) is None,
+                f"gerçek haber elenmiyor: {gercek[:34]}",
+                "desen fazla geniş — yayınlanabilir haberi eliyor")
+
+    # --- Kapı GERÇEKTEN çağrılıyor mu (AST) ---
+    # ⚠️ "Fonksiyon var" ile "fonksiyon çağrılıyor" ayrı sorulardır.
+    # Bu proje o tuzağa düştü: `slayt_uret` `con=None` varsayılanı
+    # taşıyordu ama 10 çağıranın hiçbiri `con` geçmiyordu.
+    agac = _ast.parse((KOK / "src/fetch_news.py").read_text(encoding="utf-8"))
+    fonk = next((n for n in _ast.walk(agac)
+                 if isinstance(n, _ast.FunctionDef)
+                 and n.name == "haberleri_cek"), None)
+    denetle(fonk is not None, "haberleri_cek bulundu", "fonksiyon yok")
+    if fonk is not None:
+        denetle(any(isinstance(d, _ast.Attribute) and d.attr == "baslik_elenmeli"
+                    for d in _ast.walk(fonk)),
+                "haberleri_cek başlık elemesini çağırıyor",
+                "kapı yazılmış ama çağrılmıyor — SEO çöpü havuza giriyor")
+
+
+def test_puanlanip_elenen_haber_slot_isgal_etmiyor() -> None:
+    """
+    Puanlanıp kendi kategorisinin eşiğini geçemeyen haber, öneri
+    havuzundan DÜŞMELİ.
+
+    ⚠️ NEDEN GEREKTİ (18 Eyl 2026). `oneri_gonderildi` işareti yalnızca
+    GÖNDERİLEN 5 habere konuyor. Puanlanan 24'ün kalan 19'u işaretsiz
+    kalıyor ve 8 saatlik pencere boyunca HER çalıştırmada aynı slotları
+    yeniden tutuyordu. Puanları bir daha değişmediği için sonsuza kadar
+    elenecek ama sonsuza kadar da yarışacaklardı.
+
+    ÖLÇÜLDÜ: 24 adayın **13'ü** bu durumdaydı — bütçenin %54'ü ölü.
+    Kurtarılan slotlara puanı 8 ve 6 olan iki haber girdi; ikisi de
+    havuzda bekliyordu ve ölü adaylar yüzünden giremiyordu.
+
+    ⚠️ YALNIZCA EŞİĞİ GEÇEMEYENLER DÜŞMELİ. Eşiği geçip ilk 5'e
+    giremeyen haber İYİ bir adaydır ve sonraki turda yarışmalı;
+    kategori sınırına ya da mükerrer denetimine takılan da havuzda
+    kalmalı — onların durumu yarın değişebilir, puan ise değişmez.
+    """
+    import ast as _ast
+    import scripts.son_dakika as _sd
+
+    agac = _ast.parse((KOK / "scripts/son_dakika.py").read_text(encoding="utf-8"))
+    fonk = next((n for n in _ast.walk(agac)
+                 if isinstance(n, _ast.FunctionDef)
+                 and n.name == "onerileri_gonder"), None)
+    denetle(fonk is not None, "onerileri_gonder bulundu", "fonksiyon yok")
+
+    if fonk is not None:
+        # Havuz `oneri_esigi` ile süzülüyor mu?
+        suzuluyor = any(isinstance(d, _ast.Name) and d.id == "oneri_esigi"
+                        for d in _ast.walk(fonk))
+        denetle(suzuluyor,
+                "havuz öneri eşiğiyle süzülüyor",
+                "puanlanıp elenen haberler havuzda kalıyor ve 24 slotun "
+                "yarısını kalıcı işgal ediyor")
+
+        # ⚠️ Süzgeç `onem_puani is None` durumunu KORUMALI — yoksa hiç
+        # puanlanmamış (yani asıl aday olan) haberler de düşer ve akış
+        # tamamen kilitlenir.
+        #
+        # ⚠️ BU DENETİM ÖNCE DİZGİ ARAMASIYLA YAZILDI VE SABOTAJ KAÇTI.
+        # `'h["onem_puani"] is None' in kaynak` diye bakıyordu; o dizgi
+        # AYNI FONKSİYONDA başka bir satırda da geçiyor
+        # (`puansiz = [h for h in ham if h["onem_puani"] is None]`),
+        # yani süzgeçten silinse bile test temiz geçiyordu. Projedeki
+        # "düz metin araması yanlış cevap verir" dersinin yeni hâli —
+        # bu kez yorum/docstring değil, BAŞKA BİR SATIR yanılttı.
+        #
+        # Doğru ölçüt yapısal: `oneri_esigi` çağrısını İÇEREN liste
+        # kurgusunun koşulunda `is None` karşılaştırması da olmalı.
+        muaf = False
+        for dugum in _ast.walk(fonk):
+            if not isinstance(dugum, _ast.ListComp):
+                continue
+            kosullar = [k for uretec in dugum.generators for k in uretec.ifs]
+            esik_var = any(
+                isinstance(n, _ast.Name) and n.id == "oneri_esigi"
+                for k in kosullar for n in _ast.walk(k))
+            if not esik_var:
+                continue
+            muaf = any(
+                isinstance(n, _ast.Compare)
+                and any(isinstance(o, _ast.Is) for o in n.ops)
+                and any(isinstance(c, _ast.Constant) and c.value is None
+                        for c in n.comparators)
+                for k in kosullar for n in _ast.walk(k))
+            break
+        denetle(muaf,
+                "puansız haberler süzgeçten muaf",
+                "puanı olmayan haberler de düşüyor — öneri akışı kilitlenir")
+
+    # --- Davranış: eşik fonksiyonu kategoriye göre ayrışıyor mu ---
+    ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    denetle(_sd.oneri_esigi(ayarlar, "turkiye") > _sd.oneri_esigi(ayarlar, "spor"),
+            "öneri eşiği kategoriye göre ayrışıyor",
+            "tek eşik spor/ekonomiyi dışlıyor (ölçüldü: o kategorilerde "
+            "8+ puan alan haber sıfır)")
 
 
 def test_her_dugme_workerda_karsilaniyor() -> None:
@@ -4575,6 +4767,8 @@ def main() -> int:
         test_kanca_baslikla_yarismiyor,
         test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
+        test_seo_copu_havuza_girmiyor,
+        test_puanlanip_elenen_haber_slot_isgal_etmiyor,
     ):
         try:
             test()

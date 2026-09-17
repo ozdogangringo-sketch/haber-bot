@@ -21,7 +21,7 @@ import yaml
 from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 from dateutil import parser as tarih_ayristirici
 
-from . import db
+from . import db, filtre
 
 KOK = Path(__file__).resolve().parent.parent
 CONFIG_YOLU = KOK / "config.yaml"
@@ -273,7 +273,13 @@ def haberleri_cek(ayarlar: dict | None = None,
     yas_siniri = datetime.now(timezone.utc) - timedelta(hours=genel["haber_yasi_saat"])
 
     db.kur()
-    rapor = {"eklenen": 0, "tekrar": 0, "eski": 0, "kaynaklar": []}
+    rapor = {"eklenen": 0, "tekrar": 0, "eski": 0, "elenen": 0,
+             "kaynaklar": []}
+
+    # SEO çöpü desenleri (config → icerik_filtresi.baslik_elemeleri).
+    # Bkz. filtre.baslik_elenmeli — neden girişte elendiği orada yazılı.
+    eleme_desenleri = (ayarlar.get("icerik_filtresi", {}) or {}).get(
+        "baslik_elemeleri", []) or []
 
     with db.baglan() as con:
         for kaynak in ayarlar["kaynaklar"]:
@@ -293,7 +299,7 @@ def haberleri_cek(ayarlar: dict | None = None,
                     continue
 
             k_rapor = {"ad": kaynak["ad"], "durum": "ok", "eklenen": 0,
-                       "tekrar": 0, "eski": 0, "hata": None}
+                       "tekrar": 0, "eski": 0, "elenen": 0, "hata": None}
 
             try:
                 ham = feed_indir(kaynak["url"], genel["istek_zaman_asimi"])
@@ -317,6 +323,18 @@ def haberleri_cek(ayarlar: dict | None = None,
                         k_rapor["eski"] += 1
                         continue
 
+                # SEO çöpü mü? (rüya tabiri, loto sonucu, aktüel ürün
+                # kataloğu). Havuza HİÇ girmiyor — seçim aşamasında
+                # elemek geç kalıyor, 24 puanlama slotu zaten dolmuş
+                # oluyor. Bkz. filtre.baslik_elenmeli.
+                elendi = filtre.baslik_elenmeli(girdi["baslik_orj"],
+                                                eleme_desenleri)
+                if elendi:
+                    k_rapor["elenen"] += 1
+                    log.debug("başlık elendi [%s]: %s",
+                              elendi, girdi["baslik_orj"][:70])
+                    continue
+
                 girdi.update(
                     kaynak=kaynak["ad"],
                     kategori=kaynak["kategori"],
@@ -328,7 +346,7 @@ def haberleri_cek(ayarlar: dict | None = None,
                 else:
                     k_rapor["tekrar"] += 1
 
-            for anahtar in ("eklenen", "tekrar", "eski"):
+            for anahtar in ("eklenen", "tekrar", "eski", "elenen"):
                 rapor[anahtar] += k_rapor[anahtar]
             rapor["kaynaklar"].append(k_rapor)
 

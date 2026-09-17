@@ -306,46 +306,6 @@ def suresi_gecmisi_iptal_et(con, ayarlar: dict) -> None:
         log.info("süresi geçen son dakika turu iptal edildi (%s)", mesaj_id)
 
 
-def taze_adaylar(con, ayarlar: dict, kac: int) -> list:
-    """
-    Metin üretilecek TAZE haberler.
-
-    ⚠️ NEDEN `secim.on_eleme` KULLANMIYORUZ. Ölçüldü (19 Ağu 2026):
-    tekil post 5 saat boyunca hiç çıkmadı. Sebep aday bulunamaması
-    değildi — havuzda 228 hazır metin vardı ama **224'ü 3 saatten
-    eskiydi** ve `TAZELIK_SAAT` filtresine takılıyordu. Aynı anda son
-    3 saatte gelen 44 haberin metni HİÇ üretilmemişti.
-
-    Kök sebep: `on_eleme` "en iyi haberi" seçiyor — kaynak ağırlığı,
-    kategori katsayısı ve içerik sinyaliyle. Son dakika için gereken
-    ise "en TAZE haber". İkisi farklı sorular ve on_eleme ikincisini
-    cevaplamıyor; havuzdaki eski ama yüksek skorlu haberleri seçip
-    duruyordu, onlar da zaten bayat oldukları için aday olamıyordu.
-
-    Burada doğrudan tazelik sorgulanıyor: son `TAZELIK_SAAT` içinde
-    yayınlanmış, metni henüz üretilmemiş haberler, kaynak ağırlığına
-    göre sıralı.
-    """
-    sinir = (datetime.now(timezone.utc)
-             - timedelta(hours=_tazelik_saat(ayarlar))).isoformat()
-
-    # ⚠️ ÖNCE PUANLA, SONRA SINIRLA. Eski sorgu `ORDER BY agirlik DESC,
-    # yayin_tarihi DESC LIMIT ?` diyordu ve içerik sinyaline hiç
-    # bakmıyordu. `LIMIT`i SQL'de bırakıp puanlamayı sonra yapmak aynı
-    # hatayı üretirdi: yüksek içerik sinyalli ama sıradan bir kaynaktan
-    # gelen haber dilimin DIŞINDA kalırdı (kardeş görsel havuzunda
-    # birebir bu yaşandı). Pencere zaten tazelikle sınırlı — ölçüldü,
-    # 8 saatte 433 satır; hepsini puanlamak önemsiz bir maliyet.
-    pencere = list(con.execute(
-        """SELECT * FROM haberler
-           WHERE durum = 'yeni' AND yayin_tarihi >= ?""",
-        (sinir,),
-    ))
-    pencere.sort(key=secim.on_skor, reverse=True)
-    return pencere[:kac]
-
-
-
 # `onerileri_gonder` bu değeri döndürdüğünde: öneri GÖNDERİLMEDİ,
 # bunun yerine yüksek puanlı bir habere metin üretildi. Çağıran taraf
 # yeniden aday aramalı — o haber artık otomatik yayın akışına girebilir.
@@ -435,6 +395,30 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
                  AND (sadece_tur IS NULL OR sadece_tur = 0)""",
             (sinir,),
         ))
+    # ⚠️ PUANLANIP ELENMİŞ HABER SLOT İŞGAL ETMESİN (18 Eyl 2026).
+    #
+    # `oneri_gonderildi` işareti yalnızca GÖNDERİLEN 5 habere konuyor.
+    # Puanlanan 24'ün kalan 19'u işaretsiz kalıyor ve 8 saatlik pencere
+    # boyunca HER çalıştırmada aynı slotları yeniden tutuyordu.
+    #
+    # ÖLÇÜLDÜ: 564 haberlik havuzda 43 haber "puanlanmış ama kendi
+    # kategorisinin eşiğini geçemez" durumda (puanlar 2-5). Bunların
+    # puanı bir daha DEĞİŞMİYOR — yani sonsuza kadar elenecekler ama
+    # sonsuza kadar da yarışıyorlardı.
+    #
+    # ⚠️ YALNIZCA EŞİĞİ GEÇEMEYENLER ELENİYOR, puanlananların hepsi
+    # değil: eşiği geçip ilk 5'e giremeyen haber İYİ bir adaydır ve
+    # sonraki turda yeniden yarışmalı. Kategori günlük sınırına ya da
+    # mükerrer denetimine takılanlar da havuzda kalıyor — onların
+    # durumu yarın değişebilir, puan ise değişmez.
+    onceki = len(havuz)
+    havuz = [h for h in havuz
+             if h["onem_puani"] is None
+             or h["onem_puani"] >= oneri_esigi(ayarlar, h["kategori"])]
+    if onceki != len(havuz):
+        log.info("puanlanıp eşiği geçemeyen %d haber havuzdan düştü",
+                 onceki - len(havuz))
+
     if not havuz:
         log.info("önerilecek taze haber yok")
         if elle_tetiklendi and not kuru:
@@ -444,30 +428,21 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
             )
         return 0
 
-    s_ayar = ayarlar.get("secim", {}) or {}
-    katsayilar = s_ayar.get("kategori_katsayilari", {}) or {}
-    varsayilan = s_ayar.get("kategori_varsayilan_katsayi", 0.6)
-    azalma = s_ayar.get("kategori_sira_azalmasi", 0.88)
-
-    kategoriler: dict[str, list] = {}
-    for h in havuz:
-        kategoriler.setdefault(h["kategori"] or "diger", []).append(h)
-
-    puanli = []
-    for kat, liste in kategoriler.items():
-        # Kategori içinde: taze + içerik sinyali (LLM yok, bedava)
-        liste.sort(key=lambda h: (secim._icerik_puani(h["baslik_orj"])
-                                  - secim._yas_saat(h)), reverse=True)
-        katsayi = katsayilar.get(kat, varsayilan)
-        for sira, h in enumerate(liste):
-            puanli.append((katsayi * (azalma ** sira), h))
-    puanli.sort(key=lambda x: x[0], reverse=True)
-    ham = [h for _, h in puanli[:azami]]
-
-    log.info("öneri havuzu: %d haberden %d aday (%d kategori, %d kaynak)",
-             len(havuz), len(ham),
-             len({h["kategori"] for h in ham}),
-             len({h["kaynak"] for h in ham}))
+    # ⚠️ SIRALAMA KURALI ARTIK `secim.oneri_adaylari`'NDA — TEK KAPI.
+    #
+    # Burada kopya bir kategori-katmanlı sıralama vardı ve üç kusuru
+    # birden taşıyordu (18 Eyl 2026'da ölçüldü):
+    #   (1) `agirlik` terimi HİÇ yoktu — ağırlığı 6 olan Sözcü, ağırlığı
+    #       10 olan TRT'nin önüne geçiyordu
+    #   (2) mükerrer eleme SEÇİMDEN SONRA çalışıyordu; 24 adayın 3'ü
+    #       aynı olaydı (Messi ×2, Gazze ×2) ve slotlar çoktan yanmıştı
+    #   (3) kategori slotu havuz büyüklüğünü gözetmiyordu; 5 haberlik
+    #       `kultur` 2 slot alırken 228 haberlik `turkiye` 5 alıyordu
+    #
+    # Üçü de aynı sıralamayı değiştirdiği için tek fonksiyonda toplandı;
+    # ayrı ayrı yamamak bu projenin en sık hatası olan "aynı kural iki
+    # yerde yaşıyor" desenini üretirdi.
+    ham = secim.oneri_adaylari(havuz, ayarlar, azami)
 
     # Yalnızca PUANSIZ olanlara Gemini çağrısı — puanı olan haberin
     # puanını yeniden üretmek kotayı boşa harcar.

@@ -243,6 +243,37 @@ secim:
   # daha çok yer verir. 0.88 ölçülerek seçildi.
   kategori_sira_azalmasi: 0.88
 
+  # ⚠️ KAYNAK AĞIRLIĞI ÖNERİ SIRALAMASINA GERİ KONDU (18 Eyl 2026).
+  # Öncesinde öneri kapısı `içerik − yaş` diyordu ve `agirlik` HİÇ
+  # geçmiyordu: ölçüldü, ağırlığı 6 olan Sözcü Gündem ağırlığı 10 olan
+  # TRT Haber'in önünde 2. sıraya çıkıyordu. config'deki `agirlik`
+  # alanı seçimde hiçbir işe yaramıyordu.
+  #
+  # ⚠️ KATSAYI BİLEREK KÜÇÜK — kullanıcı uyarısı (18 Eyl 2026):
+  # "ağırlığı sadece kaynağa verince daha taraflı ya da benzer
+  # haberler çıkabiliyor". Ölçüm doğruladı; 19 Ağu'da çıplak
+  # `agirlik × 10` ile 25 adayın tamamı 2 kategoriden gelmişti.
+  #
+  # 1.5 ile ağırlık aralığı 6…15 (span 9), içerik sinyali aralığı
+  # −10…+20 (span 30). Yani ağırlık sıralamayı BELİRLEMİYOR, eşitliği
+  # BOZUYOR. Büyütürsen havuz TRT/AA'ya kilitlenir; 0 yaparsan kaynak
+  # güvenilirliği yine yok sayılır.
+  agirlik_katsayisi: 1.5
+
+  # ⚠️ KATEGORİ SLOT TAVANI (18 Eyl 2026).
+  # Kategori katmanlı seçim çeşitliliği çözdü ama kaliteyi gözetmiyordu:
+  # her kategorinin 1. sırası TAM katsayı alıyor, kategori kaç haberlik
+  # olursa olsun. ÖLÇÜLDÜ: 5 haberlik `kultur` 2 slot alırken 228
+  # haberlik `turkiye` 5 slot alıyordu — turkiye'nin 6. en iyi haberi
+  # hiç puanlanmıyordu.
+  #
+  # Tavan = 1 + havuz/bolen, `tavani` ile sınırlı. Her kategori EN AZ
+  # 1 slot alıyor, yani çeşitlilik güvencesi duruyor.
+  #   bolen küçültülürse  -> büyük kategoriler daha çok slot alır
+  #   tavani küçültülürse -> hiçbir kategori baskın olamaz
+  kategori_slot_boleni: 40
+  kategori_slot_tavani: 6
+
   # İki başlık kaç ortak anahtar kelime paylaşırsa "aynı olay" sayılsın.
   # 2 ölçüldü: "İsrail ... Gazze" ile "İsrail ... Lübnan" ayrışıyor ama
   # aynı olayın iki farklı kaynaktaki hâli birleşiyor.
@@ -622,6 +653,62 @@ kaynaklar:
     agirlik: 9
     aktif: true
 
+  # ⚠️ ÜÇ EKONOMİ KAYNAĞI EKLENDİ (18 Eyl 2026, kullanıcı isteği).
+  #
+  # Sebep: ekonomi havuzunun en büyük kaynağı Investing TR Hisse ve
+  # ölçüldü — 7 günde 464 haber çekti, 0 metin üretildi, 0 yayınlandı.
+  # İçeriği ABD borsa analizi ("Lucid hisseleri neden yükselişte?") ve
+  # gövdesi HTTP 403 ile hiç indirilemiyor. Kaynak KALDIRILMADI
+  # (kullanıcı kararı), ama ekonomi havuzunun tek büyük kaynağının
+  # yayınlanamaz içerik olması yapısal bir boşluktu.
+  #
+  # ⚠️ ÜÇÜ DE `scripts/kaynak_dogrula.py` İLE ÖNCE ÖLÇÜLDÜ,
+  # ARTI ARAÇTA OLMAYAN BİR TEST DAHA YAPILDI: gövde ve og:image
+  # gerçekten çekilebiliyor mu? (Investing dersi — besleme sağlıklı
+  # görünüp makale sayfası 403 verebiliyor.)
+  #
+  #   Habertürk Ekonomi  30 haber · %100 taze · %100 kategori
+  #                      gövde 1409-2061 kr · og:image 3/3   ✓
+  #   Ekonomim (Dünya)   25 haber · %100 taze · %60 kategori
+  #                      gövde 664-3463 kr  · og:image 3/3   ✓
+  #   CNN Türk Ekonomi   35 haber · %74 taze  · %89 kategori
+  #                      gövde 1194-4529 kr · og:image 3/3   ✓
+  #
+  # ELENENLER (kayda geçiyor ki bir daha denenmesin):
+  #   NTV Ekonomi        %0 taze   — besleme ölü
+  #   Hürriyet Ekonomi   %2 taze
+  #   dunya.com          %8 kategori doğruluğu
+  #   Bigpara            HTTP hatası
+  #   Patronlar Dünyası  bozuk XML (ParseError)
+  #   finansgundem.com   TooManyRedirects
+  #   paraanaliz.com     HTTP hatası
+  #
+  # ⚠️ CNN TÜRK VE EKONOMİM SEO ÇÖPÜ DE TAŞIYOR ("SÜPER LOTO SONUÇ
+  # LİNKİ TIKLA ÖĞREN", "BİM'DEN BOMBA KAMPANYA"). Bunlar
+  # `secim.baslik_elenmeli` kapısıyla ayıklanıyor — kaynağı komple
+  # kapatmak yerine başlık deseniyle eleniyor, çünkü aynı beslemeler
+  # gerçek finans haberi de veriyor.
+  - ad: "Habertürk Ekonomi"
+    gosterim_adi: "HABERTÜRK"
+    url: "https://www.haberturk.com/rss/kategori/ekonomi.xml"
+    kategori: "ekonomi"
+    agirlik: 7
+    aktif: true
+
+  - ad: "Ekonomim"
+    gosterim_adi: "EKONOMİM"
+    url: "https://www.ekonomim.com/rss"
+    kategori: "ekonomi"
+    agirlik: 8
+    aktif: true
+
+  - ad: "CNN Türk Ekonomi"
+    gosterim_adi: "CNN TÜRK"
+    url: "https://www.cnnturk.com/feed/rss/ekonomi/news"
+    kategori: "ekonomi"
+    agirlik: 7
+    aktif: true
+
   - ad: "AA Kültür"
 
     gosterim_adi: "AA"
@@ -821,6 +908,44 @@ icerik_filtresi:
   # ÜSTÜNDE sansürlediğini gösterip aynısını istedi — Instagram
   # erişimi için yaygın bir uygulama.
   gorselde: true
+
+  # ----------------------------------------------------------------
+  # BAŞLIK ELEMESİ — SEO çöpü havuza hiç girmesin
+  # ----------------------------------------------------------------
+  # RSS GİRİŞİNDE uygulanıyor (`fetch_news.haberleri_cek`), seçimde
+  # değil: öneri akışı 8 saatlik pencerede ~600 haberden 24'ünü
+  # Gemini'ye puanlatıyor ve o 24'ü kategori katmanlı seçim belirliyor.
+  # Seçimde elemek GEÇ KALIR, slot zaten dolmuş olur.
+  #
+  # ⚠️ ÖLÇÜLDÜ (18 Eyl 2026): `yasam` kategorisinin en iyi iki haberi
+  # "Rüyada yılan öldürmek ne anlama gelir?" ve "Rüyada köpek
+  # saldırısı görmek ne anlama gelir?" idi — Habertürk Yaşam
+  # beslemesinin %73'ü rüya tabiri. 24 slotun 2'si kalıcı işgal
+  # altındaydı.
+  #
+  # ⚠️ YENİ DESEN EKLERKEN ÖLÇ. Ölçüt: YAYINLANMIŞ bir haberi eleyen
+  # desen yanlış pozitiftir. Aşağıdaki üçü 3393 kayıtta 43 eşleşme
+  # veriyor ve yanlış pozitifi SIFIR. Denenip elenenler:
+  #   "sorgulama ekranı" -> yayınlanmış KYK haberini eliyordu
+  #   "nasıl yapılır"    -> yayınlanmış TÜBİTAK alım haberini eliyordu
+  #   "ne anlama gel"    -> ek fayda yok (hepsi ^rüyada ile örtüşüyor),
+  #                         meşru açıklayıcı haberi eleme riski var
+  baslik_elemeleri:
+    # Rüya tabiri — Habertürk Yaşam beslemesinin %73'ü
+    - '^r[uü]yada\b'
+    # Şans oyunu sonuçları — CNN Türk ve NTV beslemelerinde
+    - '\b(say[iı]sal|s[uü]per|[sş]ans) loto\b|loto sonu[cç]|[cç]eki[lı]i[sş] sonu[cç]|sonu[cç] linki'
+    # Market aktüel ürün katalogları — Ekonomim beslemesinde
+    - 'akt[uü]el [uü]r[uü]n|bug[uü]n hangi [uü]r[uü]nler|katalo[gğ]u'
+    # ⚠️ KANIT SEVİYESİ DAHA ZAYIF — bu desen GEÇMİŞ VERİYLE ölçülemedi,
+    # çünkü Ekonomim 18 Eyl'de eklendi ve veritabanında hiç kaydı yok.
+    # Bunun yerine 5 canlı ekonomi beslemesinde sınandı: 145 haberde
+    # 2 eşleşme, ikisi de hedef (BİM katalog reklamı), diğer 4 kaynakta
+    # 0 eşleşme. Yine de yanlış pozitif riski diğer üçünden YÜKSEK.
+    # ⚠️ BİRKAÇ GÜN SONRA DOĞRULA: yayınlanmış bir haberi eliyor mu?
+    #     select baslik_orj from haberler where durum='yayinlandi'
+    #       and baslik_orj regexp '<bu desen>';
+    - '\b(b[iİ]m|a101|[sş]ok market|migros|carrefour)\b.{0,45}(indirim|f[iı]yat|[uü]r[uü]n|katalog|akt[uü]el|geliyor)'
 
   # Kelime KÖKÜ yazılır; ekli hâlleri de yakalanır ("intihar" -> "intiharı").
   # ⚠️ KISA KÖK YAZMA — yanlış eşleşme yapar. Ölçüldü (21 Ağu 2026):

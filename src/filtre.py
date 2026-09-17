@@ -26,7 +26,10 @@ NEREDE UYGULANIR:
 
 from __future__ import annotations
 
+import logging
 import re
+
+log = logging.getLogger(__name__)
 
 # Yıldız kelimenin İÇİNE konuyor, başına değil: "*intihar" işe yaramıyor,
 # "int*har" yarıyor. İkinci sesli harfi yıldızlamak okunabilirliği en az
@@ -78,6 +81,62 @@ def metni_yumusat(metin: str, kelimeler: list[str]) -> str:
     return metin
 
 
+# ----------------------------------------------------------------------
+# SEO ÇÖPÜ ELEMESİ — haber olmayan başlıkları havuza hiç sokma
+# ----------------------------------------------------------------------
+#
+# ⚠️ NEDEN VAR (18 Eyl 2026). Öneri akışı 8 saatlik pencerede ~600
+# haberden yalnızca 24'ünü Gemini'ye puanlatıyor ve o 24'ü KATEGORİ
+# KATMANLI seçim belirliyor: her kategorinin en iyi haberi tam katsayı
+# alıyor. Küçük kategoriler bu yüzden garantili slot kazanıyor.
+#
+# ÖLÇÜLDÜ: `yasam` kategorisinde havuzda 32 haber var ve kategorinin
+# EN İYİ İKİ HABERİ şunlardı:
+#     "Rüyada yılan öldürmek ne anlama gelir?"
+#     "Rüyada köpek saldırısı görmek ne anlama gelir?"
+# Habertürk Yaşam beslemesinin %73'ü (55 haberin 40'ı) rüya tabiri.
+# Yani 24 slotun 2'si kalıcı olarak yayınlanamaz içerikte duruyordu.
+#
+# ⚠️ KAYNAĞI KAPATMAK YANLIŞ CEVAP: aynı besleme gerçek haber de
+# veriyor — Habertürk Yaşam'dan yayınlanan 7 haber var ve hepsi iyi
+# (Çatalhöyük'te 8 bebek iskeleti, Parkinson'un kokusunu aldı).
+# Sorun kaynakta değil, beslemenin KARIŞIK olmasında.
+#
+# ⚠️ DESENLER ÖLÇÜLEREK SEÇİLDİ, UMULARAK DEĞİL. Ölçüt: yayınlanmış
+# bir haberi eleyen desen YANLIŞ POZİTİFTİR. Denenip ELENENLER:
+#   "sorgulama ekranı"  -> yayınlanmış KYK haberini eliyordu
+#   "nasıl yapılır"     -> yayınlanmış TÜBİTAK alım haberini eliyordu
+#   "ne anlama gel"     -> 32 eşleşmenin 32'si de zaten `^rüyada` ile
+#                          örtüşüyor (ek fayda YOK), ama "Yeni vergi
+#                          düzenlemesi ne anlama geliyor?" gibi meşru
+#                          açıklayıcı haberleri eleme riski VAR.
+# Kalan üç desen: 3393 kayıtta 43 eşleşme, **0 yanlış pozitif**.
+#
+# ⚠️ NEREDE UYGULANIYOR: `fetch_news.haberleri_cek`, yani RSS girişinde.
+# Seçim aşamasında uygulamak GEÇ KALIR — 24 slot zaten dolmuş olur.
+# Girişte elenen haber veritabanına hiç girmiyor; `haber.db` her job'da
+# git'e commit edildiği için bu ayrıca yer de kazandırıyor.
+
+
+def baslik_elenmeli(baslik: str, desenler) -> str | None:
+    """
+    Başlık SEO çöpü mü? Eşleşen desen adını döner, temizse None.
+
+    `desenler` config'den gelen düzenli ifade listesi
+    (`icerik_filtresi.baslik_elemeleri`). Boş liste = eleme yok.
+    """
+    if not baslik or not desenler:
+        return None
+    for desen in desenler:
+        try:
+            if re.search(desen, baslik, re.IGNORECASE):
+                return desen
+        except re.error:
+            # Bozuk desen bütün çekimi düşürmesin — atla ve devam et.
+            log.warning("geçersiz başlık eleme deseni: %s", desen)
+    return None
+
+
 def hashtaglari_ele(etiketler: list[str], yasakli: list[str]) -> list[str]:
     """
     Kısıtlı etiketleri listeden tamamen çıkarır.
@@ -87,11 +146,29 @@ def hashtaglari_ele(etiketler: list[str], yasakli: list[str]) -> list[str]:
     atmak doğru — tek bir kısıtlı etiket postun tamamının erişimini
     düşürebiliyor.
     """
-    yasakli_kume = {y.strip().casefold().lstrip("#") for y in yasakli if y.strip()}
-    return [
-        e for e in etiketler
-        if e.casefold().lstrip("#") not in yasakli_kume
-    ]
+    # ⚠️ DÜZ `casefold()` YETMİYOR — İKİ AYRI KUSUR ÜST ÜSTEYDİ (18 Eyl 2026).
+    #
+    # (a) TÜRKÇE `İ` TUZAĞI: `'İntihar'.casefold()` → `'i̇ntihar'`
+    #     (i + birleşen nokta), `'intihar'` ile EŞLEŞMİYOR.
+    # (b) YAZIM AYRIŞMASI: config'deki yasaklı liste ASCII yazılı
+    #     (`teror`, `tecavuz`, `uyusturucu`, `fuhus`) ama Gemini etiketleri
+    #     Türkçe üretiyor (`terör`, `tecavüz`, `uyuşturucu`).
+    #
+    # ÖLÇÜLDÜ: `['İntihar','intihar','Terör','teror','gundem']` girdisinde
+    # yalnızca `intihar` ve `teror` eleniyordu; `İntihar` ve `Terör` GEÇİYORDU.
+    # 360 gerçek kayıtta kaçan 0 çıktı, yani kusur GİZLİ — ama Instagram
+    # erişim cezası sessiz olduğu için patladığında da fark edilmez.
+    #
+    # Çözüm: iki taraf da aynı kapıdan geçiyor (`dogrula._sadelestir`),
+    # böylece config'e ASCII de Türkçe de yazılabiliyor.
+    from . import dogrula
+
+    def _anahtar(e: str) -> str:
+        return dogrula._sadelestir(e.lstrip("#")).replace(" ", "")
+
+    yasakli_kume = {_anahtar(y.strip()) for y in yasakli if y.strip()}
+    yasakli_kume.discard("")
+    return [e for e in etiketler if _anahtar(e) not in yasakli_kume]
 
 
 def kacislari_coz(metin: str) -> str:

@@ -387,6 +387,125 @@ def _instagram_gecmisi(ayarlar: dict) -> list[str]:
     return _IG_GECMIS_ONBELLEK
 
 
+def oneri_adaylari(havuz: list, ayarlar: dict, azami: int) -> list:
+    """
+    Gemini'ye TOPLU PUANLAMAYA gidecek adayları seçer. LLM ÇAĞIRMAZ.
+
+    ⚠️ BU, SİSTEMİN EN DAR BOĞAZI. Öneri akışı 8 saatlik pencerede
+    ~600 haber görüyor ve yalnızca `azami` (24) tanesini puanlatıyor,
+    yani pencerenin %4'ü. Buraya girmeyen haber hiçbir zaman
+    değerlendirilmiyor. Bu yüzden üç kural BİRLİKTE uygulanıyor.
+
+    ── 1) KATEGORİ İÇİ SIRALAMA ────────────────────────────────────
+        içerik sinyali − yaş(saat) + ağırlık × `agirlik_katsayisi`
+
+    ⚠️ AĞIRLIK TERİMİ 18 EYL 2026'DA GERİ KONDU — ama BİLEREK ZAYIF.
+    Öncesinde formül `_icerik_puani − _yas_saat` idi ve `agirlik`
+    HİÇ GEÇMİYORDU: ölçüldü, ağırlığı 6 olan Sözcü Gündem, ağırlığı 10
+    olan TRT Haber'in önünde 2. sıraya çıkıyordu. `config.yaml`deki 31
+    satırlık `agirlik` alanı — kaynak güvenilirliğini kodlayan tek
+    mekanizma — seçimde hiçbir işe yaramıyordu.
+
+    ⚠️ AMA ÇIPLAK `agirlik × 10` KOYMAK YANLIŞ CEVAP (kullanıcı uyarısı,
+    18 Eyl 2026): "ağırlığı sadece kaynağa verince daha taraflı ya da
+    benzer haberler çıkabiliyor". Ölçüm bunu doğruladı — 19 Ağu'da
+    aynısı yaşanmıştı: 25 adayın tamamı 2 kategoriden, 3 kaynaktan
+    gelmişti. Katsayı bu yüzden 1.5: içerik sinyali aralığı −10…+20
+    (span 30), ağırlık aralığı 4…10 → 6…15 (span 9). Yani ağırlık
+    sıralamayı BELİRLEMİYOR, yalnızca EŞİTLİĞİ BOZUYOR.
+
+        Sözcü(6)  + olay haberi(+20) − 1 sa  = 28   ← kazanır
+        TRT(10)   + açıklama(−10)    − 0.5   = 4.5
+        TRT(10)   + olay haberi(+20) − 1 sa  = 37   ← eşit içerikte kazanır
+
+    ── 2) MÜKERRER ELEME — SEÇİMDEN ÖNCE ───────────────────────────
+    ⚠️ `aday.uygun_mu` mükerreri zaten eliyor AMA 24 SEÇİLDİKTEN SONRA,
+    yani slot çoktan yanmış oluyor. ÖLÇÜLDÜ (18 Eyl 2026): 24 adayın
+    3'ü mükerrerdi — "Messi 48. şampiyonluk" (Habertürk Spor + AA Spor)
+    ve "Gazze can kaybı" (NTV Dünya + AA Dünya) ikişer slot yiyordu.
+    Ağırlık terimini eklemek bunu ARTIRIRDI, çünkü TRT ve AA ikisi de
+    yüksek ağırlıklı ve aynı olayları veriyorlar. İki değişiklik bu
+    yüzden ayrılamaz.
+
+    ── 3) KATEGORİ SLOT TAVANI ─────────────────────────────────────
+    ⚠️ Kategori katmanlı seçim çeşitliliği çözdü (2 kategori → 8) ama
+    kaliteyi gözetmiyordu: her kategorinin 1. sırası TAM katsayı
+    alıyor, kategori kaç haberlik olursa olsun. ÖLÇÜLDÜ: 5 haberlik
+    `kultur` 2 slot alırken 228 haberlik `turkiye` 5 slot alıyordu —
+    yani turkiye'nin 6. en iyi haberi hiç puanlanmıyordu. CLAUDE.md bu
+    tuzağı "7 haberlik kultur kategorisinde banka sponsorluğundaki
+    fotoğraf sergisi ham skoru 32 puan yüksek habere galip geliyor"
+    diye zaten kaydetmiş ama düzeltmemişti.
+
+    Tavan: `1 + havuz/bolen`, `tavani` ile sınırlı. Her kategori EN AZ
+    1 slot alıyor — çeşitlilik güvencesi korunuyor.
+    """
+    if not havuz:
+        return []
+
+    s = ayarlar.get("secim", {}) or {}
+    katsayilar = s.get("kategori_katsayilari", {}) or {}
+    varsayilan = s.get("kategori_varsayilan_katsayi", 0.6)
+    azalma = s.get("kategori_sira_azalmasi", 0.88)
+    agirlik_kat = s.get("agirlik_katsayisi", 1.5)
+    slot_bolen = s.get("kategori_slot_boleni", 40)
+    slot_tavani = s.get("kategori_slot_tavani", 6)
+
+    kategoriler: dict[str, list] = {}
+    for h in havuz:
+        kategoriler.setdefault(h["kategori"] or "diger", []).append(h)
+
+    oncelikli, tasan = [], []
+    for kat, liste in kategoriler.items():
+        liste.sort(
+            key=lambda h: (_icerik_puani(h["baslik_orj"])
+                           - _yas_saat(h)
+                           + (h["agirlik"] or 0) * agirlik_kat),
+            reverse=True,
+        )
+        # Havuz büyüklüğüne göre slot tavanı (kural 3)
+        tavan = max(1, min(slot_tavani, round(1 + len(liste) / slot_bolen)))
+        katsayi = katsayilar.get(kat, varsayilan)
+        for sira, h in enumerate(liste):
+            puan = katsayi * (azalma ** sira)
+            (oncelikli if sira < tavan else tasan).append((puan, h))
+
+    oncelikli.sort(key=lambda x: x[0], reverse=True)
+    tasan.sort(key=lambda x: x[0], reverse=True)
+
+    # ⚠️ TAVAN BÜTÇEYİ BOŞA HARCAMAMALI. Tavanların toplamı `azami`nin
+    # altında kalabiliyor (ölçüldü: 8 kategori, tavan toplamı 22 ve
+    # mükerrer elemesinden sonra 17 aday — 24 slotun 7'si boş kalıyordu).
+    # Tavan bir KOTA değil ÖNCELİK: önce her kategori payını alıyor,
+    # artan slotlar sıradaki en iyi haberlerle dolduruluyor.
+    # ⚠️ Doldurma sırası da kategori katsayılı puanla — yoksa artan
+    # slotlar en kalabalık kategoriye gider ve tavan anlamsızlaşır.
+    ortak_esik = s.get("konu_ortak_kelime_esigi", 2)
+    secilen, imzalar = [], []
+    for _, h in oncelikli + tasan:
+        if len(secilen) >= azami:
+            break
+        # Mükerrer eleme — SEÇİMDEN ÖNCE (kural 2).
+        # Kural `aday.uygun_mu` ile AYNI: ≥N ortak kelime VE ortak özel
+        # isim. Farklı bir ölçüt kullanmak iki tarafı kıyaslanamaz
+        # hale getirir ve tekrar sessizce kaçar.
+        kelimeler, isimler = konu_imzasi(h["baslik_orj"] or "")
+        if any(len(ortak_kelime(kelimeler, pk)) >= ortak_esik
+               and ortak_kelime(isimler, pi)
+               for pk, pi in imzalar):
+            log.debug("öneri havuzunda mükerrer, atlanıyor: %s",
+                      (h["baslik_orj"] or "")[:60])
+            continue
+        secilen.append(h)
+        imzalar.append((kelimeler, isimler))
+
+    log.info("öneri havuzu: %d haberden %d aday (%d kategori, %d kaynak)",
+             len(havuz), len(secilen),
+             len({h["kategori"] for h in secilen}),
+             len({h["kaynak"] for h in secilen}))
+    return secilen
+
+
 def cesitlendir(adaylar: list, adet: int, ayarlar: dict,
                 gecmis_konular: list | None = None) -> list:
     """

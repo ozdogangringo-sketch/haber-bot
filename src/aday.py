@@ -48,11 +48,20 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from . import secim
+from . import dogrula, secim
 
 log = logging.getLogger(__name__)
 
 # Bağlam adları — yazım hatası sessizce yanlış davranışa yol açmasın.
+# Instagram Topluluk Standartları — bu konular hiçbir bağlamda aday olamaz.
+# ⚠️ KARŞILAŞTIRMA `dogrula._sadelestir` ÜZERİNDEN YAPILIYOR (bkz. uygun_mu 0b);
+# buraya kelime eklerken Türkçe yazımını yaz, indirgemeyi kod hallediyor.
+YASAKLI_KONULAR = (
+    "intihar", "canına kıy", "kendini as", "kendini vur", "köprüden atla",
+    "balkondan atla", "hayatına son ver", "çocuk istismar", "tecavüz",
+    "fuhuş", "porno",
+)
+
 TUR = "tur"
 TEKIL = "tekil"
 ONERI = "oneri"
@@ -226,13 +235,29 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     # 0b) Instagram Topluluk Standartları & Güvenlik Filtresi (İntihar / İstismar Engeli)
     # ⚠️ Instagram NLP/OCR denetimleri intihar ve kendine zarar verme haberlerine
     # yıldız sansürü (* işareti) olsa bile 18+ kısıtlaması ve keşfet cezası uyguluyor.
-    ham_metin = f"{h.get('baslik_orj', '')} {h.get('ig_baslik', '')} {h.get('ozet_orj', '')}".lower()
-    for yasakli in (
-        "intihar", "canına kıy", "kendini as", "kendini vur", "köprüden atla",
-        "balkondan atla", "hayatına son ver", "çocuk istismar", "tecavüz",
-        "fuhuş", "porno"
-    ):
-        if yasakli in ham_metin:
+    #
+    # ⚠️ DÜZ `.lower()` KULLANMA — TÜRKÇE `İ` TUZAĞI (18 Eyl 2026).
+    # `'İntihar'.lower()` Python'da `'i̇ntihar'` üretiyor (i + birleşen
+    # nokta) ve `"intihar" in ...` denetimi TUTMUYOR. Yasaklı kelimelerin
+    # beşi (`intihar`, `istismar`, `işkence`, `idam`, `infaz`) `i` ile
+    # başlıyor ve Türkçe başlıkta cümle başında HER ZAMAN `İ` oluyorlar —
+    # yani filtre tam da en sık karşılaşacağı biçimi kaçırıyordu.
+    #
+    # ÖLÇÜLDÜ, kaçan başlıklar:
+    #   "İntihar girişimi son anda önlendi"   -> geçiyordu
+    #   "Çocuk İstismarı davasında karar"     -> geçiyordu
+    #   "İNTİHAR SÜSÜ VERİLMİŞ"               -> geçiyordu
+    #
+    # `dogrula._sadelestir` hem İ/I/ı hem ö/ü/ş/ç indirgemesi yapıyor,
+    # yani yasaklı listeyi de aynı kapıdan geçirmek ZORUNLU: aksi hâlde
+    # "tecavüz" ile "tecavuz" eşleşmez. Bu, projedeki Türkçe karakter
+    # tuzağının ALTINCI tekrarı (_sadelestir Commons soyadı · dogrula İ ·
+    # _buyuk_harf TÜRKIYE · caption._etiket_anahtari keşfet · hook_motoru).
+    ham_metin = dogrula._sadelestir(
+        f"{h.get('baslik_orj', '')} {h.get('ig_baslik', '')} {h.get('ozet_orj', '')}"
+    )
+    for yasakli in YASAKLI_KONULAR:
+        if dogrula._sadelestir(yasakli).strip() in ham_metin:
             return False, f"yasaklı konu (Instagram topluluk standardı ihlali: {yasakli})"
 
     # 1) Tazelik — bayat haber hiçbir bağlamda aday olmaz
