@@ -149,16 +149,41 @@ genel:
   # koruyor: prompt "reklama 1 ver" diyor · `baslik_elemeleri` eliyor ·
   # `paylasim_taban_onem` alt sınır koyuyor.
   #
-  # ⚠️ BU EŞİKLER HENÜZ ÖLÇÜLMEDİ — İNANÇ, VERİ DEĞİL.
-  # Ölçmenin yolu: `instagram_manage_insights` izniyle gerçek
-  # `saved` ve `shares` sayıları çekilip `paylasim_puani` ile
-  # karşılaştırılmalı. İzin 18 Eyl'de alındı, kalibrasyon bekliyor.
-  # Önceki deneme yetersizdi: yalnızca beğeni okunabiliyordu ve
-  # 80 eşleşen gönderide medyan 7 beğeni model kurmaya yetmedi.
+  # ⚠️ ÖLÇÜLDÜ (18 Eyl 2026) — Instagram insights verisi, 245
+  # yayınlanmış gönderi, 629 kaydetme, 1306 paylaşım:
+  #                    gönderi   kaydetme/gönderi   paylaşım/gönderi
+  #   fayda haberi     28 (%11)       9.89               24.11
+  #   diğer           217 (%89)       1.62                2.91
+  # Gönderilerin %11'i kaydetmenin %44'ünü, paylaşımın %52'sini
+  # getiriyor. En çok paylaşılan üç gönderi (KYK yurt sonuçları 288,
+  # burs duyurusu 199, KYK 55) toplam paylaşımın %45'i.
+  #
+  # ⚠️ EŞİK 8 DE ÖLÇÜLEREK SEÇİLDİ. Gerçek başlıklar prompta verildi:
+  #   KYK yurt sonuçları (107 kayıt/288 pay)   -> paylaşım 8
+  #   500 öğrenciye burs (78/199)              -> paylaşım 9
+  #   TÜBİTAK 660 personel (20 pay)            -> paylaşım 8
+  #   Prim/vergi yapılandırma (17 pay)         -> paylaşım 9
+  #   Gazze can kaybı (0 kayıt)                -> paylaşım 3
+  #   InvestingPro reklamı                     -> paylaşım 1  ✓
+  #   [Sponsorlu İçerik]                       -> paylaşım 1  ✓
+  # Eşik 8 dört fayda haberini de yakalıyor, reklamı ve sert haberi
+  # almıyor.
   #
   # 0 yapılırsa muafiyet tamamen kapanır.
   paylasim_esigi: 8
   paylasim_taban_onem: 4
+
+  # Öneri sıralamasında paylaşım puanının ağırlığı.
+  # sıralama = onem + agirlik × max(0, paylasim − 5)
+  #
+  # ⚠️ ÖLÇÜLDÜ (18 Eyl 2026, 245 gönderilik Instagram insights verisi):
+  # fayda haberleri gönderilerin %11'i ama kaydetmenin %44'ü ve
+  # paylaşımın %52'si. Paylaşımda 8.3 kat, erişimde 3.6 kat fark.
+  #
+  # 0.5 seçildi çünkü bu bir HABER hesabı — etki en fazla +2.5 ve
+  # büyük haber hâlâ üstte kalıyor (ölçüldü: Gazze 8.0 > TÜBİTAK 7.5).
+  # 0 yapılırsa sıralama eski davranışa döner.
+  paylasim_siralama_agirligi: 0.5
 
   # --- GECE (TR 23:00-07:00) ---
   # Gece farklı davranıyor çünkü onaylayacak kimse uyanık değil.

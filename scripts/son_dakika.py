@@ -535,13 +535,44 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
     uygunlar = aday.sec(puanli_ham, baglam)
 
     adaylar = [{"id": h["id"], "puan": h["onem_puani"],
+                "paylasim": (h["paylasim_puani"]
+                             if "paylasim_puani" in h.keys() else 0),
                 "baslik": h["baslik_orj"],
                 "kaynak": h["kaynak"],
                 "kategori": h["kategori"] or "-",
                 "link": h["link"] if "link" in h.keys() else "",
                 "ozet": (h["ozet_orj"] if "ozet_orj" in h.keys() else "") or (h["slayt_ozet"] if "slayt_ozet" in h.keys() else "")}
                for h in uygunlar]
-    adaylar.sort(key=lambda a: a["puan"], reverse=True)
+    # ⚠️ SIRALAMA PAYLAŞILABİLİRLİĞİ DE GÖZETİYOR (18 Eyl 2026).
+    #
+    # Önce düz `onem_puani` sıralaması vardı ve ilk 5 öneri ona göre
+    # seçiliyordu. Sonuç: paylaşım puanı 9 olan bir haber, paylaşım
+    # puanı 3 olan bir haberin ALTINDA kalıyordu.
+    #
+    # ⚠️ BU ÖLÇÜLDÜ, İNANÇ DEĞİL (18 Eyl 2026, Instagram insights
+    # verisi — 245 yayınlanmış gönderi, 629 kaydetme, 1306 paylaşım):
+    #
+    #                    gönderi   kaydetme/gönderi   paylaşım/gönderi
+    #   fayda haberi     28 (%11)       9.89               24.11
+    #   diğer           217 (%89)       1.62                2.91
+    #
+    # Gönderilerin %11'i, toplam kaydetmenin %44'ünü ve paylaşımın
+    # %52'sini getiriyor. Paylaşımda 8.3 kat, erişimde 3.6 kat fark.
+    # En çok paylaşılan üç gönderi (KYK yurt sonuçları 288, burs
+    # duyurusu 199, KYK 55) tek başına toplam paylaşımın %45'i.
+    #
+    # ⚠️ ÖNEM TERİMİ BASKIN KALIYOR — bu bir HABER hesabı. Ağırlık
+    # 0.5 ve yalnızca 5'in ÜSTÜNDEKİ paylaşım puanı sayılıyor, yani
+    # etkisi en fazla +2.5. Ölçülmüş örneklerle sınandı:
+    #   KYK (önem 8, pay 8)      -> 9.5   ← öne çıkıyor
+    #   burs (7, 9)              -> 9.0   ← öne çıkıyor
+    #   Gazze (8, pay 3)         -> 8.0   ← hâlâ TÜBİTAK'ın (7.5) üstünde
+    # Yani büyük haber gömülmüyor, fayda haberi görünür oluyor.
+    pay_agirlik = ayarlar["genel"].get("paylasim_siralama_agirligi", 0.5)
+    adaylar.sort(
+        key=lambda a: ((a["puan"] or 0)
+                       + pay_agirlik * max(0, (a.get("paylasim") or 0) - 5)),
+        reverse=True)
 
     if not adaylar:
         log.info("puanlanan %d başlığın hiçbiri eşiği geçmedi", len(puanlar))

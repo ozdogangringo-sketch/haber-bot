@@ -80,11 +80,11 @@ EK_KOLONLAR = {
     # gönderilen/kaydedilen haberler lazım, bunlar puan olarak zayıf
     # kalıp elenmesin.
     #
-    # ⚠️ ÖLÇÜM UYARISI: bu alanın eşiği HENÜZ ÖLÇÜLMEDİ. Instagram
-    # `saved`/`shares` metrikleri `instagram_manage_insights` izni
-    # olmadığı için okunamıyor; elimizdeki beğeni verisi (80 eşleşen
-    # gönderi, medyan 7 beğeni) model kurmaya yetmiyor. İzin gelince
-    # `paylasim_puani` ile gerçek kaydetme sayısı karşılaştırılmalı.
+    # ⚠️ ÖLÇÜLDÜ (18 Eyl 2026, Instagram insights — 245 gönderi):
+    # fayda haberleri gönderilerin %11'i ama kaydetmenin %44'ü ve
+    # paylaşımın %52'si. Paylaşım/gönderi 24.11 vs 2.91 (8.3 kat),
+    # erişim 3010 vs 825 (3.6 kat). Ayrıntı: config.yaml
+    # `paylasim_esigi` yorumu.
     "paylasim_puani": "INTEGER",
     # --- GÖRSEL BRIEF (3 Eyl 2026) ---
     # Görselin hangi kaynaktan aranacağını belirler: kisi/kurum/urun/olay.

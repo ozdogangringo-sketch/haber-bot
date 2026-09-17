@@ -291,10 +291,11 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     # kelimelerinin HEPSİNİ taşıyor. Prompt onlara 1 vermeyi ayrıca
     # söylüyor, `filtre.baslik_elenmeli` ayrıca eliyor — üç katman.
     #
-    # ⚠️ EŞİK HENÜZ ÖLÇÜLMEDİ, İNANÇ. Instagram `saved`/`shares`
-    # metrikleri `instagram_manage_insights` izni olmadan okunamıyor;
-    # beğeni verisi (80 eşleşen gönderi, medyan 7) model kurmaya
-    # yetmedi. İzin gelince gerçek kaydetme sayısıyla doğrulanmalı.
+    # ⚠️ ÖLÇÜLDÜ (18 Eyl 2026, Instagram insights — 245 gönderi,
+    # 629 kaydetme, 1306 paylaşım): fayda haberleri gönderilerin
+    # %11'i ama kaydetmenin %44'ü, paylaşımın %52'si. Paylaşım
+    # başına 24.11 vs 2.91 — 8.3 kat. Eşik 8 gerçek başlıklarla
+    # kalibre edildi; ayrıntı config.yaml `paylasim_esigi` yorumunda.
     # `paylasim_esigi: 0` yaparak kapatılır.
     esik = baglam.esik(kategori)
     if puan < esik:

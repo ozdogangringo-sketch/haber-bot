@@ -2316,7 +2316,49 @@ def test_paylasim_muafiyeti_reklami_geciriyor_mu() -> None:
                 f"reklam başlık filtresinden de eleniyor: {reklam[:32]}",
                 "tek katman kaldı — biri kaçarsa reklam yayına girer")
 
-    # 6) PROMPT reklama 1 vermeyi söylüyor mu (üçüncü katman)
+    # 6) ÖNERİ SIRALAMASI PAYLAŞIMI GÖZETİYOR MU
+    # ⚠️ MUAFİYET TEK BAŞINA YETMİYOR — ölçüldü: dört gerçek fayda
+    # haberinin dördünün de önem puanı eşiği ZATEN geçiyor, yani
+    # muafiyet hiç tetiklenmiyor. Asıl kayıp SIRALAMADA: öneriler
+    # `onem_puani`ye göre sıralanıp ilk 5 alınıyordu, paylaşım puanı
+    # 9 olan haber paylaşım 3 olanın ALTINDA kalıyordu.
+    import ast as _ast
+    sd_kaynak = (KOK / "scripts/son_dakika.py").read_text(encoding="utf-8")
+    sd_agac = _ast.parse(sd_kaynak)
+    og = next((n for n in _ast.walk(sd_agac)
+               if isinstance(n, _ast.FunctionDef)
+               and n.name == "onerileri_gonder"), None)
+    if og is not None:
+        # `adaylar.sort(...)` çağrısının anahtarında `paylasim` geçmeli
+        pay_siralamada = False
+        for d in _ast.walk(og):
+            if (isinstance(d, _ast.Call)
+                    and isinstance(d.func, _ast.Attribute)
+                    and d.func.attr == "sort"):
+                if any(isinstance(n, _ast.Constant) and n.value == "paylasim"
+                       for n in _ast.walk(d)):
+                    pay_siralamada = True
+        denetle(pay_siralamada,
+                "öneri sıralaması paylaşım puanını gözetiyor",
+                "ilk 5 öneri yalnızca önem puanına göre seçiliyor; "
+                "ölçüldü (245 gönderi) fayda haberleri paylaşımın "
+                "%52'sini getiriyor ama sıralamada geride kalıyor")
+
+    # ⚠️ AĞIRLIK ÖNEMİ EZMEMELİ — bu bir HABER hesabı.
+    # Ölçülmüş örneklerle: Gazze (önem 8, pay 3) hâlâ TÜBİTAK'ın
+    # (önem 6, pay 8) üstünde kalmalı.
+    agirlik = ayarlar["genel"].get("paylasim_siralama_agirligi", 0.5)
+    skor = lambda o, pay: o + agirlik * max(0, pay - 5)
+    denetle(skor(8, 3) > skor(6, 8),
+            "paylaşım ağırlığı büyük haberi gömmüyor",
+            f"ağırlık {agirlik} çok yüksek — önem 8 haber, önem 6 fayda "
+            "haberinin altına düşüyor")
+    denetle(skor(7, 9) > skor(8, 3),
+            "yüksek paylaşımlı haber öne çıkabiliyor",
+            f"ağırlık {agirlik} çok düşük — paylaşım sıralamayı hiç "
+            "etkilemiyor")
+
+    # 7) PROMPT reklama 1 vermeyi söylüyor mu (üçüncü katman)
     from src import generate_text as _gt
     denetle("REKLAMA 1 VER" in _gt.TOPLU_PUAN_PROMPT,
             "prompt reklamı paylaşım puanında cezalandırıyor",
