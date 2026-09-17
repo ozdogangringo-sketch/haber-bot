@@ -2358,6 +2358,42 @@ def test_paylasim_muafiyeti_reklami_geciriyor_mu() -> None:
             f"ağırlık {agirlik} çok düşük — paylaşım sıralamayı hiç "
             "etkilemiyor")
 
+    # 6b) ⚠️ HER ÇAĞIRAN İKİLİ DÖNÜŞÜ ÇÖZÜYOR MU.
+    # `basliklari_puanla` artık (onem, paylasim) döndürüyor. 18 Eyl
+    # 2026'da İKİNCİ ÇAĞIRAN gözden kaçtı: `onay_isle`deki `/haber`
+    # araması `for haber_id, puan in yeni.items()` diyordu ve `puan`
+    # bir tuple olduğu için SQLite'a bağlanamayıp aramayı komple
+    # çökertiyordu. ⚠️ BÜTÜNLÜK TESTİ BUNU GÖREMEZ — imza doğru,
+    # değişen şey DÖNÜŞ TİPİ.
+    for dosya in ("scripts/son_dakika.py", "scripts/onay_isle.py"):
+        kaynak = (KOK / dosya).read_text(encoding="utf-8")
+        agac = _ast.parse(kaynak)
+        cagiran_fonklar = []
+        for fn in _ast.walk(agac):
+            if not isinstance(fn, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                continue
+            if any(isinstance(c, _ast.Attribute) and c.attr == "basliklari_puanla"
+                   for c in _ast.walk(fn)):
+                cagiran_fonklar.append(fn)
+        for fn in cagiran_fonklar:
+            # Sonucu `.items()` ile gezen her döngünün hedefi İKİLİ
+            # olmalı: `for k, (onem, pay) in ...`
+            for dugum in _ast.walk(fn):
+                if not isinstance(dugum, _ast.For):
+                    continue
+                items_mi = any(isinstance(c, _ast.Attribute) and c.attr == "items"
+                               for c in _ast.walk(dugum.iter))
+                if not items_mi:
+                    continue
+                hedef = dugum.target
+                ikili = (isinstance(hedef, _ast.Tuple) and len(hedef.elts) == 2
+                         and isinstance(hedef.elts[1], _ast.Tuple)
+                         and len(hedef.elts[1].elts) == 2)
+                denetle(ikili,
+                        f"{dosya}: puan sözlüğü (onem, paylasim) olarak çözülüyor",
+                        "tuple düz değişkene bağlanıyor — SQLite'a yazılırken "
+                        "InterfaceError ile patlar")
+
     # 7) PROMPT reklama 1 vermeyi söylüyor mu (üçüncü katman)
     from src import generate_text as _gt
     denetle("REKLAMA 1 VER" in _gt.TOPLU_PUAN_PROMPT,

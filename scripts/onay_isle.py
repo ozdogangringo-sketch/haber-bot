@@ -3641,10 +3641,18 @@ def haber_ara(con, ayarlar, komut: str) -> int:
     # Puanı olmayanları toplu puanla (ucuz: tek istek)
     puansiz = [h for h in bulunan if h["onem_puani"] is None]
     if puansiz:
+        # ⚠️ `basliklari_puanla` (onem, paylasim) İKİLİSİ DÖNÜYOR.
+        # 18 Eyl 2026'da ikinci boyut eklendiğinde bu çağrı gözden
+        # kaçmıştı: `puan` bir tuple oluyor ve SQLite'a bağlanamayıp
+        # `/haber <konu>` aramasını komple çökertiyordu. Bütünlük
+        # testi bunu göremez — imza doğru, DÖNÜŞ TİPİ değişti.
+        # (Projenin tekrarlayan hatası: bir düzeltmeyi uygularken
+        # aynı işi yapan DİĞER kod yolunu da ara.)
         yeni = generate_text.basliklari_puanla(puansiz, ayarlar)
-        for haber_id, puan in yeni.items():
-            con.execute("UPDATE haberler SET onem_puani = ? WHERE id = ?",
-                        (puan, haber_id))
+        for haber_id, (puan, pay) in yeni.items():
+            con.execute("UPDATE haberler SET onem_puani = ?, "
+                        "paylasim_puani = ? WHERE id = ?",
+                        (puan, pay or None, haber_id))
         con.commit()
         bulunan = list(con.execute(
             "SELECT * FROM haberler WHERE id IN (%s)"
