@@ -90,6 +90,25 @@ def _r2_bilgileri() -> tuple[str, str, str, str, str] | None:
     sec_key = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
     bucket = os.getenv("R2_BUCKET_NAME", "dailybrief-media").strip()
     domain = os.getenv("R2_PUBLIC_DOMAIN", "media.dailybrief.ozbornstudio.com").strip().rstrip("/")
+
+    # Ortam değişkeni yoksa veritabanındaki ayarlar tablosundan oku
+    if not (acc_id and key_id and sec_key):
+        try:
+            import sqlite3
+            db_yol = Path("data") / "haber.db"
+            if db_yol.exists():
+                con = sqlite3.connect(db_yol)
+                con.row_factory = sqlite3.Row
+                rows = dict(con.execute("SELECT anahtar, deger FROM ayarlar WHERE anahtar LIKE 'r2_%'").fetchall())
+                con.close()
+                acc_id = acc_id or rows.get("r2_account_id", "")
+                key_id = key_id or rows.get("r2_access_key_id", "")
+                sec_key = sec_key or rows.get("r2_secret_access_key", "")
+                bucket = rows.get("r2_bucket_name", bucket)
+                domain = rows.get("r2_public_domain", domain)
+        except Exception:
+            pass
+
     if acc_id and key_id and sec_key and bucket:
         return acc_id, key_id, sec_key, bucket, domain
     return None
