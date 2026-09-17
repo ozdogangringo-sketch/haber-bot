@@ -426,6 +426,16 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                     if tt_res.get("mod") == "inbox_draft":
                         tt_notu = ("\n🎵 TikTok: TASLAK olarak yüklendi "
                                    "— uygulamadan elle yayınla")
+                        try:
+                            import html as html_lib
+                            tt_metin = tiktok.baslik_kur(baslik_tt, etiket_tt)
+                            telegram_bot.mesaj_gonder(
+                                "🎵 <b>TikTok Açıklaması (Kopyalamak için dokunun):</b>\n"
+                                f"<pre>{html_lib.escape(tt_metin)}</pre>",
+                                html=True,
+                            )
+                        except Exception as e:
+                            log.warning("TikTok açıklama metni Telegram'a iletilemedi: %s", e)
                     else:
                         tt_notu = "\n🎵 TikTok videosu yayınlandı"
                 else:
