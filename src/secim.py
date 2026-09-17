@@ -541,6 +541,76 @@ def bulten_adaylari(con, ayarlar: dict, adet: int = 3,
     return secilen
 
 
+def kaynak_mutabakati(havuz: list, ortak_esik: int = 2) -> dict:
+    """
+    Her haber için: AYNI OLAYI kaç FARKLI KAYNAK işledi?
+
+    ⚠️ NEDEN VAR (18 Eyl 2026, kullanıcı sorusundan doğdu). Kullanıcı
+    "Tera Holding ve Katılımevim haberleri neden hiç önerilmedi" diye
+    sordu. Ölçüldü — ikisi de günün en çok konuşulan ekonomi
+    olaylarıydı ve HİÇBİRİ 24 adaya giremedi:
+
+        Katılımevim   6 FARKLI KAYNAK, 7 haber (5'i 100 dakika içinde)
+        Tera Holding  5 FARKLI KAYNAK, 10 haber, 16 saate yayılan olay
+
+    Kategori içi sıraları: 6., 14., 23., 33., 45., 66., 84. — yani
+    pencere 600-1000 haberken 24 slota hiçbiri yaklaşamadı.
+
+    ⚠️ SİNYAL ZATEN ORADAYDI, TERS YÖNDE KULLANILIYORDU. Beş ayrı
+    yayın kuruluşunun 100 dakika içinde aynı olayı vermesi, o olayın
+    önemli olduğunun en güçlü BEDAVA kanıtıdır. Sistem ise bunu
+    "mükerrer" sayıp bastırıyordu. CLAUDE.md'de ölçüm de vardı —
+    *"rutin haberde 0 ek kaynak, ama BÜYÜK OLAYDA 6-12"* — ama o
+    ölçüm yalnızca FOTOĞRAF seçimi için kullanılıyordu
+    (`slaytlar.kardes_linkler`), haber seçimine hiç girmiyordu.
+
+    ⚠️ ANAHTAR KELİME DEĞİL, YAPISAL SİNYAL. Hangi konuda olduğunu
+    bilmeye gerek yok: deprem de, şirket iflası da, transfer de aynı
+    şekilde yakalanıyor. Bu, `_icerik_puani`nin kelime listesine
+    bağımlı olmayan ilk seçim sinyali.
+
+    ⚠️ AYNI KAYNAĞIN 5 HABERİ 5 KAYNAK SAYILMAZ. Borsa Gündem tek
+    başına Tera'yı 5 kez yazdı; bu bir mutabakat değil, o kaynağın
+    yayın temposu. Sayılan şey FARKLI kaynak adedi.
+
+    Döner: {haber_id: farkli_kaynak_sayisi}
+    """
+    if not havuz:
+        return {}
+
+    imzalar = []
+    for h in havuz:
+        kelimeler, isimler = konu_imzasi(h["baslik_orj"] or "")
+        imzalar.append((h, kelimeler, isimler))
+
+    # ⚠️ TERS DİZİN — O(n²) KARŞILAŞTIRMADAN KAÇINMAK İÇİN.
+    # Pencere 600-1000 haber; hepsini birbiriyle kıyaslamak milyonlarca
+    # işlem demek ve bu fonksiyon saat başı çalışıyor. İki haber ancak
+    # ORTAK ÖZEL İSİM taşıyorsa aynı olay olabilir (kural `uygun_mu` ile
+    # aynı), o yüzden yalnızca özel isim paylaşanlar kıyaslanıyor.
+    dizin: dict[str, list[int]] = {}
+    for i, (_, _, isimler) in enumerate(imzalar):
+        for ad in isimler:
+            dizin.setdefault(ad, []).append(i)
+
+    sonuc = {}
+    for i, (h, kelimeler, isimler) in enumerate(imzalar):
+        adaylar = set()
+        for ad in isimler:
+            adaylar.update(dizin.get(ad, ()))
+        adaylar.discard(i)
+
+        kaynaklar = {h["kaynak"]}
+        for j in adaylar:
+            d, d_kelime, d_isim = imzalar[j]
+            if (len(ortak_kelime(kelimeler, d_kelime)) >= ortak_esik
+                    and ortak_kelime(isimler, d_isim)):
+                kaynaklar.add(d["kaynak"])
+        sonuc[h["id"]] = len(kaynaklar)
+
+    return sonuc
+
+
 def oneri_adaylari(havuz: list, ayarlar: dict, azami: int) -> list:
     """
     Gemini'ye TOPLU PUANLAMAYA gidecek adayları seçer. LLM ÇAĞIRMAZ.
@@ -604,6 +674,16 @@ def oneri_adaylari(havuz: list, ayarlar: dict, azami: int) -> list:
     agirlik_kat = s.get("agirlik_katsayisi", 1.5)
     slot_bolen = s.get("kategori_slot_boleni", 40)
     slot_tavani = s.get("kategori_slot_tavani", 6)
+    mutabakat_puani = s.get("mutabakat_kaynak_puani", 8.0)
+    mutabakat_tavani = s.get("mutabakat_azami_puan", 30.0)
+
+    # ⚠️ KAYNAK MUTABAKATI — bkz. `kaynak_mutabakati`. Beş ayrı yayın
+    # kuruluşunun aynı olayı vermesi, o olayın önemli olduğunun en
+    # güçlü bedava kanıtı. Bu sinyal olmadan "Katılımevim" (6 kaynak)
+    # ve "Tera Holding" (5 kaynak) günün en konuşulan ekonomi
+    # olaylarıyken 24 adaya HİÇ giremiyordu.
+    ortak_esik_m = s.get("konu_ortak_kelime_esigi", 2)
+    mutabakat = kaynak_mutabakati(havuz, ortak_esik_m)
 
     kategoriler: dict[str, list] = {}
     for h in havuz:
@@ -614,7 +694,10 @@ def oneri_adaylari(havuz: list, ayarlar: dict, azami: int) -> list:
         liste.sort(
             key=lambda h: (_icerik_puani(h["baslik_orj"])
                            - _yas_saat(h)
-                           + (h["agirlik"] or 0) * agirlik_kat),
+                           + (h["agirlik"] or 0) * agirlik_kat
+                           + min(mutabakat_tavani,
+                                 mutabakat_puani
+                                 * (mutabakat.get(h["id"], 1) - 1))),
             reverse=True,
         )
         # Havuz büyüklüğüne göre slot tavanı (kural 3)

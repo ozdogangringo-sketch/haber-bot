@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -106,6 +107,19 @@ def format_kompakt_kutu(
     return "\n".join(satirlar)
 
 
+def _github_token_al(token: Optional[str] = None) -> Optional[str]:
+    """Sistem ortamından veya gh CLI üzerinden geçerli GitHub PAT tokenını alır."""
+    sec_token = token or os.getenv("GITHUB_PAT") or os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+    if not sec_token:
+        try:
+            p = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=3)
+            if p.returncode == 0 and p.stdout.strip():
+                sec_token = p.stdout.strip()
+        except Exception:
+            pass
+    return sec_token
+
+
 def github_actions_kullanimi(
     token: Optional[str] = None,
     repo: str = "ozdogangringo-sketch/haber-bot"
@@ -113,7 +127,7 @@ def github_actions_kullanimi(
     """GitHub API üzerinden bu ayki Actions koşularını ve faturalanan dakikayı hesaplar."""
     now = datetime.now(timezone.utc)
     bu_ay_basi = datetime(now.year, now.month, 1, tzinfo=timezone.utc).isoformat()
-    sec_token = token or os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN") or os.getenv("GITHUB_PAT")
+    sec_token = _github_token_al(token)
 
     kota_toplam = 3000  # Haber Bot Pro hesap kotası: 3.000 dk/ay
 
@@ -272,7 +286,7 @@ def cloudflare_kullanimi() -> Dict[str, str]:
 
 def github_rest_api_kullanimi() -> Dict[str, str]:
     """GitHub REST API 5.000 limit ve saatlik sıfırlanma durumunu döner."""
-    sec_token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+    sec_token = _github_token_al()
     if sec_token:
         try:
             r = requests.get(

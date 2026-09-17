@@ -334,6 +334,34 @@ secim:
   kategori_slot_boleni: 40
   kategori_slot_tavani: 6
 
+  # ⚠️ KAYNAK MUTABAKATI (18 Eyl 2026) — kullanıcı sorusundan doğdu:
+  # "Tera Holding ve Katılımevim haberleri neden hiç önerilmedi?"
+  #
+  # ÖLÇÜLDÜ: ikisi de günün en çok işlenen ekonomi olaylarıydı —
+  #   Katılımevim   6 FARKLI KAYNAK, 7 haber (5'i 100 dakika içinde)
+  #   Tera Holding  5 FARKLI KAYNAK, 10 haber, 16 saate yayılan olay
+  # ve HİÇBİRİ 24 adaya giremedi (kategori içi sıraları 6., 14., 23.,
+  # 33., 45., 66., 84.).
+  #
+  # ⚠️ SİNYAL ORADAYDI, TERS YÖNDE KULLANILIYORDU. Beş yayın
+  # kuruluşunun aynı anda aynı olayı vermesi önemin en güçlü BEDAVA
+  # kanıtı; sistem ise bunu "mükerrer" sayıp bastırıyordu. Aynı
+  # ölçüm CLAUDE.md'de zaten vardı ("rutin haberde 0 ek kaynak, büyük
+  # olayda 6-12") ama yalnızca FOTOĞRAF seçiminde kullanılıyordu.
+  #
+  # ⚠️ ANAHTAR KELİMEYE BAĞLI DEĞİL. Deprem de, şirket iflası da,
+  # transfer de aynı şekilde yakalanıyor — `_icerik_puani`nin kelime
+  # listesinden bağımsız ilk seçim sinyali.
+  #
+  # Bonus = puan × (farklı kaynak − 1), tavanla sınırlı.
+  #   2 kaynak → +8    4 kaynak → +24
+  #   3 kaynak → +16   5+ kaynak → +30 (tavan)
+  # Ölçüldü: 722 haberlik pencerede 486'sı tek kaynak, yalnızca 10'u
+  # 6 kaynak — yani keskin bir ayırıcı, her şeyi yükseltmiyor.
+  # 0 yapılırsa sinyal kapanır.
+  mutabakat_kaynak_puani: 8.0
+  mutabakat_azami_puan: 30.0
+
   # İki başlık kaç ortak anahtar kelime paylaşırsa "aynı olay" sayılsın.
   # 2 ölçüldü: "İsrail ... Gazze" ile "İsrail ... Lübnan" ayrışıyor ama
   # aynı olayın iki farklı kaynaktaki hâli birleşiyor.
@@ -1071,6 +1099,30 @@ icerik_filtresi:
     - katliam
     - istismar
     - taciz
+
+# ----------------------------------------------------------------------
+#  PİYASA BÜLTENİ (hafta içi 10:20 ve 18:20 TR)
+# ----------------------------------------------------------------------
+piyasa:
+  # Bültenin sonuna kaç ekonomi HABERİ slaytı eklensin? 0 = kapalı.
+  #
+  # ⚠️ KULLANICI İSTEĞİ (18 Eyl 2026): "ekonomi turlarımıza en az 2-3
+  # tane ekonomi haberi eklersek hem boşa da gitmemiş olur." Bülten
+  # önce iki VERİ slaytıydı (ısı haritası + 30 varlık karnesi) ve
+  # günde 342 haberlik ekonomi havuzu hiç kullanılmıyordu.
+  #
+  # ⚠️ GEMINI MALİYETİ: metni hazır olmayan her haber için 1 istek.
+  # Ölçüldü — bülten saatinde ekonomi havuzunda 342 haber var ama
+  # metni hazır olan yalnızca 5, yani pratikte her slayt bir istek
+  # demek: günde en fazla 2 x 3 = 6 istek. Ücretsiz kota günde 40
+  # (iki model), mevcut kullanım ~33. Kotayı zorlarsa bu sayıyı
+  # düşür; 0 yaparsan bülten eski iki slaytlık hâline döner.
+  haber_slayti_adedi: 3
+
+  # Haber kaç saatten taze olmalı. Bülten günde 2 kez çıktığı için
+  # 12 saat iki bülten arasını kapsıyor: sabah bülteni gecenin,
+  # akşam bülteni gündüzün haberlerini alıyor.
+  haber_tazelik_saat: 12
 
 # ----------------------------------------------------------------------
 # SOSYAL KANALLAR

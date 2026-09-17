@@ -444,6 +444,13 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
     # yerde yaşıyor" desenini üretirdi.
     ham = secim.oneri_adaylari(havuz, ayarlar, azami)
 
+    # Mutabakat sayısı Telegram mesajında rozet olarak gösteriliyor
+    # ("🔥 6 kaynak"). `oneri_adaylari` bunu içeride zaten hesaplıyor
+    # ama dışarı vermiyor; yeniden hesaplamak 56 ms sürüyor (722
+    # haberlik pencerede ölçüldü) ve global durum taşımaktan iyidir.
+    mutabakat = secim.kaynak_mutabakati(
+        havuz, (ayarlar.get("secim", {}) or {}).get("konu_ortak_kelime_esigi", 2))
+
     # Yalnızca PUANSIZ olanlara Gemini çağrısı — puanı olan haberin
     # puanını yeniden üretmek kotayı boşa harcar.
     # ⚠️ ARTIK İKİ PUAN: (onem, paylasim). Bkz. generate_text
@@ -537,6 +544,7 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
     adaylar = [{"id": h["id"], "puan": h["onem_puani"],
                 "paylasim": (h["paylasim_puani"]
                              if "paylasim_puani" in h.keys() else 0),
+                "mutabakat": mutabakat.get(h["id"], 1),
                 "baslik": h["baslik_orj"],
                 "kaynak": h["kaynak"],
                 "kategori": h["kategori"] or "-",

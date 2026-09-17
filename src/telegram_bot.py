@@ -1118,8 +1118,28 @@ def oneri_gonder(adaylar: list[dict], azami: int = 5,
         if spot and spot.lower() not in baslik_ham.lower() and baslik_ham.lower() not in spot.lower():
             satirlar.append(f"     💬 <i>{_kacir(spot)}</i>")
 
+        # ⚠️ SİNYAL ROZETLERİ (18 Eyl 2026). Kullanıcı sordu: "Tera
+        # Holding ve Katılımevim haberleri neden hiç önerilmedi, yoksa
+        # önerildi de ben mi başlıklardan anlamadım?" — Tera GERÇEKTEN
+        # önerilmişti (`oneri_gonderildi=1`) ama listede yalnızca önem
+        # puanı `[5]` görünüyordu ve başlık ("Tera Portföy'ün iki fonu
+        # temerrüde düştü, 6 fonunda ise para 10'uncu iş günü
+        # ödenecek") yoğun bir finans cümlesiydi.
+        #
+        # Yani kusur SEÇİMDE değil SUNUMDAYDI: mesaj "buna neden
+        # bakmalıyım" sorusunu cevaplamıyordu. İki sinyal zaten
+        # hesaplanıyor ama gösterilmiyordu.
+        rozetler = []
+        mut = a.get("mutabakat") or 0
+        if mut >= 3:
+            rozetler.append(f"🔥 {mut} kaynak")
+        pay = a.get("paylasim") or 0
+        if pay >= 8:
+            rozetler.append("💾 paylaşımlık")
+        rozet_str = ("  " + " · ".join(rozetler)) if rozetler else ""
         satirlar.append(
-            f"     <i>{_kacir(a.get('kaynak', ''))} · {_kacir(a.get('kategori', ''))}</i> · <code>/incele_{a['id']}</code>"
+            f"     <i>{_kacir(a.get('kaynak', ''))} · {_kacir(a.get('kategori', ''))}</i>"
+            f"{rozet_str} · <code>/incele_{a['id']}</code>"
         )
         satirlar.append("")
         secim_butonlari.append({"text": r_simge,

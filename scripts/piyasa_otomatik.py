@@ -33,9 +33,10 @@ sys.path.insert(0, str(KOK))
 
 from src import (  # noqa: E402
     caption, db, facebook, instagram, make_image,
-    piyasa, piyasa_kart, piyasa_tablo, telegram_bot,
+    piyasa, piyasa_kart, piyasa_tablo, secim, slaytlar, telegram_bot,
     threads, twitter, upload_image, video, yonetim,
 )
+from src.generate_text import metinleri_uret        # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +44,69 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("piyasa_otomatik")
+
+
+def _haber_slaytlari_uret(con, ayarlar: dict, adet: int) -> list[dict]:
+    """
+    Piyasa bülteninin sonuna eklenecek ekonomi haberi slaytlarını üretir.
+
+    ⚠️ METNİ HAZIR OLAN HABER ÖNCE — Gemini kotası günde 40 ücretsiz
+    istek, mevcut kullanım ~33 ve bülten günde 2 kez çalışıyor.
+    `secim.bulten_adaylari` metni hazır olanları başa alıyor; yalnızca
+    kalanlar için üretim yapılıyor.
+
+    ⚠️ KATEGORİ DOĞRULAMASI ÜRETİMDEN SONRA. Besleme "ekonomi" dese de
+    haber gerçekten ekonomi olmayabilir (CLAUDE.md 1i). Gemini
+    `kategori` alanını makalenin tam metnine bakarak dolduruyor; o
+    değer 'ekonomi' değilse haber bültene ALINMIYOR. Bu alan zaten
+    üretiliyor, ek maliyeti yok.
+
+    ⚠️ ÜRETİM PATLARSA BÜLTEN DÜŞMÜYOR — çağıran taraf istisnayı
+    yakalıyor ve iki veri slaytıyla devam ediyor. Haber slaytı bir EK,
+    ön şart değil.
+    """
+    p_ayar = ayarlar.get("piyasa", {}) or {}
+    tazelik = p_ayar.get("haber_tazelik_saat", 12)
+
+    adaylar = secim.bulten_adaylari(con, ayarlar, adet=adet,
+                                    tazelik_saat=tazelik)
+    if not adaylar:
+        log.info("bülten: uygun ekonomi haberi bulunamadı, haber slaytı yok")
+        return []
+
+    metinsizler = [h for h in adaylar if not h["ig_baslik"]]
+    if metinsizler:
+        log.info("bülten: %d haberin metni üretiliyor", len(metinsizler))
+        metinleri_uret(ayarlar=ayarlar, haberler=metinsizler)
+
+    idler = [h["id"] for h in adaylar]
+    isaret = ",".join("?" * len(idler))
+    taze = list(con.execute(
+        f"SELECT * FROM haberler WHERE id IN ({isaret})", idler))
+    sira = {hid: i for i, hid in enumerate(idler)}
+    taze.sort(key=lambda h: sira.get(h["id"], 99))
+
+    onayli = []
+    for h in taze:
+        if not h["ig_baslik"]:
+            log.info("bülten: metni üretilemedi, atlanıyor — %s",
+                     (h["baslik_orj"] or "")[:60])
+            continue
+        # ⚠️ ASIL KATEGORİ KAPISI. Gemini tam metne bakıp karar verdi.
+        if (h["kategori"] or "") != "ekonomi":
+            log.info("bülten: Gemini kategoriyi '%s' dedi, bültene "
+                     "alınmıyor — %s", h["kategori"],
+                     (h["ig_baslik"] or "")[:60])
+            continue
+        onayli.append(h)
+
+    if not onayli:
+        log.info("bülten: kategori doğrulamasından geçen haber kalmadı")
+        return []
+
+    sonuclar = slaytlar.tur_uret(onayli, ayarlar, con)
+    log.info("bülten: %d ekonomi haber slaytı üretildi", len(sonuclar))
+    return sonuclar
 
 
 def main() -> int:
@@ -217,6 +281,45 @@ def main() -> int:
     kart_url = kart_yukleme["url"]
     tablo_url = tablo_yukleme["url"]
     slayt_urlleri = [kart_url, tablo_url]
+
+    # 5b. EKONOMİ HABERİ SLAYTLARI (18 Eyl 2026, kullanıcı isteği)
+    #
+    # Bülten iki VERİ slaytıydı (ısı haritası + karne). Kullanıcı
+    # ekonomi havuzunun kullanılmasını istedi: "ekonomi turlarımıza
+    # en az 2-3 tane ekonomi haberi eklersek boşa da gitmemiş olur."
+    #
+    # ⚠️ KATEGORİ İKİ KAPIDAN GEÇİYOR. `fetch_news` kategoriyi haberin
+    # içeriğinden değil KAYNAĞIN tanımından alıyor (CLAUDE.md 1i) ve
+    # ölçüldü: `kategori='ekonomi'` etiketli haberler arasında
+    # "Hürmüz Boğazı'nda patlama", "39 ilin emniyet müdürü değişti",
+    # "ABD ordusuna ait F-16 düştü" vardı. Bunları ekonomi bülteninde
+    # basmak bülteni anlamsızlaştırır.
+    #   1) `secim.bulten_adaylari` anahtar kelimeyle ÖN ELEME yapıyor
+    #      (ucuz, %73 geçiriyor, iki yönde de hata yapıyor)
+    #   2) metin üretiminden SONRA Gemini'nin kendi `kategori` alanı
+    #      denetleniyor — o alan makalenin TAM METNİNE bakıyor ve
+    #      zaten üretiliyor, yani EK MALİYETİ YOK
+    #
+    # ⚠️ HABER BULUNAMAZSA BÜLTEN YİNE ÇIKIYOR. Haber slaytı bir EK;
+    # piyasa verisi asıl üründür. Metin üretimi patlarsa, kategori
+    # doğrulaması hepsini elerse ya da havuz boşsa bülten iki
+    # slaytla yayınlanıyor.
+    haber_adedi = (ayarlar.get("piyasa", {}) or {}).get("haber_slayti_adedi", 3)
+    haber_sonuclari = []
+    if haber_adedi > 0 and not args.kuru:
+        try:
+            haber_sonuclari = _haber_slaytlari_uret(
+                con, ayarlar, haber_adedi)
+        except Exception as e:
+            log.warning("bülten haber slaytları üretilemedi (%s) — "
+                        "bülten veri slaytlarıyla devam ediyor", e)
+            haber_sonuclari = []
+
+    for h in haber_sonuclari:
+        try:
+            slayt_urlleri.append(upload_image.gorsel_yukle(h["yol"], ayarlar)["url"])
+        except Exception as e:
+            log.warning("haber slaytı yüklenemedi (#%s): %s", h["id"], e)
 
     kart_story_url = kart_url
     tablo_story_url = tablo_url
