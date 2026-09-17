@@ -18,7 +18,11 @@ YAYIN SONRASI:
 from __future__ import annotations
 
 import base64
+import datetime
+import hashlib
+import hmac
 import logging
+import mimetypes
 import os
 import time
 from pathlib import Path
@@ -77,6 +81,91 @@ def _anahtarlar() -> list[str]:
             ".env dosyasına ekle."
         )
     return anahtarlar
+
+
+def _r2_bilgileri() -> tuple[str, str, str, str, str] | None:
+    """R2 ortam değişkenlerini kontrol eder: (account_id, access_key, secret_key, bucket, domain) veya None."""
+    acc_id = os.getenv("R2_ACCOUNT_ID", "").strip()
+    key_id = os.getenv("R2_ACCESS_KEY_ID", "").strip()
+    sec_key = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
+    bucket = os.getenv("R2_BUCKET_NAME", "dailybrief-media").strip()
+    domain = os.getenv("R2_PUBLIC_DOMAIN", "media.dailybrief.ozbornstudio.com").strip().rstrip("/")
+    if acc_id and key_id and sec_key and bucket:
+        return acc_id, key_id, sec_key, bucket, domain
+    return None
+
+
+def r2ye_yukle(yol: Path | str, alt_klasor: str = "sosyal", zaman_asimi: int = 40) -> dict:
+    """
+    Dosyayı Cloudflare R2 bucket'ına S3 SigV4 ile yükler ve herkese açık custom domain URL'ini döner.
+    """
+    bilgi = _r2_bilgileri()
+    if not bilgi:
+        raise RuntimeError("R2 ortam değişkenleri tanımlı değil")
+
+    acc_id, key_id, sec_key, bucket, domain = bilgi
+    p = Path(yol)
+    ham = p.read_bytes()
+
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+    guvenli_ad = f"{ts}_{p.name}"
+    object_key = f"{alt_klasor}/{guvenli_ad}" if alt_klasor else guvenli_ad
+
+    content_type = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+
+    # AWS SigV4 imzası
+    now = datetime.datetime.now(datetime.timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    date_stamp = now.strftime("%Y%m%d")
+    region = "auto"
+    service = "s3"
+    host = f"{acc_id}.r2.cloudflarestorage.com"
+    endpoint = f"https://{host}"
+
+    payload_hash = hashlib.sha256(ham).hexdigest()
+
+    canonical_uri = f"/{bucket}/{object_key}"
+    canonical_querystring = ""
+    canonical_headers = f"host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
+    signed_headers = "host;x-amz-content-sha256;x-amz-date"
+
+    canonical_request = f"PUT\n{canonical_uri}\n{canonical_querystring}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
+    algorithm = "AWS4-HMAC-SHA256"
+    credential_scope = f"{date_stamp}/{region}/{service}/aws4_request"
+    string_to_sign = f"{algorithm}\n{amz_date}\n{credential_scope}\n{hashlib.sha256(canonical_request.encode()).hexdigest()}"
+
+    def sign(key, msg):
+        if isinstance(msg, str):
+            msg = msg.encode("utf-8")
+        return hmac.new(key, msg, hashlib.sha256).digest()
+
+    k_date = sign(("AWS4" + sec_key).encode("utf-8"), date_stamp)
+    k_region = sign(k_date, region)
+    k_service = sign(k_region, service)
+    k_signing = sign(k_service, "aws4_request")
+
+    signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+    auth_header = f"{algorithm} Credential={key_id}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}"
+
+    headers = {
+        "host": host,
+        "x-amz-date": amz_date,
+        "x-amz-content-sha256": payload_hash,
+        "Authorization": auth_header,
+        "Content-Type": content_type,
+    }
+
+    url = f"{endpoint}/{bucket}/{object_key}"
+    cevap = requests.put(url, data=ham, headers=headers, timeout=zaman_asimi)
+    if cevap.status_code not in (200, 204):
+        raise RuntimeError(f"R2 yükleme hatası HTTP {cevap.status_code}: {cevap.text[:150]}")
+
+    public_url = f"https://{domain}/{object_key}"
+    return {
+        "url": public_url,
+        "silme_url": None,
+        "boyut_kb": round(len(ham) / 1024, 1),
+    }
 
 
 def _litterboxa_yukle(yol: Path, zaman_asimi: int) -> dict:
@@ -149,9 +238,19 @@ def gorsel_yukle(yol: Path, ayarlar: dict) -> dict:
     Döner: {'url', 'silme_url', 'boyut_kb'}
     Başaramazsa exception fırlatır — çağıran taraf yakalamalı.
     """
-    g = ayarlar["imgbb"]
+    g = ayarlar.get("imgbb", {})
     yol = Path(yol)
     ham = yol.read_bytes()
+
+    # ⚡ 1. ÖNCELİKLİ BARINDIRICI: Cloudflare R2 (media.dailybrief.ozbornstudio.com)
+    if _r2_bilgileri():
+        try:
+            r2_sonuc = r2ye_yukle(yol, alt_klasor="sosyal", zaman_asimi=g.get("zaman_asimi", 30))
+            _YUKLENEN_YEREL[r2_sonuc["url"]] = str(yol)
+            log.info("Görsel R2'ye yüklendi: %s", r2_sonuc["url"])
+            return r2_sonuc
+        except Exception as e:
+            log.warning("R2 görsel yükleme başarısız, ImgBB/yedeğe geçiliyor: %s", e)
 
     son_hata = None
     tum_anahtarlar = _anahtarlar()
@@ -249,7 +348,17 @@ def video_yukle(yol: Path | str, ayarlar: dict | None = None) -> str:
         raise FileNotFoundError(f"Video dosyası bulunamadı: {p}")
 
     zaman_asimi = 90
-    # 1. uguu.se (Hızlı, Instagram / Meta sunucuları doğrudan indirebiliyor)
+
+    # ⚡ 1. ÖNCELİKLİ BARINDIRICI: Cloudflare R2 (media.dailybrief.ozbornstudio.com)
+    if _r2_bilgileri():
+        try:
+            r2_sonuc = r2ye_yukle(p, alt_klasor="video", zaman_asimi=zaman_asimi)
+            log.info("Video R2'ye yüklendi: %s", r2_sonuc["url"])
+            return r2_sonuc["url"]
+        except Exception as e:
+            log.warning("Video R2'ye yüklenemedi, uguu/litterbox'a geçiliyor: %s", e)
+
+    # 2. uguu.se (Hızlı, Instagram / Meta sunucuları doğrudan indirebiliyor)
     try:
         with open(p, "rb") as f:
             cevap = requests.post(
