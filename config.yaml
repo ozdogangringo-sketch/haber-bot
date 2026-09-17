@@ -125,6 +125,41 @@ genel:
   # çıkıyor, sadece kırmızı "SON DAKİKA" ibaresi olmuyor.
   son_dakika_etiket_esigi: 9
 
+  # ----------------------------------------------------------------
+  # PAYLAŞILABİLİRLİK MUAFİYETİ (18 Eyl 2026, kullanıcı isteği)
+  # ----------------------------------------------------------------
+  # "Sayfanın keşfete düşmesi ve popülaritesinin artması için insanların
+  # arkadaşlarına DM'den atacağı ya da kaydedeceği haberlere ihtiyacımız
+  # var; bunlar puan olarak zayıf kalıp elenmesin."
+  #
+  # ⚠️ "ÖNEMLİ" İLE "PAYLAŞILIR" AYNI ŞEY DEĞİL:
+  #   "Gazze'de can kaybı 73 bine yükseldi"  önem 9 · paylaşım 3
+  #   "KYK başvuruları 5 gün uzatıldı"       önem 6 · paylaşım 9
+  # `onem_puani` ikincisini ölçmüyor. Gemini toplu puanlamasına ikinci
+  # bir alan eklendi (`paylasim`) — EK MALİYET YOK, zaten yapılan
+  # çağrıya alan eklendi.
+  #
+  # Kural: önem eşiğini geçemeyen haber, paylaşım puanı bu eşiğin
+  # üstündeyse YİNE DE aday olabiliyor.
+  #
+  # ⚠️ TABAN ÖNEM ŞART — yoksa havuz REKLAMA açılır. ÖLÇÜLDÜ (18 Eyl):
+  # Investing beslemesi kendi abonelik kampanyasını haber gibi
+  # yayınlıyor ("InvestingPro'da %55 indirim için son saatler") ve bu
+  # başlık paylaşım kelimelerinin HEPSİNİ taşıyor. Üç katman birden
+  # koruyor: prompt "reklama 1 ver" diyor · `baslik_elemeleri` eliyor ·
+  # `paylasim_taban_onem` alt sınır koyuyor.
+  #
+  # ⚠️ BU EŞİKLER HENÜZ ÖLÇÜLMEDİ — İNANÇ, VERİ DEĞİL.
+  # Ölçmenin yolu: `instagram_manage_insights` izniyle gerçek
+  # `saved` ve `shares` sayıları çekilip `paylasim_puani` ile
+  # karşılaştırılmalı. İzin 18 Eyl'de alındı, kalibrasyon bekliyor.
+  # Önceki deneme yetersizdi: yalnızca beğeni okunabiliyordu ve
+  # 80 eşleşen gönderide medyan 7 beğeni model kurmaya yetmedi.
+  #
+  # 0 yapılırsa muafiyet tamamen kapanır.
+  paylasim_esigi: 8
+  paylasim_taban_onem: 4
+
   # --- GECE (TR 23:00-07:00) ---
   # Gece farklı davranıyor çünkü onaylayacak kimse uyanık değil.
   # Gündüzki 1 saatlik ömür gece anlamsız: 03:00'te hazırlanan post
@@ -934,7 +969,22 @@ icerik_filtresi:
     # Rüya tabiri — Habertürk Yaşam beslemesinin %73'ü
     - '^r[uü]yada\b'
     # Şans oyunu sonuçları — CNN Türk ve NTV beslemelerinde
-    - '\b(say[iı]sal|s[uü]per|[sş]ans) loto\b|loto sonu[cç]|[cç]eki[lı]i[sş] sonu[cç]|sonu[cç] linki'
+    # ⚠️ "on numara" ve "çılgın" 18 Eyl'de eklendi: ilk desen NTV'nin
+    # "On Numara sonuçları sorgulama 2026" haberini kaçırıyordu.
+    - '\b(say[iı]sal|s[uü]per|[sş]ans|on numara|[cç][iı]lg[iı]n) loto\b|on numara sonu[cç]|loto sonu[cç]|[cç]eki[lı]i[sş] sonu[cç]|sonu[cç] linki|milli piyango|kazand[iı]ran numaralar'
+    # ⚠️ SPONSORLU İÇERİK — haber değil, ödenmiş tanıtım.
+    # Desen BİLEREK DAR: "reklam" kelimesini tek başına aramak
+    # REKLAM HAKKINDAKİ HABERİ eliyordu ("ChatGPT Türkiye'de reklam
+    # göstermeye başladı" meşru bir teknoloji haberi). Yalnızca
+    # yayıncının kendi koyduğu ETİKET aranıyor.
+    - '\[\s*sponsorlu|\(\s*sponsorlu|sponsorlu i[cç]erik|advertorial|i[sş] birli[gğ]iyle haz[iı]rlan'
+    # ⚠️ KAYNAĞIN KENDİ ÜRÜN REKLAMI. Investing beslemesi kendi abonelik
+    # kampanyasını haber gibi yayınlıyor ("InvestingPro'da %55 indirim
+    # için son saatler"). Bunlar "fayda" anahtar kelimelerinin
+    # TAMAMINI taşıyor (indirim, son saatler, fırsat) — yani
+    # paylaşılabilirlik sinyali eklenirken ilk öne çıkacak şeyler
+    # bunlar olurdu. 3 eşleşme, 0 yanlış pozitif.
+    - 'investingpro|aboneli[gğ]inizi|\b%\s?\d+ indirim(?:le)? .{0,20}(kilitle|abone|[uü]ye)|son saatler.{0,24}indirim'
     # Market aktüel ürün katalogları — Ekonomim beslemesinde
     - 'akt[uü]el [uü]r[uü]n|bug[uü]n hangi [uü]r[uü]nler|katalo[gğ]u'
     # ⚠️ KANIT SEVİYESİ DAHA ZAYIF — bu desen GEÇMİŞ VERİYLE ölçülemedi,

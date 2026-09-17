@@ -2234,6 +2234,100 @@ def test_metin_uretimi_icerik_sinyaline_bakiyor() -> None:
             "saatte 1 puandı (B varyantı) — 3 olsaydı gelişen haberler düşer")
 
 
+def test_paylasim_muafiyeti_reklami_geciriyor_mu() -> None:
+    """
+    Paylaşılabilirlik muafiyeti: önem eşiğini geçemeyen ama çok
+    paylaşılacak haber aday olabilmeli — AMA reklam olmamalı.
+
+    ⚠️ NEDEN GEREKTİ (18 Eyl 2026, kullanıcı isteği). Hesabın keşfete
+    düşmesi için insanların arkadaşına gönderdiği/kaydettiği haberler
+    lazım. "Önemli" ile "paylaşılır" ayrı sorular:
+        "Gazze'de can kaybı 73 bine yükseldi"  önem 9 · paylaşım 3
+        "KYK başvuruları 5 gün uzatıldı"       önem 6 · paylaşım 9
+
+    ⚠️ EN BÜYÜK RİSK REKLAM. ÖLÇÜLDÜ: Investing beslemesi kendi
+    abonelik kampanyasını haber gibi yayınlıyor ("InvestingPro'da %55
+    indirim için son saatler") ve bu başlık "yüksek paylaşım"
+    kelimelerinin HEPSİNİ taşıyor (indirim, son saatler, fırsat).
+    Muafiyeti yalnızca paylaşım puanına bağlamak havuzu reklama
+    açardı. Üç katman birden denetleniyor.
+    """
+    from src import aday as _aday
+    from src import filtre as _filtre
+
+    ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    g = ayarlar["genel"]
+
+    def B(**k):
+        temel = dict(ad=_aday.ONERI, esikler={"turkiye": 6}, varsayilan_esik=6,
+                     tazelik_saat=8, kategori_azami=None, kategori_sayaci={},
+                     gecmis_konular=[], gecmis_esik=3, liste_esigi=2,
+                     muafiyet_puani=9,
+                     paylasim_esigi=g.get("paylasim_esigi", 8),
+                     paylasim_taban_onem=g.get("paylasim_taban_onem", 4))
+        temel.update(k)
+        return _aday.Baglam(**temel)
+
+    def H(baslik, onem, paylasim):
+        return {"baslik_orj": baslik, "ig_baslik": baslik, "ozet_orj": "",
+                "onem_puani": onem, "paylasim_puani": paylasim,
+                "kategori": "turkiye",
+                "yayin_tarihi": (datetime.now(timezone.utc)
+                                 - timedelta(hours=1)).isoformat()}
+
+    # 1) Eşiği geçemeyen ama çok paylaşılacak haber GEÇMELİ
+    uygun, sebep = _aday.uygun_mu(
+        H("KYK burs başvuruları 5 gün uzatıldı", 5, 9), B())
+    denetle(uygun, "yüksek paylaşımlı haber muafiyetle geçiyor",
+            f"paylaşım muafiyeti çalışmıyor ({sebep})")
+
+    # 2) Düşük paylaşımlı, düşük önemli haber GEÇMEMELİ
+    uygun, _ = _aday.uygun_mu(
+        H("Bakan konuyu değerlendirdi", 5, 2), B())
+    denetle(not uygun, "düşük paylaşımlı zayıf haber elenmeye devam ediyor",
+            "muafiyet her şeyi geçiriyor — eşik anlamsızlaşmış")
+
+    # 3) ⚠️ TABAN ÖNEM: çok paylaşımlı ama ÇÖP haber GEÇMEMELİ
+    uygun, _ = _aday.uygun_mu(
+        H("InvestingPro'da %55 indirim için son saatler", 2, 9), B())
+    denetle(not uygun,
+            "taban önem altındaki haber muafiyetten yararlanamıyor",
+            "paylasim_taban_onem devre dışı — reklam ve çöp içerik "
+            "muafiyetle havuza giriyor")
+
+    # 4) TUR bağlamında muafiyet KAPALI olmalı
+    # Akşam özeti "günün önemli haberleri" demek; oraya
+    # paylaşılabilirlik yüzünden haber sokmak özetin tanımını bozar.
+    tur = _aday.Baglam.kur(_aday.TUR, ayarlar, gecici_db())
+    denetle(tur.paylasim_esigi == 0,
+            "TUR bağlamında paylaşım muafiyeti kapalı",
+            "akşam özetine önem eşiğini geçemeyen haber sızıyor")
+    oneri = _aday.Baglam.kur(_aday.ONERI, ayarlar, gecici_db())
+    denetle(oneri.paylasim_esigi > 0,
+            "ÖNERİ bağlamında muafiyet açık",
+            "muafiyet hiçbir yerde çalışmıyor")
+
+    # 5) REKLAM AYRICA BAŞLIK FİLTRESİNDEN DE ELENMELİ (ikinci katman)
+    desenler = (ayarlar.get("icerik_filtresi", {}) or {}).get(
+        "baslik_elemeleri", []) or []
+    for reklam in ("InvestingPro'da %55 indirim için son saatler",
+                   "Tech Istanbul Başvuruları Devam Ediyor [Sponsorlu İçerik]"):
+        denetle(_filtre.baslik_elenmeli(reklam, desenler) is not None,
+                f"reklam başlık filtresinden de eleniyor: {reklam[:32]}",
+                "tek katman kaldı — biri kaçarsa reklam yayına girer")
+
+    # 6) PROMPT reklama 1 vermeyi söylüyor mu (üçüncü katman)
+    from src import generate_text as _gt
+    denetle("REKLAMA 1 VER" in _gt.TOPLU_PUAN_PROMPT,
+            "prompt reklamı paylaşım puanında cezalandırıyor",
+            "model reklama yüksek paylaşım puanı verirse taban önem "
+            "tek başına kalır")
+    denetle("paylasim" in _gt.TOPLU_PUAN_SEMASI["properties"]["puanlar"]
+            ["items"]["required"],
+            "paylasim alanı şemada zorunlu",
+            "alan şemada yoksa model üretmez ve muafiyet hiç tetiklenmez")
+
+
 def test_seo_copu_havuza_girmiyor() -> None:
     """
     SEO çöpü (rüya tabiri, loto sonucu, market kataloğu) RSS GİRİŞİNDE
@@ -4767,6 +4861,7 @@ def main() -> int:
         test_kanca_baslikla_yarismiyor,
         test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
+        test_paylasim_muafiyeti_reklami_geciriyor_mu,
         test_seo_copu_havuza_girmiyor,
         test_puanlanip_elenen_haber_slot_isgal_etmiyor,
     ):

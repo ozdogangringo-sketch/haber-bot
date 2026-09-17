@@ -316,64 +316,24 @@ def api_saglik_testi(ayarlar: dict) -> list[dict]:
 
 def kota_ve_durum_raporu(con, ayarlar: dict) -> str:
     """
-    Veritabanı durumunu, haber sayılarını ve Gemini ücretli kullanım istatistiklerini raporlar.
+    Veritabanı durumunu, haber sayılarını, GitHub Actions ve yapay zeka kotasını raporlar.
     """
-    from .zaman import su_an_tr, tr_format
-    satirlar = [
-        "📊 <b>CANLI DURUM & KOTA RAPORU</b>\n",
-        f"🕒 <b>Canlı Saat:</b> {tr_format(su_an_tr(), 'tarih_saat')}",
-    ]
-
-    # 1. Duraklatma Durumu
-    duraklatildi, kalan = duraklatildi_mi(con)
-    if duraklatildi:
-        satirlar.append(f"⏸️ <b>Bot Durumu:</b> DURAKLATILDI (Kalan: {kalan})")
-    else:
-        satirlar.append("🟢 <b>Bot Durumu:</b> AKTİF (Tüm cronlar devrede)")
-
-    # 2. Havuz ve Haber Sayıları
-    sinir = datetime.now(timezone.utc) - timedelta(
-        hours=ayarlar.get("genel", {}).get("yayin_yasi_siniri_saat", 36)
-    )
-    taze_havuz = con.execute(
-        "SELECT COUNT(*) FROM haberler WHERE durum = 'metin_hazir' "
-        "AND yayin_tarihi >= ?",
-        (sinir.isoformat(),),
-    ).fetchone()[0]
-
-    yayinlanan = con.execute(
-        "SELECT COUNT(*) FROM haberler WHERE durum = 'yayinlandi'"
-    ).fetchone()[0]
-
-    toplam_haber = con.execute("SELECT COUNT(*) FROM haberler").fetchone()[0]
-
-    satirlar.append(f"📰 <b>Taze Haber Havuzu:</b> {taze_havuz} hazır haber")
-    satirlar.append(f"✅ <b>Yayınlanan Toplam:</b> {yayinlanan} haber")
-    satirlar.append(f"💾 <b>Veritabanı Toplam:</b> {toplam_haber} kayıt")
-
-    # 3. Gemini Ücretli Anahtar Kullanımı
     try:
-        yedek_yolu = Path("data") / "yedek_anahtar_kullanimi.txt"
-        if yedek_yolu.exists():
-            icerik = yedek_yolu.read_text(encoding="utf-8").strip().splitlines()
-            if icerik:
-                sayac = Counter(icerik)
-                bugun = date.today().isoformat()
-                bugunki = sayac.get(bugun, 0)
-                toplam = len(icerik)
-                satirlar.append(
-                    f"\n💰 <b>Ücretli Gemini Kullanımı:</b>\n"
-                    f"  • Bugün: {bugunki} çağrı\n"
-                    f"  • Toplam: {toplam} çağrı"
-                )
-            else:
-                satirlar.append("\n💰 <b>Ücretli Gemini Kullanımı:</b> 0 çağrı (Hepsi ücretsiz)")
-        else:
-            satirlar.append("\n💰 <b>Ücretli Gemini Kullanımı:</b> 0 çağrı (Hepsi ücretsiz)")
+        from . import kota_uretici
+        return kota_uretici.kota_metni_uret()
     except Exception as e:
-        log.warning("kota raporunda yedek dosya okuma hatası: %s", e)
-
-    return "\n".join(satirlar)
+        log.warning("Kompakt kota tablosu üretilemedi: %s", e)
+        from .zaman import su_an_tr, tr_format
+        satirlar = [
+            "📊 <b>CANLI DURUM & KOTA RAPORU</b>\n",
+            f"🕒 <b>Canlı Saat:</b> {tr_format(su_an_tr(), 'tarih_saat')}",
+        ]
+        duraklatildi, kalan = duraklatildi_mi(con)
+        if duraklatildi:
+            satirlar.append(f"⏸️ <b>Bot Durumu:</b> DURAKLATILDI (Kalan: {kalan})")
+        else:
+            satirlar.append("🟢 <b>Bot Durumu:</b> AKTİF (Tüm cronlar devrede)")
+        return "\n".join(satirlar)
 
 
 def askidaki_turlari_temizle(con) -> int:

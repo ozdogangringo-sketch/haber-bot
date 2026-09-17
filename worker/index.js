@@ -39,7 +39,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
                   "metin_ozetle", "metin_detaylandir", "metin_kaynak_arastir",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
-                  "kota_raporu", "tur_temizle", "tur_hazirla", "ekonomi_hazirla", "ekonomi",
+                  "kota", "kota_raporu", "kota_tazele", "kota_goster", "tur_temizle", "tur_hazirla", "ekonomi_hazirla", "ekonomi",
                   "piyasa", "piyasa_ozet", "piyasa_yayinla", "piyasa_onizle", "ekonomi_yayinla",
                   "bulten", "sonpostlar", "son_postlar",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
@@ -690,6 +690,7 @@ export default {
                 "• /makro &lt;veri&gt; — Serbest makro veri kartı\n\n" +
 
                 "<b>🎛 YÖNETİM &amp; BAKIM</b>\n" +
+                "• /kota — Detaylı GitHub ve AI kota raporu\n" +
                 "• /durum — Havuz, kota ve askıda kalan turlar\n" +
                 "• /menu — Düğmeli kontrol merkezi\n" +
                 "• /yonetim — Yönetim paneli ve API sağlık testleri\n" +
@@ -896,8 +897,9 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/populer", "/popüler", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar"].includes(komutMetni)) {
+        if (["/durum", "/kota", "/rapor", "/kullanim", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/populer", "/popüler", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
+            if (komut === "rapor" || komut === "kullanim") komut = "kota";
             if (komut === "panel") komut = "yonetim";
             if (komut === "hazirla") komut = "tur";
             if (komut === "temizle") komut = "tur_temizle";
@@ -913,7 +915,9 @@ export default {
                 msj.from ? msj.from.first_name || "" : "");
             await mesajGonder(env, sohbet,
                 iletildi
-                    ? (komut === "tur"
+                    ? (komut === "kota"
+                        ? "📊 Canlı GitHub ve AI kota raporu hazırlanıyor…"
+                        : komut === "tur"
                         ? "⏳ Yeni gündem turu hazırlanıyor, birkaç dakika sürebilir…"
                         : komut === "ekonomi"
                           ? "📊 Yeni Ekonomi & Piyasa turu hazırlanıyor…"

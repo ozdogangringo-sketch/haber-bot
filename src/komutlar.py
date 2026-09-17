@@ -43,6 +43,8 @@ MESAJSIZ_KOMUTLAR: set[str] = {
     "saglik_testi",
     "kota",
     "kota_raporu",
+    "rapor",
+    "kullanim",
     "temizle",
     "tur_temizle",
 
@@ -127,6 +129,7 @@ KOMUT_MENUSU: list[dict[str, str]] = [
 
     # ── 🎛 YÖNETİM & BAKIM ────────────────────────────────────────
     {"command": "durum", "description": "🎛 Havuz, kota, askıdaki turlar"},
+    {"command": "kota", "description": "🎛 GitHub ve AI kota raporu"},
     {"command": "menu", "description": "🎛 Düğmeli kontrol merkezi"},
     {"command": "yonetim", "description": "🎛 Yönetim paneli, sağlık testi"},
     {"command": "ayar", "description": "🎛 Çalışma ayarlarını değiştir"},

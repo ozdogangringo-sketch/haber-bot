@@ -94,6 +94,9 @@ class Baglam:
     liste_esigi: int                   # aynı listede tekrar denetimi
     muafiyet_puani: int                # bu puanın üstü geçmiş denetiminden muaf
     atlanan_bekleme: float = 12.0       # atlanan haber kaç saat beklesin
+    # ⚠️ PAYLAŞIM MUAFİYETİ (18 Eyl 2026) — bkz. uygun_mu adım 2.
+    paylasim_esigi: int = 8            # 0 = muafiyet kapalı
+    paylasim_taban_onem: int = 4       # bunun altındaki haber muaf olamaz
     gece: bool = False
     # Aynı çağrı içinde seçilenler — liste içi mükerrer denetimi için
     _secilenler: list = field(default_factory=list)
@@ -152,6 +155,13 @@ class Baglam:
             liste_esigi=s.get("konu_ortak_kelime_esigi", 2),
             muafiyet_puani=s.get("gecmis_muafiyet_puani", 9),
             atlanan_bekleme=g.get("atlanan_bekleme_saat", 12),
+            # ⚠️ Muafiyet YALNIZCA öneri ve tekil akışında. TUR
+            # bağlamında kapalı (0): akşam özeti "günün önemli
+            # haberleri" demek, oraya paylaşılabilirlik yüzünden
+            # haber sokmak özetin tanımını bozar.
+            paylasim_esigi=(g.get("paylasim_esigi", 8)
+                            if ad in (TEKIL, ONERI) else 0),
+            paylasim_taban_onem=g.get("paylasim_taban_onem", 4),
             gece=gece,
         )
 
@@ -266,9 +276,36 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
         return False, f"bayat ({yas:.1f} sa > {baglam.tazelik_saat} sa)"
 
     # 2) Önem eşiği
+    #
+    # ⚠️ PAYLAŞIM MUAFİYETİ (18 Eyl 2026, kullanıcı isteği). Hesabın
+    # keşfete düşmesi için insanların ARKADAŞINA GÖNDERDİĞİ ve
+    # KAYDETTİĞİ haberler lazım; bunlar "önem" ölçeğinde zayıf kalıp
+    # eleniyordu. "Önemli" ile "paylaşılır" ayrı sorular:
+    #     "Gazze'de can kaybı 73 bine yükseldi"  önem 9 · paylaşım 3
+    #     "KYK başvuruları 5 gün uzatıldı"       önem 6 · paylaşım 9
+    #
+    # ⚠️ TABAN ÖNEM ŞART. Yalnızca paylaşım puanına bakmak havuzu
+    # reklama açardı: ÖLÇÜLDÜ (18 Eyl), Investing beslemesi kendi
+    # abonelik kampanyasını haber gibi yayınlıyor ("InvestingPro'da
+    # %55 indirim için son saatler") ve bu başlık paylaşım
+    # kelimelerinin HEPSİNİ taşıyor. Prompt onlara 1 vermeyi ayrıca
+    # söylüyor, `filtre.baslik_elenmeli` ayrıca eliyor — üç katman.
+    #
+    # ⚠️ EŞİK HENÜZ ÖLÇÜLMEDİ, İNANÇ. Instagram `saved`/`shares`
+    # metrikleri `instagram_manage_insights` izni olmadan okunamıyor;
+    # beğeni verisi (80 eşleşen gönderi, medyan 7) model kurmaya
+    # yetmedi. İzin gelince gerçek kaydetme sayısıyla doğrulanmalı.
+    # `paylasim_esigi: 0` yaparak kapatılır.
     esik = baglam.esik(kategori)
     if puan < esik:
-        return False, f"puan yetersiz ({puan} < {esik}, kategori={kategori})"
+        paylasim = h.get("paylasim_puani") or 0
+        muaf = (baglam.paylasim_esigi > 0
+                and paylasim >= baglam.paylasim_esigi
+                and puan >= baglam.paylasim_taban_onem)
+        if not muaf:
+            return False, f"puan yetersiz ({puan} < {esik}, kategori={kategori})"
+        log.info("paylaşım muafiyeti: önem %s < %s ama paylaşım %s — %s",
+                 puan, esik, paylasim, baslik[:60])
 
     # 3) Kategori günlük sınırı — tek kategori günü domine etmesin
     if baglam.kategori_azami is not None:

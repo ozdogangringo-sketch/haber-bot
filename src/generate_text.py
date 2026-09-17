@@ -887,8 +887,14 @@ TOPLU_PUAN_SEMASI = {
                 "properties": {
                     "no": {"type": "integer"},
                     "puan": {"type": "integer"},
+                    # ⚠️ İKİNCİ BOYUT (18 Eyl 2026) — "önemli" ile
+                    # "paylaşılır" AYNI ŞEY DEĞİL. Bkz. TOPLU_PUAN_PROMPT.
+                    # Ek Gemini MALİYETİ YOK: zaten yapılan çağrıya bir
+                    # alan eklendi (aynı kalıp `kategori` alanında da
+                    # kullanıldı, 20 Ağu 2026).
+                    "paylasim": {"type": "integer"},
                 },
-                "required": ["no", "puan"],
+                "required": ["no", "puan", "paylasim"],
             },
         },
     },
@@ -949,12 +955,55 @@ duyuruyorsa (ücretsiz erişim, indirim, burs, kampanya, yeni hizmet)
 bu "biri konuştu" değil, OLAYDIR — düşürme, 7-8 bandında değerlendir.
 Ayrım: birincisinde okuyucunun YAPABİLECEĞİ bir şey var.
 
+
+════════════════════════════════════════════════════════════════
+İKİNCİ PUAN — paylasim (1-10): "BUNU BİRİNE GÖNDERİR MİYİM?"
+════════════════════════════════════════════════════════════════
+⚠️ BU AYRI BİR SORU. Önem "kaç kişiyi ilgilendiriyor" diye sorar;
+paylaşım "okuyan kişi bunu KAYDEDER ya da BİR ARKADAŞINA GÖNDERİR
+mi" diye sorar. İkisi sık sık AYRIŞIR:
+
+  · "Gazze'de can kaybı 73 bine yükseldi"     önem 9 · paylaşım 3
+    (çok önemli ama kimse arkadaşına DM atmaz)
+  · "KYK burs başvuruları 5 gün uzatıldı"     önem 6 · paylaşım 9
+    (öğrenci arkadaşına anında gönderir)
+  · "Bakan enflasyonu değerlendirdi"          önem 4 · paylaşım 1
+
+YÜKSEK PAYLAŞIM (8-10) — okuyanın BİRİNE GÖNDERMEK ya da SONRA
+BAKMAK için kaydedeceği haber:
+  · doğrudan yararlanılabilir imkân: burs, hibe, ücretsiz erişim,
+    indirim, kampanya, destek ödemesi, yeni hak
+  · son tarihi olan başvuru ("başvurular 30 Eylül'de bitiyor")
+  · cebe dokunan somut değişiklik: zam, vergi, kira, fatura, maaş,
+    emekli ikramiyesi, ehliyet/sınav/askerlik düzenlemesi
+  · pratik takvim bilgisi: tatil günleri, sınav tarihi, ödeme günü
+  · gerçekten şaşırtıcı keşif ya da "bunu bilmiyordum" bilgisi
+
+ORTA (4-7) — ilgilenen kişi paylaşır ama herkes değil: spor sonucu,
+ürün tanıtımı, kültür-sanat gelişmesi, dikkat çekici bilim haberi.
+
+DÜŞÜK (1-3) — okunur ama gönderilmez: savaş/çatışma bildirimi, rutin
+diplomasi, borsa hareketi, açıklama haberi, günlük asayiş.
+
+⚠️ REKLAMA 1 VER — EN ÖNEMLİ KURAL. Bir kaynağın KENDİ ürününü,
+aboneliğini ya da kampanyasını tanıttığı içerik haber DEĞİLDİR ve
+paylaşım puanı 1 olmalıdır. Bunlar yanıltıcıdır çünkü yukarıdaki
+"yüksek paylaşım" kelimelerinin HEPSİNİ taşırlar:
+  · "InvestingPro'da %55 indirim için son saatler"           -> 1
+  · "X Programı Başvuruları Devam Ediyor [Sponsorlu İçerik]" -> 1
+  · "Şans oyunu çekiliş sonuçları açıklandı"                 -> 1
+Ayrım: imkân KAMUYA mı açık (burs, hibe, ücretsiz hizmet) yoksa
+kaynağın kendi TİCARİ teklifi mi?
+
+⚠️ ABARTMA. Çoğu haberin paylaşım puanı 2-5'tir. 8+ vermek için
+okuyucunun YAPABİLECEĞİ ya da KULLANABİLECEĞİ somut bir şey olmalı.
+
 HABERLER
 {liste}
 """
 
 
-def basliklari_puanla(haberler: list, ayarlar: dict) -> dict[int, int]:
+def basliklari_puanla(haberler: list, ayarlar: dict) -> dict[int, tuple[int, int]]:
     """
     Birden çok haber başlığına TEK Gemini isteğiyle önem puanı verir.
 
@@ -1007,11 +1056,18 @@ def basliklari_puanla(haberler: list, ayarlar: dict) -> dict[int, int]:
                 log.warning("toplu puanlama çözümlenemedi: %s", e)
                 continue
 
+            # ⚠️ `{id: (onem, paylasim)}` DÖNÜYOR, düz int DEĞİL.
+            # `paylasim` gelmezse ya da geçersizse 0 yazılıyor: alan
+            # eksik diye haberin ÖNEM puanını da çöpe atmak yanlış
+            # olurdu (model ihlali ve eski kayıtlar için).
             sonuc = {}
             for kayit in veri.get("puanlar", []):
                 no, puan = kayit.get("no"), kayit.get("puan")
                 if no in sira_id and isinstance(puan, int) and 1 <= puan <= 10:
-                    sonuc[sira_id[no]] = puan
+                    pay = kayit.get("paylasim")
+                    if not (isinstance(pay, int) and 1 <= pay <= 10):
+                        pay = 0
+                    sonuc[sira_id[no]] = (puan, pay)
             if anahtar_adi != "birincil":
                 log.warning("Gemini %s anahtarı kullanıldı", anahtar_adi)
             log.info("toplu puanlama: %d başlığın %d tanesi puanlandı",

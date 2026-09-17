@@ -446,8 +446,12 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
 
     # Yalnızca PUANSIZ olanlara Gemini çağrısı — puanı olan haberin
     # puanını yeniden üretmek kotayı boşa harcar.
+    # ⚠️ ARTIK İKİ PUAN: (onem, paylasim). Bkz. generate_text
+    # TOPLU_PUAN_PROMPT — "önemli" ile "paylaşılır" ayrı sorular.
     puansiz = [h for h in ham if h["onem_puani"] is None]
-    puanlar = {h["id"]: h["onem_puani"]
+    puanlar = {h["id"]: (h["onem_puani"],
+                         h["paylasim_puani"] if "paylasim_puani" in h.keys()
+                         else 0)
                for h in ham if h["onem_puani"] is not None}
     if puansiz:
         yeni_puanlar = generate_text.basliklari_puanla(puansiz, ayarlar)
@@ -471,9 +475,10 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
     # Kuru modda puanlar yalnızca bellekte kalıyor; gerçek çalıştırma
     # onları yeniden üretir (tek toplu istek, ~1500 token).
     if not kuru:
-        for haber_id, puan in puanlar.items():
-            con.execute("UPDATE haberler SET onem_puani = ? WHERE id = ?",
-                        (puan, haber_id))
+        for haber_id, (puan, pay) in puanlar.items():
+            con.execute("UPDATE haberler SET onem_puani = ?, "
+                        "paylasim_puani = ? WHERE id = ?",
+                        (puan, pay or None, haber_id))
         con.commit()
 
     # ⚠️ GECE OTOMATİK YAYIN ADAYINI ÖNERİYE DÜŞÜRME.
@@ -492,7 +497,7 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
             and ayarlar["genel"].get("gece_otomatik_yayin", False)):
         uretim_esigi = ayarlar["genel"].get("oneri_otomatik_uretim_esigi", 8)
         yuksek = [h for h in ham
-                  if puanlar.get(h["id"], 0) >= uretim_esigi]
+                  if (puanlar.get(h["id"], (0, 0))[0] or 0) >= uretim_esigi]
         if yuksek:
             log.info("gece otomatik yayın adayı olabilir [%s], metin üretiliyor: %s",
                      puanlar.get(yuksek[0]["id"]), yuksek[0]["baslik_orj"][:50])
@@ -514,7 +519,10 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
     # yapılıyor, yalnızca kalıcı iz bırakmıyor.
     idler = [h["id"] for h in ham]
     if kuru:
-        puanli_ham = [dict(h, onem_puani=puanlar.get(h["id"])) for h in ham]
+        puanli_ham = [dict(h,
+                           onem_puani=puanlar.get(h["id"], (None, 0))[0],
+                           paylasim_puani=puanlar.get(h["id"], (None, 0))[1])
+                      for h in ham]
     else:
         isaret = ",".join("?" * len(idler))
         puanli_ham = list(con.execute(

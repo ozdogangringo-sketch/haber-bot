@@ -70,6 +70,22 @@ CREATE TABLE IF NOT EXISTS ayarlar (
 # Şema büyüdükçe buraya ekleyeceğimiz kolonlar.
 # kur() bunları eksikse ALTER TABLE ile ekler; veritabanını silmene gerek kalmaz.
 EK_KOLONLAR = {
+    # --- PAYLAŞILABİLİRLİK (18 Eyl 2026) ---
+    # ⚠️ "Önemli" ile "paylaşılır" AYNI ŞEY DEĞİL ve `onem_puani` tek
+    # başına ikincisini ölçmüyor: "Gazze'de can kaybı 73 bine yükseldi"
+    # önem 9 alır ama kimse arkadaşına göndermez; "KYK başvuruları
+    # uzatıldı" önem 6 alır ama öğrenci anında DM atar.
+    #
+    # Kullanıcı isteği: keşfete düşmek ve hesabın büyümesi için
+    # gönderilen/kaydedilen haberler lazım, bunlar puan olarak zayıf
+    # kalıp elenmesin.
+    #
+    # ⚠️ ÖLÇÜM UYARISI: bu alanın eşiği HENÜZ ÖLÇÜLMEDİ. Instagram
+    # `saved`/`shares` metrikleri `instagram_manage_insights` izni
+    # olmadığı için okunamıyor; elimizdeki beğeni verisi (80 eşleşen
+    # gönderi, medyan 7 beğeni) model kurmaya yetmiyor. İzin gelince
+    # `paylasim_puani` ile gerçek kaydetme sayısı karşılaştırılmalı.
+    "paylasim_puani": "INTEGER",
     # --- GÖRSEL BRIEF (3 Eyl 2026) ---
     # Görselin hangi kaynaktan aranacağını belirler: kisi/kurum/urun/olay.
     # ⚠️ Ölçüldü: `gorsel_konu` doğru üretiliyordu ama 6 briefin 5'i yine

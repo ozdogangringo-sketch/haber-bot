@@ -1257,12 +1257,8 @@ def yonetim_saglik_testi_uygula(ayarlar: dict, mesaj_id: int | None) -> int:
 
 def yonetim_kota_raporu_uygula(con, ayarlar: dict, mesaj_id: int | None) -> int:
     """Canlı kota ve durum raporunu Telegram'a gönderir."""
-    metin = yonetim.kota_ve_durum_raporu(con, ayarlar)
-    klavye = {"inline_keyboard": [[{"text": "← Yönetim Paneline Dön", "callback_data": "yonetim_panel"}]]}
-    if mesaj_id:
-        telegram_bot.mesaji_guncelle(mesaj_id, metin, klavye)
-    else:
-        telegram_bot.mesaj_gonder(metin, html=True, butonlar=klavye["inline_keyboard"])
+    from src import kota_uretici
+    kota_uretici.kota_gonder(mesaj_id)
     return 0
 
 
@@ -4059,7 +4055,7 @@ def main() -> int:
         return yonetim_devam_et_uygula(con, ayarlar, mesaj_id, basan)
     if komut in ("saglik_testi", "saglik"):
         return yonetim_saglik_testi_uygula(ayarlar, mesaj_id)
-    if komut in ("kota_raporu", "kota"):
+    if komut in ("kota_raporu", "kota", "kota_tazele", "kota_goster", "rapor", "kullanim"):
         return yonetim_kota_raporu_uygula(con, ayarlar, mesaj_id)
     if komut in ("tur_temizle", "temizle"):
         return yonetim_tur_temizle_uygula(con, ayarlar, mesaj_id)
