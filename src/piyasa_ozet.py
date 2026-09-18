@@ -138,7 +138,7 @@ def _ciz_ozet_sayfasi(
     f_alt_baslik = _font(21, 500.0)
     f_kart_etiket = _font(18, 800.0)
     f_kart_kaynak = _font(17, 700.0)
-    f_kart_baslik = _font(29, 800.0)
+    f_kart_baslik = _font(36, 850.0)
     f_kart_ozet = _font(22, 500.0)
 
     # --- 1. HEADER (ÜST ALAN) ---
@@ -269,13 +269,16 @@ def _ciz_ozet_sayfasi(
         # 2. Başlık
         baslik_ham = h.get("ig_baslik") or h.get("baslik_orj") or ""
         baslik_satirlari = _metin_sar(baslik_ham, f_kart_baslik, max_metin_w, draw)[:2]
-        by = ky + 62
+        if len(baslik_satirlari) == 1:
+            by = ky + 68
+        else:
+            by = ky + 58
         for b_satir in baslik_satirlari:
             draw.text((icerik_x, by), b_satir, font=f_kart_baslik, fill=RENK_BASLIK_KOYU)
-            by += 38
+            by += 45
 
         # 3. İnce ara ayırıcı çizgi
-        ay = ky + 152
+        ay = ky + 154
         draw.line([(icerik_x, ay), (kart_x + kart_w - 24, ay)], fill=(18, 56, 68), width=1)
 
         # 4. Özet
