@@ -87,3 +87,39 @@ def test_etiket_belirleme():
     assert "FAİZ" in piyasa_ozet._etiket_belirle({"ig_baslik": "TCMB faiz oranını sabit tuttu"})
     assert "DÖVİZ" in piyasa_ozet._etiket_belirle({"ig_baslik": "Dolar kuru yeni güne nasıl başladı"})
     assert "MAKRO" in piyasa_ozet._etiket_belirle({"ig_baslik": "Cari işlemler açığı geriledi"})
+
+
+def test_mod_kapanis_ve_acilis():
+    """Moda göre (kapanış veya açılış) doğru başlık ve rozet basılmalı."""
+    haberler = [
+        {
+            "ig_baslik": "Piyasa Kapanışında BIST 100 Rekor Kırdı",
+            "slayt_ozet": "BIST 100 endeksi günü yükselişle tamamladı.",
+            "kaynak": "AA Finans",
+        }
+    ]
+
+    from PIL import ImageDraw
+    for mod, beklenen_baslik, beklenen_rozet in [
+        ("kapanis", "Günü Kapatırken", "Kapanış Özeti"),
+        ("acilis", "Günün Öne Çıkanları", "Açılış Özeti"),
+    ]:
+        yakalanan = []
+        orj = ImageDraw.ImageDraw.text
+
+        def _sahte_text(self, xy, text, *a, **k):
+            if isinstance(text, str):
+                yakalanan.append(text)
+            return orj(self, xy, text, *a, **k)
+
+        ImageDraw.ImageDraw.text = _sahte_text
+        try:
+            yollar = piyasa_ozet.ekonomi_ozet_sayfalari_uret(haberler, mod=mod)
+        finally:
+            ImageDraw.ImageDraw.text = orj
+
+        assert len(yollar) == 1
+        assert any(beklenen_baslik in t for t in yakalanan)
+        assert any(beklenen_rozet in t for t in yakalanan)
+        assert f"_{mod}" in str(yollar[0])
+

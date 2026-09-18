@@ -612,7 +612,7 @@ def piyasa_bulteni_caption(piyasa_verileri: dict | None, ayarlar: dict | None = 
             piyasa_satirlari.append(f"• Brent Petrol: ${br['fiyat']:.2f} (%{br['degisim']:+.2f})")
 
     piyasa_bloku = "\n".join(piyasa_satirlari)
-    detay_bloku = "📌 Detaylı BİST 30 hisseleri, ABD teknoloji devleri ve kripto karnesi için kaydırın. 👉"
+    detay_bloku = "📌 Detaylı BİST 30 hisseleri, kripto karnesi ve günün öne çıkan ekonomi başlıkları için kaydırın. 👉"
     etiketler = " ".join(f"#{e}" for e in EKONOMI_HASHTAGLER[:AZAMI_HASHTAG])
 
     sonuc = f"{bas}\n\n{alt_mesaj}\n\n{piyasa_bloku}\n\n{detay_bloku}\n\n{etiketler}".strip()

@@ -177,9 +177,15 @@ def _ciz_ozet_sayfasi(
     draw.text((header_x + 12, y_offset + 43), rozet_txt, font=f_etiket, fill=RENK_CYAN)
 
     # Sağ üst tarih & sayfa rozeti
+    if mod in ("acilis", "kapanis"):
+        aksam_mi = (mod == "kapanis")
+    else:
+        aksam_mi = datetime.now(timezone.utc).hour >= 15
+
+    oturum_adi = "Kapanış" if aksam_mi else "Açılış"
     simdi = datetime.now(timezone.utc)
     sayfa_ek = f" ({sayfa_no}/{toplam_sayfa})" if toplam_sayfa > 1 else ""
-    tarih_txt = f"{simdi.strftime('%d.%m.%Y')}  ·  Bülten Özeti{sayfa_ek}"
+    tarih_txt = f"{simdi.strftime('%d.%m.%Y')}  ·  {oturum_adi} Özeti{sayfa_ek}"
     tw = draw.textlength(tarih_txt, font=_font(18, 700.0))
     sag_kenar = GENISLIK - 45
     draw.rounded_rectangle(
@@ -191,8 +197,14 @@ def _ciz_ozet_sayfasi(
     )
     draw.text((sag_kenar - tw - 12, y_offset + 44), tarih_txt, font=_font(18, 700.0), fill=RENK_GRI_METIN)
 
-    draw.text((header_x, y_offset + 82), "Günün Öne Çıkanları", font=f_baslik, fill=RENK_BASLIK_KOYU)
-    draw.text((header_x, y_offset + 134), "Piyasalara yön veren kritik gelişmeler ve son dakika başlıkları", font=f_alt_baslik, fill=RENK_GRI_METIN)
+    baslik_ana = "Günü Kapatırken" if aksam_mi else "Günün Öne Çıkanları"
+    baslik_alt = (
+        "Piyasalara yön veren gün içi kritik gelişmeler ve kapanış başlıkları"
+        if aksam_mi
+        else "Güne başlarken piyasalara yön veren kritik gelişmeler ve ilk rakamlar"
+    )
+    draw.text((header_x, y_offset + 82), baslik_ana, font=f_baslik, fill=RENK_BASLIK_KOYU)
+    draw.text((header_x, y_offset + 134), baslik_alt, font=f_alt_baslik, fill=RENK_GRI_METIN)
 
     # --- 2. GÖVDE: EN FAZLA 3 HABER KARTI ---
     kart_x = 45
@@ -327,7 +339,8 @@ def ekonomi_ozet_sayfalari_uret(
             y_offset=y_offset,
         )
         ek = f"_{idx}" if toplam_sayfa > 1 else ""
-        dosya_adi = f"story_ekonomi_ozet_{tarih_str}{ek}.jpg"
+        mod_ek = f"_{mod}" if mod else ""
+        dosya_adi = f"story_ekonomi_ozet_{tarih_str}{mod_ek}{ek}.jpg"
         cikti_yolu = CIKTI_KLASORU / dosya_adi
         img.save(cikti_yolu, "JPEG", quality=95, optimize=True)
         log.info("Günün Ekonomi Özeti sayfası %d/%d üretildi: %s", idx, toplam_sayfa, cikti_yolu)

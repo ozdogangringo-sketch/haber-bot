@@ -4662,7 +4662,7 @@ def test_piyasa_bulteni_tek_veri_kaynagindan_besleniyor() -> None:
     import ast as _ast
     sys.path.insert(0, str(KOK))
     from PIL import Image, ImageDraw
-    from src import piyasa, piyasa_kart, piyasa_tablo
+    from src import piyasa, piyasa_kart, piyasa_tablo, piyasa_ozet
 
     # --- 1. DAVRANIŞ: aynı veri → üç tüketici aynı yüzdeyi versin ---
     # ⚠️ Sentetik veri: ağa çıkmıyor.
@@ -4704,12 +4704,16 @@ def test_piyasa_bulteni_tek_veri_kaynagindan_besleniyor() -> None:
     for mod, beklenen in (("acilis", "Açılış"), ("kapanis", "Kapanış")):
         k = _basliklar(piyasa_kart._ciz_piyasa_karti_icerik, isi, mod)
         t = _basliklar(piyasa_tablo._ciz_piyasa_tablosu_icerik, tab, mod)
+        o = _basliklar(lambda im, v, mod, y_offset: piyasa_ozet._ciz_ozet_sayfasi(im, v, 1, 1, mod, y_offset), [{"ig_baslik": "Test"}], mod)
         denetle(any(x.endswith(beklenen) for x in k),
                 f"kart mod={mod} için '{beklenen}' yazıyor",
                 "kart oturumu saatten tahmin ediyor, akıştan değil")
         denetle(any(x.endswith(beklenen) for x in t),
                 f"tablo mod={mod} için '{beklenen}' yazıyor",
                 "tablo oturumu saatten tahmin ediyor, akıştan değil")
+        denetle(any(beklenen in x for x in o),
+                f"özet mod={mod} için '{beklenen}' yazıyor",
+                "özet oturumu saatten tahmin ediyor, akıştan değil")
 
     # --- 3. YAPI: akış tek çekim yapıp üçüne dağıtıyor mu ---
     kaynak = (KOK / "scripts/piyasa_otomatik.py").read_text(encoding="utf-8")

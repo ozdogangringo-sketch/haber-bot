@@ -365,9 +365,9 @@ def main() -> int:
 
     # Story
     try:
-        instagram.story_yayinla(kart_story_url, ayarlar)
-        instagram.story_yayinla(tablo_story_url, ayarlar)
-        sonuclar.append("📱 Instagram Story (9:16 - 2 slayt) paylaşıldı")
+        for s_url in slayt_urlleri:
+            instagram.story_yayinla(s_url, ayarlar)
+        sonuclar.append(f"📱 Instagram Story (9:16 - {len(slayt_urlleri)} slayt) paylaşıldı")
     except Exception as e:
         log.warning("Instagram story hatası: %s", e)
         sonuclar.append(f"⚠️ Instagram Story hatası: {type(e).__name__}")
