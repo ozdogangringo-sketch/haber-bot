@@ -46,9 +46,10 @@ logging.basicConfig(
 log = logging.getLogger("piyasa_otomatik")
 
 
-def _haber_slaytlari_uret(con, ayarlar: dict, adet: int) -> list[dict]:
+def _haber_slaytlari_uret(con, ayarlar: dict, adet: int, mod: str | None = None) -> list[dict]:
     """
-    Piyasa bülteninin sonuna eklenecek ekonomi haberi slaytlarını üretir.
+    Piyasa bülteninin sonuna eklenecek "Günün Ekonomi Gündemi" özet kartlarını üretir.
+    Sayfa başına en fazla 3 haber yer alır; 3'ten fazla haber varsa 2. özet sayfası (4. slayt) üretilir.
 
     ⚠️ METNİ HAZIR OLAN HABER ÖNCE — Gemini kotası günde 40 ücretsiz
     istek, mevcut kullanım ~33 ve bülten günde 2 kez çalışıyor.
@@ -98,14 +99,20 @@ def _haber_slaytlari_uret(con, ayarlar: dict, adet: int) -> list[dict]:
                      "alınmıyor — %s", h["kategori"],
                      (h["ig_baslik"] or "")[:60])
             continue
-        onayli.append(h)
+        onayli.append(dict(h))
 
     if not onayli:
         log.info("bülten: kategori doğrulamasından geçen haber kalmadı")
         return []
 
-    sonuclar = slaytlar.tur_uret(onayli, ayarlar, con)
-    log.info("bülten: %d ekonomi haber slaytı üretildi", len(sonuclar))
+    from src import piyasa_ozet
+    ozet_yollari = piyasa_ozet.ekonomi_ozet_sayfalari_uret(onayli, mod=mod)
+    sonuclar = [
+        {"id": f"ozet_{idx}", "yol": yol, "katman": "ozet", "atif": ""}
+        for idx, yol in enumerate(ozet_yollari, start=1)
+    ]
+    log.info("bülten: %d ekonomi özet kartı sayfası üretildi (%d haberden)",
+             len(sonuclar), len(onayli))
     return sonuclar
 
 
@@ -309,7 +316,7 @@ def main() -> int:
     if haber_adedi > 0 and not args.kuru:
         try:
             haber_sonuclari = _haber_slaytlari_uret(
-                con, ayarlar, haber_adedi)
+                con, ayarlar, haber_adedi, mod=mod)
         except Exception as e:
             log.warning("bülten haber slaytları üretilemedi (%s) — "
                         "bülten veri slaytlarıyla devam ediyor", e)

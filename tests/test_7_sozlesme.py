@@ -2573,10 +2573,9 @@ def test_bulten_haber_slayti_kategoriyi_dogruluyor() -> None:
         denetle("metinleri_uret" in parca,
                 "metni olmayan haber için metin üretiliyor",
                 "ham RSS başlığı slayta basılır")
-        denetle("tur_uret" in parca,
-                "slaytlar ortak üreticiden geçiyor",
-                "ayrı bir slayt kodu doğmuş — görsel katman zinciri, "
-                "kanca ve kardeş havuzu devre dışı kalır")
+        denetle("ekonomi_ozet_sayfalari_uret" in parca,
+                "özet kartı motorundan geçiyor",
+                "ekonomi özet kartı motoru çağrılmamış")
 
     # --- Bülten haber bulunamazsa DÜŞMEMELİ ---
     ana = next((n for n in _ast.walk(agac)

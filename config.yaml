@@ -1117,7 +1117,7 @@ piyasa:
   # demek: günde en fazla 2 x 3 = 6 istek. Ücretsiz kota günde 40
   # (iki model), mevcut kullanım ~33. Kotayı zorlarsa bu sayıyı
   # düşür; 0 yaparsan bülten eski iki slaytlık hâline döner.
-  haber_slayti_adedi: 3
+  haber_slayti_adedi: 6
 
   # Haber kaç saatten taze olmalı. Bülten günde 2 kez çıktığı için
   # 12 saat iki bülten arasını kapsıyor: sabah bülteni gecenin,

@@ -138,6 +138,11 @@ def tanimsiz_isimleri_bul(yol: str, agac: ast.AST) -> list[str]:
             tanimli.add(dugum.id)
         elif isinstance(dugum, ast.ExceptHandler) and dugum.name:
             tanimli.add(dugum.name)
+        elif isinstance(dugum, ast.Lambda):
+            for arg in (dugum.args.args + dugum.args.posonlyargs + dugum.args.kwonlyargs
+                        + ([dugum.args.vararg] if dugum.args.vararg else [])
+                        + ([dugum.args.kwarg] if dugum.args.kwarg else [])):
+                tanimli.add(arg.arg)
         elif isinstance(dugum, (ast.comprehension,)):
             pass
 
