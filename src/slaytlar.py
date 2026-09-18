@@ -1061,7 +1061,22 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
             log.info("vurgu rakamı yıl/tarih (%s), atlandı #%s",
                      ham_vurgu, haber["id"])
         else:
-            vurgu = (ham_vurgu, _alan(haber, "vurgu_etiket"))
+            # ⚠️ ZAYIF VURGU KAPISI (18 Eyl 2026, kullanıcı bildirimi):
+            # *"vurgu rakamlarının altındaki metinler bazen çok yazılmak
+            # için yazılmış ya da o rakam oraya zorla eklenmiş gibi
+            # duruyor."* ÖLÇÜLDÜ: 238 vurgunun 20'si (%8) çıplak tek
+            # haneli sayı ("4 / maçlık seri bitti") ya da cümle parçası
+            # etiket ("38 / yaşındaki şehit polis") taşıyordu.
+            # Kural `dogrula.vurgu_zayif_mi`de — hook_motoru da AYNI
+            # kapıdan geçiyor.
+            _zayif = dogrula.vurgu_zayif_mi(
+                ham_vurgu, _alan(haber, "vurgu_etiket"))
+            if _zayif:
+                log.info("vurgu zayıf (%s): %r / %r, atlandı #%s",
+                         _zayif, ham_vurgu, _alan(haber, "vurgu_etiket"),
+                         haber["id"])
+            else:
+                vurgu = (ham_vurgu, _alan(haber, "vurgu_etiket"))
 
     alinti = None
     ham_alinti = _alan(haber, "alinti")

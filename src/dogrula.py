@@ -195,6 +195,86 @@ def sayi_esdegerleri(metin: str | None) -> set[str]:
     return sonuc
 
 
+# ----------------------------------------------------------------------
+# VURGU RAKAMI KAPISI — "zorla eklenmiş rakam" ve "yazılmak için
+# yazılmış etiket" elemesi
+# ----------------------------------------------------------------------
+#
+# ⚠️ KULLANICI BİLDİRİMİ (18 Eyl 2026): *"özellikle vurgu rakamlarının
+# altındaki metinler bazen çok yazılmak için yazılmış ya da o rakam
+# oraya zorla eklenmiş gibi duruyor."*
+#
+# ÖLÇÜLDÜ (238 gerçek vurgu, mevcut kapılardan geçenler): 20'si
+# (%8) iki kusurdan birini taşıyordu.
+#
+# ① RAKAM ZORLA EKLENMİŞ — çıplak tek haneli sayı. Sayfanın en
+#    üstünde 92 puntoya kadar çıkan amber bir "4" okuyucuya hiçbir
+#    büyüklük duygusu vermiyor:
+#        "5"  / sezonluk garanti
+#        "4"  / maçlık seri bitti
+#        "2"  / eksik oyuncu
+#        "3"  / desteklenen ilk model
+#    ⚠️ İKİ HANE SINIRDA KALIYOR, bilerek: "12 / alıkonulan gemi" ve
+#    "48 / gözaltı kararı" gerçek sayımlar ve çarpıcı.
+#
+# ② ETİKET CÜMLE PARÇASI — etiket yalnızca rakama yapışınca anlamlı
+#    oluyor, tek başına bir şey ölçmüyor:
+#        "38" / yaşındaki şehit polis   ("38 yaşındaki şehit polis")
+#        "77" / maçlık seri sona erdi
+#    Etiket bir AD ÖBEĞİ olmalı ("füze ağırlığı", "işlem hacmi"),
+#    cümlenin kalanı değil.
+#
+# ⚠️ FİİL DENETİMİ DAR TUTULDU. İlk yazımda "-dı/-di/-tı/-ti ile
+# biten etiket fiildir" kuralı denendi ve ÖLÇÜLDÜ: 16 eşleşmenin
+# 13'ü YANLIŞ ALARMDI — Türkçe iyelik eki de aynı harflerle bitiyor
+# ("fiyatı", "galibiyeti", "hacmi"). Bu yüzden açık fiil listesi
+# kullanılıyor.
+#
+# ⚠️ İKİ YERDEN ÇAĞRILIYOR: `slaytlar.son_dakika_uret` (ayrıntı
+# sayfasının dev rakamı) ve `hook_motoru.hook_olustur` (kapak
+# kancası). Kanca tarafında ÖNCEDEN HİÇBİR KAPI YOKTU — yıl/tarih
+# denetimi bile yalnızca slayt tarafındaydı.
+
+_ETIKET_FIILLERI = {
+    "bitti", "erdi", "edildi", "oldu", "başladı", "açıklandı",
+    "yapıldı", "geldi", "gitti", "kaldı", "düştü", "çıktı",
+    "verildi", "alındı", "yükseldi", "kesildi", "uzatıldı",
+    "sona", "kalktı", "sürüyor", "ediyor", "gerekiyor",
+}
+
+_ETIKET_SAYI_EKLERI = re.compile(
+    r"^(ya[sş][ıi]nda|ma[cç]l[ıi]k|sezonluk|ki[sş]ilik|katl[ıi]|"
+    r"puanl[ıi]k|haneli|gunluk)", re.IGNORECASE)
+
+
+def vurgu_zayif_mi(deger: str | None, etiket: str | None) -> str | None:
+    """
+    Vurgu rakamı slayta basılmaya değer mi?
+
+    Zayıfsa sebebi döner (loglanabilsin diye), güçlüyse None.
+    Bkz. yukarıdaki ölçüm notu.
+    """
+    d = (deger or "").strip()
+    e = (etiket or "").strip()
+    if not d:
+        return None
+
+    # ① Çıplak tek haneli sayı — büyüklük duygusu yok
+    if re.fullmatch(r"\d", d):
+        return "çıplak tek haneli sayı"
+
+    # ② Etiket rakama yapışan ekle başlıyor ("38 yaşındaki …")
+    if _ETIKET_SAYI_EKLERI.match(_sadelestir(e).strip()):
+        return "etiket rakama yapışan ekle başlıyor"
+
+    # ② Etiket cümle — açık fiille bitiyor
+    son = (e.split() or [""])[-1].strip(".,;:").casefold()
+    if son in _ETIKET_FIILLERI:
+        return "etiket cümle parçası (fiille bitiyor)"
+
+    return None
+
+
 def veri_karti_dogrula(eski_deger: str | None, yeni_deger: str | None, kaynak_metin: str | None) -> bool:
     """
     Veri kartındaki sayıların kaynak metinde gerçekten geçip geçmediğini doğrular.

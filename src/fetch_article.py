@@ -476,6 +476,96 @@ def _sayfayi_getir(link: str, zaman_asimi: int = 20,
     return None
 
 
+# ----------------------------------------------------------------------
+# KUYRUK TEMİZLİĞİ — okur yorumu ve sayfa altı şablonu gövdeye girmesin
+# ----------------------------------------------------------------------
+#
+# ⚠️ NEDEN GEREKTİ (18 Eyl 2026). Bir prompt testi sırasında görüldü:
+# çekilen gövdenin sonunda OKUR YORUMLARI vardı —
+#     "Allah'ım ülkemizi korusun", "Güvenenlere verin makarnayı yesinler",
+#     "Bu adamin dediklerine 1 kisi bile itibar etmiyor"
+# Bunlar iki yerde birden zarar veriyor:
+#   1) Model bunları KAYNAK sanıyor ve bir okur yorumunu haber
+#      gibi aktarabiliyor.
+#   2) `dogrula` bu metni doğrulama kaynağı olarak kullanıyor, yani
+#      yorumda geçen bir sayı "kaynakta var" sayılıyor.
+#
+# ⚠️ ÖLÇÜLDÜ, SEYREK AMA GERÇEK: 213 gövdeli haberin 23'ünde (%11)
+# yatırım uyarısı şablonu var ve sonrasında medyan yalnızca 77
+# karakter kalıyor — ama BİR vakada 4.197 karakterlik yorum bölümü
+# gövdeye girmişti. Yani sık değil, olduğunda büyük.
+#
+# ⚠️ KESME NOKTASI ÖZGÜL OLMALI. Genel kelimeler ("yorum", "paylaş")
+# makalenin İÇİNDE de geçebiliyor; buradaki desenler yalnızca sayfa
+# altı şablonlarında bulunan tam ifadeler. Ayrıca kesme yalnızca
+# metnin SON ÜÇTE BİRİNDE aranıyor: bir haber gerçekten "tüm hakları
+# saklıdır" diye başlıyorsa gövdenin tamamı silinmesin.
+# ⚠️ DESENLER İKİ KADEMELİ — konum kuralı hepsine aynı uygulanamaz.
+#
+# KESİN: yalnızca makalenin BİTTİĞİ yerde bulunan yasal uyarı ve yorum
+# başlıkları. Bunlar makalenin İÇİNDE asla geçmez, o yüzden nerede
+# görülürse görülsün kesiliyor.
+# ⚠️ Bu ayrım ölçümden doğdu: ilk yazımda tek kademe vardı ve kesme
+# yalnızca metnin son %45'inde aranıyordu. 4.249 karakterlik okur
+# yorumu taşıyan #197576'da uyarı metnin **%32'sindeydi** (gerçek
+# makale 1.960 karakter, kalanı yorum) ve hiç kesilmedi.
+_KUYRUK_KESIN = re.compile(
+    r"(sayfada yer alan bilgiler tavsiye niteli[gğ]i ta[sş][ıi]may[ıi]p"
+    r"|yat[ıi]r[ıi]m dan[ıi][sş]manl[ıi][gğ][ıi] kapsam[ıi]nda de[gğ]ildir"
+    r"|\bt[uü]m yorumlar\b|\byorum yaz\b|\bokur yorumlar[ıi]\b"
+    r"|izinsiz ve kaynak g[oö]sterilmeden)",
+    re.IGNORECASE,
+)
+
+# ZAYIF: makalenin içinde de geçebilen ifadeler ("ilgili haberler" bir
+# cümlede kullanılabilir). Bunlar yalnızca metnin SON YARISINDA kesiyor.
+_KUYRUK_ZAYIF = re.compile(
+    r"(ilgili haberler|di[gğ]er haberler|bunlar da ilgin"
+    r"|bizi takip edin|abone ol)",
+    re.IGNORECASE,
+)
+
+# Kesimden sonra en az bu kadar metin kalmalı; altına düşüyorsa
+# kesme güvenilmez sayılıp iptal ediliyor.
+_KUYRUK_ASGARI_KALAN = 300
+
+
+def kuyrugu_kes(metin: str | None) -> str:
+    """
+    Gövdenin sonundaki okur yorumu / sayfa altı şablonunu atar.
+
+    İki kademeli: kesin işaretler her yerde, zayıf işaretler yalnızca
+    metnin son yarısında kesiyor. Bkz. yukarıdaki not.
+    """
+    m = (metin or "").strip()
+    if len(m) < 400:
+        return m
+
+    adaylar = []
+    e = _KUYRUK_KESIN.search(m)
+    if e:
+        adaylar.append(e)
+    esik = int(len(m) * 0.55)
+    for z in _KUYRUK_ZAYIF.finditer(m):
+        if z.start() >= esik:
+            adaylar.append(z)
+            break
+    if not adaylar:
+        return m
+
+    eslesme = min(adaylar, key=lambda x: x.start())
+    kesilen = m[: eslesme.start()].strip()
+    # ⚠️ Kesim gövdeyi kullanılamaz hâle getiriyorsa iptal. Mutlak bir
+    # alt sınır kullanılıyor, ORAN DEĞİL: yorum bölümü gövdenin %68'i
+    # olabiliyor ve oransal bir kural tam da o vakayı engelliyordu.
+    if len(kesilen) < _KUYRUK_ASGARI_KALAN:
+        return m
+    if len(m) - len(kesilen) > 50:
+        log.info("gövde kuyruğu kesildi: %d karakter atıldı (%r)",
+                 len(m) - len(kesilen), eslesme.group(0)[:40])
+    return kesilen
+
+
 def _kirp_baslik_oncelikli(metin: str, baslik: str | None, azami: int = AZAMI_UZUNLUK) -> str:
     """Metin azami sınırı aşıyorsa, başlıktaki anahtar kelimeleri içeren paragrafları korur."""
     if len(metin) <= azami:
@@ -563,7 +653,7 @@ def makale_metni_cek(
             log.info("%s yöntemi başlıkla ilgisiz metin verdi, sıradaki "
                      "yöntem deneniyor: %s", ad, link)
             continue
-        return _kirp_baslik_oncelikli(temiz, baslik, AZAMI_UZUNLUK)
+        return _kirp_baslik_oncelikli(kuyrugu_kes(temiz), baslik, AZAMI_UZUNLUK)
 
     # Son çare: og:description. ASGARI_UZUNLUK aranmıyor — bu alan zaten
     # kısa olur ve RSS özetinden iyi bir şey vermese de zarar vermez.
@@ -571,7 +661,7 @@ def makale_metni_cek(
     if og:
         temiz = _duzelt(og)
         if not baslik or _baslikla_ilgili_mi(temiz, baslik):
-            return _kirp_baslik_oncelikli(temiz, baslik, AZAMI_UZUNLUK)
+            return _kirp_baslik_oncelikli(kuyrugu_kes(temiz), baslik, AZAMI_UZUNLUK)
 
     log.warning("gövde çekilemedi (hiçbir yöntem tutmadı): %s", link)
     return None

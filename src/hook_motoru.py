@@ -38,6 +38,8 @@ import re
 from typing import Any
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageStat
 
+from . import dogrula
+
 log = logging.getLogger(__name__)
 
 # --- 3 TEMEL EDİTORYAL RENK ---
@@ -632,6 +634,14 @@ def hook_olustur(haber: dict) -> dict | None:
     # formata düşüyor. iPhone vakası: başlık **en ucuz** modeli
     # (72.999) anlatırken kanca **en pahalıyı** (335.999) basıyordu.
     if v_sayi and _baslikta_sayi_var_mi(haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+        v_sayi = None
+
+    # ⚠️ ZAYIF VURGU KAPISI — SLAYT TARAFIYLA AYNI KURAL (18 Eyl 2026).
+    # Kanca tarafında ÖNCEDEN HİÇBİR KAPI YOKTU: ne yıl/tarih denetimi
+    # ne de zayıf rakam denetimi. Aynı `vurgu_sayi` slaytta elenip
+    # kancada basılabiliyordu — projenin en sık hatası ("aynı kural iki
+    # yerde yaşıyor, biri unutuluyor"). Kural artık tek kapıda.
+    if v_sayi and dogrula.vurgu_zayif_mi(v_sayi, v_etiket):
         v_sayi = None
 
     if v_sayi:

@@ -202,10 +202,28 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
 
 ★ EDİTORYAL ALANLAR VE AÇIKLAMALAR ★
 - slayt_ozet: TEK cümle, en fazla 18 kelime. Başlıkta OLMAYAN ikinci en somut bilgiyi ver (oran, tarih, kim söyledi). Başlığı tekrarlama.
-- detay_metni: 120-220 kelime, 2 PARAGRAF.
-  * 1. Paragraf (Spot): Olayın nerede/nasıl gerçekleştiği ve doğrudan ana sonucu (20-25 kelime).
-  * 2. Paragraf (Gelişme & Arka Plan): Detaylar, etkilenen sektörler, açıklamalar. 1. paragraftaki bilgileri ASLA tekrarlama.
+- detay_metni: 120-200 kelime, **4-5 PARAGRAF**, her paragraf 28-40 kelime.
+  Paragraflar arasında BOŞ SATIR bırak.
+
+  ⚠️ PARAGRAF SAYISI İLE KELİME HEDEFİ UYUMLU OLMAK ZORUNDA.
+  Önceki sürüm "120-220 kelime, 2 paragraf" diyor ve ilk paragrafa
+  20-25 kelime veriyordu; bu, ikinci paragraftan 95-195 kelime
+  istemek demekti. ÖLÇÜLDÜ (120 üretim): çıktı medyanı **76 kelime**
+  oldu, 109'u hedefin dışında kaldı ve HİÇBİRİ 220'ye ulaşmadı.
+  Kaynak yetersizliği değildi — 4.900 karakterlik makalelerden bile
+  57 kelime çıkıyordu. 4-5 x 28-40 = 112-200, yani hedef artık
+  gerçekten ulaşılabilir.
+
+  ⚠️ NEDEN UZUNLUK ÖNEMLİ: bu metin ayrıntı SAYFALARINI dolduruyor ve
+  her sayfa ~75 kelime alacak şekilde tasarlandı. 76 kelimelik metin
+  sayfaları yarı boş bırakıyor.
+
+  * 1. Paragraf (SPOT): olayın nerede/nasıl olduğu ve ana sonuç.
+  * 2-5. Paragraf: gelişme, rakamlar, taraflar, arka plan, etki.
+    Her paragraf YENİ bir bilgi getirmeli; öncekini ASLA tekrarlama.
   * Doğrudan söylemleri çift tırnak "..." içine al. Slaytta vurgulanacak kilit verileri **kalın** yaz.
+  * ⚠️ Kaynakta o kadar bilgi YOKSA KISA BIRAK. Hedefi tutturmak için
+    dolgu cümle yazma — uydurmaktansa kısa olsun.
 - sana_etkisi: 1-2 CÜMLE (en fazla 25 kelime).
   * Haberin okuyucunun cebine, kredisini, mevduatını, portföyüne, faturasına veya günlük yaşamına doğrudan yansıması.
   * Yalın ve vurucu Türkçe cümleler kur. Asla markdown yıldız (**) kullanma. (Örn: "Mevduat getirilerinde yıllık %47 bandı korunurken ihtiyaç kredisi faizlerinde kısa vadede indirim beklenmiyor.")
@@ -285,6 +303,30 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
             kanca: "BİR DAHA ASLA DÖNMEYECEĞİM"
             (başlıktaki alıntıyı kancaya kopyalama — başlıkla birebir çakışır)
 
+  ⚠️ ÜÇ KUSUR DAHA ÖLÇÜLDÜ (18 Eyl 2026; 48 gerçek kanca tarandı,
+  7'si bunlardan birini taşıyordu). Kancaların çoğu iyi — bunlar
+  kalan %15'i kapatmak için:
+
+  (3) TÜRKÇE YAZ, JARGON KULLANMA. Okuyucu bir haber hesabı okuyor,
+     ürün tanıtımı değil. Açıklanmamış kısaltma da yazma.
+        KÖTÜ  "SUPER AI ASSISTANT 2.0"
+        KÖTÜ  "PSSR ARTIK VARSAYILAN"   (PSSR nedir, kimse bilmiyor)
+        İYİ   "YAPAY ZEKA DESTEĞİ VARSAYILAN"
+
+  (4) İÇİ BOŞ BİTİŞ YAZMA. "gündemde", "riski", "tepkisi", "endişesi"
+     ile biten ve içinde SOMUT hiçbir şey olmayan kanca hiçbir şey
+     söylemiyor — bir haber hesabında her şey zaten "gündemde".
+        KÖTÜ  "ÇİN ENDİŞESİ GÜNDEMDE"
+        KÖTÜ  "ULAŞIMDA AKSAMA RİSKİ"
+        İYİ   "12 GEMİYE EL KONDU"
+        İYİ   "HAZİNENİN KAYBI 280 MİLYAR ₺"
+     Somut bir şey yoksa kancayı BOŞ BIRAK.
+
+  (5) ÖZETLE DE ÇAKIŞMASIN — yalnızca başlıkla değil.
+        KÖTÜ  kanca "İMAR VE RÜŞVET SUÇLAMASI"
+              özet  "Rüşvet ve imar usulsüzlüğü iddialarıyla..."
+     Kanca, başlık ve özet ÜÇÜ DE farklı bir şey söylemeli.
+
 - vurgu_sayi / vurgu_etiket: Başlıkta GEÇMEYEN ikinci en çarpıcı sayı ve etiketi (örn: "2.352 yıl" / "istenen ceza"). Yoksa boş bırak.
 
   ⚠️ ÖLÇÜLMÜŞ KÖTÜ ÖRNEKLER (5 Eyl 2026, gerçek çıktılar):
@@ -298,6 +340,30 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
             verisinden gelmeli; ilgisiz arka plan istatistiği değil.
       İYİ   "16" / "kayıp kişi"   ·   "69" / "genomik modifikasyon"
       İYİ   "137" / "Fenerbahçe galibiyeti"   ·   "%45" / "menzil artışı"
+
+  ⚠️ ÖLÇÜLMÜŞ İKİ KUSUR DAHA (18 Eyl 2026, kullanıcı bildirimi:
+  *"vurgu rakamlarının altındaki metinler bazen çok yazılmak için
+  yazılmış ya da o rakam oraya zorla eklenmiş gibi duruyor"*).
+  238 gerçek vurgu tarandı, 20'si bu iki kusurdan birini taşıyordu:
+
+  (1) RAKAM ZORLA EKLENMİŞ — ÇIPLAK TEK HANELİ SAYI YAZMA.
+     Bu alan sayfanın en üstünde 92 puntoya kadar çıkıyor; oraya
+     amber bir "4" basmak okuyucuya hiçbir büyüklük duygusu vermiyor.
+        KÖTÜ  "5" / "sezonluk garanti"
+        KÖTÜ  "4" / "maçlık seri bitti"
+        KÖTÜ  "2" / "eksik oyuncu"
+        KÖTÜ  "3" / "desteklenen ilk model"
+     Tek haneli bir sayıdan başka çarpıcı veri yoksa ALANI BOŞ BIRAK.
+
+  (2) ETİKET AD ÖBEĞİ OLMALI, CÜMLENİN KALANI DEĞİL.
+     Etiket tek başına "bu sayı neyin ölçüsü?" sorusunu cevaplamalı.
+     Rakama yapışınca anlamlı olan ifade etiket değildir:
+        KÖTÜ  "38" / "yaşındaki şehit polis"  ("38 yaşındaki şehit polis")
+        KÖTÜ  "77" / "maçlık seri sona erdi"
+        KÖTÜ  "3 gün" / "ulusal yas ilan edildi"
+        İYİ   "900 kg" / "füze ağırlığı"
+        İYİ   "128,1 milyar ₺" / "işlem hacmi"
+        İYİ   "12" / "alıkonulan gemi"
 - alinti / alinti_sahibi: Haberde geçen doğrudan söz (en fazla 18 kelime, tırnaksız) ve sahibi. Kaynakta kelimesi kelimesine geçmeli.
 - ig_caption: Haberin tüm detaylarını, arka planını ve nedenlerini anlatan 3-5 cümlelik ferah, akıcı ve bilgilendirici bülten açıklaması. Paragrafları ferah tut, okuyucunun konuyu tam anlamasını sağla. Asla markdown yıldız (**) kullanma. Kaynak adı yazma.
 - ig_hashtag: 5-8 adet konuyla ilgili Türkçe etiket, '#' işareti OLMADAN.
@@ -320,7 +386,26 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
   ⚠️ NEDEN: doğru kişinin ESKİ fotoğrafı da yanlıştır. Oyuncu takım
   değiştirmiş olabilir, bakan görevden ayrılmış olabilir.
 
-- gorsel_konu: Haberin ana somut öznesi, markası, modeli veya aktörü (örn: "Volkswagen Passat Pro", "Apple iPhone 16", "Hakan Fidan", "Beşiktaş", "Silivri gemi kazası", "Boeing 737", "Lionel Messi"). Asla boş veya soyut bırakma; haberin odaklandığı asıl varlığı net olarak yaz.
+- gorsel_konu: `gorsel_ozne_tipi`NE GÖRE doldurulur; ikisi tutarlı olmalı.
+    "kisi"  -> kişinin TAM ADI ("Hakan Fidan", "Lionel Messi")
+    "urun"  -> ürün/model adı ("Volkswagen Passat Pro", "Boeing 737")
+    "kurum" -> kurum adı ("Beşiktaş", "TÜBİTAK")
+    "olay"  -> BOŞ BIRAK (""). Olay haberinin tek bir görsel öznesi
+               yoktur; zorlama bir ad yazmak yanlış fotoğraf getirir.
+
+  ⚠️ BU ALANIN ESKİ TALİMATI "asla boş bırakma" DİYORDU VE YANLIŞTI.
+  Ölçüldü: kurum/olay adı yazıldığında arşiv araması alakasız sonuç
+  veriyor — "İSKİ" -> Macar sanatçı portresi, "Taliban" -> askeri
+  harita, "Ankara Büyükşehir" -> kale manzarası. Olay haberlerinde
+  doğru cevap temsili fotoğraftır, zorlama bir ad değil.
+
+  ⚠️ DUYURAN KİŞİ ÖZNE DEĞİLDİR — `gorsel_ozne_tipi` notundaki kural
+  burada da geçerli. Geçmişte ölçülen kötü örnekler:
+        KÖTÜ  "500 öğrenciye burs verilecek"       -> Bakan fotoğrafı
+        KÖTÜ  "Milli Hızlı Tren 250 km/s'e ulaştı" -> Bakan fotoğrafı
+        KÖTÜ  "ABD İran'a saldırdı"                -> Trump portresi
+     Bunların özneleri sırasıyla BURS, TREN ve SALDIRI'dır; üçü de
+     "olay" tipindedir ve `gorsel_konu` boş kalmalıdır.
 - gorsel_ikili: Zirve veya ikili diplomatik görüşme ise iki aktörün adı: ["Recep Tayyip Erdoğan", "İlham Aliyev"]. Yoksa boş liste [].
 - gorsel_temsili: Konuyu temsil eden İNGİLİZCE somut arama terimi (örn: "Volkswagen Passat sedan car", "Apple iPhone smartphone", "commercial passenger jet airplane", "gold bullion bars vault"). EĞER HABER BİR MARKA, MODEL VEYA KİŞİ İLE İLGİLİ İSE MARKA/ÜRÜN ADINI KORU (örn: Passat Pro için "Volkswagen Passat car", iPhone için "Apple iPhone smartphone"). ASLA başka bir markanın çıkmasına yol açacak genel veya yanıltıcı terimler isteme.
 

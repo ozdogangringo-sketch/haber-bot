@@ -2590,6 +2590,122 @@ def test_bulten_haber_slayti_kategoriyi_dogruluyor() -> None:
                 "haber bir EK")
 
 
+def test_vurgu_ve_kanca_kalitesi() -> None:
+    """
+    Vurgu rakamı ve kanca: zayıf olanlar slayta basılmamalı.
+
+    ⚠️ KULLANICI BİLDİRİMİ (18 Eyl 2026): *"vurgu rakamlarının altındaki
+    metinler bazen çok yazılmak için yazılmış ya da o rakam oraya zorla
+    eklenmiş gibi duruyor."* ÖLÇÜLDÜ (238 gerçek vurgu, mevcut
+    kapılardan geçenler): 20'si (%8) iki kusurdan birini taşıyordu —
+    çıplak tek haneli sayı ("4 / maçlık seri bitti") ya da cümle
+    parçası etiket ("38 / yaşındaki şehit polis").
+
+    ⚠️ KURAL İKİ YERDE GEREKİYOR: `slaytlar.son_dakika_uret` (ayrıntı
+    sayfasının dev amber rakamı) ve `hook_motoru.hook_olustur` (kapak
+    kancası). Kanca tarafında ÖNCEDEN HİÇBİR KAPI YOKTU — yıl/tarih
+    denetimi bile yalnızca slayt tarafındaydı.
+    """
+    import ast as _ast
+    from src import dogrula as _d
+
+    # --- Zayıf vurgular eleniyor ---
+    for deger, etiket in (("5", "sezonluk garanti"),
+                          ("4", "maçlık seri bitti"),
+                          ("2", "eksik oyuncu"),
+                          ("38", "yaşındaki şehit polis"),
+                          ("77", "maçlık seri sona erdi"),
+                          ("3 gün", "ulusal yas ilan edildi")):
+        denetle(_d.vurgu_zayif_mi(deger, etiket) is not None,
+                f"zayıf vurgu eleniyor: {deger} / {etiket[:26]}",
+                "sayfanın en üstünde anlamsız bir rakam basılır")
+
+    # --- ⚠️ GÜÇLÜ vurgular ELENMEMELİ (aşırı eleme denetimi) ---
+    for deger, etiket in (("1,1 trilyon ₺", "tasfiye edilecek varlık"),
+                          ("12", "alıkonulan gemi"),
+                          ("48", "gözaltı kararı"),
+                          ("900 kg", "füze ağırlığı"),
+                          ("128,1 milyar ₺", "işlem hacmi"),
+                          ("262,4 milyar ₺", "günlük işlem hacmi")):
+        denetle(_d.vurgu_zayif_mi(deger, etiket) is None,
+                f"güçlü vurgu geçiyor: {deger}",
+                "kapı fazla dar — çarpıcı veri de eleniyor")
+
+    # --- Kural İKİ kod yolunda da uygulanıyor mu (AST) ---
+    for dosya, fonk_adi in (("src/slaytlar.py", "son_dakika_uret"),
+                            ("src/hook_motoru.py", "hook_olustur")):
+        kaynak = (KOK / dosya).read_text(encoding="utf-8")
+        agac = _ast.parse(kaynak)
+        fonk = next((n for n in _ast.walk(agac)
+                     if isinstance(n, _ast.FunctionDef) and n.name == fonk_adi),
+                    None)
+        denetle(fonk is not None, f"{fonk_adi} bulundu", "fonksiyon yok")
+        if fonk is not None:
+            denetle(any(isinstance(d, _ast.Attribute)
+                        and d.attr == "vurgu_zayif_mi"
+                        for d in _ast.walk(fonk)),
+                    f"{dosya}: zayıf vurgu kapısı çağrılıyor",
+                    "aynı vurgu bir yerde elenip diğerinde basılıyor — "
+                    "'aynı kural iki yerde' hatası")
+
+
+def test_govde_kuyrugu_temizleniyor() -> None:
+    """
+    Makale gövdesinin sonundaki OKUR YORUMU ve sayfa altı şablonu
+    kaynak metne girmemeli.
+
+    ⚠️ NEDEN GEREKTİ (18 Eyl 2026). Bir prompt testinde görüldü:
+    çekilen gövdenin sonunda okur yorumları vardı ("Allah'ım ülkemizi
+    korusun", "Güvenenlere verin makarnayı yesinler"). İki yerde zarar
+    veriyor — model bunları KAYNAK sanıp aktarabiliyor, ve `dogrula`
+    bu metni doğrulama kaynağı olarak kullandığı için yorumdaki bir
+    sayı "kaynakta var" sayılıyor.
+
+    ÖLÇÜLDÜ: 213 gövdenin 49'u kesiliyor, medyan 130 karakter —
+    ama bir vakada **4.250 karakter** yorum bölümü atıldı
+    (#197576: 6.209 -> 1.959).
+
+    ⚠️ KONUM KURALI İKİ KADEMELİ OLMAK ZORUNDA. İlk yazımda kesme
+    yalnızca metnin son %45'inde aranıyordu ve o vakada yasal uyarı
+    metnin **%32'sindeydi** — yani gövdenin çoğu yorumdu ve hiç
+    kesilmedi. Yasal uyarı makalenin içinde asla geçmez, o yüzden
+    "kesin" kademeye alındı ve her yerde kesiyor.
+    """
+    from src import fetch_article as _fa
+
+    gercek = "Borsa İstanbul'da endeks günü düşüşle tamamladı. " * 12
+    yorum = (" Sayfada yer alan bilgiler tavsiye niteliği taşımayıp "
+             "yatırım danışmanlığı kapsamında değildir. "
+             "Allah'ım ülkemizi korusun. Güvenenlere verin makarnayı "
+             "yesinler. Bu adamın dediklerine kimse itibar etmiyor. " * 6)
+    kesilmis = _fa.kuyrugu_kes(gercek + yorum)
+    denetle(len(kesilmis) < len(gercek) * 1.1,
+            "okur yorumu gövdeden atılıyor",
+            f"{len(kesilmis)} karakter kaldı, ~{len(gercek)} olmalıydı")
+    denetle("Borsa İstanbul" in kesilmis,
+            "gerçek makale metni korunuyor",
+            "kesim gövdeyi de götürmüş")
+
+    # ⚠️ Yasal uyarı metnin BAŞLARINDA olsa bile kesilmeli
+    erken = "Kısa haber metni. " * 20 + (
+        "Sayfada yer alan bilgiler tavsiye niteliği taşımayıp "
+        "yatırım danışmanlığı kapsamında değildir. ") + "Yorum. " * 200
+    k2 = _fa.kuyrugu_kes(erken)
+    denetle(len(k2) < len(erken) * 0.5,
+            "yasal uyarı metnin başlarında olsa da kesiliyor",
+            "konum kuralı tek kademeli — büyük yorum bölümü kaçıyor")
+
+    # --- ⚠️ AŞIRI KESME OLMAMALI ---
+    temiz = "Normal bir haber metni devam ediyor. " * 40
+    denetle(_fa.kuyrugu_kes(temiz) == temiz.strip(),
+            "temiz gövdeye dokunulmuyor",
+            "kesme kuralı normal metni de kırpıyor")
+    kisa = "Çok kısa bir haber. Sayfada yer alan bilgiler tavsiye niteliği taşımayıp."
+    denetle(_fa.kuyrugu_kes(kisa) == kisa,
+            "kısa gövde kesilmiyor",
+            "gövde kullanılamaz hâle gelir")
+
+
 def test_denetim_uyarisi_kurt_geliyor_demiyor() -> None:
     """
     Denetim uyarısı GÜVENİLİR olmalı — Türkçe yazım farkını uydurma
@@ -5231,6 +5347,8 @@ def main() -> int:
         test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,
+        test_vurgu_ve_kanca_kalitesi,
+        test_govde_kuyrugu_temizleniyor,
         test_denetim_uyarisi_kurt_geliyor_demiyor,
         test_kaynak_mutabakati_buyuk_olayi_yakaliyor,
         test_bulten_haber_slayti_kategoriyi_dogruluyor,
