@@ -2590,6 +2590,113 @@ def test_bulten_haber_slayti_kategoriyi_dogruluyor() -> None:
                 "haber bir EK")
 
 
+def test_denetim_uyarisi_kurt_geliyor_demiyor() -> None:
+    """
+    Denetim uyarısı GÜVENİLİR olmalı — Türkçe yazım farkını uydurma
+    sanmamalı, ama gerçek uydurmayı da kaçırmamalı.
+
+    ⚠️ NEDEN GEREKTİ (18 Eyl 2026). ÖLÇÜLDÜ: yayınlanan gerçek
+    haberlerin **%33'ü** Telegram onay mesajında `⚠️ DENETİM UYARISI`
+    alıyordu ve büyük kısmı gürültüydü:
+
+        üretilen "435.683"   kaynak "435 bin 683"      -> sahte uyarı
+        üretilen "4,62 ₺"    kaynak "4 lira 62 kuruş"  -> sahte uyarı
+        model "Sermaye Piyasası Kurulu"  kaynak "SPK"  -> sahte uyarı
+        "Türk", "İtalyan", "Foto", "Gündem"            -> sahte uyarı
+
+    ⚠️ BU BİR GÜVENİLİRLİK SORUNU. Projenin kendi dersi: *"Yanlış alarm
+    veren test, hiç olmayan testten kötüdür — insan onu görmezden
+    gelmeye başlar."* Dörtte bire çıkmış bir uyarı okunmaz olur ve
+    GERÇEK uyarı da onunla birlikte kaybolur.
+
+    Düzeltme sonrası ölçüldü: **%33 -> %14**, üstelik `detay_metni` ve
+    `vurgu_sayi` denetime YENİ dahil edildiği hâlde.
+    """
+    from src import dogrula as _d
+
+    # --- Türkçe sayı yazımları eşdeğer sayılmalı ---
+    for kaynak, uretilen in (
+            ("Kayıtlı 435 bin 683 kişi bulunuyor", "435683"),
+            ("Motorine 4 lira 62 kuruş zam geldi", "462"),
+            ("Toplam 2 milyon 702 bin 482 kişi", "2702482"),
+            ("Toplam 2 milyon 702 bin 482 kişi", "702482"),
+            ("Yaklaşık 9 bin kişi katıldı", "9000"),
+            ("Bütçe 3 milyar lira olarak açıklandı", "3000000000"),
+            ("Dört yeni proje başlatıldı", "4")):
+        denetle(uretilen in _d.sayi_esdegerleri(kaynak),
+                f"Türkçe sayı eşdeğeri tanınıyor: {uretilen}",
+                f"'{kaynak}' kaynağında '{uretilen}' bulunamadı — "
+                "sahte uyarı üretilir")
+
+    # --- ⚠️ GENİŞLETME `haberi_dogrula` İÇİNDE GERÇEKTEN KULLANILIYOR MU ---
+    # İlk yazımda yalnızca `sayi_esdegerleri` doğrudan sınanıyordu ve
+    # `haberi_dogrula`yı eski `_sayilar`a döndüren sabotaj TEMİZ GEÇTİ.
+    # "Fonksiyon var" ile "fonksiyon çağrılıyor" ayrı sorulardır —
+    # bu projenin en sık tekrarlayan tuzağı. Ölçüt davranış:
+    # kaynak Türkçe yazımla, üretilen rakamla yazdığında UYARI ÇIKMAMALI.
+    turkce_yazim = {
+        "makale_metni": ("Sisteme kayıtlı 435 bin 683 kişi bulunuyor. "
+                         "Motorine 4 lira 62 kuruş zam yapıldı."),
+        "ozet_orj": "",
+        "ig_baslik": "Motorine 4,62 ₺ zam geldi",
+        "slayt_ozet": "Sisteme kayıtlı 435.683 kişi etkilenecek.",
+        "ig_caption": "", "detay_metni": "", "vurgu_sayi": "",
+    }
+    sonuc_tr = _d.haberi_dogrula(turkce_yazim)
+    denetle(not sonuc_tr["eksik_sayilar"],
+            "Türkçe yazım farkı sahte uyarı üretmiyor",
+            f"haberi_dogrula genişletilmiş eşdeğerleri kullanmıyor "
+            f"(uyarı: {sonuc_tr['eksik_sayilar']}) — %33'lük gürültü geri geldi")
+
+    # --- Kurum cins ismi ve milliyet sıfatı özel isim sayılmamalı ---
+    # ⚠️ Model kısaltmayı AÇIYOR (kaynak "SPK", model "Sermaye Piyasası
+    # Kurulu") — okuyucu için DOĞRU davranış, denetim cezalandırmamalı.
+    metin = ("Karar bugün açıklandı. Buna göre Sermaye Piyasası Kurulu "
+             "ve Türk yatırımcılar ile İtalyan kulübü etkilenecek.")
+    isimler = set(_d._ozel_isimler(metin))
+    for durak in ("Kurulu", "Piyasası", "Türk", "İtalyan"):
+        denetle(durak not in isimler,
+                f"cins isim/milliyet özel isim sayılmıyor: {durak}",
+                "uyarı gürültüye boğuluyor")
+    denetle("Sermaye" in isimler,
+            "gerçek özel isim hâlâ yakalanıyor",
+            "durak listesi fazla geniş — denetim körleşti")
+
+    # --- ⚠️ GERİLEME: gerçek uydurma HÂLÂ yakalanmalı ---
+    # Bu, düzeltmenin denetimi körleştirmediğinin kanıtı.
+    sahte = {"makale_metni": "Bakanlık yeni düzenlemeyi açıkladı.",
+             "ozet_orj": "", "ig_baslik": "Yeni düzenleme yürürlükte",
+             "slayt_ozet": "Düzenlemeyi Ahmet Yılmaz hazırladı.",
+             "ig_caption": "Karar 4500 kişiyi etkileyecek.",
+             "detay_metni": "", "vurgu_sayi": ""}
+    sonuc = _d.haberi_dogrula(sahte)
+    denetle(not sonuc["temiz"], "uydurma metin hâlâ yakalanıyor",
+            "denetim körleşmiş — düzeltme fazla ileri gitmiş")
+    denetle(any("Yılmaz" in i or "Ahmet" in i for i in sonuc["eksik_isimler"]),
+            "uydurma KİŞİ adı yakalanıyor",
+            "kişi adı denetimi çalışmıyor — bu kapının asıl amacı buydu")
+    denetle("4500" in sonuc["eksik_sayilar"],
+            "uydurma SAYI yakalanıyor",
+            "sayı denetimi çalışmıyor")
+
+    # --- detay_metni ve vurgu_sayi DENETİME DAHİL ---
+    # ⚠️ Öncesinde en uzun metin (detay_metni, ayrıntı sayfalarının
+    # tamamı) ve ekrandaki en büyük öğe (vurgu_sayi, dev amber rakam)
+    # hiç denetlenmiyordu.
+    for alan, deger in (("detay_metni", "Olayda 7777 kişi gözaltına alındı."),
+                        ("vurgu_sayi", "8888")):
+        kayit = {"makale_metni": "Bakanlık düzenlemeyi açıkladı.",
+                 "ozet_orj": "", "ig_baslik": "Düzenleme yürürlükte",
+                 "slayt_ozet": "", "ig_caption": "",
+                 "detay_metni": "", "vurgu_sayi": ""}
+        kayit[alan] = deger
+        s2 = _d.haberi_dogrula(kayit)
+        denetle(not s2["temiz"],
+                f"{alan} denetime dahil",
+                f"{alan} içindeki uydurma sayı yakalanmıyor — "
+                "slaytta uydurma rakam basılabilir")
+
+
 def test_seo_copu_havuza_girmiyor() -> None:
     """
     SEO çöpü (rüya tabiri, loto sonucu, market kataloğu) RSS GİRİŞİNDE
@@ -5124,6 +5231,7 @@ def main() -> int:
         test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,
+        test_denetim_uyarisi_kurt_geliyor_demiyor,
         test_kaynak_mutabakati_buyuk_olayi_yakaliyor,
         test_bulten_haber_slayti_kategoriyi_dogruluyor,
         test_seo_copu_havuza_girmiyor,

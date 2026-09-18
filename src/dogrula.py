@@ -66,6 +66,135 @@ def _sayilar(metin: str) -> set[str]:
     return {s for s in re.findall(r"\d+", duz) if len(s) >= 1}
 
 
+# ----------------------------------------------------------------------
+# TÜRKÇE SAYI EŞDEĞERLERİ — "kurt geliyor" uyarısını susturmak için
+# ----------------------------------------------------------------------
+#
+# ⚠️ NEDEN GEREKTİ (18 Eyl 2026). ÖLÇÜLDÜ: yayınlanan 200 haberin
+# **50'si** (%25) Telegram onay mesajında `⚠️ DENETİM UYARISI`
+# alıyordu ve bunların 38'i "kaynakta olmayan sayı" idi. Tek tek
+# bakıldı: **19'u (yarısı) TÜRKÇE YAZIM FARKI**, uydurma değil.
+#
+#     üretilen "435.683"     kaynak "435 bin 683"
+#     üretilen "4,62 ₺"      kaynak "4 lira 62 kuruş"
+#     üretilen "%29,61"      kaynak "yüzde 29,61"
+#     üretilen "9.000"       kaynak "9 bin"
+#
+# `_sayilar` ayraçları siliyor: "4,62" -> "462". Kaynakta "462" diye
+# bir sayı yok, dolayısıyla uyarı çıkıyor.
+#
+# ⚠️ BU BİR GÜRÜLTÜ SORUNU, DOĞRULUK SORUNU DEĞİL — ve tam olarak bu
+# yüzden tehlikeli. Projenin kendi dersi: *"Yanlış alarm veren test,
+# hiç olmayan testten kötüdür — insan onu görmezden gelmeye başlar."*
+# Dörtte bir orana çıkmış bir uyarı okunmaz olur ve GERÇEK uyarı da
+# onunla birlikte kaybolur.
+#
+# ⚠️ GENİŞLETME YALNIZCA KAYNAK TARAFINA UYGULANIR. Üretilen metin
+# `_sayilar` ile okunmaya devam ediyor; kaynak ise "bu sayı şu
+# biçimlerde de yazılmış olabilir" diye genişletiliyor. Ters yönde
+# yapılsaydı uydurma bir sayı kaynaktaki başka bir sayıya benzeyip
+# sessizce geçebilirdi.
+
+_YAZIYLA_SAYI = {
+    "bir": 1, "iki": 2, "üç": 3, "dört": 4, "beş": 5, "altı": 6,
+    "yedi": 7, "sekiz": 8, "dokuz": 9, "on": 10, "yirmi": 20,
+    "otuz": 30, "kırk": 40, "elli": 50, "altmış": 60, "yetmiş": 70,
+    "seksen": 80, "doksan": 90, "yüz": 100,
+}
+
+_CARPANLAR = {"bin": 1000, "milyon": 10 ** 6, "milyar": 10 ** 9}
+
+
+def sayi_esdegerleri(metin: str | None) -> set[str]:
+    """
+    Kaynak metindeki sayıların BÜTÜN makul Türkçe yazımları.
+
+    `_sayilar`ın ürettiklerine ek olarak:
+      * bileşik  "435 bin 683"      -> 435683
+      * çarpan   "9 bin", "2 milyar" -> 9000, 2000000000
+      * ondalık  "4,62"             -> 462, 4, 62
+      * para     "4 lira 62 kuruş"  -> 462
+      * yazıyla  "dört"             -> 4
+
+    ⚠️ Yalnızca KAYNAK tarafında kullanılır (bkz. yukarıdaki not).
+    """
+    m = str(metin or "")
+    sonuc = set(_sayilar(m))
+
+    # Bileşik sayı öbekleri: "9 bin" · "435 bin 683" · "2 milyon 702 bin 500"
+    #
+    # ⚠️ İÇ İÇE ÇARPAN VAR. İlk yazımda desen "(sayı)(çarpan)( sayı)?"
+    # idi ve "2 milyon 702 bin" için 2·10⁶ + 702 = 2.000.702 üretiyordu;
+    # doğrusu 2·10⁶ + 702·10³ = 2.702.000. Öbeği bir bütün olarak
+    # okumak gerekiyor: ardışık (sayı, çarpan) ikilileri çarpanları
+    # KÜÇÜLDÜĞÜ sürece toplanıyor, büyüdüğü an yeni öbek başlıyor.
+    obek = re.compile(
+        r"(\d[\d.,]*)\s*(bin|milyon|milyar)?(?=\s|$|[^\w])", re.IGNORECASE)
+    parcalar = list(obek.finditer(m))
+    i = 0
+    while i < len(parcalar):
+        toplam = 0.0
+        onceki_carpan = None
+        j = i
+        while j < len(parcalar):
+            e = parcalar[j]
+            try:
+                taban = float(e.group(1).replace(".", "").replace(",", "."))
+            except ValueError:
+                break
+            carpan = _CARPANLAR.get((e.group(2) or "").lower(), 1)
+            # Çarpan büyüyorsa ya da araya başka metin girdiyse öbek bitti
+            if onceki_carpan is not None and carpan >= onceki_carpan:
+                break
+            if j > i and m[parcalar[j - 1].end():e.start()].strip():
+                break
+            toplam += taban * carpan
+            onceki_carpan = carpan
+            j += 1
+            if carpan == 1:
+                break
+        if j > i and toplam:
+            try:
+                sonuc.add(str(int(toplam)))
+            except (ValueError, OverflowError):
+                pass
+        # ⚠️ KISMİ TOPLAMLAR DA EKLENİYOR. Kaynak "2 milyon 702 bin 482"
+        # yazarken model "2 milyon 702.482" yazıyor — yani milyon
+        # kısmını kelimeyle, kalanını rakamla. `_sayilar` bunu "702482"
+        # olarak okuyor ve tam toplam (2702482) ile eşleşmiyordu.
+        # Öbeğin her SONEKİ ayrı bir yazım olabilir: 2702482, 702482, 482.
+        artan = 0.0
+        for k in range(j - 1, i - 1, -1):
+            e = parcalar[k]
+            try:
+                taban = float(e.group(1).replace(".", "").replace(",", "."))
+            except ValueError:
+                break
+            artan += taban * _CARPANLAR.get((e.group(2) or "").lower(), 1)
+            try:
+                sonuc.add(str(int(artan)))
+            except (ValueError, OverflowError):
+                break
+        i = max(j, i + 1)
+
+    # Ondalık: "4,62" -> hem 462 hem 4 hem 62
+    for e in re.finditer(r"(\d+)[,.](\d+)", m):
+        sonuc.update((e.group(1), e.group(2), e.group(1) + e.group(2)))
+
+    # "4 lira 62 kuruş" -> 462
+    for e in re.finditer(r"(\d+)\s*(?:lira|tl|₺)\s*(\d+)\s*kuru",
+                         m, re.IGNORECASE):
+        sonuc.add(e.group(1) + e.group(2))
+
+    # Yazıyla yazılmış küçük sayılar
+    sade = _sadelestir(m)
+    for kelime, deger in _YAZIYLA_SAYI.items():
+        if re.search(r"\b" + _sadelestir(kelime).strip() + r"\b", sade):
+            sonuc.add(str(deger))
+
+    return sonuc
+
+
 def veri_karti_dogrula(eski_deger: str | None, yeni_deger: str | None, kaynak_metin: str | None) -> bool:
     """
     Veri kartındaki sayıların kaynak metinde gerçekten geçip geçmediğini doğrular.
@@ -121,6 +250,57 @@ def veri_karti_baslikta_var_mi(veri_karti: dict, baslik: str, ozet: str = "") ->
     return False
 
 
+# ----------------------------------------------------------------------
+# ÖZEL İSİM DENETİMİNİN DURAK LİSTESİ
+# ----------------------------------------------------------------------
+#
+# ⚠️ NEDEN GEREKTİ (18 Eyl 2026). `_ozel_isimler` cümle ortasındaki her
+# büyük harfli kelimeyi özel isim sayıyor. Türkçede kurum adlarının
+# İÇİNDEKİ cins isimler de büyük yazılıyor ("Sermaye Piyasası Kurulu")
+# ve milliyet sıfatları da öyle ("Türk sürücüler", "İtalyan kulübü").
+#
+# ÖLÇÜLDÜ (300 yayınlanmış haber): 580 isim işaretinin neredeyse
+# tamamı bu sınıftandı — `Kurulu`, `Piyasası`, `Bakanlığı`, `Türk`,
+# `İtalyan`, `Fransız`, `Filistinli`, `Foto`, `Gündem`.
+#
+# ⚠️ DAHA İLGİNÇ OLANI: model KISALTMAYI AÇIYOR. Kaynak "SPK" yazıyor,
+# model "Sermaye Piyasası Kurulu" yazıyor — okuyucu için DOĞRU olan
+# davranış — ve denetim bunu uydurma sayıp cezalandırıyordu.
+#
+# ⚠️ DENETİMİN AMACI BU DEĞİL. Bu kapı, modelin kaynakta OLMAYAN bir
+# KİŞİYE ya da kuruma bir şey atfetmesini yakalamak için var. Cins
+# isim ve milliyet sıfatı hiçbir zaman o tehlikeli durum değildir.
+#
+# ⚠️ LİSTE BİLEREK DAR — projenin ölçülmüş dersi ("içi boş övgü"
+# vakası): geniş liste 5 eleme yaptı, 3'ü yanlış alarmdı; dar liste
+# 2 eleme yaptı, ikisi de tam hedefti. Buraya kelime eklerken
+# "bu kelime tek başına bir KİŞİYİ ya da KURUMU adlandırır mı?"
+# diye sor; cevap evetse EKLEME.
+_ISIM_DURAKLARI = {
+    # Kurum/idare cins isimleri (kurum adının İÇİNDE büyük yazılıyor)
+    "kurulu", "kurumu", "kurum", "bakanligi", "bakanlik", "baskanligi",
+    "baskani", "mudurlugu", "mudurluk", "genel", "meclis", "meclisi",
+    "piyasasi", "piyasalari", "kanunu", "kanunundan", "kanun",
+    "yonetmeligi", "komisyonu", "komitesi", "birligi", "odasi",
+    "dernegi", "vakfi", "enstitusu", "universitesi", "hastanesi",
+    "belediyesi", "valiligi", "savciligi", "mahkemesi", "emniyet",
+    "teskilati", "merkezi", "idaresi", "ajansi", "borsasi", "bankasi",
+    "sirketi", "holding", "grubu", "federasyonu", "kulubu",
+    # Unvan ekleri
+    "ceosu", "ctosu", "cfosu", "sozcusu", "yardimcisi", "vekili",
+    # Milliyet/aidiyet sıfatları (cümle ortasında büyük yazılıyor)
+    "turk", "alman", "ingiliz", "fransiz", "italyan", "ispanyol",
+    "rus", "amerikan", "cinli", "japon", "koreli", "hintli", "arap",
+    "iranli", "israilli", "filistinli", "suriyeli", "yunan",
+    "hollandali", "belcikali", "isvicreli", "avusturyali",
+    "portekizli", "brezilyali", "arjantinli", "meksikali",
+    "misirli", "ukraynali", "polonyali", "kanadali", "avustralyali",
+    # Kendi şablon metnimiz (caption/slayt başlıkları)
+    "foto", "gundem", "temsili", "daily", "brief", "briefing",
+    "basliklari", "manset", "kaynak", "arsiv",
+}
+
+
 def _ozel_isimler(metin: str) -> list[str]:
     """
     Cümle ortasında büyük harfle başlayan kelimeler.
@@ -137,7 +317,17 @@ def _ozel_isimler(metin: str) -> list[str]:
             continue
         if i == 0 or kelimeler[i - 1].endswith((".", ":", "?", "!")):
             continue
-        if _sadelestir(temiz).strip() in AYLAR_GUNLER:
+        # ⚠️ KESME İŞARETİNDEN KES. "Meclis'e" -> "meclis": Türkçede
+        # ekler kesmeyle ayrılıyor ve `_sadelestir` kesmeyi BOŞLUĞA
+        # çeviriyor, yani durak listesi "meclis e" ile eşleşmiyordu.
+        # `_kok` de aynı bölmeyi yapıyor; iki taraf tutarlı olmalı.
+        sade = _sadelestir(temiz.split("'")[0]).strip()
+        if sade in AYLAR_GUNLER:
+            continue
+        # Kurum cins ismi, milliyet sıfatı, kendi şablonumuz — bkz.
+        # `_ISIM_DURAKLARI`. Bunlar hiçbir zaman "modelin uydurduğu
+        # kişi/kurum" olmuyor, yalnızca uyarıyı gürültüye boğuyorlar.
+        if sade in _ISIM_DURAKLARI:
             continue
         bulunan.append(temiz)
     return bulunan
@@ -369,12 +559,33 @@ def haberi_dogrula(haber) -> dict:
     parcalar = [haber["makale_metni"] or "", haber["ozet_orj"] or ""]
     kaynak = " ".join(parcalar).strip()
     kaynak_sade = _sadelestir(kaynak)
-    kaynak_sayi = _sayilar(kaynak)
+    # ⚠️ KAYNAK TARAFI GENİŞLETİLİYOR — bkz. `sayi_esdegerleri`.
+    # Düz `_sayilar` Türkçe yazım farkını uydurma sanıyordu
+    # ("435 bin 683" kaynakta, "435.683" üretilende). ÖLÇÜLDÜ:
+    # 83 güncel haberde 18 sayı uyarısının 13'ü bu yüzden çıkıyordu,
+    # yani %72'si gürültüydü.
+    kaynak_sayi = sayi_esdegerleri(kaynak)
 
     # Başlık yalnızca sayı kontrolüne giriyor; özel isim kontrolüne
     # girmiyor çünkü Title Case olabiliyor.
-    govde = " ".join(filter(None, [haber["slayt_ozet"], haber["ig_caption"]]))
-    tumu = " ".join(filter(None, [haber["ig_baslik"], govde]))
+    #
+    # ⚠️ `detay_metni` VE `vurgu_sayi` 18 EYL 2026'DA EKLENDİ.
+    # Öncesinde denetim yalnızca `ig_baslik` + `slayt_ozet` +
+    # `ig_caption`e bakıyordu. Denetim dışı kalanlar:
+    #   `detay_metni`  %100 dolu, AYRINTI SAYFALARININ TAMAMI
+    #   `vurgu_sayi`   %92 dolu, SAYFANIN EN ÜSTÜNDEKİ DEV AMBER RAKAM
+    # Yani en uzun metin ve ekrandaki en büyük öğe hiç denetlenmiyordu.
+    # Ölçülen uydurma oranı düşüktü (%1-5) ama KAPI YOKTU — gerçek bir
+    # uydurma olursa hiçbir şey yakalamıyordu.
+    def _al(ad):
+        return haber[ad] if ad in haber.keys() else None
+
+    detay = _al("detay_metni") or ""
+    vurgu = _al("vurgu_sayi") or ""
+
+    govde = " ".join(filter(None, [haber["slayt_ozet"], haber["ig_caption"],
+                                   detay]))
+    tumu = " ".join(filter(None, [haber["ig_baslik"], govde, str(vurgu)]))
 
     eksik_sayilar = sorted(s for s in _sayilar(tumu) if s not in kaynak_sayi)
 
