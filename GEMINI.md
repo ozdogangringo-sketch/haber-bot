@@ -74,10 +74,11 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 
 ## 3. Yapılan Başlıca Geliştirmeler & Modüller
 
-### A. 4:5 Güvenli Alanlı 1080x1920 Canlı Piyasa Bülteni (`src/piyasa_kart.py` & `src/piyasa_tablo.py`)
-- **Normal Haber Slaytlarıyla Birebir Aynı Tasarım Oranı:** 1. Slayt (Canlı Piyasa Isı Haritası) ve 2. Slayt (30 Varlık Piyasa Karnesi) `Y_OFFSET = 285px` güvenli payıyla 1080x1920 tuvalin merkezindeki 1080x1350 bölgesine çizilir.
+### A. 4:5 Güvenli Alanlı 1080x1920 Canlı Piyasa Bülteni & Ekonomi Özet Kartı (`src/piyasa_kart.py`, `src/piyasa_tablo.py`, `src/piyasa_ozet.py`)
+- **Normal Haber Slaytlarıyla Birebir Aynı Tasarım Oranı:** 1. Slayt (Canlı Piyasa Isı Haritası), 2. Slayt (30 Varlık Piyasa Karnesi) ve 3.-4. Slaytlar (Günün Ekonomi Gündemi Özet Kartları) `Y_OFFSET = 285px` güvenli payıyla 1080x1920 tuvalin merkezindeki 1080x1350 bölgesine çizilir.
 - **Sıfır Esneme & Sıfır Yapay Çerçeve:** Tablolar ve kartlar dikeyde 1920'ye kadar uzatılmaz, doğal 4:5 oranlarında kalır; zemin gradyanı ve ışıltısı tüm tuvali kesintisiz sarar.
 - **Tasarım:** *Derin Okyanus Petrolü* zemin (`#04181C`), *Siber Turkuaz* parıltılı rozet (`#06B6D4`), canlı Gram Altın/Gümüş TL çevrimi, BİST Ağaç Haritası, 5'li makro emtia ve 5'li küresel piyasa/kripto sparkline trend kartları.
+- **Günün Ekonomi Gündemi Çoklu Özet Kartı (`src/piyasa_ozet.py`):** Bültenin sonuna tekil haber slaytları yerine sayfa başına en fazla 3 haber içeren lüks özet kartları eklenir (1-3 haber -> 1 sayfa / 3. slayt, 4-6 haber -> 2 sayfa / 3. ve 4. slaytlar). Başlıklar 36px 850 Extra Bold fontla çizilir; tematik renk çentikleriyle (Kehribar, Turkuaz, Zümrüt Yeşili) zenginleştirilir. Sabah açılışında `Günün Öne Çıkanları` / `Açılış Özeti`, akşam kapanışında `Günü Kapatırken` / `Kapanış Özeti` dinamik başlıklarını alır. Instagram Story'ye tüm slaytlar 9:16 aktarılır.
 - **Kesin Saat Pencereleri:** Açılış bülteni penceresi **09:55 - 11:30 TR**, Kapanış bülteni penceresi **18:15 - 20:00 TR** aralığındadır. Bu saatler dışında sistem otomatik yayınlamayı reddeder.
 
 ### B. Cloudflare Edge Cron & Çok Katmanlı Güvenlik Mimarisi
@@ -152,6 +153,7 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 | `src/piyasa.py` | Yahoo Finance canlı veri çekimi, BİST, döviz, emtia, kripto ve Gram TL hesabı. |
 | `src/piyasa_kart.py` | %100 Native 1080x1920 Canlı Piyasa Isı Haritası motoru (`piyasa_karti_uret_9_16`). |
 | `src/piyasa_tablo.py` | %100 Native 1080x1920 30 Varlık Piyasa Karnesi motoru (`piyasa_tablosu_uret_9_16`). |
+| `src/piyasa_ozet.py` | %100 Native 1080x1920 Günün Ekonomi Gündemi çoklu özet kartı motoru (`ekonomi_ozet_sayfalari_uret`). |
 | `src/sparkline.py` | Borsa ve emtia için 30 günlük geçmiş fiyat çekimi ve estetik trend grafiği çizimi. |
 | `src/slaytlar.py` | %100 Native 1080x1920 haber slaytlarının çizimi, tipografi, 144px 3D logo. |
 | `src/make_image.py` | Pillow tabanlı infografik ve tipografi çizim motoru (`_metni_paragraflara_ayir`, `detay_sayfalara_bol`, `detay_slayti`). |
