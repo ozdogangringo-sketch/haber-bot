@@ -20,6 +20,7 @@ TEKRAR BASMA KORUMASI:
     basılabiliyor; o yüzden durum da denetleniyor.
 """
 
+import concurrent.futures
 import html
 import json
 import logging
@@ -27,6 +28,8 @@ import os
 import re
 import sqlite3
 import sys
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -366,6 +369,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     fb_notu = ""
     fb_id = None
     fb_reel_id = None
+    fb_reels_notu = ""
     th_notu = ""
     th_gonderi_id = None
     th_yarim = False
@@ -377,14 +381,21 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     tt_notu = ""
     tt_publish_id = None
 
+    story_url = next((h["story_url"] for h in haberler if h["story_url"]), None)
+    if not story_url and urller:
+        story_url = urller[0]
+
+    # 4:5 Formatı: Instagram Feed (Carousel), Threads ve Twitter için merkezi 4:5 (1080x1350)
+    # Story ise kesinlikle 9:16 (1080x1920) kalır.
+    urller_4_5 = instagram.gorselleri_4_5_yap(urller, ayarlar)
+
     # 1. Ortak Video Üretimi (TikTok, YouTube Shorts, Facebook Reels & Reels modu için)
     if (paylas_yt or paylas_tt or paylas_fb_reels or paylas_reels) and urller:
-        guncel_yayin_adimi += 1
         if mesaj_id:
             telegram_bot.durum_guncelle(
                 mesaj_id,
                 "Yayınlanıyor",
-                guncel_yayin_adimi,
+                1,
                 toplam_yayin_adimi,
                 "Dikey video (TikTok/Shorts/Reels) üretiliyor…",
             )
@@ -396,264 +407,340 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         except Exception as e:
             log.exception("YouTube/TikTok/Facebook için ortak video üretilemedi: %s", e)
 
-    # 2. ⚡ ÖNCELİKLİ VİDEO KANALI: TIKTOK (Kullanıcı telefondan beklemesin diye 1. sırada!)
+    # 2. 🚀 EzanPlusBot Standartlarında Paralel Dağıtım Motoru (ThreadPoolExecutor)
+    hedef_kanallar = []
     if paylas_tt:
-        guncel_yayin_adimi += 1
-        if mesaj_id:
-            telegram_bot.durum_guncelle(
-                mesaj_id,
-                "Yayınlanıyor",
-                guncel_yayin_adimi,
-                toplam_yayin_adimi,
-                "TikTok videosu yükleniyor…",
+        hedef_kanallar.append("tiktok")
+    if paylas_yt:
+        hedef_kanallar.append("youtube")
+    if paylas_fb_reels:
+        hedef_kanallar.append("facebook_reels")
+    if paylas_reels or paylas_ig:
+        hedef_kanallar.append("instagram")
+    if paylas_story and story_url:
+        hedef_kanallar.append("instagram_story")
+    if paylas_fb:
+        hedef_kanallar.append("facebook")
+    if paylas_th:
+        hedef_kanallar.append("threads")
+    if paylas_tw:
+        hedef_kanallar.append("twitter")
+
+    toplam_adim = max(1, len(hedef_kanallar))
+    durum_haritasi = {k: "⏱️ Sırada" for k in hedef_kanallar}
+    tamamlanan_adim = [0]
+    son_edit = [0.0]
+    baslangic_ts = time.time()
+    _lock = threading.Lock()
+
+    haber_basligi = (ilk_h_dict.get("ig_baslik") or ilk_h_dict.get("baslik_orj") or "Daily Brief")
+
+    def _bildir(k: str, durum: str, increment: bool = False):
+        with _lock:
+            if increment:
+                tamamlanan_adim[0] = min(toplam_adim, tamamlanan_adim[0] + 1)
+            durum_haritasi[k] = durum
+            ad = tamamlanan_adim[0]
+            snap_harita = dict(durum_haritasi)
+
+        if not mesaj_id:
+            return
+
+        simdi = time.time()
+        if (ad < toplam_adim) and (simdi - son_edit[0] < 1.2):
+            return
+
+        son_edit[0] = simdi
+        try:
+            telegram_bot.canli_yayin_durumu_guncelle(
+                message_id=mesaj_id,
+                baslik=haber_basligi,
+                adim=ad,
+                toplam_adim=toplam_adim,
+                durum_haritasi=snap_harita,
+                baslangic_ts=baslangic_ts,
             )
+        except Exception as e_durum:
+            log.debug("canlı yayın durumu güncellenemedi: %s", e_durum)
+
+    # Kanal Görevleri
+    def _is_tiktok():
+        nonlocal tt_publish_id, tt_notu
+        _bildir("tiktok", "⏳ Yükleniyor...")
         if not paylasilan_video_yolu:
-            tt_notu = "\n⚠️ TikTok videosu oluşturulamadı"
-        else:
-            try:
-                from src import tiktok
-                h0 = dict(haberler[0]) if haberler else {}
-                baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-                etiket_tt = caption.etiketleri_sec(
-                    haberler, kanal="tiktok", ayarlar=ayarlar)
-                tt_res = tiktok.video_yukle(paylasilan_video_yolu, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
-                if tt_res.get("durum"):
+            with _lock:
+                tt_notu = "\n⚠️ TikTok videosu oluşturulamadı"
+            _bildir("tiktok", "❌ Video Yok", increment=True)
+            return
+        try:
+            from src import tiktok
+            h0 = dict(haberler[0]) if haberler else {}
+            baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
+            etiket_tt = caption.etiketleri_sec(haberler, kanal="tiktok", ayarlar=ayarlar)
+            tt_res = tiktok.video_yukle(paylasilan_video_yolu, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
+            if tt_res.get("durum"):
+                with _lock:
                     tt_publish_id = tt_res.get("publish_id")
-                    # ⚠️ TASLAK İLE YAYINI AYIRT ET — bkz. telafi
-                    # akışındaki uzun not. `video.publish` izni yoksa
-                    # video TASLAK kutusuna düşüyor ve elle yayınlanması
-                    # gerekiyor; "yüklendi" demek yanıltıcı.
                     if tt_res.get("mod") == "inbox_draft":
-                        tt_notu = ("\n🎵 TikTok: TASLAK olarak yüklendi "
-                                   "— uygulamadan elle yayınla")
+                        tt_notu = "\n🎵 TikTok: TASLAK olarak yüklendi — uygulamadan elle yayınla"
                     else:
                         tt_notu = "\n🎵 TikTok videosu yayınlandı"
-                else:
-                    hata_tt = tt_res.get("hata", "")[:60]
+                _bildir("tiktok", "✅ Yayında", increment=True)
+            else:
+                hata_tt = tt_res.get("hata", "")[:60]
+                with _lock:
                     tt_notu = f"\n⚠️ TikTok gitmedi: {hata_tt}"
-            except Exception as e:
-                log.warning("TikTok paylaşılamadı: %s", e)
+                _bildir("tiktok", "❌ Hata", increment=True)
+        except Exception as e:
+            log.warning("TikTok paylaşılamadı: %s", e)
+            with _lock:
                 tt_notu = f"\n⚠️ TikTok hatası: {type(e).__name__}"
+            _bildir("tiktok", "❌ Hata", increment=True)
 
-    # 3. ⚡ VİDEO KANALI 2: YOUTUBE SHORTS
-    if paylas_yt:
-        guncel_yayin_adimi += 1
-        if mesaj_id:
-            telegram_bot.durum_guncelle(
-                mesaj_id,
-                "Yayınlanıyor",
-                guncel_yayin_adimi,
-                toplam_yayin_adimi,
-                "YouTube Shorts videosu yükleniyor…",
-            )
+    def _is_youtube():
+        nonlocal yt_url, yt_notu
+        _bildir("youtube", "⏳ Yükleniyor...")
         if not paylasilan_video_yolu:
-            yt_notu = "\n⚠️ YouTube Shorts videosu oluşturulamadı"
-        else:
-            try:
-                from src import youtube
-                h0 = dict(haberler[0]) if haberler else {}
-                baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-                aciklama_yt = caption.aciklamayi_kur(
-                    metin, haberler, kanal="youtube", ayarlar=ayarlar)
-                yt_res = youtube.shorts_yukle(paylasilan_video_yolu, baslik=baslik_yt, aciklama=aciklama_yt, ayarlar=ayarlar)
-                if yt_res.get("durum"):
+            with _lock:
+                yt_notu = "\n⚠️ YouTube Shorts videosu oluşturulamadı"
+            _bildir("youtube", "❌ Video Yok", increment=True)
+            return
+        try:
+            from src import youtube
+            h0 = dict(haberler[0]) if haberler else {}
+            baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
+            aciklama_yt = caption.aciklamayi_kur(metin, haberler, kanal="youtube", ayarlar=ayarlar)
+            yt_res = youtube.shorts_yukle(paylasilan_video_yolu, baslik=baslik_yt, aciklama=aciklama_yt, ayarlar=ayarlar)
+            if yt_res.get("durum"):
+                with _lock:
                     yt_url = yt_res.get("url")
                     yt_notu = "\n▶️ YouTube Shorts yayınlandı"
-                else:
-                    hata_yt = yt_res.get("hata", "")[:60]
+                _bildir("youtube", "✅ Yayında", increment=True)
+            else:
+                hata_yt = yt_res.get("hata", "")[:60]
+                with _lock:
                     yt_notu = f"\n⚠️ YouTube Shorts gitmedi: {hata_yt}"
-            except Exception as e:
-                log.warning("YouTube Shorts paylaşılamadı: %s", e)
-                yt_notu = f"\n⚠️ YouTube Shorts hatası: {type(e).__name__}"
-
-    # 4. ⚡ VİDEO KANALI 3: FACEBOOK REELS
-    fb_reels_notu = ""
-    if paylas_fb_reels:
-        guncel_yayin_adimi += 1
-        if mesaj_id:
-            telegram_bot.durum_guncelle(
-                mesaj_id,
-                "Yayınlanıyor",
-                guncel_yayin_adimi,
-                toplam_yayin_adimi,
-                "Facebook Reels yükleniyor…",
-            )
-        if not paylasilan_video_yolu:
-            fb_reels_notu = " (⚠️ Reels: video oluşturulamadı)"
-        else:
-            try:
-                aciklama_fb = caption.aciklamayi_kur(
-                    metin, haberler, kanal="reels", ayarlar=ayarlar)
-                fb_reel_id = facebook.reels_yayinla(paylasilan_video_yolu, aciklama_fb, ayarlar)
-                if fb_reel_id:
-                    fb_reels_notu = " (Reels dahil)"
-                    log.info("Facebook Reels: %s", fb_reel_id)
-            except Exception as e:
-                log.warning("Facebook Reels paylaşılamadı: %s", e)
-                fb_reels_notu = f" (⚠️ Reels gitmedi: {type(e).__name__})"
-
-    # 5. INSTAGRAM GÖNDERİSİ (Reels veya Carousel)
-    if paylas_reels:
-        # Reels Manuel Trend Müzik Modu: 1080x1920 MP4 üretilir + kopyalanabilir açıklama ile Telegram'a iletilir
-        try:
-            import html as html_lib
-            video_yolu = paylasilan_video_yolu
-            if not video_yolu:
-                from src import video
-                dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-                video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
-
-            # Üretilen MP4 videosunu ve kopyalanabilir caption'ı Telegram grubuna ilet
-            temiz_metin = html_lib.escape(metin.strip())
-            telegram_bot.video_gonder(
-                video_yolu,
-                aciklama="🎬 <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
-                         "💡 <i>Videoyu kaydedip Instagram/TikTok uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>",
-            )
-            telegram_bot.mesaj_gonder(
-                "📝 <b>Reels Açıklama Metni (Kopyalamak için dokunun):</b>\n"
-                f"<pre>{temiz_metin}</pre>",
-                html=True,
-            )
-            ig_notu = "\n🎬 Reels videosu ve açıklama metni Telegram'a iletildi"
-
+                _bildir("youtube", "❌ Hata", increment=True)
         except Exception as e:
-            log.exception("Instagram Reels video hazırlama hatası")
-            ig_notu = f"\n⚠️ Reels videosu hazırlanamadı: {type(e).__name__}: {e}"
-    elif paylas_ig:
-        guncel_yayin_adimi += 1
-        if mesaj_id:
-            telegram_bot.durum_guncelle(
-                mesaj_id,
-                "Yayınlanıyor",
-                guncel_yayin_adimi,
-                toplam_yayin_adimi,
-                "Instagram Carousel paylaşılıyor…",
-            )
-        post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
-        baglanti = instagram.post_baglantisi(post_id, ayarlar)
-        ig_notu = "\n📸 Instagram gönderisi (4:5) yayınlandı"
-    else:
-        ig_notu = "\n📸 Instagram atlandı"
+            log.warning("YouTube Shorts paylaşılamadı: %s", e)
+            with _lock:
+                yt_notu = f"\n⚠️ YouTube Shorts hatası: {type(e).__name__}"
+            _bildir("youtube", "❌ Hata", increment=True)
 
-    # 6. INSTAGRAM STORY
-    story_url = next((h["story_url"] for h in haberler if h["story_url"]), None)
-    if paylas_story and story_url:
-        guncel_yayin_adimi += 1
-        if mesaj_id:
-            telegram_bot.durum_guncelle(
-                mesaj_id,
-                "Yayınlanıyor",
-                guncel_yayin_adimi,
-                toplam_yayin_adimi,
-                "Instagram Story yükleniyor…",
-            )
+    def _is_fb_reels():
+        nonlocal fb_reel_id, fb_reels_notu
+        _bildir("facebook_reels", "⏳ Yükleniyor...")
+        if not paylasilan_video_yolu:
+            with _lock:
+                fb_reels_notu = " (⚠️ Reels: video oluşturulamadı)"
+            _bildir("facebook_reels", "❌ Video Yok", increment=True)
+            return
         try:
-            story_id = instagram.story_yayinla(story_url, ayarlar)
-            story_notu = "\n📱 Story de paylaşıldı"
+            aciklama_fb = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
+            fb_reel_res = facebook.reels_yayinla(paylasilan_video_yolu, aciklama_fb, ayarlar)
+            if fb_reel_res:
+                with _lock:
+                    fb_reel_id = fb_reel_res
+                    fb_reels_notu = " (Reels dahil)"
+                log.info("Facebook Reels: %s", fb_reel_res)
+                _bildir("facebook_reels", "✅ Yayında", increment=True)
+            else:
+                with _lock:
+                    fb_reels_notu = " (⚠️ Reels gitmedi)"
+                _bildir("facebook_reels", "❌ Hata", increment=True)
+        except Exception as e:
+            log.warning("Facebook Reels paylaşılamadı: %s", e)
+            with _lock:
+                fb_reels_notu = f" (⚠️ Reels gitmedi: {type(e).__name__})"
+            _bildir("facebook_reels", "❌ Hata", increment=True)
+
+    def _is_instagram():
+        nonlocal post_id, baglanti, ig_notu
+        _bildir("instagram", "⏳ Yükleniyor...")
+        if paylas_reels:
+            try:
+                import html as html_lib
+                video_yolu = paylasilan_video_yolu
+                if not video_yolu:
+                    from src import video
+                    dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+                    video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+
+                temiz_metin = html_lib.escape(metin.strip())
+                telegram_bot.video_gonder(
+                    video_yolu,
+                    aciklama="🎬 <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
+                             "💡 <i>Videoyu kaydedip Instagram/TikTok uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>",
+                )
+                telegram_bot.mesaj_gonder(
+                    "📝 <b>Reels Açıklama Metni (Kopyalamak için dokunun):</b>\n"
+                    f"<pre>{temiz_metin}</pre>",
+                    html=True,
+                )
+                with _lock:
+                    ig_notu = "\n🎬 Reels videosu ve açıklama metni Telegram'a iletildi"
+                _bildir("instagram", "✅ Yayında", increment=True)
+            except Exception as e:
+                log.exception("Instagram Reels video hazırlama hatası")
+                with _lock:
+                    ig_notu = f"\n⚠️ Reels videosu hazırlanamadı: {type(e).__name__}: {e}"
+                _bildir("instagram", "❌ Hata", increment=True)
+        elif paylas_ig:
+            try:
+                p_id = instagram.carousel_yayinla(urller_4_5, metin, ayarlar)
+                bgl = instagram.post_baglantisi(p_id, ayarlar)
+                with _lock:
+                    post_id = p_id
+                    baglanti = bgl
+                    ig_notu = "\n📸 Instagram gönderisi (4:5) yayınlandı"
+                _bildir("instagram", "✅ Yayında", increment=True)
+            except Exception as e:
+                log.exception("Instagram gönderi hatası: %s", e)
+                with _lock:
+                    ig_notu = f"\n⚠️ Instagram gitmedi: {type(e).__name__}"
+                _bildir("instagram", "❌ Hata", increment=True)
+        else:
+            with _lock:
+                ig_notu = "\n📸 Instagram atlandı"
+            _bildir("instagram", "⏭️ Atlandı", increment=True)
+
+    def _is_story():
+        nonlocal story_id, story_notu
+        _bildir("instagram_story", "⏳ Yükleniyor...")
+        if not story_url:
+            _bildir("instagram_story", "❌ URL Yok", increment=True)
+            return
+        try:
+            st_id = instagram.story_yayinla(story_url, ayarlar)
+            with _lock:
+                story_id = st_id
+                story_notu = "\n📱 Story de paylaşıldı"
+            _bildir("instagram_story", "✅ Yayında", increment=True)
         except Exception as e:
             log.warning("story yayınlanamadı: %s", e)
-            story_notu = f"\n⚠️ Story paylaşılamadı: {type(e).__name__}"
+            with _lock:
+                story_notu = f"\n⚠️ Story paylaşılamadı: {type(e).__name__}"
+            _bildir("instagram_story", "❌ Hata", increment=True)
 
-    # 7. FACEBOOK ALBÜM
-    if paylas_fb:
-        guncel_yayin_adimi += 1
-        if mesaj_id:
-            telegram_bot.durum_guncelle(
-                mesaj_id,
-                "Yayınlanıyor",
-                guncel_yayin_adimi,
-                toplam_yayin_adimi,
-                "Facebook Sayfasına aktarılıyor…",
-            )
+    def _is_facebook():
+        nonlocal fb_id, fb_notu
+        _bildir("facebook", "⏳ Yükleniyor...")
         try:
-            fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
-            fb_notu = "\n📘 Facebook'a da paylaşıldı"
-            log.info("Facebook: %s", fb_id)
+            f_id = facebook.albüm_yayinla(urller_4_5, metin, ayarlar)
+            f_notu = "\n📘 Facebook'a da paylaşıldı"
+            log.info("Facebook: %s", f_id)
             if paylas_story and story_url:
                 try:
                     facebook.story_yayinla(story_url, ayarlar)
-                    fb_notu += " (story dahil)"
-                except Exception as e:
-                    log.warning("Facebook story olmadı: %s", e)
+                    f_notu += " (story dahil)"
+                except Exception as e_fb_st:
+                    log.warning("Facebook story olmadı: %s", e_fb_st)
+            with _lock:
+                fb_id = f_id
+                fb_notu = f_notu
+            _bildir("facebook", "✅ Yayında", increment=True)
         except Exception as e:
             log.warning("Facebook paylaşılamadı: %s", e)
-            fb_notu = f"\n⚠️ Facebook'a gitmedi: {type(e).__name__}"
+            with _lock:
+                fb_notu = f"\n⚠️ Facebook'a gitmedi: {type(e).__name__}"
+            _bildir("facebook", "❌ Hata", increment=True)
 
-    if fb_reels_notu:
-        fb_notu += fb_reels_notu
-
-    # 8. THREADS BİLGİ ZİNCİRİ
-    th_notu = ""
-    th_gonderi_id = None
-    th_yarim = False
-    if paylas_th:
-        guncel_yayin_adimi += 1
-        if mesaj_id:
-            telegram_bot.durum_guncelle(
-                mesaj_id,
-                "Yayınlanıyor",
-                guncel_yayin_adimi,
-                toplam_yayin_adimi,
-                "Threads bilgi zinciri paylaşılıyor…",
-            )
+    def _is_threads():
+        nonlocal th_gonderi_id, th_yarim, th_notu
+        _bildir("threads", "⏳ Yükleniyor...")
         try:
             son_dakika_mi = bool(haberler[0]["son_dakika"])
             halkalar = caption.threads_halkalari(
-                haberler, urller, son_dakika=son_dakika_mi,
+                haberler, urller_4_5, son_dakika=son_dakika_mi,
                 ayarlar=ayarlar, tarihli=not son_dakika_mi,
             )
             th_id, th_adet = threads.zincir_yayinla(halkalar)
-            th_gonderi_id = th_id
-
             if th_adet < len(halkalar):
-                log.warning("zincir %s/%s kaldı, tamamlama deneniyor",
-                            th_adet, len(halkalar))
+                log.warning("zincir %s/%s kaldı, tamamlama deneniyor", th_adet, len(halkalar))
                 try:
                     th_adet, _ = threads.zinciri_tamamla(th_id, halkalar)
-                except Exception as e:                # noqa: BLE001
-                    log.warning("otomatik tamamlama olmadı: %s", str(e)[:120])
+                except Exception as e_tamamla:
+                    log.warning("otomatik tamamlama olmadı: %s", str(e_tamamla)[:120])
 
-            if th_adet == len(halkalar):
-                th_notu = f"\n🧵 Threads'e de paylaşıldı ({th_adet} halka)"
-            else:
-                th_yarim = True
-                th_notu = (f"\n⚠️ Threads zinciri yarım kaldı: "
-                           f"{th_adet}/{len(halkalar)} halka\n"
-                           f"Aşağıdaki düğmeyle tamamlayabilirsin.")
+            with _lock:
+                th_gonderi_id = th_id
+                if th_adet == len(halkalar):
+                    th_notu = f"\n🧵 Threads'e de paylaşıldı ({th_adet} halka)"
+                else:
+                    th_yarim = True
+                    th_notu = (f"\n⚠️ Threads zinciri yarım kaldı: "
+                               f"{th_adet}/{len(halkalar)} halka\n"
+                               f"Aşağıdaki düğmeyle tamamlayabilirsin.")
             log.info("Threads: %s (%s/%s halka)", th_id, th_adet, len(halkalar))
+            _bildir("threads", "✅ Yayında" if not th_yarim else "⚠️ Yarım", increment=True)
         except Exception as e:
             log.warning("Threads paylaşılamadı: %s", e)
-            th_notu = f"\n⚠️ Threads'e gitmedi: {type(e).__name__}"
+            with _lock:
+                th_notu = f"\n⚠️ Threads'e gitmedi: {type(e).__name__}"
+            _bildir("threads", "❌ Hata", increment=True)
 
-    # 9. X (TWITTER) PAYLAŞIMI
-    tw_notu = ""
-    tw_gonderi_id = None
-    if paylas_tw:
-        guncel_yayin_adimi += 1
-        if mesaj_id:
-            telegram_bot.durum_guncelle(
-                mesaj_id,
-                "Yayınlanıyor",
-                guncel_yayin_adimi,
-                toplam_yayin_adimi,
-                "X (Twitter) paylaşımı yapılıyor…",
-            )
+    def _is_twitter():
+        nonlocal tw_gonderi_id, tw_notu
+        _bildir("twitter", "⏳ Yükleniyor...")
         try:
             son_dakika_mi = bool(haberler[0]["son_dakika"]) if haberler else False
-            if len(haberler) > 1 or (son_dakika_mi and len(urller) > 1):
-                tw_id, tw_adet = twitter.zincir_yayinla(haberler, urller, ayarlar, son_dakika=son_dakika_mi)
-                tw_gonderi_id = tw_id
-                if tw_id:
-                    tw_notu = f"\n🐦 X'e (Twitter) de paylaşıldı ({tw_adet} tweet zinciri)"
+            if len(haberler) > 1 or (son_dakika_mi and len(urller_4_5) > 1):
+                tw_id, tw_adet = twitter.zincir_yayinla(haberler, urller_4_5, ayarlar, son_dakika=son_dakika_mi)
+                with _lock:
+                    tw_gonderi_id = tw_id
+                    if tw_id:
+                        tw_notu = f"\n🐦 X'e (Twitter) de paylaşıldı ({tw_adet} tweet zinciri)"
             else:
-                tw_gonderi_id = twitter.tekil_yayinla(haberler[0], urller, ayarlar)
-                if tw_gonderi_id:
-                    tw_notu = "\n🐦 X'e (Twitter) de paylaşıldı"
+                tw_id = twitter.tekil_yayinla(haberler[0], urller_4_5, ayarlar)
+                with _lock:
+                    tw_gonderi_id = tw_id
+                    if tw_id:
+                        tw_notu = "\n🐦 X'e (Twitter) de paylaşıldı"
             log.info("Twitter: %s", tw_gonderi_id)
+            if tw_gonderi_id:
+                _bildir("twitter", "✅ Yayında", increment=True)
+            else:
+                _bildir("twitter", "❌ Hata", increment=True)
         except Exception as e:
             log.warning("Twitter paylaşılamadı: %s", e)
-            tw_notu = f"\n⚠️ X'e (Twitter) gitmedi: {type(e).__name__}"
+            with _lock:
+                tw_notu = f"\n⚠️ X'e (Twitter) gitmedi: {type(e).__name__}"
+            _bildir("twitter", "❌ Hata", increment=True)
+
+    kanal_islevleri = {
+        "tiktok": _is_tiktok,
+        "youtube": _is_youtube,
+        "facebook_reels": _is_fb_reels,
+        "instagram": _is_instagram,
+        "instagram_story": _is_story,
+        "facebook": _is_facebook,
+        "threads": _is_threads,
+        "twitter": _is_twitter,
+    }
+
+    gorevler = [kanal_islevleri[k] for k in hedef_kanallar if k in kanal_islevleri]
+
+    # Başlangıç durumunu Telegram'da göster
+    if mesaj_id and hedef_kanallar:
+        try:
+            telegram_bot.canli_yayin_durumu_guncelle(
+                message_id=mesaj_id,
+                baslik=haber_basligi,
+                adim=0,
+                toplam_adim=toplam_adim,
+                durum_haritasi=durum_haritasi,
+                baslangic_ts=baslangic_ts,
+            )
+        except Exception as e_baslangic:
+            log.debug("canli yayin başlangıç bildirimi gönderilemedi: %s", e_baslangic)
+
+    if gorevler:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(gorevler))) as executor:
+            futures = [executor.submit(fn) for fn in gorevler]
+            concurrent.futures.wait(futures)
+
+    if fb_reels_notu:
+        fb_notu += fb_reels_notu
 
     # ⚠️ TÜM PLATFORM ID'LERİ SAKLANMALI.
     con.execute(
@@ -850,6 +937,9 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
     # Görsellerin canlılığını ve Meta uyumluluğunu doğrula, süresi geçmiş/uguu olanları onar
     urller = _urlleri_dogrula_ve_onar(con, ayarlar, haberler, urller)
 
+    # 4:5 Formatı: Feed Carousel, Threads ve Twitter için 4:5 (1080x1350)
+    urller_4_5 = instagram.gorselleri_4_5_yap(urller, ayarlar)
+
     # Caption metni
     if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
         metin = ilk_h_dict["ig_caption"]
@@ -918,7 +1008,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
     # 2. FACEBOOK POST & REELS TELAFİSİ
     if kanal in ("facebook", "hepsi"):
         try:
-            fb_id = facebook.albüm_yayinla(urller, metin, ayarlar)
+            fb_id = facebook.albüm_yayinla(urller_4_5, metin, ayarlar)
             con.execute("UPDATE haberler SET facebook_post_id = ? WHERE telegram_message_id = ?", (fb_id, mesaj_id))
             con.commit()
             fb_url = facebook.post_baglantisi(fb_id)
@@ -951,7 +1041,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
     if kanal in ("threads", "hepsi"):
         try:
             halkalar = caption.threads_halkalari(
-                haberler, urller, son_dakika=son_dakika_mi,
+                haberler, urller_4_5, son_dakika=son_dakika_mi,
                 ayarlar=ayarlar, tarihli=not son_dakika_mi
             )
             th_id, th_adet = threads.zincir_yayinla(halkalar)
@@ -973,10 +1063,10 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
     # 4. TWITTER / X TELAFİSİ
     if kanal in ("twitter", "hepsi"):
         try:
-            if len(haberler) > 1 or (son_dakika_mi and len(urller) > 1):
-                tw_id, tw_adet = twitter.zincir_yayinla(haberler, urller, ayarlar, son_dakika=son_dakika_mi)
+            if len(haberler) > 1 or (son_dakika_mi and len(urller_4_5) > 1):
+                tw_id, tw_adet = twitter.zincir_yayinla(haberler, urller_4_5, ayarlar, son_dakika=son_dakika_mi)
             else:
-                tw_id = twitter.tekil_yayinla(haberler[0], urller, ayarlar)
+                tw_id = twitter.tekil_yayinla(haberler[0], urller_4_5, ayarlar)
             if tw_id:
                 con.execute("UPDATE haberler SET twitter_post_id = ? WHERE telegram_message_id = ?", (tw_id, mesaj_id))
                 con.commit()
@@ -993,7 +1083,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
     # 5. INSTAGRAM POST TELAFİSİ
     if kanal in ("ig", "hepsi"):
         try:
-            post_id = instagram.carousel_yayinla(urller, metin, ayarlar)
+            post_id = instagram.carousel_yayinla(urller_4_5, metin, ayarlar)
             con.execute("UPDATE haberler SET ig_post_id = ? WHERE telegram_message_id = ?", (post_id, mesaj_id))
             con.commit()
             ig_url = instagram.post_baglantisi(post_id, ayarlar)

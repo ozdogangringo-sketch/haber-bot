@@ -17,9 +17,11 @@ Paylaşım Kanalları (Tam Otomatik — Onay Sorulmaz):
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import logging
 import os
 import sys
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -349,76 +351,102 @@ def main() -> int:
 
     sonuclar = []
     canli_link_dugmeleri = []
+    _lock = threading.Lock()
 
-    # a) Instagram Carousel & Story
+    # 4:5 Formatı: Instagram Akış, Threads ve Twitter için 4:5 (1080x1350)
+    # Story ise kesinlikle 9:16 (1080x1920) kalır.
+    slayt_urlleri_4_5 = instagram.gorselleri_4_5_yap(slayt_urlleri, ayarlar)
+    kart_url_4_5 = slayt_urlleri_4_5[0] if slayt_urlleri_4_5 else kart_url
+    tablo_url_4_5 = slayt_urlleri_4_5[1] if len(slayt_urlleri_4_5) > 1 else tablo_url
+
     post_id = None
     baglanti = None
-    try:
-        post_id = instagram.carousel_yayinla(slayt_urlleri, ig_caption, ayarlar)
-        baglanti = instagram.post_baglantisi(post_id, ayarlar)
-        sonuclar.append("📸 Instagram Gönderisi (4:5) paylaşıldı")
-        if baglanti:
-            canli_link_dugmeleri.append([{"text": "📸 Instagram'da Gör", "url": baglanti}])
-    except Exception as e:
-        log.exception("Instagram piyasa bülteni yayın hatası: %s", e)
-        sonuclar.append(f"⚠️ Instagram hatası: {type(e).__name__}")
 
-    # Story
-    try:
-        for s_url in slayt_urlleri:
-            instagram.story_yayinla(s_url, ayarlar)
-        sonuclar.append(f"📱 Instagram Story (9:16 - {len(slayt_urlleri)} slayt) paylaşıldı")
-    except Exception as e:
-        log.warning("Instagram story hatası: %s", e)
-        sonuclar.append(f"⚠️ Instagram Story hatası: {type(e).__name__}")
+    # a) Instagram Carousel & Story
+    def _is_ig():
+        nonlocal post_id, baglanti
+        try:
+            p_id = instagram.carousel_yayinla(slayt_urlleri_4_5, ig_caption, ayarlar)
+            bgl = instagram.post_baglantisi(p_id, ayarlar)
+            with _lock:
+                post_id = p_id
+                baglanti = bgl
+                sonuclar.append("📸 Instagram Gönderisi (4:5) paylaşıldı")
+                if bgl:
+                    canli_link_dugmeleri.append([{"text": "📸 Instagram'da Gör", "url": bgl}])
+        except Exception as e:
+            log.exception("Instagram piyasa bülteni yayın hatası: %s", e)
+            with _lock:
+                sonuclar.append(f"⚠️ Instagram hatası: {type(e).__name__}")
+
+        # Story (9:16)
+        try:
+            for s_url in slayt_urlleri:
+                instagram.story_yayinla(s_url, ayarlar)
+            with _lock:
+                sonuclar.append(f"📱 Instagram Story (9:16 - {len(slayt_urlleri)} slayt) paylaşıldı")
+        except Exception as e:
+            log.warning("Instagram story hatası: %s", e)
+            with _lock:
+                sonuclar.append(f"⚠️ Instagram Story hatası: {type(e).__name__}")
 
     # b) Facebook Albüm & Story
-    fb_aktif = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
-    if fb_aktif:
+    def _is_fb():
+        fb_aktif = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
+        if not fb_aktif:
+            return
         try:
-            fb_id = facebook.albüm_yayinla(slayt_urlleri, ig_caption, ayarlar)
+            fb_id = facebook.albüm_yayinla(slayt_urlleri_4_5, ig_caption, ayarlar)
             fb_url = facebook.post_baglantisi(fb_id)
-            sonuclar.append("📘 Facebook albümü paylaşıldı")
-            if fb_url:
-                canli_link_dugmeleri.append([{"text": "📘 Facebook'ta Gör", "url": fb_url}])
+            with _lock:
+                sonuclar.append("📘 Facebook albümü paylaşıldı")
+                if fb_url:
+                    canli_link_dugmeleri.append([{"text": "📘 Facebook'ta Gör", "url": fb_url}])
             try:
                 facebook.story_yayinla(kart_story_url, ayarlar)
             except Exception:
                 pass
         except Exception as e:
             log.warning("Facebook bülten hatası: %s", e)
-            sonuclar.append(f"⚠️ Facebook hatası: {type(e).__name__}")
+            with _lock:
+                sonuclar.append(f"⚠️ Facebook hatası: {type(e).__name__}")
 
-    # c) Threads
-    th_aktif = bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at"))
-    if th_aktif:
+    # c) Threads (4:5)
+    def _is_th():
+        th_aktif = bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at"))
+        if not th_aktif:
+            return
         try:
             halkalar = [
                 {
                     "metin": ig_caption[:490],
-                    "gorsel_url": kart_url,
+                    "gorsel_url": kart_url_4_5,
                     "tip": "gorsel",
                 },
                 {
                     "metin": "📌 30 Varlık BİST Hisseleri, ABD Teknoloji ve Kripto Tablosu",
-                    "gorsel_url": tablo_url,
+                    "gorsel_url": tablo_url_4_5,
                     "tip": "gorsel",
                 }
             ]
             th_id, _ = threads.zincir_yayinla(halkalar)
             th_url = threads.post_baglantisi(th_id)
-            sonuclar.append("🧵 Threads postu paylaşıldı")
-            if th_url:
-                canli_link_dugmeleri.append([{"text": "🧵 Threads'te Gör", "url": th_url}])
+            with _lock:
+                sonuclar.append("🧵 Threads postu paylaşıldı (4:5)")
+                if th_url:
+                    canli_link_dugmeleri.append([{"text": "🧵 Threads'te Gör", "url": th_url}])
         except Exception as e:
             log.warning("Threads bülten hatası: %s", e)
-            sonuclar.append(f"⚠️ Threads hatası: {type(e).__name__}")
+            with _lock:
+                sonuclar.append(f"⚠️ Threads hatası: {type(e).__name__}")
 
-    # d) X (Twitter)
-    tw_aktif = bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at"))
-    if tw_aktif:
+    # d) X (Twitter - 4:5)
+    def _is_tw():
+        tw_aktif = bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at"))
+        if not tw_aktif:
+            return
         try:
-            # 2 görseli yükle
+            # 2 görseli yükle (twitter.medya_yukle otomatik 4:5 kırpar)
             tw_medya_idler = []
             for y in [kart_yolu, tablo_yolu]:
                 m_id = twitter.medya_yukle(y)
@@ -427,12 +455,20 @@ def main() -> int:
 
             tw_id = twitter.tweet_olustur(tw_metin, medya_idler=tw_medya_idler if tw_medya_idler else None)
             tw_url = twitter.post_baglantisi(tw_id)
-            sonuclar.append("🐦 X (Twitter) gönderisi paylaşıldı")
-            if tw_url:
-                canli_link_dugmeleri.append([{"text": "🐦 X'te Gör", "url": tw_url}])
+            with _lock:
+                sonuclar.append("🐦 X (Twitter) gönderisi paylaşıldı (4:5)")
+                if tw_url:
+                    canli_link_dugmeleri.append([{"text": "🐦 X'te Gör", "url": tw_url}])
         except Exception as e:
             log.warning("Twitter bülten hatası: %s", e)
-            sonuclar.append(f"⚠️ X hatası: {type(e).__name__}")
+            with _lock:
+                sonuclar.append(f"⚠️ X hatası: {type(e).__name__}")
+
+    # Paralel Dağıtım
+    gorevler = [_is_ig, _is_fb, _is_th, _is_tw]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(gorevler)) as executor:
+        futures = [executor.submit(fn) for fn in gorevler]
+        concurrent.futures.wait(futures)
 
     # 8. Telegram Grubuna Canlı Bilgi Mesajı İlet
     import html as html_lib

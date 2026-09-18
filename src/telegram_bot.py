@@ -977,6 +977,107 @@ def durum_guncelle(message_id: int, baslik: str, adim: int, toplam_adim: int = 4
             log.debug("durum_guncelle hatası (%s): %s", message_id, e)
 
 
+KANAL_ETIKETLERI = {
+    "tiktok": "TikTok (@dailybrief.co)",
+    "youtube": "YouTube Shorts",
+    "facebook_reels": "Facebook Reels",
+    "instagram": "Instagram Akış (4:5)",
+    "instagram_story": "Instagram Story",
+    "facebook": "Facebook Sayfası",
+    "threads": "Threads (@dailybrief.co)",
+    "twitter": "X (Twitter)",
+}
+
+
+def yayin_durum_metni_olustur(
+    baslik: str,
+    adim: int,
+    toplam_adim: int,
+    durum_haritasi: dict[str, str],
+    baslangic_ts: float = 0.0,
+    is_telafi: bool = False,
+) -> str:
+    """
+    Canlı paralel yayın ilerleme metnini ve platform durum listesini oluşturur.
+    EzanPlusBot ve Daily Brief ortak parite standardında:
+    Her kanalın durumunu (⏳ Yükleniyor... / ✅ Yayında / ❌ Hata / ⏱️ Sırada) ve
+    canlı ilerleme çubuğunu ([▰▰▱▱] %50) gösterir.
+    """
+    toplam = max(1, toplam_adim)
+    ad = max(0, min(adim, toplam))
+    dolu = "▰" * ad
+    bos = "▱" * (toplam - ad)
+    yuzde = int((ad / toplam) * 100)
+    bar = f"<code>[{dolu}{bos}] %{yuzde} ({ad}/{toplam})</code>"
+
+    tamamlandi = (ad == toplam and all(v not in ("⏱️ Sırada", "⏳ Yükleniyor...") for v in durum_haritasi.values()))
+
+    if is_telafi:
+        baslik_satiri = "⏳ <b>TELAFİ DAĞITIMI SÜRÜYOR...</b>"
+    elif tamamlandi:
+        baslik_satiri = "✅ <b>TÜM PLATFORMLARA AKTARIM TAMAMLANDI!</b>"
+    else:
+        baslik_satiri = "⏳ <b>YAYIN DAĞITIMI SÜRÜYOR (Paralel Motor)...</b>"
+
+    satirlar = [baslik_satiri]
+    if baslik:
+        satirlar.append(f"📌 <b>{html.escape(baslik[:100])}</b>")
+    satirlar.append("")
+    satirlar.append(bar)
+    satirlar.append("")
+    satirlar.append("📱 <b>Platform Durumları:</b>")
+
+    for k, durum in durum_haritasi.items():
+        isim = KANAL_ETIKETLERI.get(k, k.capitalize())
+        satirlar.append(f"• <b>{isim}:</b> {durum}")
+
+    if baslangic_ts > 0:
+        gecen = time.time() - baslangic_ts
+        if tamamlandi:
+            satirlar.append(f"\n⏱️ <i>Toplam Dağıtım Süresi: {gecen:.1f} sn • Rapor hazırlanıyor...</i>")
+        else:
+            satirlar.append(f"\n⏱️ <i>Geçen Süre: {gecen:.1f} sn</i>")
+
+    return "\n".join(satirlar)
+
+
+def canli_yayin_durumu_guncelle(
+    message_id: int,
+    baslik: str,
+    adim: int,
+    toplam_adim: int,
+    durum_haritasi: dict[str, str],
+    baslangic_ts: float = 0.0,
+    is_telafi: bool = False,
+) -> None:
+    """
+    Paralel dağıtım sırasında onay mesajını anlık platform durumları ve
+    ilerleme çubuğu ile canlı olarak günceller.
+    """
+    if not message_id:
+        return
+    metin = yayin_durum_metni_olustur(
+        baslik=baslik,
+        adim=adim,
+        toplam_adim=toplam_adim,
+        durum_haritasi=durum_haritasi,
+        baslangic_ts=baslangic_ts,
+        is_telafi=is_telafi,
+    )
+    try:
+        _istek(
+            "editMessageText",
+            chat_id=_sohbet_id(),
+            message_id=message_id,
+            text=metin,
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+    except Exception as e:
+        if "not modified" not in str(e).lower():
+            log.debug("canli_yayin_durumu_guncelle hatası (%s): %s", message_id, e)
+
+
 
 def paylasim_bildir(kanal: str, basarili: bool, ayrinti: str = "",
                     baglanti: str = "") -> None:

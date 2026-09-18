@@ -414,6 +414,14 @@ def threads_halkalari(
     if not haberler:
         return []
 
+    # Threads görselleri 4:5 (1080x1350) formatında yayınlanır
+    if urller and ayarlar:
+        try:
+            from . import instagram
+            urller = instagram.gorselleri_4_5_yap(urller, ayarlar)
+        except Exception:
+            pass
+
     metinler = twitter_zincir_metinleri(
         haberler, ayarlar=ayarlar, son_dakika=son_dakika, urller=urller
     )

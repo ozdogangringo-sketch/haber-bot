@@ -158,6 +158,26 @@ def medya_yukle(gorsel_yolu_veya_url: str | Path) -> str | None:
     if not icerik:
         return None
 
+    # 4:5 Kırpma: Görsel 9:16 veya dikey ise merkezi 4:5 (1080x1350) formatına getir.
+    # Güvenli alan mimarisinde içerik Y:285..1635 arasında tasarlandığı için
+    # merkezi 4:5 kırpma içerikten sıfır kayıpla Twitter akışına tam oturur.
+    try:
+        from PIL import Image
+        with Image.open(io.BytesIO(icerik)) as img:
+            w, h = img.size
+            if h > w * 1.25:
+                hedef_h = int(w * 1350 / 1080)
+                if h > hedef_h:
+                    y_offset = (h - hedef_h) // 2
+                    img_cropped = img.crop((0, y_offset, w, y_offset + hedef_h))
+                    buf = io.BytesIO()
+                    img_format = img.format if img.format in ("JPEG", "PNG", "WEBP") else "JPEG"
+                    img_cropped.save(buf, format=img_format, quality=95)
+                    icerik = buf.getvalue()
+                    log.info("Twitter görseli 4:5 formatına kırpıldı: %dx%d -> %dx%d", w, h, w, hedef_h)
+    except Exception as e:
+        log.warning("Twitter görseli 4:5 kırpma uyarısı: %s", e)
+
     auth_header = _oauth1_header("POST", MEDIA_UPLOAD_URL, anahtarlar)
     files = {"media": icerik}
 

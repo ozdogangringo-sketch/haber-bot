@@ -5269,6 +5269,104 @@ def test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor() -> None:
             "satır sonunda yalnız kalan sayı ne olduğunu söylemiyor")
 
 
+def test_threads_ve_twitter_4_5_ve_paralel_yayin() -> None:
+    """
+    Threads ve Twitter'ın 4:5 görseller kullanmasını ve
+    yayın dağıtım motorunun (ThreadPoolExecutor) paralel çalışmasını denetler.
+    """
+    import io
+    import requests
+    import tempfile
+    import time
+    from PIL import Image
+    from src import telegram_bot, threads, twitter
+
+    # 1. Twitter medya_yukle 4:5 kırpma güvencesi
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yol_9_16 = Path(tmpdir) / "twitter_test_9_16.jpg"
+        im_9_16 = Image.new("RGB", (1080, 1920), color=(50, 100, 150))
+        im_9_16.save(yol_9_16, "JPEG")
+
+        yuklenen_icerik = []
+
+        class MockResponse:
+            status_code = 200
+            def json(self):
+                return {"media_id_string": "mock_tw_media_123"}
+
+        def mock_post(url, headers=None, files=None, timeout=None):
+            if files and "media" in files:
+                yuklenen_icerik.append(files["media"])
+            return MockResponse()
+
+        eski_post = twitter.requests.post
+        eski_anahtarlar = twitter._anahtarlari_al
+        try:
+            twitter.requests.post = mock_post
+            twitter._anahtarlari_al = lambda: {
+                "api_key": "k", "api_secret": "s", "access_token": "t", "access_token_secret": "ts"
+            }
+            mid = twitter.medya_yukle(yol_9_16)
+            denetle(mid == "mock_tw_media_123",
+                    "twitter.medya_yukle başarılı medya_id döndü",
+                    "Twitter medya yükleme fonksiyonu çalışmadı")
+            denetle(len(yuklenen_icerik) == 1,
+                    "Twitter'a 1 adet medya yüklendi",
+                    f"Beklenen 1 medya, giden: {len(yuklenen_icerik)}")
+
+            if yuklenen_icerik:
+                with Image.open(io.BytesIO(yuklenen_icerik[0])) as img_tw:
+                    w, h = img_tw.size
+                    denetle(w == 1080 and h == 1350,
+                            f"Twitter'a yüklenen görsel 4:5 formatında ({w}x{h})",
+                            "Twitter 9:16 görseli 4:5 formatına kırpmadı")
+        finally:
+            twitter.requests.post = eski_post
+            twitter._anahtarlari_al = eski_anahtarlar
+
+    # 2. telegram_bot canlı yayın durum metni
+    durum_metni = telegram_bot.yayin_durum_metni_olustur(
+        baslik="Test Haberi",
+        adim=2,
+        toplam_adim=4,
+        durum_haritasi={
+            "instagram": "✅ Yayında",
+            "threads": "⏳ Yükleniyor...",
+            "twitter": "⏱️ Sırada",
+            "facebook": "⏱️ Sırada",
+        },
+        baslangic_ts=time.time() - 5.0,
+    )
+    denetle("Platform Durumları" in durum_metni,
+            "yayin_durum_metni_olustur platform durum başlığını içeriyor",
+            "durum metni formatı eksik")
+    denetle("Instagram Akış (4:5)" in durum_metni and "Threads (@dailybrief.co)" in durum_metni,
+            "yayin_durum_metni_olustur kanal etiketlerini doğru formatlıyor",
+            "kanal etiketleri eksik")
+    denetle("%50" in durum_metni,
+            "yayin_durum_metni_olustur yüzde hesaplaması doğru (%50)",
+            "yüzde hesaplaması yanlış")
+
+    # 3. onay_isle.py ve piyasa_otomatik.py AST denetimi (ThreadPoolExecutor & 4:5)
+    onay_kod = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    denetle("ThreadPoolExecutor" in onay_kod,
+            "onay_isle.py paralel dağıtım için ThreadPoolExecutor kullanıyor",
+            "onay_isle.py seri yayında kalmış, paralel motor eksik")
+    denetle("canli_yayin_durumu_guncelle" in onay_kod,
+            "onay_isle.py canlı yayın durumu güncellemesini çağırıyor",
+            "canlı Telegram durum güncelleyicisi bağlanmamış")
+    denetle("urller_4_5" in onay_kod,
+            "onay_isle.py 4:5 görselleri Threads, Twitter ve Feed için hazırlıyor",
+            "4:5 görsel hazırlığı eksik")
+
+    piyasa_kod = (KOK / "scripts/piyasa_otomatik.py").read_text(encoding="utf-8")
+    denetle("ThreadPoolExecutor" in piyasa_kod,
+            "piyasa_otomatik.py paralel dağıtım için ThreadPoolExecutor kullanıyor",
+            "piyasa bülteni seri yayında kalmış, paralel motor eksik")
+    denetle("slayt_urlleri_4_5" in piyasa_kod,
+            "piyasa_otomatik.py bülten görsellerini 4:5 formatına dönüştürüyor",
+            "piyasa bülteninde 4:5 dönüşümü eksik")
+
 
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
@@ -5349,6 +5447,7 @@ def main() -> int:
         test_kanca_baslikla_yarismiyor,
         test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
+        test_threads_ve_twitter_4_5_ve_paralel_yayin,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,
         test_vurgu_ve_kanca_kalitesi,
         test_govde_kuyrugu_temizleniyor,

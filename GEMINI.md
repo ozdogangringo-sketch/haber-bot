@@ -25,7 +25,7 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
   * Zemin gradyanı ve ambiyans ışıltısı 1080x1920 tuvalin tamamını kesintisiz ve akıcı olarak doldurur.
   * **Asla dikey esnetme/uzatma yapılmaz**; kartlar ve tablolar doğal 4:5 oranlarında kalır.
   * **Asla yapay çerçeve çizgisi veya ayrık blur kutuları eklenmez**; görsel tek parça lüks bir infografiktir.
-  * Böylece görsel **Instagram Akışında (4:5)** gösterildiğinde sıfır kırpılma ve kusursuz çerçeveleme ile görünürken, **Instagram Story, Reels, Shorts ve TikTok'ta (9:16)** güvenli alanıyla tam ekran görünür.
+  * Böylece görsel **Instagram Akışında, Threads zincirlerinde ve Twitter'da (4:5)** gösterildiğinde sıfır kırpılma ve kusursuz çerçeveleme ile görünürken, **Instagram Story, Reels, Shorts ve TikTok'ta (9:16)** güvenli alanıyla tam ekran görünür.
 - **KATI TİPOGRAFİ, PARAGRAF ÇENTİKLERİ VE TEMİZ METİN:**
   * **Paragraf Başı Dikey Çentikleri (Sleek Accent Notch):** Detay slaytlarında paragrafların solunda 4px yuvarlatılmış renkli dikey çentikler yer alır:
     - *Spot Paragraf:* Sıcak Kehribar (`#E2AA58`)
@@ -60,12 +60,12 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 [Telegram Onay & Yönetim Grubu] (telegram_bot.py ──> Daily Brief Grubu)
        │ (İnteraktif butonlar: 1️⃣..5️⃣ Seç, ✅ Yayınla, 🚀 Canlı Bülteni Şimdi Yayınla...)
        ▼
-[onay_isle.py Router]
-       │
-       ├─► Instagram Graph API (1080x1920 Carousel & 1080x1920 Story)
-       ├─► Facebook Graph API (1080x1920 Albüm, Story & 9:16 Reels)
-       ├─► Threads API (6 Halkalı Bilgi Zinciri)
-       ├─► X (Twitter) API v2 (1080x1920 Fotoğraflı Tweet)
+[onay_isle.py Router & Paralel Dağıtım Motoru (ThreadPoolExecutor)]
+       │ (Canlı İlerleme Çubuğu [▰▰▱▱] %50 & Canlı Platform Durumları)
+       ├─► Instagram Graph API (1080x1350 4:5 Carousel & 1080x1920 9:16 Story)
+       ├─► Facebook Graph API (1080x1350 4:5 Albüm, Story & 9:16 Reels)
+       ├─► Threads API (1080x1350 4:5 Bilgi Zinciri)
+       ├─► X (Twitter) API v2 (1080x1350 4:5 Fotoğraflı Tweet/Flood)
        ├─► YouTube Data API v3 (9:16 Shorts Video)
        └─► TikTok Content Posting API (9:16 Dikey Video)
 ```
