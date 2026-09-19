@@ -61,6 +61,71 @@ def _push() -> tuple[bool, str]:
     return _calistir("git", "push", "origin", f"HEAD:{DAL}", saniye=120)
 
 
+def _sqlite_db_birlestir(yerel_db_yolu: str, uzak_db_yolu: str) -> None:
+    """
+    İki SQLite veritabanındaki haberler ve ayarlar tablolarını birleştirir.
+    Uzakta onaylanan/yayınlanan veya yeni eklenen haberler korunur,
+    yerelde üretilen taze haber/slayt verileri ezilmez.
+    """
+    import sqlite3
+    try:
+        with sqlite3.connect(yerel_db_yolu, timeout=30) as con:
+            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            con.execute(f'ATTACH "{uzak_db_yolu}" AS remote_db')
+            # 1. Uzakta olup yerelde hiç olmayan haberleri ekle
+            con.execute('''
+                INSERT OR IGNORE INTO haberler 
+                SELECT * FROM remote_db.haberler 
+                WHERE id NOT IN (SELECT id FROM haberler)
+            ''')
+            # 2. Uzakta onay bekleyen veya yayınlanan haberleri güncelle (yerel henüz yeni ise)
+            con.execute('''
+                UPDATE haberler
+                SET durum = r.durum,
+                    telegram_message_id = r.telegram_message_id,
+                    ig_baslik = r.ig_baslik,
+                    gonderim_zamani = r.gonderim_zamani,
+                    gorsel_url = r.gorsel_url,
+                    story_url = r.story_url,
+                    detay_url = r.detay_url,
+                    detay_metni = r.detay_metni,
+                    ig_post_id = r.ig_post_id,
+                    threads_post_id = r.threads_post_id,
+                    facebook_post_id = r.facebook_post_id,
+                    twitter_post_id = r.twitter_post_id,
+                    youtube_post_id = r.youtube_post_id,
+                    tiktok_post_id = r.tiktok_post_id
+                FROM remote_db.haberler AS r
+                WHERE haberler.id = r.id
+                  AND r.durum != 'yeni'
+                  AND haberler.durum = 'yeni'
+            ''')
+            # 3. Uzakta 'yayinlandi' durumuna geçmişse yerelde de yayınlandı yap
+            con.execute('''
+                UPDATE haberler
+                SET durum = r.durum,
+                    ig_post_id = COALESCE(r.ig_post_id, haberler.ig_post_id),
+                    threads_post_id = COALESCE(r.threads_post_id, haberler.threads_post_id),
+                    facebook_post_id = COALESCE(r.facebook_post_id, haberler.facebook_post_id),
+                    twitter_post_id = COALESCE(r.twitter_post_id, haberler.twitter_post_id),
+                    youtube_post_id = COALESCE(r.youtube_post_id, haberler.youtube_post_id),
+                    tiktok_post_id = COALESCE(r.tiktok_post_id, haberler.tiktok_post_id)
+                FROM remote_db.haberler AS r
+                WHERE haberler.id = r.id
+                  AND r.durum = 'yayinlandi'
+            ''')
+            # 4. Ayarları birleştir
+            try:
+                con.execute('INSERT OR REPLACE INTO ayarlar SELECT * FROM remote_db.ayarlar')
+            except Exception:
+                pass
+            con.commit()
+            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            log.info("db_senkron: yerel ve uzak veritabanları başarıyla birleştirildi")
+    except Exception as e:
+        log.warning("db_senkron: SQLite birleştirme hatası: %s", e)
+
+
 def _birlestir() -> None:
     """
     Uzaktaki değişikliği üstümüze alır, çakışmayı kendisi çözer.
@@ -70,9 +135,9 @@ def _birlestir() -> None:
     YARIM KALIYOR — repo detached HEAD'de kilitleniyor, sonraki her
     git komutu patlıyor. Akşam turunu bu düşürdü.
 
-    Burada çakışma sessizce çözülüyor: ikili dosyada birleştirme diye
-    bir şey yok, birini seçmek zorundayız ve elimizdeki taze tur daha
-    değerli.
+    Burada çakışma akıllı SQLite birleştirme ile çözülür: uzakta onaylanan/
+    yayınlanan haberler ile yerelde üretilen taze haberler tek veritabanında
+    harmanlanır.
     """
     _calistir("git", "fetch", "origin", DAL, saniye=90)
     _calistir("git", "stash", "--include-untracked")
@@ -82,10 +147,31 @@ def _birlestir() -> None:
         _calistir("git", "stash", "pop")
         return
 
-    # Rebase sırasında "theirs" = yeniden uygulanan commit, yani BİZİM
-    # değişikliğimiz. Sezgiye ters ama doğrusu bu.
+    # Rebase sırasında çakışma oldu:
+    # 1. Uzaktaki (origin/main) haber.db dosyasını geçici konuma alalım
+    import os
+    import shutil
+    uzak_gecici = "data/haber_uzak_temp.db"
+    _calistir("git", "checkout", "--ours", "--", "data/haber.db")
+    try:
+        shutil.copyfile("data/haber.db", uzak_gecici)
+    except Exception:
+        uzak_gecici = ""
+
+    # 2. Yereldeki commit edilmiş haber.db dosyasını geri yükle
+    _calistir("git", "checkout", "--theirs", "--", "data/haber.db")
+
+    # 3. Akıllı SQLite merge çalıştır
+    if uzak_gecici and os.path.exists(uzak_gecici):
+        _sqlite_db_birlestir("data/haber.db", uzak_gecici)
+        try:
+            os.remove(uzak_gecici)
+        except Exception:
+            pass
+
     for dosya in BIZIM_KAZANIR:
-        _calistir("git", "checkout", "--theirs", "--", dosya)
+        if dosya != "data/haber.db":
+            _calistir("git", "checkout", "--theirs", "--", dosya)
         _calistir("git", "add", dosya)
 
     tamam, cikti = _calistir("git", "-c", "core.editor=true", "rebase", "--continue")

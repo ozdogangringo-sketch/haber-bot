@@ -44,6 +44,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-python@v5
         with:
@@ -89,6 +91,12 @@ jobs:
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
           TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
         run: |
+          # ⚠️ KUYRUKTA BEKLEYEN İŞ GÜNCEL VERİTABANINI ALMALI:
+          # Actions kuyruğunda bekleyen job, workflow dispatch edildiği
+          # andaki commit'i checkout eder. Önceki job bu sırada bitip yeni
+          # bir commit push ettiyse, bu job onu ezmesin diye origin/main'e
+          # güncelliyoruz.
+          git fetch origin main && git reset --hard origin/main
           # "/tur" yazılı komutu yeni bir tur kuruyor; kalan her şey
           # açık turun üstünde işlem yapıyor.
           KOMUT="${{ github.event.client_payload.komut }}"

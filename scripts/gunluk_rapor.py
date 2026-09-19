@@ -364,7 +364,7 @@ def main() -> int:
         # Askıda kalmış, 12+ saat cevap verilmemiş onay turlarını havuza iade et
         try:
             from src import yonetim
-            askidaki = yonetim.askidaki_turlari_temizle(con)
+            askidaki = yonetim.askidaki_turlari_temizle(con, saat=12)
             if askidaki:
                 metin += f"\n\n♻️ {askidaki} askıda kalmış onay turu temizlendi ve havuza iade edildi."
         except Exception as e:                        # noqa: BLE001

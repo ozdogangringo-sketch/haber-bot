@@ -3798,6 +3798,16 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
             basliklar[hid] = (r["baslik_orj"] or "")[:60]
 
     if not basliklar:
+        if db_senkron.uzaktan_tazele():
+            con.close()
+            con = db.baglan()
+            for hid in haber_idler:
+                r = con.execute("SELECT baslik_orj FROM haberler WHERE id = ?",
+                                (hid,)).fetchone()
+                if r:
+                    basliklar[hid] = (r["baslik_orj"] or "")[:60]
+
+    if not basliklar:
         telegram_bot.sonucu_yaz(
             mesaj_id, "⚠️ Seçilen haberler bulunamadı "
                       "(veritabanı güncellenmiş olabilir).")

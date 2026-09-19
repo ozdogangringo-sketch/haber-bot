@@ -318,35 +318,49 @@ def kota_ve_durum_raporu(con, ayarlar: dict) -> str:
     """
     Veritabanı durumunu, haber sayılarını, GitHub Actions ve yapay zeka kotasını raporlar.
     """
+    from .zaman import su_an_tr, tr_format
+    satirlar = [
+        "📊 <b>CANLI DURUM & KOTA RAPORU</b>\n",
+        f"🕒 <b>Canlı Saat:</b> {tr_format(su_an_tr(), 'tarih_saat')}",
+    ]
+    duraklatildi, kalan = duraklatildi_mi(con)
+    if duraklatildi:
+        satirlar.append(f"⏸️ <b>Bot Durumu:</b> DURAKLATILDI (Kalan: {kalan})")
+    else:
+        satirlar.append("🟢 <b>Bot Durumu:</b> AKTİF (Tüm cronlar devrede)")
+    satirlar.append("")
+
     try:
         from . import kota_uretici
-        return kota_uretici.kota_metni_uret()
+        satirlar.append(kota_uretici.kota_metni_uret())
     except Exception as e:
         log.warning("Kompakt kota tablosu üretilemedi: %s", e)
-        from .zaman import su_an_tr, tr_format
-        satirlar = [
-            "📊 <b>CANLI DURUM & KOTA RAPORU</b>\n",
-            f"🕒 <b>Canlı Saat:</b> {tr_format(su_an_tr(), 'tarih_saat')}",
-        ]
-        duraklatildi, kalan = duraklatildi_mi(con)
-        if duraklatildi:
-            satirlar.append(f"⏸️ <b>Bot Durumu:</b> DURAKLATILDI (Kalan: {kalan})")
-        else:
-            satirlar.append("🟢 <b>Bot Durumu:</b> AKTİF (Tüm cronlar devrede)")
-        return "\n".join(satirlar)
+
+    return "\n".join(satirlar)
 
 
-def askidaki_turlari_temizle(con) -> int:
+def askidaki_turlari_temizle(con, saat: int = 0) -> int:
     """
     Cevap verilmemiş, askıda kalan açık onay turlarını sıfırlar ve havuza iade eder.
     YAYINLANMIŞ haberlere asla dokunmaz.
+    saat: 0 ise tüm askıdaki turlar temizlenir. > 0 ise yalnızca belirtilen saatten
+          daha eski olanlar temizlenir (örn. saat=12).
     """
-    cursor = con.execute(
-        "UPDATE haberler SET durum = 'metin_hazir', telegram_message_id = NULL, "
-        "planlanan_yayin = NULL WHERE durum IN ('onay_bekliyor', 'baslik_onayi', 'ertelendi') "
-        "AND durum != 'yayinlandi'"
-    )
+    if saat > 0:
+        sinir = (datetime.now(timezone.utc) - timedelta(hours=saat)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor = con.execute(
+            "UPDATE haberler SET durum = 'metin_hazir', telegram_message_id = NULL, "
+            "planlanan_yayin = NULL WHERE durum IN ('onay_bekliyor', 'baslik_onayi', 'ertelendi') "
+            "AND durum != 'yayinlandi' AND (gonderim_zamani IS NULL OR gonderim_zamani <= ?)",
+            (sinir,),
+        )
+    else:
+        cursor = con.execute(
+            "UPDATE haberler SET durum = 'metin_hazir', telegram_message_id = NULL, "
+            "planlanan_yayin = NULL WHERE durum IN ('onay_bekliyor', 'baslik_onayi', 'ertelendi') "
+            "AND durum != 'yayinlandi'"
+        )
     con.commit()
     adet = cursor.rowcount
-    log.info("askıdaki %s haber temizlendi ve havuza iade edildi", adet)
+    log.info("askıdaki %s haber temizlendi ve havuza iade edildi (saat_siniri=%s)", adet, saat)
     return adet
