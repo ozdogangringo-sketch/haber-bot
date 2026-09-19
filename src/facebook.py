@@ -200,12 +200,13 @@ def reels_yayinla(
     if not video_p.exists():
         raise FileNotFoundError(f"Reels videosu bulunamadı: {video_p}")
 
-    # Müziksiz videolara hafif, telifsiz haber ambiyans fon müziğini miksle
-    try:
-        from . import youtube
-        video_p = youtube.youtube_icin_sesli_video_hazirla(video_p)
-    except Exception as e:
-        log.warning("Facebook Reels için fon müziği mikslenemedi, mevcut video ile devam: %s", e)
+    # Müziksiz videolara hafif, telifsiz haber ambiyans fon müziğini miksle (zaten sesli değilse)
+    if "_yt" not in video_p.name:
+        try:
+            from . import youtube
+            video_p = youtube.youtube_icin_sesli_video_hazirla(video_p)
+        except Exception as e:
+            log.warning("Facebook Reels için fon müziği mikslenemedi, mevcut video ile devam: %s", e)
 
     sayfa = sayfa_bilgisi(ayarlar)
     sayfa_id = sayfa.get("id")

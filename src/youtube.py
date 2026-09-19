@@ -79,7 +79,10 @@ def gunluk_yukleme_sayisi_artir(con=None) -> None:
                 pass
 
 
-def youtube_icin_sesli_video_hazirla(video_yolu: Path | str) -> Path:
+def youtube_icin_sesli_video_hazirla(
+    video_yolu: Path | str,
+    cikti_yolu: Path | str | None = None,
+) -> Path:
     """
     YouTube Shorts ve Facebook Reels için videoya hafif, telifsiz haber ambiyans fon müziği miksler.
     """
@@ -90,7 +93,11 @@ def youtube_icin_sesli_video_hazirla(video_yolu: Path | str) -> Path:
     try:
         import imageio_ffmpeg
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-        yt_cikti = yol.with_name(f"{yol.stem}_yt.mp4")
+        if cikti_yolu is not None:
+            yt_cikti = Path(cikti_yolu)
+        else:
+            import uuid
+            yt_cikti = yol.with_name(f"{yol.stem}_yt_{uuid.uuid4().hex[:6]}.mp4")
 
         # 1. assets/audio klasöründe özel hazır müzik var mı?
         kok = Path(__file__).resolve().parent.parent
@@ -197,9 +204,13 @@ def shorts_yukle(
     if not token:
         return {"durum": False, "hata": "YouTube erişim jetonu alınamadı."}
 
-    # 2. SADECE YouTube Shorts için hafif ambiyans fon müziği ekle
-    yuklenecek_yol = youtube_icin_sesli_video_hazirla(yol)
-    gecici_dosya = (yuklenecek_yol != yol)
+    # 2. SADECE YouTube Shorts için hafif ambiyans fon müziği ekle (zaten sesli değilse)
+    if "_yt" not in yol.name:
+        yuklenecek_yol = youtube_icin_sesli_video_hazirla(yol)
+        gecici_dosya = (yuklenecek_yol != yol)
+    else:
+        yuklenecek_yol = yol
+        gecici_dosya = False
 
     # Shorts Başlık & Açıklama Optimizasyonu (100 karakter sınırına dikkat)
     temiz_baslik = baslik.strip()
@@ -243,6 +254,7 @@ def shorts_yukle(
             timeout=15,
         )
         if r_init.status_code != 200 or "Location" not in r_init.headers:
+            log.error("YouTube upload başlatılamadı (%s): %s", r_init.status_code, r_init.text)
             return {
                 "durum": False,
                 "hata": f"Upload URL başlatılamadı ({r_init.status_code}): {r_init.text[:150]}",
@@ -271,6 +283,7 @@ def shorts_yukle(
                 "yanit": veri,
             }
         else:
+            log.error("YouTube video yükleme başarısız (%s): %s", r_up.status_code, r_up.text)
             return {
                 "durum": False,
                 "hata": f"Video yükleme başarısız ({r_up.status_code}): {r_up.text[:150]}",

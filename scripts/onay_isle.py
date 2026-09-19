@@ -404,6 +404,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
             if dikey_gorseller:
                 paylasilan_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+                # YouTube Shorts ve Facebook Reels için fon müziğini tek seferde miksle
+                if (paylas_yt or paylas_fb_reels) and paylasilan_video_yolu:
+                    try:
+                        from src import youtube
+                        sesli = youtube.youtube_icin_sesli_video_hazirla(paylasilan_video_yolu)
+                        if sesli and sesli.exists():
+                            paylasilan_video_yolu = sesli
+                    except Exception as e_ses:
+                        log.warning("Ortak fon müziği mikslenemedi: %s", e_ses)
         except Exception as e:
             log.exception("YouTube/TikTok/Facebook için ortak video üretilemedi: %s", e)
 
@@ -517,9 +526,10 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                     yt_notu = "\n▶️ YouTube Shorts yayınlandı"
                 _bildir("youtube", "✅ Yayında", increment=True)
             else:
-                hata_yt = yt_res.get("hata", "")[:60]
+                hata_yt = yt_res.get("hata", "")
+                log.warning("YouTube Shorts yayınlanamadı: %s", hata_yt)
                 with _lock:
-                    yt_notu = f"\n⚠️ YouTube Shorts gitmedi: {hata_yt}"
+                    yt_notu = f"\n⚠️ YouTube Shorts gitmedi: {hata_yt[:60]}"
                 _bildir("youtube", "❌ Hata", increment=True)
         except Exception as e:
             log.warning("YouTube Shorts paylaşılamadı: %s", e)
@@ -1204,7 +1214,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         kalan_telafi_butonlari.append([{"text": "🔄 🧵 Threads'e Gönder", "callback_data": f"retry_kanal:threads:{mesaj_id}"}])
     if not k_tw and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")):
         kalan_telafi_butonlari.append([{"text": "🔄 🐦 X'e Gönder", "callback_data": f"retry_kanal:twitter:{mesaj_id}"}])
-    if not k_yt and bool((ayarlar.get("sosyal", {}) or {}).get("youtubea_da_at")):
+    if not k_yt and bool((ayarlar.get("sosyal", {}) or {}).get("youtube_a_da_at") or (ayarlar.get("sosyal", {}) or {}).get("youtubea_da_at")):
         kalan_telafi_butonlari.append([{"text": "🔄 ▶️ Shorts'a Yükle", "callback_data": f"retry_kanal:youtube:{mesaj_id}"}])
     if not k_tt and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at")):
         kalan_telafi_butonlari.append([{"text": "🔄 🎵 TikTok'a Yükle", "callback_data": f"retry_kanal:tiktok:{mesaj_id}"}])
@@ -1692,7 +1702,7 @@ def yayin_durumu_kontrol(con, ayarlar, mesaj_id: int) -> int:
         tuslar.append([{"text": "🔄 🧵 Threads'e Gönder", "callback_data": f"retry_kanal:threads:{mesaj_id}"}])
     if not tw_id and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")):
         tuslar.append([{"text": "🔄 🐦 X'e Gönder", "callback_data": f"retry_kanal:twitter:{mesaj_id}"}])
-    if not yt_id and bool((ayarlar.get("sosyal", {}) or {}).get("youtubea_da_at")):
+    if not yt_id and bool((ayarlar.get("sosyal", {}) or {}).get("youtube_a_da_at") or (ayarlar.get("sosyal", {}) or {}).get("youtubea_da_at")):
         tuslar.append([{"text": "🔄 ▶️ Shorts'a Yükle", "callback_data": f"retry_kanal:youtube:{mesaj_id}"}])
     if not tt_id and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at")):
         tuslar.append([{"text": "🔄 🎵 TikTok'a Yükle", "callback_data": f"retry_kanal:tiktok:{mesaj_id}"}])
