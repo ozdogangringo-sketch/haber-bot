@@ -2596,7 +2596,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
     if komut == "slayt_metin":
         con.execute("UPDATE haberler SET durum = 'yeni' WHERE id = ?", (haber["id"],))
         con.commit()
-        metinleri_uret(ayarlar=ayarlar, con=con, haberler=[haber])
+        metinleri_uret(ayarlar=ayarlar, haberler=[haber])
         con.execute("UPDATE haberler SET durum = 'onay_bekliyor' WHERE id = ?",
                     (haber["id"],))
         con.commit()

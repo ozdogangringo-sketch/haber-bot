@@ -2589,6 +2589,35 @@ def test_bulten_haber_slayti_kategoriyi_dogruluyor() -> None:
                 "haber bir EK")
 
 
+def test_metinleri_uret_cagrilari_con_almaz() -> None:
+    """
+    metinleri_uret() fonksiyonu 'con' argümanı almaz (kendi bağlantısını açar).
+    Hiçbir script veya modül metinleri_uret'e con= iletmemelidir.
+    """
+    import ast as _ast
+    kok = KOK
+    dosyalar = list((kok / "scripts").glob("*.py")) + list((kok / "src").glob("*.py"))
+    for d in dosyalar:
+        icerik = d.read_text(encoding="utf-8")
+        if "metinleri_uret" not in icerik:
+            continue
+        agac = _ast.parse(icerik)
+        for node in _ast.walk(agac):
+            if isinstance(node, _ast.Call):
+                fonk_adi = ""
+                if isinstance(node.func, _ast.Name):
+                    fonk_adi = node.func.id
+                elif isinstance(node.func, _ast.Attribute):
+                    fonk_adi = node.func.attr
+                if fonk_adi == "metinleri_uret":
+                    for kw in node.keywords:
+                        denetle(
+                            kw.arg != "con",
+                            f"{d.name} -> metinleri_uret con= almıyor",
+                            f"{d.name} içinde metinleri_uret(con=...) çağrılmış, TypeError verir"
+                        )
+
+
 def test_vurgu_ve_kanca_kalitesi() -> None:
     """
     Vurgu rakamı ve kanca: zayıf olanlar slayta basılmamalı.
@@ -5450,6 +5479,7 @@ def main() -> int:
         test_threads_ve_twitter_4_5_ve_paralel_yayin,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,
         test_vurgu_ve_kanca_kalitesi,
+        test_metinleri_uret_cagrilari_con_almaz,
         test_govde_kuyrugu_temizleniyor,
         test_denetim_uyarisi_kurt_geliyor_demiyor,
         test_kaynak_mutabakati_buyuk_olayi_yakaliyor,
