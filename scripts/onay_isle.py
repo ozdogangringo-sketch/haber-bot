@@ -810,16 +810,14 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         telafi_dugmeleri.insert(0, [{"text": "🔄 Başarısız Tüm Kanalları Tekrar Dene", "callback_data": f"retry_kanal:hepsi:{mesaj_id}"}])
 
     import html as html_lib
-    temiz_caption = html_lib.escape(metin.strip())
     onaylayan_str = html_lib.escape(basan or "bilinmiyor")
     ozet_str = html_lib.escape(_yayin_ozeti(haberler))
 
     sonuc_metni = (
         f"✅ <b>YAYINLANDI</b> — {len(urller)} slayt{ig_notu}{story_notu}{fb_notu}{th_notu}{tw_notu}{yt_notu}{tt_notu}\n\n"
         f"{ozet_str}\n\n"
-        f"👤 <b>Onaylayan:</b> {onaylayan_str}\n"
-        + (f"🔗 {baglanti}\n\n" if baglanti else ("\n" if post_id else ""))
-        + f"📝 <b>Açıklama Metni (Kopyalamak için dokunun):</b>\n<pre>{temiz_caption}</pre>"
+        f"👤 <b>Onaylayan:</b> {onaylayan_str}"
+        + (f"\n\n🔗 {baglanti}" if baglanti else "")
     )
 
     telegram_bot.sonucu_yaz(
