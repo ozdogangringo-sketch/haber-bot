@@ -239,18 +239,65 @@ def _reels_kare_hazirla(img: Image.Image, genislik: int = HEDEF_GENISLIK, yuksek
     return _cercevele_9_16(img)
 
 
+def slayt_surelerini_hesapla(
+    toplam_slayt: int,
+    haberler: list[dict] | None = None,
+    varsayilan_kapak_suresi: float = 4.2,
+) -> list[float]:
+    """
+    Her slayt için içerik ve kelime yoğunluğuna göre akıllı dinamik süre (saniye) listesi döner.
+
+    * 1. Slayt (Kapak / Kanca): 4.2 saniye (Görsel ve başlığı algılamak için ideal).
+    * 2. ve Sonraki Slaytlar (Detay):
+      - Kelime sayısına göre: 4.8s ila 6.2s arasında otomatik ölçeklenir.
+      - Ortalama Türkçe sessiz okuma hızına (saniyede ~3-3.5 kelime) göre insani okuma payı bırakılır.
+      - Toplam video süresi 15 - 20 saniye bandında tutulur (Reels/Shorts zirve retention süresi).
+    """
+    if toplam_slayt <= 0:
+        return []
+
+    sureler = [varsayilan_kapak_suresi]
+    if toplam_slayt == 1:
+        return sureler
+
+    detay_paragraflar = []
+    if haberler and len(haberler) > 0:
+        h0 = dict(haberler[0])
+        detay_metni = h0.get("detay_metni", "") or ""
+        if detay_metni:
+            detay_paragraflar = [p.strip() for p in detay_metni.split("\n\n") if p.strip()]
+
+    kalan_slayt_sayisi = toplam_slayt - 1
+    for idx in range(kalan_slayt_sayisi):
+        kelime_sayisi = 45  # Varsayılan detay kelime sayısı
+        if detay_paragraflar:
+            paragraf_dilimi = detay_paragraflar[idx::kalan_slayt_sayisi]
+            if paragraf_dilimi:
+                kelime_sayisi = sum(len(p.split()) for p in paragraf_dilimi)
+
+        # Taban 4.5 sn + her 20 kelime için +0.5 sn ek süre (Min 4.8 sn, Maks 6.2 sn)
+        hesaplanan = 4.5 + min(1.7, max(0.3, (kelime_sayisi / 20.0) * 0.5))
+        sureler.append(round(hesaplanan, 2))
+
+    return sureler
+
+
 def slaytlardan_reels_uret(
     gorsel_yollari: list[Path | str],
     cikti_yolu: Path | str | None = None,
     fps: int = 30,
-    slayt_suresi: float = 3.5,
+    slayt_suresi: float | None = None,
     gecis_suresi: float = 0.5,
+    slayt_sureleri: list[float] | None = None,
+    haberler: list[dict] | None = None,
 ) -> Path:
     """
     Verilen slayt görsellerinden 1080x1920 MP4 Reels videosu üretir.
 
     * Titremesiz, jilet gibi net ve akıcı S-curve (cosine easing) geçişler uygulanır.
-    * `slayt_suresi`: Her slaytın ekranda kalma süresi (saniye).
+    * `slayt_sureleri`: Belirtilirse her slaytın özel süresi (sn) kullanılır.
+    * `slayt_suresi`: Sabit süre istenirse (None ise içerik tabanlı dinamik süre hesaplanır).
+    * `haberler`: Detay metni kelime sayısına göre dinamik süre hesaplamak için opsiyonel haber listesi.
     * `gecis_suresi`: İki slayt arasındaki yumuşak kararma geçişi (saniye).
     * `fps`: Saniyedeki kare sayısı (30 fps Instagram için en ideal).
     """
@@ -265,8 +312,6 @@ def slaytlardan_reels_uret(
     else:
         cikti_yolu = Path(cikti_yolu)
 
-    log.info("Reels videosu üretiliyor: %s slayt -> %s (fps=%s)", len(gorsel_yollari), cikti_yolu, fps)
-
     # 1. Tüm görselleri 1080x1920 RGB formatına dönüştür
     kareler_ham: list[Image.Image] = []
     for yol in gorsel_yollari:
@@ -280,10 +325,20 @@ def slaytlardan_reels_uret(
     if not kareler_ham:
         raise RuntimeError("Hiçbir görsel işlenemedi")
 
-    # Kare sayıları hesabı
-    toplam_kare_slayt = max(1, int(fps * slayt_suresi))
-    gecis_kare_sayisi = max(1, int(fps * gecis_suresi)) if len(kareler_ham) > 1 else 0
-    sabit_kare_sayisi = max(1, toplam_kare_slayt - gecis_kare_sayisi)
+    toplam_slayt = len(kareler_ham)
+
+    # Dinamik veya özel süre hesabı
+    if slayt_sureleri and len(slayt_sureleri) == toplam_slayt:
+        sureler = list(slayt_sureleri)
+    elif slayt_suresi is not None and slayt_suresi > 0:
+        sureler = [slayt_suresi + 1.0] + [slayt_suresi] * (toplam_slayt - 1)
+    else:
+        sureler = slayt_surelerini_hesapla(toplam_slayt, haberler=haberler)
+
+    log.info("Reels videosu üretiliyor: %s slayt -> %s (fps=%s, süreler=%s, toplam=%.1fs)",
+             toplam_slayt, cikti_yolu, fps, sureler, sum(sureler))
+
+    gecis_kare_sayisi = max(1, int(fps * gecis_suresi)) if toplam_slayt > 1 else 0
 
     # NumPy dizilerine önceden çevirerek bellek ve işlem hızını maksimize et
     np_kareler = [np.array(img, dtype=np.float32) for img in kareler_ham]
@@ -306,13 +361,13 @@ def slaytlardan_reels_uret(
     )
 
     try:
-        toplam_slayt = len(np_kareler)
         for idx in range(toplam_slayt):
             arr_simdiki = np_kareler[idx]
             arr_sonraki = np_kareler[(idx + 1) % toplam_slayt] if toplam_slayt > 1 else None
 
-            # İlk kapak görseli (idx == 0) kanca etkisi ve okunabilirlik için diğerlerinden 1 saniye daha uzun kalır
-            bu_slayt_sabit_kare = sabit_kare_sayisi + (int(fps * 1.0) if idx == 0 else 0)
+            bu_sure = sureler[idx] if idx < len(sureler) else 4.5
+            toplam_kare_bu_slayt = max(1, int(fps * bu_sure))
+            bu_slayt_sabit_kare = max(1, toplam_kare_bu_slayt - gecis_kare_sayisi) if idx < toplam_slayt - 1 else toplam_kare_bu_slayt
 
             # 1. Sabit Görsel Aşaması (Jilet gibi net, titreşimsiz)
             arr_uint8 = np.clip(arr_simdiki, 0, 255).astype(np.uint8)

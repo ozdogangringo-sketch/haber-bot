@@ -407,7 +407,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             from src import video
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
             if dikey_gorseller:
-                sessiz_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+                sessiz_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
                 paylasilan_video_yolu = sessiz_video_yolu
                 # SADECE YouTube Shorts ve Facebook Reels için fon müziğini tek seferde miksle
                 if (paylas_yt or paylas_fb_reels) and sessiz_video_yolu:
@@ -582,7 +582,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 if not video_yolu:
                     from src import video
                     dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-                    video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+                    video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
 
                 temiz_metin = html_lib.escape(metin.strip())
                 telegram_bot.video_gonder(
@@ -1040,7 +1040,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
                 from src import video
                 dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
                 if dikey_gorseller:
-                    v_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+                    v_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
                     aciklama_fb = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
                     fb_reel_id = facebook.reels_yayinla(v_yolu, aciklama_fb, ayarlar)
                     con.execute("UPDATE haberler SET facebook_reel_id = ? WHERE telegram_message_id = ?", (fb_reel_id, mesaj_id))
@@ -1118,7 +1118,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             if not dikey_gorseller:
                 raise RuntimeError("Reels videosu için 9:16 görsel üretilemedi")
 
-            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
             video_url = upload_image.video_yukle(video_yolu, ayarlar)
             kapak_url = urller[0] if urller else None
             aciklama_reels = caption.aciklamayi_kur(
@@ -1146,7 +1146,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         try:
             from src import youtube, video
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
             h0 = dict(haberler[0]) if haberler else {}
             baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
             aciklama_yt = caption.aciklamayi_kur(
@@ -1169,7 +1169,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         try:
             from src import tiktok, video
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
             h0 = dict(haberler[0]) if haberler else {}
             baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
             etiket_tt = caption.etiketleri_sec(
