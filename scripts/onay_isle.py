@@ -376,6 +376,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     tw_notu = ""
     tw_gonderi_id = None
     paylasilan_video_yolu = None
+    sessiz_video_yolu = None
+    sesli_video_yolu = None
     yt_notu = ""
     yt_url = None
     tt_notu = ""
@@ -389,7 +391,9 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     # Story ise kesinlikle 9:16 (1080x1920) kalır.
     urller_4_5 = instagram.gorselleri_4_5_yap(urller, ayarlar)
 
-    # 1. Ortak Video Üretimi (TikTok, YouTube Shorts, Facebook Reels & Reels modu için)
+    # 1. Ortak Video Üretimi
+    # - TikTok ve Instagram Reels (Telegram): SESSİZ video (trend müzik ekleyebilmek için)
+    # - YouTube Shorts ve Facebook Reels: MÜZİKLİ sesli video
     if (paylas_yt or paylas_tt or paylas_fb_reels or paylas_reels) and urller:
         if mesaj_id:
             telegram_bot.durum_guncelle(
@@ -403,14 +407,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             from src import video
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
             if dikey_gorseller:
-                paylasilan_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
-                # YouTube Shorts ve Facebook Reels için fon müziğini tek seferde miksle
-                if (paylas_yt or paylas_fb_reels) and paylasilan_video_yolu:
+                sessiz_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, slayt_suresi=3.5, gecis_suresi=0.5)
+                paylasilan_video_yolu = sessiz_video_yolu
+                # SADECE YouTube Shorts ve Facebook Reels için fon müziğini tek seferde miksle
+                if (paylas_yt or paylas_fb_reels) and sessiz_video_yolu:
                     try:
                         from src import youtube
-                        sesli = youtube.youtube_icin_sesli_video_hazirla(paylasilan_video_yolu)
+                        sesli = youtube.youtube_icin_sesli_video_hazirla(sessiz_video_yolu)
                         if sesli and sesli.exists():
-                            paylasilan_video_yolu = sesli
+                            sesli_video_yolu = sesli
                     except Exception as e_ses:
                         log.warning("Ortak fon müziği mikslenemedi: %s", e_ses)
         except Exception as e:
@@ -476,7 +481,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     def _is_tiktok():
         nonlocal tt_publish_id, tt_notu
         _bildir("tiktok", "⏳ Yükleniyor...")
-        if not paylasilan_video_yolu:
+        v_yolu_tt = sessiz_video_yolu or paylasilan_video_yolu
+        if not v_yolu_tt:
             with _lock:
                 tt_notu = "\n⚠️ TikTok videosu oluşturulamadı"
             _bildir("tiktok", "❌ Video Yok", increment=True)
@@ -486,7 +492,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             h0 = dict(haberler[0]) if haberler else {}
             baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
             etiket_tt = caption.etiketleri_sec(haberler, kanal="tiktok", ayarlar=ayarlar)
-            tt_res = tiktok.video_yukle(paylasilan_video_yolu, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
+            tt_res = tiktok.video_yukle(v_yolu_tt, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
             if tt_res.get("durum"):
                 with _lock:
                     tt_publish_id = tt_res.get("publish_id")
@@ -509,7 +515,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     def _is_youtube():
         nonlocal yt_url, yt_notu
         _bildir("youtube", "⏳ Yükleniyor...")
-        if not paylasilan_video_yolu:
+        v_yolu_yt = sesli_video_yolu or sessiz_video_yolu or paylasilan_video_yolu
+        if not v_yolu_yt:
             with _lock:
                 yt_notu = "\n⚠️ YouTube Shorts videosu oluşturulamadı"
             _bildir("youtube", "❌ Video Yok", increment=True)
@@ -519,7 +526,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             h0 = dict(haberler[0]) if haberler else {}
             baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
             aciklama_yt = caption.aciklamayi_kur(metin, haberler, kanal="youtube", ayarlar=ayarlar)
-            yt_res = youtube.shorts_yukle(paylasilan_video_yolu, baslik=baslik_yt, aciklama=aciklama_yt, ayarlar=ayarlar)
+            yt_res = youtube.shorts_yukle(v_yolu_yt, baslik=baslik_yt, aciklama=aciklama_yt, ayarlar=ayarlar)
             if yt_res.get("durum"):
                 with _lock:
                     yt_url = yt_res.get("url")
@@ -540,14 +547,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     def _is_fb_reels():
         nonlocal fb_reel_id, fb_reels_notu
         _bildir("facebook_reels", "⏳ Yükleniyor...")
-        if not paylasilan_video_yolu:
+        v_yolu_fb = sesli_video_yolu or sessiz_video_yolu or paylasilan_video_yolu
+        if not v_yolu_fb:
             with _lock:
                 fb_reels_notu = " (⚠️ Reels: video oluşturulamadı)"
             _bildir("facebook_reels", "❌ Video Yok", increment=True)
             return
         try:
             aciklama_fb = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
-            fb_reel_res = facebook.reels_yayinla(paylasilan_video_yolu, aciklama_fb, ayarlar)
+            fb_reel_res = facebook.reels_yayinla(v_yolu_fb, aciklama_fb, ayarlar)
             if fb_reel_res:
                 with _lock:
                     fb_reel_id = fb_reel_res
@@ -570,7 +578,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         if paylas_reels:
             try:
                 import html as html_lib
-                video_yolu = paylasilan_video_yolu
+                video_yolu = sessiz_video_yolu or paylasilan_video_yolu
                 if not video_yolu:
                     from src import video
                     dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
