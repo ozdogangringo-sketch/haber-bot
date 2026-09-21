@@ -143,6 +143,33 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 - **Canlı İlerleme Çubuğu:** Telegram onay mesajı anlık olarak güncellenir (`[▰▰▰▱▱] %60 - YouTube Shorts yüklendi, Instagram bekleniyor...`).
 - **Threads ve X için 4:5 Formatı:** 9:16 görseller dikey kırpılma yaşamaması için merkezi 4:5 oranında kurgulanarak Threads ve Twitter'a kusursuz çerçeveleme ile iletilir.
 
+### M. Telegram 4 Modüllü Canlı Yönetim & Etkileşim Paketi (`scripts/onay_isle.py`)
+- **Modül 1 (Kanal Seçici):** Paylaşmadan önce `[x] Instagram`, `[x] Facebook`, `[ ] Threads`, `[x] TikTok`, `[x] YouTube` gibi checkbox butonlarıyla hangi platforma gidip gitmeyeceğini canlı toggle yapabilme.
+- **Modül 2 (Acil Durum & Yönetim - `/yonetim`):** Botu 1 saat, 6 saat, 12 saat veya 24 saat tek tıkla duraklatma ve geri açma paneli.
+- **Modül 3 (Canlı Metin & Başlık Düzenleme):** Telegram'da onay mesajına reply atıp sadece metni yazarak başlığı veya detay metnini sıfırdan çizdirme (`slayt_metin`).
+- **Modül 4 (Slayt Sıralama & Yönetim):** Slaytların sırasını değiştirme (reorder), istenmeyen slaytı silme ve havuzdan yedek haber slaytı ekleme.
+- **"🗑️ Çöpe At / Adaylıktan Çıkar" Butonu (`cope_at`):** Beğenilmeyen veya bayatlayan haberi tek tuşla havuzdan kalıcı silme.
+- **"İlk Görsele Dön" Butonu:** Başka fotoğraf ara dedikten sonra ilk görselin daha iyi olduğu anlaşılırsa tek tıkla ilk fotoğrafa dönebilme.
+- **Haber Önerilerinde Tıklanabilir Link + 1 Cümlelik Spot:** Telegram'a düşen 5'li öneride habere tıklandığında doğrudan kaynağa giden link ve altında ne olduğunu anlatan 1 cümlelik editoryal spot.
+- **Kompakt `/kota` Komutu (35 Karakter):** GitHub Actions, Gemini ve sosyal platform kotalarını tek satırda gösteren kompakt dashboard.
+
+### N. Samsung Galaxy A05 Android Otomasyon İstasyonu (`src/android_otomasyon.py`)
+- **USB & Uiautomator2 Köprüsü:** Fiziksel Android cihaz (Samsung Galaxy A05) üzerinden Instagram uygulamasına otomatik bağlanarak müzikli Reels ve Carousel paylaşımı yapan otomasyon köprüsü.
+- **DCIM Entegrasyonu & Ekran Yönetimi:** Görselleri telefona aktarıp, Instagram arayüzünde 3 slaytı seçip, pop-up korumalarını aşıp paylaşım bittiğinde telefon ekranını otomatik kapatma yeteneği.
+
+### O. Havuz Dışı Özel Haber, Araştırma & Kronoloji Motoru (`src/ozel_haber.py`)
+- **Telegram Serbest Komutları:** `/link <URL>`, `/arastir <KONU>`, `/ozel`, `/dosya`, `/kronoloji` komutlarıyla RSS havuzunda olmayan herhangi bir bağlantı veya konu hakkında derinlemesine 3-4 slaytlık infografik üretimi.
+- **Akıllı Makale Kazıyıcı:** Verilen linkin ana gövdesini reklam ve çöp metinlerden arındırıp infografik detay metnine ve başlığına dönüştürme.
+
+### P. X (Twitter) API v2 Entegrasyonu & 4 Fotoğraflı Tweet Motoru (`src/twitter.py`)
+- **@dailybrief_co Resmi Entegrasyonu:** OAuth 1.0a / 2.0 kimlik doğrulaması ile X platformuna 4 adet 4:5 fotoğraf ve editoryal metin içeren tweet ve flood zinciri paylaşımı.
+
+### Q. Çok Katmanlı Güvenlik, Doğruluk & Topluluk Kuralları Filtresi (`src/dogrula.py`, `src/filtre.py`, `src/otomatik_onay.py`)
+- **Instagram Topluluk Kuralları Filtresi:** İntihar, kendine zarar verme veya ağır istismar içerikli haberlerin RSS havuzundan otomatik elenmesi.
+- **Alıntı Doğrulama:** Gemini'nin ürettiği alıntıların kaynak metinde birebir geçip geçmediğini denetleme; geçmiyorsa alıntı bloğunu sessizce iptal etme.
+- **Suçlama Dili & Sansür Koruyucusu:** Henüz kesinleşmemiş adli olaylarda suçlama dilini yumuşatma ve sansür yıldızlarının çizimde eksik harfe dönüşmesini engelleme.
+- **Gece 4 Katmanlı Otomatik Onay:** Gece insan müdahalesi olmadan yayınlanacak haberler için deterministik test, kaynak güveni, LLM çapraz denetim ve riskli kategori süzgeci.
+
 ---
 
 ## 4. Görsel Seçim Standartları ve İyileştirme Yol Haritası
@@ -188,48 +215,79 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 
 ---
 
-## 6. Son 1 Ayın Kronolojik Geliştirme Günlüğü (15 Ağustos – 22 Eylül 2026)
+## 6. Son 1 Ayın Kapsamlı Kronolojik Geliştirme Günlüğü (15 Ağustos – 22 Eylül 2026)
 
-### 🗓️ 21 – 22 Eylül 2026 (Ses Ayrımı, Dinamik Süreler, 2. YouTube Projesi & R2)
-- **22 Eyl:** İçerik ve kelime yoğunluğuna göre dinamik Reels slayt süreleri (`slayt_surelerini_hesapla`). Kapak 4.2s, detay slaytları 4.8s - 6.2s. Toplam video süresi 15-20s tatlı noktasında sabitlendi (`94bf292`).
-- **22 Eyl:** YouTube 2. Google Cloud projesi (`daily-brief-2`) entegre edildi. Günlük kota 5'ten 10 videoya (20.000 puan) çıkarıldı; `quotaExceeded` durumunda otomatik failover eklendi (`edf50e7`).
-- **21 Eyl:** Cloudflare R2 (`media.dailybrief.ozbornstudio.com`) 5 workflow'a eklendi ve birincil depolama CDN'i olarak canlıya alındı (`f1ad9ba`).
-- **21 Eyl:** Video ses ayrımı tamamlandı: Telegram Reels ve TikTok için SESSİZ video (`anullsrc`), YouTube Shorts ve Facebook Reels için MÜZİKLİ video (`8e04c46`).
-- **21 Eyl:** Telegram yayın tamamlama raporundaki mükerrer `<pre>` açıklama metni kaldırıldı (`19355f4`).
+### 🗓️ 21 – 22 Eylül 2026 (Ses Ayrımı, Dinamik Slayt Süreleri, 2. YouTube Projesi & R2)
+- **22 Eyl:** **İçerik Yoğunluğuna Göre Dinamik Reels Süreleri (`slayt_surelerini_hesapla`):** Sabit 3.5 sn kaldırıldı; 1. Kapak 4.2 sn, detay slaytları kelime sayısına göre 4.8 sn - 6.2 sn aralığında dinamik ayarlandı. Toplam video süresi 15 - 20 sn zirve retention aralığında tutuldu (`94bf292`).
+- **22 Eyl:** **YouTube 2. Google Cloud Projesi Entegrasyonu (`daily-brief-2`):** Günlük kota 5'ten 10 videoya (20.000 puan) çıkarıldı; `quotaExceeded` / 403 durumunda Proje 2'nin refresh token'ına otomatik failover eklendi (`edf50e7`).
+- **21 Eyl:** **Cloudflare R2 Depolama Tam Canlıda (`media.dailybrief.ozbornstudio.com`):** 5 workflow dosyasına (`yayinla`, `son-dakika`, `piyasa-bulteni`, `hazirla`, `haftalik-ozet`) R2 secret'ları bağlanarak birincil CDN olarak devreye alındı (`f1ad9ba`).
+- **21 Eyl:** **Platforma Özel Ses Ayrımı:** Instagram Reels ve TikTok için SESSİZ video (`anullsrc` stereo AAC), YouTube Shorts ve Facebook Reels için MÜZİKLİ video üretimi kesin olarak ayrıştırıldı (`8e04c46`).
+- **21 Eyl:** **Telegram Yayın Raporu Sadeleştirmesi:** Yayın sonrası Telegram'a düşen rapordaki mükerrer `<pre>Açıklama Metni</pre>` bloğu kaldırılarak butonlar ve linkler ferahlatıldı (`19355f4`).
 
-### 🗓️ 17 – 19 Eylül 2026 (Ekonomi Özet Kartı, Paralel Dağıtım & Dayanıklılık)
-- **19 Eyl:** YouTube Shorts ve Facebook Reels eşzamanlı yayınındaki race condition (aynı dosya adı üzerine yazma ve erken `unlink`) giderildi. DailyBrief OAuth refresh token'ları senkronize edildi (`2b98c7d`).
-- **18 Eyl:** Günün Ekonomi Gündemi çoklu özet kartı motoru (`src/piyasa_ozet.py`, 36px Extra Bold başlıklar, renk çentikleri) canlıya alındı (`f1af5ef`, `3c56f47`).
-- **18 Eyl:** Threads ve X için 4:5 görsel formatı, EzanPlusBot paralel dağıtım motoru (`ThreadPoolExecutor`) ve Telegram canlı yayın ilerleme çubuğu (`[▰▰▱▱] %50`) eklendi (`820649e`).
-- **18 Eyl:** 35 karakter kompakt `/kota` komutu ve canlı sistem raporu devreye girdi (`bb561b3`, `668cb47`).
-- **17 Eyl:** TikTok doğrudan profil yayını yerine `inbox_draft` moduna düştüğünde Telegram'a tek dokunuşla kopyalanabilir açıklama metni iletilmesi sağlandı (`d29dd76`).
-- **17 Eyl:** Cloudflare R2 nesne depolama altyapısı ilk kez kodlandı (`049e4e4`, `67e5742`).
+### 🗓️ 17 – 19 Eylül 2026 (Ekonomi Özet Kartı, Paralel Dağıtım Motoru & Kanal Senkronu)
+- **19 Eyl:** **Paralel Video Derleme Çakışması (Race Condition) Çözümü:** `ThreadPoolExecutor` içinde YouTube ve Facebook'un aynı video dosyası üzerine yazması ve dosyanın erken `unlink` edilmesi engellendi; ortak sesli video tek seferde mikslendi (`2b98c7d`).
+- **19 Eyl:** **Kanal Senkronizasyonu & DailyBrief Kilidi:** Doğukan'ın diğer kanalı (`Edebiyatca`) yerine doğrudan `DailyBrief` (`UCfU04lnmBN61Daikh4oy7fA`) OAuth jetonları senkronize edildi.
+- **18 Eyl:** **Günün Ekonomi Gündemi Çoklu Özet Kartı Motoru (`src/piyasa_ozet.py`):** Bülten sonuna haber slaytları yerine sayfa başına en fazla 3 haber içeren, 36px Extra Bold başlıklı, Kehribar/Turkuaz/Zümrüt renk çentikli lüks özet kartları (1-3 haber -> 3. slayt, 4-6 haber -> 3. ve 4. slaytlar) eklendi (`f1af5ef`, `3c56f47`).
+- **18 Eyl:** **Threads ve X (Twitter) için 4:5 Görsel Formatı:** Dikey 9:16 slaytlar kırpılma yaşamadan merkezi 4:5 oranında kurgulanarak Twitter ve Threads'e tam çerçeve ile iletildi (`820649e`).
+- **18 Eyl:** **EzanPlusBot Standartlarında Paralel Dağıtım & Canlı Progress Bar:** 6 platforma eşzamanlı yayın (`ThreadPoolExecutor`) ve Telegram onay mesajında canlı ilerleme çubuğu (`[▰▰▰▱▱] %60`) devreye alındı (`820649e`).
+- **18 Eyl:** **Kompakt `/kota` Komutu:** 35 karakterlik canlı kota ve sistem sağlık dashboard'u eklendi (`bb561b3`, `668cb47`).
+- **18 Eyl:** **Paylaşılabilirlik Algoritması (`secim.paylasilabilirlik_puani`):** Sosyal medyada en çok paylaşılan (%52 paylaşım / %11 gönderi) viral haberlerin ön elemede öne çıkarılması sağlandı (`f2691ab`, `35fec86`).
+- **17 Eyl:** **TikTok Kopyalanabilir Caption Desteği:** Video `inbox_draft` moduna düştüğünde kullanıcının tek dokunuşla kopyalayabileceği formatta açıklama metni Telegram'a gönderildi (`d29dd76`).
+- **17 Eyl:** **Cloudflare R2 Nesne Depolama Entegrasyonu:** SigV4 imzalı doğrudan depolama ve özel domain altyapısı ilk kez kodlandı (`049e4e4`, `67e5742`).
 
 ### 🗓️ 11 – 16 Eylül 2026 (Facebook Reels, Arama Motoru & Telegram İyileştirmeleri)
-- **16 Eyl:** Facebook Reels entegrasyonu ve dinamik telifsiz hareketli fon müziği motoru (`2eb99a6`).
-- **15 Eyl:** CDN yayılım beklemesi ve bülten tekrar butonu eklendi; Gemini HTTP 503 aşırı yoğunluk hatası hata kataloğuna işlendi (`60bbeb0`, `fdf5585`).
-- **14 Eyl:** Akıllı web basın fotoğrafı arama motoru (`fetch_web_image.py`) ve wrap-around döngüsü eklendi (`1ea31b8`).
-- **12 Eyl:** Telegram WEBPAGE_CURL_FAILED hatasına karşı yerel dosya ve hızlı multipart fallback'i (`fec0e54`).
-- **11 Eyl:** Telegram haber önerilerine tıklanabilir kaynak bağlantısı ve 1 cümlelik spot eklendi (`9f67872`).
+- **16 Eyl:** **Facebook Reels Entegrasyonu:** Facebook Graph API v21.0 3 aşamalı video yükleme (start -> rupload -> finish) ve dinamik telifsiz hareketli haber fon müziği miksleme motoru eklendi (`2eb99a6`).
+- **15 Eyl:** **CDN Yayılım Beklemesi & Bülten Tekrarı:** Görsel CDN'e yüklendikten sonra yayılım beklemesi kondu; Telegram'a bülten tekrar butonu eklendi; Gemini HTTP 503 aşırı yoğunluk hatası kataloğa işlendi (`60bbeb0`, `fdf5585`).
+- **14 Eyl:** **Akıllı Web Basın Fotoğrafı Arama Motoru (`fetch_web_image.py`):** DuckDuckGo üzerinden HD/4K basın görselleri arama, `atlanacak` parametresiyle wrap-around döngüsü ve Telegram bold başlıklar getirildi (`1ea31b8`).
+- **12 Eyl:** **Telegram `WEBPAGE_CURL_FAILED` Çözümü:** Telegram API görseli URL'den indiremediğinde otomatik olarak yerel dosyayı multipart ile doğrudan Telegram'a gönderme fallback'i eklendi (`fec0e54`).
+- **12 Eyl:** **Bing Gerçek Fotoğraf Entegrasyonu:** DuckDuckGo alternatifi olarak Bing arama desteği eklendi (`6ba2663`).
+- **11 Eyl:** **Telegram Önerilerine Link ve Spot Eklendi:** 5'li haber önerilerine tıklanabilir doğrudan kaynak bağlantısı ve 1 cümlelik editoryal spot eklendi (`9f67872`).
 
 ### 🗓️ 5 – 10 Eylül 2026 (Editoryal Kanca Motoru, Tipografi & Borsa Veri Bütünlüğü)
-- **10 Eyl:** Kanca (hook) motoru punto tavanı (92px) ve satır aralığı optimize edildi; görselin müsait alanına yerleşim sağlandı (`878d6d7`, `d638a89`).
-- **9 Eyl:** Piyasa bülteni tek veri kapısına (`tum_fiyatlari_cek`) indirildi; 1. ve 2. slayt arasındaki yüzde çelişkileri sıfırlandı (`9e52f7d`, `4617803`).
-- **9 Eyl:** BIST için yanıltıcı "dünkü kapanış" etiketi "önceki kapanış" olarak düzeltildi (`4f9c023`).
-- **9 Eyl:** Instagram feed carousel gönderilerini 4:5 formatında yayınlama kuralı getirildi (`2e4b6f2`).
-- **7 Eyl:** Slayt çiziminde `**` markdown işaretlerinin basılması engellendi (`d2ca104`).
-- **6 Eyl:** Makale metni çıkarma güçlendirildi; boş yapay övgü cümleleri filtrelendi (`dcc2078`). Piyasa tablosunda eksik veriler için uydurma rakam basılması yasaklandı (`veri_yok` rozeti, `613f1ec`, `585a89a`).
-- **5 Eyl:** Slaytlarda Inter fontunda olmayan 8 eksik sembol (boş kutu) temizlendi. Zamanlanmış yayınlar Cloudflare çalar saatine bağlandı (`27c1cd7`).
+- **10 Eyl:** **Kanca (Hook) Motoru Punto & Yerleşim Optimizasyonu:** Punto tavanı 92px'e çıkarıldı, satır aralığı puntoyla orantılandı, kanca görselin müsait boş alanına kaydırıldı (`878d6d7`, `d638a89`).
+- **9 Eyl:** **Piyasa Bülteni Tek Veri Kapısı (`tum_fiyatlari_cek`):** Isı haritası, tablo ve caption verisi tek seferde çekilerek 1. ve 2. slayt arasındaki zıt yüzde çelişkileri sıfırlandı (`9e52f7d`, `4617803`).
+- **9 Eyl:** **BIST "Dünkü Kapanış" Düzeltmesi:** Pazartesi günleri için yanıltıcı olan "dünkü kapanış" etiketi "önceki kapanış" olarak düzeltildi (`4f9c023`).
+- **9 Eyl:** **Instagram 4:5 Feed Carousel Formatı:** Feed gönderilerinin içerik bozulmadan 4:5 formatında yayınlanması garanti altına alındı (`2e4b6f2`).
+- **8 Eyl:** **`/populer` Komutu:** Merak edilen ve yüksek etkileşimli haber önerileri getiren komut eklendi (`9f45792`). "İlk görsele dön" butonu eklendi (`0dafa0e`).
+- **7 Eyl:** **Slaytlarda `**` Markdown Temizliği:** Pillow çizim motorunun tırnak ve kalın metin birleşimlerinde slayta yıldız çizmesi engellendi (`d2ca104`).
+- **6 Eyl:** **Makale Gövdesi Çıkarma & Boş Övgü Filtresi:** Sayfa başlığı dışında haber metni çekilerek detay kalitesi 4 kat artırıldı; yapay övgü cümleleri elendi (`dcc2078`).
+- **6 Eyl:** **Uydurma Finansal Veri Yasağı:** Veri çekilemediğinde koda gömülü varsayılan rakamların basılması engellendi; `veri_yok` rozeti getirildi (`613f1ec`, `585a89a`).
+- **5 Eyl:** **Eksik Font Glifleri (8 Boş Kutu):** Inter fontunda olmayan emojiler yerine resmi semboller (`→ ▲ ▼ ◆ ★`) yerleştirildi (`171fc53`).
+- **5 Eyl:** **Cloudflare Çalar Saati:** Zamanlanmış yayınlar saat başı cron yerine Cloudflare Worker ile dakikası dakikasına bağlandı (`27c1cd7`).
 
 ### 🗓️ 28 Ağustos – 4 Eylül 2026 (Sistem Denetimi, Web Sitesi & Kalıcı İzinler)
-- **4 Eyl:** `dailybrief.ozbornstudio.com` web sitesi yayına alındı. Google OAuth "In Production" yapılarak YouTube jetonunun 7 günde bir ölmesi kalıcı olarak çözüldü.
-- **4 Eyl:** 19 gündür commit edilmediği için buharlaşan veritabanı temizliği düzeltildi. Ölü kodlar temizlendi (`src/handlers/`, `x_paylas.py`). Testler `tests/` dizinine taşındı.
-- **4 Eyl:** Kırık Telegram kurtarma paneli ve butonları tamir edildi.
-- **3 Eyl:** Görsel tarafında teknik denetim yerine Vision (Gemini Multimodal) ile gerçek içerik denetimi kuruldu (`gorsel_denetim.py`). Fotoğraf 1150px'e kadar indirildi ve göl yansıması eklendi. Kardeş görsel havuzu ile yüksek çözünürlüklü fotoğraflar çekildi.
+- **4 Eyl:** **`dailybrief.ozbornstudio.com` Web Sitesi & Google OAuth In Production:** YouTube OAuth jetonunun 7 günde bir ölmesini bitiren resmi gizlilik/şartlar sayfaları (Cloudflare Worker) açıldı ve uygulama "In Production" statüsüne geçirildi (`17af120`).
+- **4 Eyl:** **Buharlaşan DB Temizliğinin Kurtarılması:** 19 gündür commit edilmediği için silinmeyen eski kayıtlar kalıcı olarak temizlendi (11.5 MB -> 3.7 MB).
+- **4 Eyl:** **Ölü Kodların Silinmesi:** `src/handlers/` ve `x_paylas.py` modülleri temizlendi. Tüm testler `tests/` dizinine ayrıldı.
+- **4 Eyl:** **Kırık Telegram Butonları:** Kurtarma panelindeki ölü düğmeler ve `sondakika` butonu tamir edildi.
+- **3 Eyl:** **Vision (Gemini Multimodal) ile Görsel İçi Denetim:** Sadece piksel/netlik değil, yapay zekanın görselin içine bakıp kişi, forma ve olay bağlamını denetlemesi kuruldu (`gorsel_denetim.py`).
+- **3 Eyl:** **Fotoğrafın 1150px'e İndirilmesi & Göl Yansıması:** Ayrık duran fotoğraf bandı kaldırıldı, alt kenara yansıma efekti kondu (`FOTO_HEDEF_ALT = 1150`).
+- **3 Eyl:** **Kardeş Görsel Havuzu:** Aynı olayı işleyen kardeş ajansların 4K/HD fotoğrafları tek havuzda toplandı (voleybolda 24 kat piksel kazancı).
+- **28 Ağu:** **TikTok OAuth2 & Worker Callback:** PKCE code_challenge, HTTPS callback endpointi ve Sandbox/Production yetkilendirme akışı kuruldu (`9cf66e3`, `0010279`).
+- **28 Ağu:** **YouTube Shorts İlk Entegrasyonu:** OAuth2 sihirbazı ve workflow secret tanımları tamamlandı (`132078a`, `8b21c9a`).
+- **28 Ağu:** **S-Curve (Cosine Easing) Geçişler & H.264 Stillimage:** Video slayt geçişlerindeki takılmalar giderildi (`514a484`).
+- **28 Ağu:** **Sıralı EXIF Zaman Damgası:** Görsellere sıralı saniyeler eklenerek telefonda 1-2-3 sırasının bozulmaması sağlandı (`855e671`).
+- **28 Ağu:** **Smart Brevity & Neden Önemli:** Soyut yardım/yıkım klişeleri promptta yasaklandı; somut jeopolitik/ticari boyut şart koşuldu (`dd1fc03`).
+
+### 🗓️ 22 – 27 Ağustos 2026 (Finans Bülteni Tasarımı, Android Otomasyonu & Özel Haber)
+- **24 Ağu:** **Samsung Galaxy A05 Android Otomasyon İstasyonu:** USB bağlı fiziksel cihaz üzerinden Instagram uygulamasına otomatik erişip müzikli Reels/Carousel paylaşan bridge modülü (`d6200b2`, `ff0b2c3`).
+- **24 Ağu:** **X (Twitter) API v2 Entegrasyonu:** `@dailybrief_co` hesabı üzerinden 4 fotoğraflı tweet ve zincir paylaşımı (`29d14a2`, `0b2767b`).
+- **24 Ağu:** **Piyasa 4-Hero Vitrin & 2. Slayt Tablosu:** Dolar, Euro, Altın, Gümüş vitrini, gerçek sparkline eğrileri ve 30 Varlık Tablosu eklendi (`d8df578`).
+- **23 Ağu:** **Telegram Havuz Dışı Özel Haber Motoru:** `/link <URL>`, `/arastir <KONU>`, `/ozel`, `/dosya`, `/kronoloji` komutları devreye alındı (`d2f81c2`).
+- **22 Ağu:** **Piyasa Bülteni 20 Tasarım İterasyonu & Treemap:** Finviz/TradingView stili gerçek borsa ısı haritası, 20 farklı renk varyasyonu denemesi ve nihai Varyasyon 14 (Derin Petrol & Siber Turkuaz) tasarımı sabitlendi (`5061d7f`, `08c0861`, `acf09dc`).
+- **22 Ağu:** **Telegram 4 Modüllü Canlı Yönetim Paketi:** Platform checkbox seçici, `/yonetim` duraklatma, reply ile metin/başlık düzenleme, slayt sıralama/silme ve "🗑️ Çöpe At" butonu eklendi (`af45ecf`, `abe18b5`, `360c25b`, `dd1671f`).
+- **22 Ağu:** **Instagram Topluluk Kuralları Filtresi:** İntihar, kendine zarar verme veya istismar haberlerinin RSS havuzundan otomatik elenmesi sağlandı (`19921bd`).
+- **22 Ağu:** **Haber Fotoğrafı HD Resolver:** Ajans ve gazete thumbnail'lerini 4K/5K orijinal fotoğraflara çeviren motor yazıldı (`2a33aff`, `db3c464`).
+- **25 Ağu:** **9:16 Story & 4:5 Safe Area Mimarisi (`y=285..1635`):** Tüm görsellerin Story ve Akışta kusursuz görünmesi sağlandı (`5f4e10a`).
+- **25 Ağu:** **Finans Komutları:** `/hisse`, `/kripto`, `/bulten` (kahve bülteni), `/sonpostlar` ve `/menu` Slash komut menüsü kaydı yapıldı (`4883af2`, `155ff3e`).
 
 ### 🗓️ 15 – 21 Ağustos 2026 (Temel Mimari, Güvenli Alan & Altyapı)
-- **21 Ağu:** ImgBB kesintisi üzerine Catbox.moe yedek barındırıcı entegre edildi. Haber fotoğrafı asgari eşiği 1000x560'a çekilerek gerçek haber görseli oranı %0'dan %79'a çıkarıldı.
-- **20 Ağu:** GitHub Actions kontrol sıklığı 90 dakikaya çekildi, yuvarlama kayıpları engellendi.
-- **19 Ağu:** 2 katmanlı ön eleme ve kategori bazlı puanlama mimarisi kuruldu. Sabah ve akşam 2 tur modeline geçildi. GitHub Pro kotası aktive edildi.
-- **16-17 Ağu:** Son dakika tekil post mimarisi kuruldu (2 slayt, detay metni, alıntı doğrulama, vurgu rakamları). Gece 4 katmanlı otomatik onay sistemi (`otomatik_onay.py`) yazıldı.
+- **21 Ağu:** **Catbox.moe Yedek Barındırıcı:** ImgBB kesintisi sonrası Catbox devreye alındı; haber görseli boyutu 1000x560'a çekilerek gerçek görsel oranı %0'dan %79'a çıkarıldı.
+- **20 Ağu:** **GitHub Actions Kontrol Sıklığı:** 90 dakikaya optimize edildi, dakika yuvarlama kayıpları engellendi.
+- **19 Ağu:** **2 Katmanlı Ön Eleme & Kategori Puanlaması:** Haberler kendi kategorisinde yarıştıktan sonra ağırlıklandırıldı; sabah/akşam 2 tur modeline geçildi; GitHub Pro aktive edildi.
+- **18 Ağu:** **Threads API Entegrasyonu:** Flood zincir paylaşımı ve haftalık otomatik token yenileme kuruldu.
+- **18 Ağu:** **Facebook Graph API Entegrasyonu:** Facebook sayfası, albüm ve story paylaşımı eklendi.
+- **18 Ağu:** **Slaytlara Kurumsal Sosyal Kanal İkonları:** Sağ alt köşeye kurumsal platform logoları yerleştirildi.
+- **16 – 17 Ağu:** **Son Dakika Tekil Post Mimarisi:** 2 slayt, detay metni, alıntı doğrulama (`dogrula.alintiyi_denetle`), iri amber rakam ve gece 4 katmanlı otomatik onay sistemi (`otomatik_onay.py`) yazıldı.
+- **15 Ağu:** **10 Slaytlık Carousel Mimarisi:** İlk çalışan sıfır maliyetli carousel yayın motoru ve Telegram Cloudflare Worker entegrasyonu tamamlandı.
 
