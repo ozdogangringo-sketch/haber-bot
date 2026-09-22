@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import base64
 import io
+import itertools
 import logging
 import os
 import random
@@ -1858,6 +1859,109 @@ def _metni_paragraflara_ayir(metin: str, azami_cumle: int = 3) -> list[str]:
     return sonuc
 
 
+def _sayfalari_dengeli_bol(
+    bloklar: list[dict],
+    kullanilabilir: int,
+    azami_sayfa: int = AZAMI_DETAY_SAYFA,
+    aralik: int = PARAGRAF_ARASI,
+) -> list[list[dict]]:
+    """
+    Detay slaytı bloklarını (paragraflar, vurgu sayısı, alıntı, neden önemli vb.)
+    sayfalar arasında estetik, nefes alan ve dengeli bir biçimde paylaştırır.
+
+    Açgözlü (greedy) yaklaşımın bir önceki sayfayı alt bilgi çizgisine kadar doldurup
+    son sayfayı tek satırlık bir alıntıyla %85 boş bırakmasını (yetim blok) engeller.
+    """
+    if not bloklar:
+        return [[]]
+    n = len(bloklar)
+    if n == 1:
+        return [bloklar]
+
+    # 1. Açgözlü (greedy) simülasyonla asgari sayfa sayısını bul
+    sayfalar_greedy: list[list[dict]] = []
+    gecerli: list[dict] = []
+    dolu = 0
+    for b in bloklar:
+        gerekli = b["yukseklik"] + (aralik if gecerli else 0)
+        tek_vurgu = (len(gecerli) == 1 and gecerli[0].get("tip") == "sayi")
+        if gecerli and dolu + gerekli > kullanilabilir and not tek_vurgu:
+            sayfalar_greedy.append(gecerli)
+            gecerli, dolu = [b], b["yukseklik"]
+        else:
+            gecerli.append(b)
+            dolu += gerekli
+    if gecerli:
+        sayfalar_greedy.append(gecerli)
+
+    k_min = len(sayfalar_greedy)
+    if k_min <= 1:
+        return [bloklar]
+    k_min = min(k_min, azami_sayfa)
+
+    ozel_kapanis_tipleri = {"alinti", "neden_onemli", "sirada_ne_var", "sana_etkisi"}
+    en_iyi_bolum = None
+    en_iyi_skor = float("inf")
+
+    # Sayfa sayısı için k_min ve gerekirse k_min + 1'i dene
+    for k in range(k_min, min(k_min + 2, azami_sayfa + 1)):
+        for cuts in itertools.combinations(range(1, n), k - 1):
+            idx = [0] + list(cuts) + [n]
+            parts = [bloklar[idx[i]:idx[i + 1]] for i in range(k)]
+
+            gecersiz = False
+            heights = []
+            orphan_ceza = 0
+
+            for p in parts:
+                h = sum(b.get("yukseklik", 0) for b in p) + aralik * (len(p) - 1)
+                # Fiziksel sınır aşımı: bu bölümleme kesinlikle elenir
+                if h > kullanilabilir:
+                    gecersiz = True
+                    break
+                # Vurgu sayısı tek başına kalamaz (yanında mutlaka ilk metin olmalı)
+                if p[0].get("tip") == "sayi" and len(p) == 1:
+                    gecersiz = True
+                    break
+                # Yetim özel blok cezası (toplam blok >= 3 iken tek başına alıntı/neden önemli bırakma)
+                if n >= 3 and len(p) == 1 and p[0].get("tip") in ozel_kapanis_tipleri:
+                    orphan_ceza += 150000
+
+                heights.append(h)
+
+            if gecersiz:
+                continue
+
+            # Skorlama:
+            # 1. Varyans: sayfaların birbirine yakın yükseklikte olmasını hedefler
+            h_avg = sum(heights) / k
+            var_cost = sum((h - h_avg) ** 2 for h in heights)
+
+            # 2. Boy farkı (max - min)
+            diff_cost = (max(heights) - min(heights)) * 50
+
+            # 3. Boş sayfa oranı cezası (en küçük sayfa en büyük sayfanın %50'sinden az yer kaplarsa)
+            min_oran = min(heights) / max(heights) if max(heights) > 0 else 1.0
+            oran_ceza = 40000 * (0.50 - min_oran) if min_oran < 0.50 else 0
+
+            # 4. Tek blok cezası (blok sayısı >= 4 iken sayfayı tek blokla kapatmayı cezalandır)
+            tek_blok_ceza = sum(15000 for p in parts if len(p) == 1 and n >= 4)
+
+            # 5. Gereksiz sayfa açma cezası (k > k_min ise)
+            sayfa_ceza = (k - k_min) * 100000
+
+            toplam_skor = var_cost + diff_cost + oran_ceza + tek_blok_ceza + sayfa_ceza + orphan_ceza
+            if toplam_skor < en_iyi_skor:
+                en_iyi_skor = toplam_skor
+                en_iyi_bolum = parts
+
+        # Eğer k_min sayfa sayısıyla yetim bloksuz geçerli bir bölüm bulunduysa dur
+        if en_iyi_bolum is not None and en_iyi_skor < 100000:
+            break
+
+    return en_iyi_bolum if en_iyi_bolum is not None else sayfalar_greedy[:azami_sayfa]
+
+
 def detay_sayfalara_bol(
     detay: str, ayarlar: dict,
     vurgu: tuple[str, str] | None = None,
@@ -2018,22 +2122,8 @@ def detay_sayfalara_bol(
                           "yukseklik": int(kucuk * 1.5) * len(yeni)}
             ikisi = bloklar[0]["yukseklik"] + PARAGRAF_ARASI + bloklar[1]["yukseklik"]
 
-    # Sayfalara dağıt
-    sayfalar, gecerli, dolu = [], [], 0
-    for blok in bloklar:
-        gerekli = blok["yukseklik"] + (PARAGRAF_ARASI if gecerli else 0)
-        tek_basina_vurgu = (len(gecerli) == 1
-                            and gecerli[0].get("tip") == "sayi")
-        if gecerli and dolu + gerekli > kullanilabilir and not tek_basina_vurgu:
-            sayfalar.append(gecerli)
-            gecerli, dolu = [blok], blok["yukseklik"]
-        else:
-            gecerli.append(blok)
-            dolu += gerekli
-    if gecerli:
-        sayfalar.append(gecerli)
-
-    return sayfalar[:AZAMI_DETAY_SAYFA]
+    # Sayfalara estetik ve dengeli dağıt (yetim blok korumalı)
+    return _sayfalari_dengeli_bol(bloklar, kullanilabilir, AZAMI_DETAY_SAYFA, PARAGRAF_ARASI)
 
 
 def detay_slayti(
