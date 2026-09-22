@@ -218,6 +218,7 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 ## 6. Son 1 Ayın Kapsamlı Kronolojik Geliştirme Günlüğü (15 Ağustos – 22 Eylül 2026)
 
 ### 🗓️ 21 – 22 Eylül 2026 (Ses Ayrımı, Dinamik Slayt Süreleri, 2. YouTube Projesi & R2)
+- **22 Eyl:** **Dengeli Detay Slaytı Bölümleme & Yetim Blok Koruması (`_sayfalari_dengeli_bol`):** Açgözlü (greedy) sayfalama mantığı kaldırılarak yerine varyansı ve yükseklik farkını minimize eden kombinatorik optimizasyon algoritması getirildi. 2. Detay Slaytının 4 blokla tıkış tıkış dolup alt çizgiye dayanması, 3. Detay Slaytının ise sadece 1 alıntıyla (%85 boşluk) yetim kalması sorunu çözüldü; sayfalar arası fark 758px'den 90px'e indirilip optik merkeze oturtuldu (`c148a2a`).
 - **22 Eyl:** **İçerik Yoğunluğuna Göre Dinamik Reels Süreleri (`slayt_surelerini_hesapla`):** Sabit 3.5 sn kaldırıldı; 1. Kapak 4.2 sn, detay slaytları kelime sayısına göre 4.8 sn - 6.2 sn aralığında dinamik ayarlandı. Toplam video süresi 15 - 20 sn zirve retention aralığında tutuldu (`94bf292`).
 - **22 Eyl:** **YouTube 2. Google Cloud Projesi Entegrasyonu (`daily-brief-2`):** Günlük kota 5'ten 10 videoya (20.000 puan) çıkarıldı; `quotaExceeded` / 403 durumunda Proje 2'nin refresh token'ına otomatik failover eklendi (`edf50e7`).
 - **21 Eyl:** **Cloudflare R2 Depolama Tam Canlıda (`media.dailybrief.ozbornstudio.com`):** 5 workflow dosyasına (`yayinla`, `son-dakika`, `piyasa-bulteni`, `hazirla`, `haftalik-ozet`) R2 secret'ları bağlanarak birincil CDN olarak devreye alındı (`f1ad9ba`).
