@@ -3852,16 +3852,23 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
                 toplam,
                 f"#{hid} '{basliklar[hid]}' analiz ediliyor ve slaytlar çiziliyor…",
             )
-        # ⚠️ KİLİDİ BIRAK. `son_dakika.main` kendi bağlantısını açıp
-        # yazıyor; bizim açık işlemimiz dururken "database is locked"
-        # alıyordu. Commit hem kilidi bırakıyor hem o ana kadarki
-        # değişiklikleri kalıcı kılıyor.
+        # ⚠️ KİLİDİ VE DOSYA TUTACINI BIRAK.
+        # `son_dakika.main` kendi bağlantısını açıp yazıyor ve gerekirse
+        # git senkronizasyonu / rebase yapıyor. con açık kalırsa Linux
+        # dosya tutacı (inode) kayar ve "file is not a database" hatası doğar.
         con.commit()
+        try:
+            con.close()
+        except Exception:
+            pass
         try:
             sonuc = son_dakika.main(zorla_haber_id=hid)
         except Exception as e:                        # noqa: BLE001
             log.exception("haber %s hazırlanamadı", hid)
             sonuc = 1
+
+        # Alt işlem bittikten sonra taze veritabanına yeni bağlantı açıyoruz
+        con = db.baglan()
 
         # ⚠️ DÖNÜŞ DEĞERİNE DEĞİL, GERÇEK ETKİYE BAK.
         #

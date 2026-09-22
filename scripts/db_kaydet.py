@@ -53,6 +53,11 @@ def main() -> int:
                     help="veritabanı dışında eklenecek yollar")
     a = ap.parse_args()
 
+    if not db_senkron.veritabani_saglam_mi():
+        logging.critical("db_kaydet: 'data/haber.db' sağlamlık denetimini geçemedi! Bozuk dosya git'e ASLA push edilmeyecek.")
+        print("✗ veritabanı bozuk, push engellendi", file=sys.stderr)
+        return 1
+
     damga = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     tamam = db_senkron.hemen_kaydet(f"{a.etiket} {damga}", ek_yollar=a.ek)
 

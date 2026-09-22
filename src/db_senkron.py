@@ -26,6 +26,8 @@ NEDEN PYTHON İÇİNDEN:
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+import sqlite3
 import subprocess
 
 log = logging.getLogger(__name__)
@@ -35,6 +37,33 @@ DAL = "main"
 # Çakışmada BİZİM sürümümüzün kazanacağı dosyalar. İkili dosyalar
 # birleştirilemiyor; birini seçmek zorundayız.
 BIZIM_KAZANIR = ("data/haber.db",)
+
+
+def veritabani_saglam_mi(db_yolu: str | Path = "data/haber.db") -> bool:
+    """
+    Veritabanı dosyasının fiziksel olarak var olduğunu, SQLite formatında olduğunu
+    ve bozuk olmadığını doğrular. Bozuk (0 bayt, sıfırlanmış ilk sayfa vb.) bir veritabanının
+    git'e commit edilip diğer tüm runner'ları zehirlemesini engeller.
+    """
+    try:
+        yol = Path(db_yolu)
+        if not yol.exists() or yol.stat().st_size < 100:
+            log.critical("db_senkron: '%s' dosyası mevcut değil veya çok küçük (<100 bayt)!", yol)
+            return False
+        with open(yol, "rb") as f:
+            baslik = f.read(16)
+            if baslik != b"SQLite format 3\x00":
+                log.critical("db_senkron: '%s' SQLite başlığı geçersiz (ilk 16 bayt bozuk)!", yol)
+                return False
+        with sqlite3.connect(yol, timeout=10) as con:
+            res = con.execute("PRAGMA quick_check").fetchone()
+            if not res or res[0] != "ok":
+                log.critical("db_senkron: '%s' quick_check başarısız: %s", yol, res)
+                return False
+        return True
+    except Exception as e:
+        log.critical("db_senkron: veritabanı kontrol hatası: %s", e)
+        return False
 
 
 def _calistir(*komut: str, saniye: int = 60) -> tuple[bool, str]:
@@ -169,6 +198,13 @@ def _birlestir() -> None:
         except Exception:
             pass
 
+    # Merge sonrası sağlamlık kontrolü
+    if not veritabani_saglam_mi("data/haber.db"):
+        log.critical("db_senkron: Merge sonrası 'data/haber.db' bozuldu! Rebase iptal ediliyor.")
+        _calistir("git", "rebase", "--abort")
+        _calistir("git", "stash", "pop")
+        return
+
     for dosya in BIZIM_KAZANIR:
         if dosya != "data/haber.db":
             _calistir("git", "checkout", "--theirs", "--", dosya)
@@ -194,12 +230,11 @@ def _wal_bosalt() -> None:
     metinler, tur kaydı) commit'e girmez ve runner kapanınca kaybolur.
     """
     try:
-        import sqlite3
         from .db import DB_YOLU
         with sqlite3.connect(DB_YOLU, timeout=30) as con:
             con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     except Exception as e:                              # noqa: BLE001
-        log.warning("WAL boşaltılamadı: %s", e)
+        log.error("WAL boşaltılamadı: %s", e)
 
 
 # Git'in "commit edilecek bir şey yok" demesinin bütün biçimleri.
@@ -226,11 +261,21 @@ def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
     False dönüyor ve LOGA yazıyor — turu düşürmüyoruz, workflow'un
     sonundaki commit adımı yedek olarak duruyor.
     """
+    # ⚠️ BOZUK VERİTABANINI ASLA COMMIT ETME VE PUSH'LAMA!
+    if not veritabani_saglam_mi("data/haber.db"):
+        log.critical("db_senkron: 'data/haber.db' sağlamlık denetimini geçemedi! Commit ve push İPTAL EDİLDİ.")
+        return False
+
     # Actions'ta kimlik ayarlı olmayabilir; her seferinde yazmak zararsız.
     _calistir("git", "config", "user.name", "haber-bot")
     _calistir("git", "config", "user.email", "bot@users.noreply.github.com")
 
     _wal_bosalt()
+
+    if not veritabani_saglam_mi("data/haber.db"):
+        log.critical("db_senkron: WAL boşaltma sonrası 'data/haber.db' bozuldu! Commit ve push İPTAL EDİLDİ.")
+        return False
+
     yollar = ["data/haber.db"] + list(ek_yollar or [])
     tamam, _ = _calistir("git", "add", *yollar)
     if not tamam:
@@ -238,13 +283,6 @@ def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
         return False
 
     # Değişiklik yoksa commit hata veriyor; bu bir sorun DEĞİL.
-    #
-    # ⚠️ GIT BU DURUMU BİRDEN FAZLA CÜMLEYLE ANLATIYOR ve tek bir
-    # kalıba bakmak yanlış alarm veriyordu. 21 Ağu 2026, 07:56:
-    # veritabanı değişmemişti ama takip edilmeyen bir bayrak dosyası
-    # (assets/flags/pa.png) vardı; git "nothing ADDED to commit but
-    # untracked files present" dedi, kod "nothing to commit" arıyordu,
-    # eşleşmedi ve job KIRMIZI oldu. Ortada hiçbir arıza yoktu.
     tamam, cikti = _calistir("git", "commit", "-m", mesaj)
     if not tamam:
         if _degisiklik_yok(cikti):
@@ -257,6 +295,9 @@ def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
     if not tamam:
         # Başka bir job araya girmiş olabilir — üstüne alıp tekrar itiyoruz.
         _birlestir()
+        if not veritabani_saglam_mi("data/haber.db"):
+            log.critical("db_senkron: Rebase sonrası veritabanı bozuk! Push engellendi.")
+            return False
         tamam, cikti = _push()
 
     if tamam:
