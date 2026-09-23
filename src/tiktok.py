@@ -146,6 +146,32 @@ def baslik_kur(baslik: str, etiketler: list[str] | None = None) -> str:
     return temiz
 
 
+def aciklama_kur(
+    metin: str,
+    etiketler: list[str] | None = None,
+    azami_uzunluk: int = 4000,
+) -> str:
+    """
+    TikTok fotoğraf modunun tam açıklama metnini kurar.
+    Editoryal metni ve etiketleri 4000 karaktere kadar eksiksiz korur.
+    """
+    temiz = (metin or "").strip()
+    ham = [str(e).strip().lstrip("#") for e in (etiketler or []) if str(e).strip()]
+    if not ham:
+        ham = ["DailyBrief", "Haber", "Gündem", "SonDakika"]
+
+    etiket_metni = " ".join(f"#{e}" for e in ham)
+    if etiket_metni:
+        if temiz:
+            birlestirilmis = f"{temiz}\n\n{etiket_metni}"
+        else:
+            birlestirilmis = etiket_metni
+    else:
+        birlestirilmis = temiz
+
+    return birlestirilmis[:azami_uzunluk].strip()
+
+
 def foto_carousel_yukle(
     resim_urlleri: list[str],
     baslik: str,
@@ -174,8 +200,8 @@ def foto_carousel_yukle(
     # TikTok Title (Azami 90 karakter)
     temiz_baslik = (baslik or "").strip()[:90]
 
-    # TikTok Description (Azami 4000 karakter, etiketler dahil)
-    tam_aciklama = baslik_kur(aciklama or baslik, etiketler)[:4000]
+    # TikTok Description (Azami 4000 karakter, tam editoryal açıklama ve etiketler)
+    tam_aciklama = aciklama_kur(aciklama or baslik, etiketler, azami_uzunluk=4000)
 
     headers = {
         "Authorization": f"Bearer {token}",

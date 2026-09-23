@@ -13,6 +13,15 @@ sys.path.insert(0, str(KOK))
 from src import tiktok
 
 
+def test_aciklama_kur_tam_metin_ve_etiketler():
+    """Editoryal açıklama ve etiketler 150 karakter sınırına takılmadan 4000 karaktere kadar korunmalıdır."""
+    uzun_metin = "A" * 500
+    sonuc = tiktok.aciklama_kur(uzun_metin, ["ekonomi", "haber"])
+    assert len(sonuc) > 500
+    assert "#ekonomi" in sonuc
+    assert "#haber" in sonuc
+
+
 def test_foto_carousel_bos_url_listesi():
     """Boş URL listesi verildiğinde hata dönmelidir."""
     sonuc = tiktok.foto_carousel_yukle([], "Test Başlık")
