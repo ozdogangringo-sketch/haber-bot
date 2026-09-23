@@ -23,6 +23,7 @@ TIKTOK_OAUTH_TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
 TIKTOK_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/"
 TIKTOK_INBOX_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
 TIKTOK_CREATOR_INFO_URL = "https://open.tiktokapis.com/v2/post/publish/creator_info/query/"
+TIKTOK_CONTENT_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/content/init/"
 
 
 def token_yenile(con=None) -> str | None:
@@ -143,6 +144,153 @@ def baslik_kur(baslik: str, etiketler: list[str] | None = None) -> str:
             break
         temiz = aday
     return temiz
+
+
+def foto_carousel_yukle(
+    resim_urlleri: list[str],
+    baslik: str,
+    gizlilik: str = "PUBLIC_TO_EVERYONE",
+    ayarlar: dict | None = None,
+    etiketler: list[str] | None = None,
+    aciklama: str | None = None,
+) -> dict[str, Any]:
+    """
+    1080x1920 dikey haber ve analiz slaytlarını TikTok Content Posting API v2
+    ile Photo Mode (Carousel / Fotoğraf Kaydırmalı Gönderi) olarak yayınlar.
+
+    Girdi:
+      * resim_urlleri: Herkese açık HTTPS görsel URL'leri listesi (1-35 adet, JPEG veya WEBP)
+      * baslik: Gönderi başlığı (TikTok title azami 90 karakter)
+      * aciklama: Gönderi açıklaması/caption (TikTok description azami 4000 karakter)
+      * gizlilik: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY'
+    """
+    if not resim_urlleri:
+        return {"durum": False, "hata": "Görsel URL listesi boş"}
+
+    token = access_token_al()
+    if not token:
+        return {"durum": False, "hata": "TIKTOK_ACCESS_TOKEN eksik veya tanımlanmamış."}
+
+    # TikTok Title (Azami 90 karakter)
+    temiz_baslik = (baslik or "").strip()[:90]
+
+    # TikTok Description (Azami 4000 karakter, etiketler dahil)
+    tam_aciklama = baslik_kur(aciklama or baslik, etiketler)[:4000]
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json; charset=UTF-8",
+    }
+
+    # Resim URL'lerini listeye filtrele (maksimum 35 adet)
+    gecerli_urller = [str(u).strip() for u in resim_urlleri if str(u).strip().startswith("http")][:35]
+    if not gecerli_urller:
+        return {"durum": False, "hata": "Geçerli HTTPS görsel URL'si bulunamadı"}
+
+    try:
+        # 1. Önce Doğrudan Yayınlama (DIRECT_POST) Dene
+        payload_direct = {
+            "media_type": "PHOTO",
+            "post_mode": "DIRECT_POST",
+            "post_info": {
+                "title": temiz_baslik,
+                "description": tam_aciklama,
+                "privacy_level": gizlilik,
+                "disable_comment": False,
+            },
+            "source_info": {
+                "source": "PULL_FROM_URL",
+                "photo_cover_index": 1,
+                "photo_images": gecerli_urller,
+            },
+        }
+
+        r_init = requests.post(TIKTOK_CONTENT_INIT_URL, headers=headers, json=payload_direct, timeout=15)
+        veri_init = r_init.json()
+        mod = "direct_publish"
+
+        # Token süresi dolduysa yenileyip tekrar dene
+        if r_init.status_code == 401 or veri_init.get("error", {}).get("code") in ("access_token_invalid", "token_expired"):
+            log.info("TikTok jetonu süresi dolmuş, yenilenip tekrar deneniyor...")
+            token = token_yenile()
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                r_init = requests.post(TIKTOK_CONTENT_INIT_URL, headers=headers, json=payload_direct, timeout=15)
+                veri_init = r_init.json()
+
+        err_code = veri_init.get("error", {}).get("code", "")
+        err_msg = veri_init.get("error", {}).get("message", "")
+
+        # URL alan adı doğrulaması gerekiyorsa
+        if err_code == "url_ownership_unverified":
+            log.warning("TikTok görsel alan adı doğrulanmamış (url_ownership_unverified): %s", err_msg)
+            return {
+                "durum": False,
+                "hata": (
+                    "TikTok alan adı doğrulanmamış (url_ownership_unverified). "
+                    "developers.tiktok.com üzerinden görsel CDN alan adı eklenmelidir."
+                ),
+                "url_unverified": True,
+                "kod": err_code,
+            }
+
+        # App audit yoksa veya direct post kısıtlıysa Inbox/Taslak (MEDIA_UPLOAD) moduna geç
+        if r_init.status_code != 200 or err_code != "ok":
+            log.info(
+                "TikTok Carousel direct publish reddedildi (%s: %s), MEDIA_UPLOAD (Inbox/Taslak) deneniyor...",
+                err_code,
+                err_msg,
+            )
+            payload_inbox = {
+                "media_type": "PHOTO",
+                "post_mode": "MEDIA_UPLOAD",
+                "post_info": {
+                    "title": temiz_baslik,
+                    "description": tam_aciklama,
+                    "disable_comment": False,
+                },
+                "source_info": {
+                    "source": "PULL_FROM_URL",
+                    "photo_cover_index": 1,
+                    "photo_images": gecerli_urller,
+                },
+            }
+            r_init = requests.post(TIKTOK_CONTENT_INIT_URL, headers=headers, json=payload_inbox, timeout=15)
+            veri_init = r_init.json()
+            mod = "inbox_draft"
+            err_code = veri_init.get("error", {}).get("code", "")
+            err_msg = veri_init.get("error", {}).get("message", "")
+
+            if err_code == "url_ownership_unverified":
+                return {
+                    "durum": False,
+                    "hata": (
+                        "TikTok alan adı doğrulanmamış (url_ownership_unverified). "
+                        "developers.tiktok.com üzerinden görsel CDN alan adı eklenmelidir."
+                    ),
+                    "url_unverified": True,
+                    "kod": err_code,
+                }
+
+            if r_init.status_code != 200 or err_code != "ok":
+                return {
+                    "durum": False,
+                    "hata": f"TikTok Carousel başlatma hatası ({err_code}): {err_msg}",
+                    "kod": err_code,
+                }
+
+        data_block = veri_init.get("data", {})
+        publish_id = data_block.get("publish_id")
+        log.info("TikTok Carousel başarıyla başlatıldı (%s, publish_id: %s)", mod, publish_id)
+        return {
+            "durum": True,
+            "mod": mod,
+            "publish_id": publish_id,
+            "yanit": veri_init,
+        }
+    except Exception as e:
+        log.warning("TikTok Carousel yükleme hatası: %s", e)
+        return {"durum": False, "hata": str(e)}
 
 
 def video_yukle(

@@ -215,9 +215,10 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 
 ---
 
-## 6. Son 1 Ayın Kapsamlı Kronolojik Geliştirme Günlüğü (15 Ağustos – 22 Eylül 2026)
+## 6. Son 1 Ayın Kapsamlı Kronolojik Geliştirme Günlüğü (15 Ağustos – 24 Eylül 2026)
 
-### 🗓️ 21 – 22 Eylül 2026 (Ses Ayrımı, Dinamik Slayt Süreleri, 2. YouTube Projesi & R2)
+### 🗓️ 21 – 24 Eylül 2026 (TikTok Photo Carousel, Veritabanı Bütünlüğü & Ses Ayrımı)
+- **24 Eyl:** **TikTok Content Posting API v2 Photo Mode (Carousel) Motoru (`src/tiktok.py` & `scripts/onay_isle.py`):** TikTok'ta infografik ve haber carousellerinin videolara kıyasla çok daha yüksek etkileşim, tamamlama ve kaydetme (save) alması nedeniyle Photo Mode entegre edildi (`POST /v2/post/publish/content/init/`, `media_type: PHOTO`, `source: PULL_FROM_URL`). 1080x1920 R2 slaytları doğrudan TikTok Carousel olarak gönderilir; app audit kısıtı varsa otomatik `MEDIA_UPLOAD` (Inbox/Taslak) moduna geçer, alan adı doğrulaması eksikse veya beklenmeyen bir durumda kesintisiz dikey video fallback'ine düşer.
 - **22 Eyl:** **Veritabanı Çakışma ve Bütünlük Kurtarması (`def5d1b` & `veritabani_saglam_mi`):** 20:14 TR'de `oneriyi_hazirla` alt işlemi sırasında SQLite bağlantısı açıkken arka planda yapılan git rebase/checkout sonucu dosya tutacı (inode) kaymış ve `db_kaydet.py` hasarlı veritabanını (`def5d1b`) GitHub'a pushlamıştı. Sağlıklı commit (`71b4b7e`) geri yüklenerek sıfır veri kaybıyla veritabanı kurtarıldı; `db_senkron` ve `db_kaydet` içine `veritabani_saglam_mi` PRAGMA quick_check ve header doğrulaması eklenerek bozuk dosyaların git'e pushlanması kalıcı olarak engellendi (`5f89d40`).
 - **22 Eyl:** **Dengeli Detay Slaytı Bölümleme & Yetim Blok Koruması (`_sayfalari_dengeli_bol`):** Açgözlü (greedy) sayfalama mantığı kaldırılarak yerine varyansı ve yükseklik farkını minimize eden kombinatorik optimizasyon algoritması getirildi. 2. Detay Slaytının 4 blokla tıkış tıkış dolup alt çizgiye dayanması, 3. Detay Slaytının ise sadece 1 alıntıyla (%85 boşluk) yetim kalması sorunu çözüldü; sayfalar arası fark 758px'den 90px'e indirilip optik merkeze oturtuldu (`c148a2a`).
 - **22 Eyl:** **İçerik Yoğunluğuna Göre Dinamik Reels Süreleri (`slayt_surelerini_hesapla`):** Sabit 3.5 sn kaldırıldı; 1. Kapak 4.2 sn, detay slaytları kelime sayısına göre 4.8 sn - 6.2 sn aralığında dinamik ayarlandı. Toplam video süresi 15 - 20 sn zirve retention aralığında tutuldu (`94bf292`).

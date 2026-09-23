@@ -482,25 +482,57 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         nonlocal tt_publish_id, tt_notu
         _bildir("tiktok", "⏳ Yükleniyor...")
         v_yolu_tt = sessiz_video_yolu or paylasilan_video_yolu
+
+        from src import tiktok
+        h0 = dict(haberler[0]) if haberler else {}
+        baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
+        etiket_tt = caption.etiketleri_sec(haberler, kanal="tiktok", ayarlar=ayarlar)
+
+        # 1. ÖNCELİK: TikTok Photo Mode (Carousel)
+        # 1080x1920 dikey infografik slaytları varsa doğrudan Carousel olarak yükle
+        if urller and len(urller) >= 2:
+            try:
+                tt_res = tiktok.foto_carousel_yukle(
+                    urller,
+                    baslik=baslik_tt,
+                    ayarlar=ayarlar,
+                    etiketler=etiket_tt,
+                    aciklama=metin,
+                )
+                if tt_res.get("durum"):
+                    with _lock:
+                        tt_publish_id = tt_res.get("publish_id")
+                        if tt_res.get("mod") == "inbox_draft":
+                            tt_notu = "\n🎵 TikTok: Carousel TASLAK olarak yüklendi — uygulamadan yayınla"
+                        else:
+                            tt_notu = "\n🎵 TikTok Fotoğraf Carouseli yayınlandı"
+                    _bildir("tiktok", "✅ Yayında (Carousel)", increment=True)
+                    return
+                else:
+                    log.warning(
+                        "TikTok carousel denenemedi (%s), video yedeğine geçiliyor...",
+                        tt_res.get("hata"),
+                    )
+            except Exception as e_car:
+                log.warning("TikTok carousel yükleme hatası (%s), videoya geçiliyor...", e_car)
+
+        # 2. YEDEK: Dikey Video (Video Fallback)
         if not v_yolu_tt:
             with _lock:
-                tt_notu = "\n⚠️ TikTok videosu oluşturulamadı"
-            _bildir("tiktok", "❌ Video Yok", increment=True)
+                tt_notu = "\n⚠️ TikTok içeriği (carousel/video) oluşturulamadı"
+            _bildir("tiktok", "❌ İçerik Yok", increment=True)
             return
+
         try:
-            from src import tiktok
-            h0 = dict(haberler[0]) if haberler else {}
-            baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-            etiket_tt = caption.etiketleri_sec(haberler, kanal="tiktok", ayarlar=ayarlar)
             tt_res = tiktok.video_yukle(v_yolu_tt, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
             if tt_res.get("durum"):
                 with _lock:
                     tt_publish_id = tt_res.get("publish_id")
                     if tt_res.get("mod") == "inbox_draft":
-                        tt_notu = "\n🎵 TikTok: TASLAK olarak yüklendi — uygulamadan elle yayınla"
+                        tt_notu = "\n🎵 TikTok: Video TASLAK olarak yüklendi — uygulamadan elle yayınla"
                     else:
                         tt_notu = "\n🎵 TikTok videosu yayınlandı"
-                _bildir("tiktok", "✅ Yayında", increment=True)
+                _bildir("tiktok", "✅ Yayında (Video)", increment=True)
             else:
                 hata_tt = tt_res.get("hata", "")[:60]
                 with _lock:
@@ -1168,36 +1200,43 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
     if kanal in ("tiktok", "hepsi"):
         try:
             from src import tiktok, video
-            dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
             h0 = dict(haberler[0]) if haberler else {}
             baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
-            etiket_tt = caption.etiketleri_sec(
-                haberler, kanal="tiktok", ayarlar=ayarlar)
-            tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
-            if tt_res.get("durum"):
+            etiket_tt = caption.etiketleri_sec(haberler, kanal="tiktok", ayarlar=ayarlar)
+
+            tt_res = None
+            # 1. Öncelik: Carousel
+            if urller and len(urller) >= 2:
+                try:
+                    tt_res = tiktok.foto_carousel_yukle(
+                        urller,
+                        baslik=baslik_tt,
+                        ayarlar=ayarlar,
+                        etiketler=etiket_tt,
+                        aciklama=metin,
+                    )
+                except Exception as e_car:
+                    log.warning("TikTok telafi carousel hatası: %s", e_car)
+
+            # 2. Yedek: Video
+            if not tt_res or not tt_res.get("durum"):
+                dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+                video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
+                tt_res = tiktok.video_yukle(video_yolu, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
+
+            if tt_res and tt_res.get("durum"):
                 con.execute("UPDATE haberler SET tiktok_post_id = ? WHERE telegram_message_id = ?", (tt_res.get("publish_id"), mesaj_id))
                 con.commit()
-                # ⚠️ TASLAK İLE YAYINI AYIRT ET (4 Eyl 2026).
-                # `tiktok.video_yukle` önce doğrudan yayını deniyor,
-                # `video.publish` izni yoksa TASLAK kutusuna düşüyor ve
-                # `mod` alanında hangisi olduğunu söylüyor. Mesaj bunu
-                # yok sayıp her durumda "Başarıyla yüklendi!" diyordu —
-                # oysa taslak modunda video TikTok uygulamasında
-                # BEKLİYOR ve elle yayınlanması gerekiyor.
-                # Ölçüldü: yayınlanmış TÜM kayıtların publish_id'si
-                # `v_inbox_file~` ile başlıyor, yani doğrudan yayın HİÇ
-                # çalışmamış. (CLAUDE.md'deki "Yarım zinciri başarı
-                # sayma" dersinin aynısı.)
+                tur_ad = "Carouseli" if tt_res.get("yanit", {}).get("data", {}).get("share_id") or "carousel" in str(tt_res) else "Videosu"
                 if tt_res.get("mod") == "inbox_draft":
                     sonuclar.append(
-                        "🎵 <b>TikTok:</b> TASLAK olarak yüklendi — "
+                        f"🎵 <b>TikTok:</b> TASLAK olarak yüklendi — "
                         "uygulamadan elle yayınlaman gerekiyor "
                         "(<i>TikTok app audit bekliyor</i>)")
                 else:
-                    sonuclar.append("🎵 <b>TikTok Videosu:</b> Yayınlandı!")
+                    sonuclar.append(f"🎵 <b>TikTok {tur_ad}:</b> Yayınlandı!")
             else:
-                sonuclar.append(f"⚠️ <b>TikTok:</b> Başarısız ({tt_res.get('hata', '')[:80]})")
+                sonuclar.append(f"⚠️ <b>TikTok:</b> Başarısız ({tt_res.get('hata', '')[:80] if tt_res else 'Hata'})")
         except Exception as e:
             log.exception("TikTok telafi hatası: %s", e)
             sonuclar.append(f"⚠️ <b>TikTok:</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")
