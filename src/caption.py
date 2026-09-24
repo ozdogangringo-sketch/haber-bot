@@ -312,7 +312,12 @@ def son_dakika_caption(
         parcalar.append(f"💡 {sana_etkisi}")
 
     if etkilesim:
-        parcalar.append(f"💬 SİZCE? {etkilesim}")
+        soru = etkilesim.strip()
+        if soru:
+            soru = soru[0].upper() + soru[1:]
+            if not soru.endswith(("?", "!", ".")):
+                soru += "?"
+            parcalar.append(f"💬 {soru}")
 
     kaynak_adi = kaynak_gosterim_adi(h_dict.get("kaynak", ""), ayarlar or {})
     if kaynak_adi:
