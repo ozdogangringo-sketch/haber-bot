@@ -3980,6 +3980,35 @@ def test_govde_cekiminde_reddedilen_aday_zinciri_bitirmiyor() -> None:
             "kapı tek noktada kalmış, elenen aday sıradakine yol açmıyor")
 
 
+def test_makale_alaka_turkce_ek_ve_kisa_kelimeler() -> None:
+    """
+    Türkçe eklemeli kelimeler ve 3 harfli kritik kelimeler alaka testinden geçiyor mu?
+
+    ⚠️ GERÇEK OLAY (24 Eyl 2026). Kullanıcı: "motorin zam haberi neden bu kadar az
+    detay içeriyor".
+    Kusur: 'Motorine zam geliyor' başlığında 'zam' (3 harf) len >= 4 kuralıyla
+    tamamen eleniyor, 'motorine' kelimesi gövdedeki 'motorin' veya 'motorinin'
+    ile birebir string eşleşmesi vermediği için gerçek makale gövdesi 'ilgisiz'
+    sayılıp eleniyordu. Model yalnızca 5 kelimelik başlıkla baş başa kalıyordu.
+    """
+    sys.path.insert(0, str(KOK))
+    from src import fetch_article as fa
+
+    baslik = "Motorine zam geliyor: Tarih belli oldu"
+    govde = (
+        "Petrol piyasasındaki hareketlilik akaryakıt fiyatlarını da etkiledi. "
+        "Motorinin litre fiyatına yarından itibaren 2,55 lira zam gelmesi bekleniyor. "
+        "Zamla birlikte motorinin litre fiyatının İstanbul'da 93,45 liraya çıkması bekleniyor."
+    )
+    denetle(fa._baslikla_ilgili_mi(govde, baslik),
+            "Türkçe ekler ve 'zam' gibi kritik 3 harfli kelimeler doğru eşleşiyor",
+            "eklemeli kelime ('motorine' -> 'motorin') veya 'zam' elendi")
+
+    alakasiz = "Merkez bankası enflasyon tahminini açıkladı. Gıda fiyatları yükseliyor."
+    denetle(not fa._baslikla_ilgili_mi(alakasiz, baslik),
+            "tamamen alakasız metin reddediliyor",
+            "alakasız metin yanlışlıkla onaylandı")
+
 
 def test_piyasa_verisi_yoksa_uydurma_sayi_basilmiyor() -> None:
     """

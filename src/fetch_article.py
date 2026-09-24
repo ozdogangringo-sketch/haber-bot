@@ -158,6 +158,48 @@ def _kucult(metin: str) -> str:
     return metin.replace("İ", "i").replace("I", "ı").lower()
 
 
+TURKCE_STOPWORDS = {
+    "bir", "ve", "ile", "bu", "da", "de", "ne", "en", "icin", "için",
+    "gibi", "daha", "kadar", "sonra", "once", "önce", "cok", "çok",
+    "var", "yok", "her", "ise", "olan", "olarak", "diye", "son", "yeni",
+    "ancak", "ayrıca", "ayrica", "bazi", "bazı", "tum", "tüm", "bunu",
+    "buna", "bunun", "yada", "veya"
+}
+
+
+def _turkce_kok(kelime: str) -> str:
+    """Türkçe kelimelerin yaygın çekim ve yapım eklerini temizleyerek kök/gövde tahmin eder."""
+    k = _kucult(kelime)
+    for ek in (
+        "lerinden", "larindan", "lerinden", "larından",
+        "lerinin", "larinin", "lerinin", "larının",
+        "lerine", "larina", "lerine", "larına",
+        "lerini", "larini", "lerini", "larını",
+        "lerde", "larda", "lerden", "lardan",
+        "leriyle", "lariyla", "leriyle", "larıyla",
+        "sinden", "sindan", "sunden", "sundan",
+        "sinde", "sinda", "sunde", "sunda",
+        "sine", "sina", "sune", "suna",
+        "sini", "sini", "sunu", "sünü",
+        "inden", "indan", "unden", "undan",
+        "lerin", "larin", "lerin", "ların",
+        "nin", "nın", "nün", "nun",
+        "den", "dan", "ten", "tan",
+        "de", "da", "te", "ta",
+        "ye", "ya", "yi", "yı", "yu", "yü",
+        "in", "ın", "ün", "un",
+        "e", "a", "i", "ı", "u", "ü",
+        "ler", "lar", "lik", "lık", "luk", "lük",
+        "siz", "sız", "suz", "süz",
+        "yor", "di", "dı", "du", "dü", "ti", "tı", "tu", "tü",
+        "miş", "mış", "muş", "müş", "ecek", "acak",
+    ):
+        if len(k) - len(ek) >= 3 and k.endswith(ek):
+            k = k[:-len(ek)]
+            break
+    return k
+
+
 def _baslikla_ilgili_mi(metin: str, baslik: str) -> bool:
     """
     Çektiğimiz metin gerçekten BU haberin metni mi?
@@ -173,17 +215,34 @@ def _baslikla_ilgili_mi(metin: str, baslik: str) -> bool:
     ediyoruz — çağıran taraf RSS özetine düşer.
 
     Ölçüt: başlıktaki anlamlı kelimelerin en az üçte biri metinde geçmeli.
+    Türkçe eklemeli yapıyı (örn. 'motorine' -> 'motorin') ve 3 harfli kritik
+    ekonomi/gündem kelimelerini ('zam', 'fed', 'gaz', 'bist') destekler.
     """
     if not baslik:
         return True                     # başlık yoksa kontrol edemeyiz
 
     govde = _kucult(metin)
-    kelimeler = [k for k in re.findall(r"\w+", _kucult(baslik)) if len(k) >= 4]
+    ham_kelimeler = re.findall(r"\w+", _kucult(baslik))
+    kelimeler = [k for k in ham_kelimeler if len(k) >= 3 and k not in TURKCE_STOPWORDS]
     if len(kelimeler) < 2:
         return True                     # kontrol için fazla kısa başlık
 
-    gecen = sum(1 for k in kelimeler if k in govde)
-    return gecen >= max(2, len(kelimeler) // 3)
+    govde_kelimeleri = set(re.findall(r"\w+", govde))
+    govde_kokleri = {_turkce_kok(w) for w in govde_kelimeleri}
+
+    eslesen = 0
+    for k in kelimeler:
+        kok = _turkce_kok(k)
+        if (
+            k in govde_kelimeleri
+            or kok in govde_kelimeleri
+            or kok in govde_kokleri
+            or any(gw.startswith(kok) for gw in govde_kelimeleri if len(kok) >= 4)
+            or any(k.startswith(gw) for gw in govde_kelimeleri if len(gw) >= 4)
+        ):
+            eslesen += 1
+
+    return eslesen >= max(2, len(kelimeler) // 3)
 
 
 def og_gorseli_cek(link: str, zaman_asimi: int = 20) -> str | None:
@@ -573,7 +632,10 @@ def _kirp_baslik_oncelikli(metin: str, baslik: str | None, azami: int = AZAMI_UZ
     if not baslik:
         return metin[:azami]
 
-    anahtarlar = [k for k in re.findall(r"\w+", _kucult(baslik)) if len(k) >= 4]
+    anahtarlar = [
+        k for k in re.findall(r"\w+", _kucult(baslik))
+        if len(k) >= 3 and k not in TURKCE_STOPWORDS
+    ]
     if not anahtarlar:
         return metin[:azami]
 
@@ -583,7 +645,15 @@ def _kirp_baslik_oncelikli(metin: str, baslik: str | None, azami: int = AZAMI_UZ
     # Önce başlıktaki kelimeleri içeren kısımları ve giriş kısmını dahil et
     for p in paragraflar:
         p_k = _kucult(p)
-        eslesiyor = any(k in p_k for k in anahtarlar)
+        p_kelimeler = set(re.findall(r"\w+", p_k))
+        p_kokler = {_turkce_kok(w) for w in p_kelimeler}
+        eslesiyor = any(
+            k in p_kelimeler
+            or _turkce_kok(k) in p_kelimeler
+            or _turkce_kok(k) in p_kokler
+            or any(w.startswith(_turkce_kok(k)) for w in p_kelimeler if len(_turkce_kok(k)) >= 4)
+            for k in anahtarlar
+        )
         if eslesiyor or toplam < azami // 2:
             if toplam + len(p) < azami:
                 secilen.append(p)
