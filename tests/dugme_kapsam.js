@@ -6,7 +6,8 @@ const w = new Function(k +
 const karsilanir = (v) =>
   w.eylemMi(v) || w.MENU_GEZINME.test(v) || w.SEC.test(v) || w.KANAL_TOGGLE.test(v)
   || v === "duraklat_menu" || v === w.SECILENLERI_HAZIRLA || v === w.HATA_AYRINTI
-  || v.startsWith("slayt_elle:") || v.startsWith("makro_yardim:");
+  || v.startsWith("slayt_elle:") || v.startsWith("makro_yardim:")
+  || v === "isleniyor";
 const out = {};
 for (const a of JSON.parse(process.argv[3])) out[a] = karsilanir(a);
 console.log(JSON.stringify(out));
