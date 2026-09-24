@@ -353,7 +353,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     # Caption belirleme
     if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
         metin = ilk_h_dict["ig_caption"]
-    elif haberler[0]["son_dakika"]:
+    elif haberler[0]["son_dakika"] or len(haberler) == 1:
         metin = caption.son_dakika_caption(
             haberler[0], _sonuclari_kur(haberler), ayarlar)
     else:
@@ -615,8 +615,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                     from src import video
                     dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
                     video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
-
-                temiz_metin = html_lib.escape(metin.strip())
+                reels_aciklama = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
+                temiz_metin = html_lib.escape(reels_aciklama.strip())
                 telegram_bot.video_gonder(
                     video_yolu,
                     aciklama="🎬 <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
@@ -959,7 +959,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         return 0
 
     ilk_h_dict = dict(haberler[0])
-    son_dakika_mi = bool(ilk_h_dict.get("son_dakika"))
+    son_dakika_mi = bool(ilk_h_dict.get("son_dakika")) or len(haberler) == 1
     tur_mu = len(haberler) > 1
 
     # Görselleri ve varsa detay/piyasa slaytlarını topla
@@ -979,7 +979,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             urller.insert(0, kart_satir["deger"])
 
     for h in haberler:
-        if h["son_dakika"]:
+        if h.get("son_dakika") or len(haberler) == 1 or h.get("detay_url"):
             urller.extend(_detay_urlleri(h["detay_url"]))
 
     # Görsellerin canlılığını ve Meta uyumluluğunu doğrula, süresi geçmiş/uguu olanları onar
@@ -991,7 +991,7 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
     # Caption metni
     if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
         metin = ilk_h_dict["ig_caption"]
-    elif son_dakika_mi:
+    elif son_dakika_mi or len(haberler) == 1:
         metin = caption.son_dakika_caption(haberler[0], _sonuclari_kur(haberler), ayarlar)
     else:
         metin = caption.caption_kur(haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
@@ -2575,7 +2575,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
                     con.commit()
 
                     taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
-                    son_dakika_mi = len(haberler) == 1 and bool(haberler[0]["son_dakika"])
+                    son_dakika_mi = len(haberler) == 1 and (bool(haberler[0].get("son_dakika")) or haberler[0].get("tur") != "ekonomi")
                     if son_dakika_mi:
                         sonuclar = slaytlar.son_dakika_uret(taze, ayarlar, con=con)
                         urller = []
@@ -2665,7 +2665,7 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
         con.commit()
 
         guncel = turu_getir(con, mesaj_id)
-        if len(guncel) == 1 and guncel[0]["son_dakika"]:
+        if len(guncel) == 1 and (guncel[0].get("son_dakika") or guncel[0].get("tur") != "ekonomi"):
             yeni_cap = caption.son_dakika_caption(taze, _sonuclari_kur(guncel), ayarlar)
         else:
             yeni_cap = caption.caption_kur(guncel, _sonuclari_kur(guncel), ayarlar=ayarlar)
@@ -3408,10 +3408,12 @@ def menuyu_geri_koy(con, mesaj_id: int, en_alta_tasi: bool = False) -> int:
     try:
         uyari, isaretli = dogrula.turu_dogrula(haberler)
         ilk_h = dict(haberler[0]) if haberler else {}
-        if len(haberler) == 1 and ilk_h.get("son_dakika"):
+        if len(haberler) == 1 and ilk_h.get("tur") != "ekonomi":
             adet = 1 + len(_detay_urlleri(ilk_h.get("detay_url")))
             baslik_goster = html.escape(ilk_h.get("ig_baslik") or ilk_h.get("baslik_orj") or "")
-            ozet = (f"🔴 <b>SON DAKİKA ÖNERİSİ</b>  ·  puan {ilk_h.get('onem_puani', 8)}/10\n"
+            onem = ilk_h.get('onem_puani', 8)
+            tur_etiket = "🔴 <b>SON DAKİKA ÖNERİSİ</b>" if (ilk_h.get("son_dakika") or onem >= 9) else "📰 <b>HABER ÖNERİSİ</b>"
+            ozet = (f"{tur_etiket}  ·  puan {onem}/10\n"
                     f"📰 <b>{baslik_goster}</b>\n"
                     f"⌛️ 24 saat boyunca onaya hazır bekler")
             metin = caption.son_dakika_caption(haberler[0], _sonuclari_kur(haberler), ayarlar=_ayarlar_onbellek)
@@ -4675,7 +4677,7 @@ def main() -> int:
             ilk_h_dict = dict(haberler[0]) if haberler else {}
             if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
                 metin = ilk_h_dict["ig_caption"]
-            elif haberler[0]["son_dakika"]:
+            elif haberler[0]["son_dakika"] or len(haberler) == 1:
                 metin = caption.son_dakika_caption(haberler[0], _sonuclari_kur(haberler), ayarlar)
             else:
                 metin = caption.caption_kur(haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)

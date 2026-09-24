@@ -259,9 +259,15 @@ def son_dakika_caption(
     h_dict = dict(haber)
     sonuclar = sonuclar or []
     f = (ayarlar or {}).get("icerik_filtresi", {})
-
     baslik = (h_dict.get("ig_baslik") or h_dict.get("baslik_orj") or "").strip()
-    govde = (h_dict.get("ig_caption") or h_dict.get("slayt_ozet") or "").strip()
+    govde = (h_dict.get("ig_caption") or "").strip()
+    if not govde or len(govde) < 60:
+        if h_dict.get("detay_metni"):
+            govde = h_dict["detay_metni"].strip()
+        elif h_dict.get("slayt_ozet"):
+            govde = h_dict["slayt_ozet"].strip()
+        elif h_dict.get("ozet_orj"):
+            govde = h_dict["ozet_orj"].strip()
     # ⚠️ İçi boş övgü caption'a da girmesin — kullanıcı bu metni
     # kopyalayıp ELLE paylaşıyor. Her alan AYRI eleniyor: `sana_etkisi`
     # boşsa `neden_onemli` hâlâ bilgi taşıyor olabilir.

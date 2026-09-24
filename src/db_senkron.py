@@ -107,29 +107,20 @@ def _sqlite_db_birlestir(yerel_db_yolu: str, uzak_db_yolu: str) -> None:
                 SELECT * FROM remote_db.haberler 
                 WHERE id NOT IN (SELECT id FROM haberler)
             ''')
-            # 2. Uzakta onay bekleyen veya yayınlanan haberleri güncelle (yerel henüz yeni ise)
+            # 2. Uzakta onay bekleyen, yayınlanan veya işlem gören haberler yereldeki işlenmemiş ('yeni', 'metin_hazir') halini tamamen ezer
             con.execute('''
-                UPDATE haberler
-                SET durum = r.durum,
-                    telegram_message_id = r.telegram_message_id,
-                    ig_baslik = r.ig_baslik,
-                    gonderim_zamani = r.gonderim_zamani,
-                    gorsel_url = r.gorsel_url,
-                    story_url = r.story_url,
-                    detay_url = r.detay_url,
-                    detay_metni = r.detay_metni,
-                    ig_post_id = r.ig_post_id,
-                    threads_post_id = r.threads_post_id,
-                    facebook_post_id = r.facebook_post_id,
-                    twitter_post_id = r.twitter_post_id,
-                    youtube_post_id = r.youtube_post_id,
-                    tiktok_post_id = r.tiktok_post_id
-                FROM remote_db.haberler AS r
-                WHERE haberler.id = r.id
-                  AND r.durum != 'yeni'
-                  AND haberler.durum = 'yeni'
+                DELETE FROM haberler 
+                WHERE id IN (
+                    SELECT id FROM remote_db.haberler 
+                    WHERE durum IN ('onay_bekliyor', 'yayinlandi', 'ertelendi', 'reddedildi', 'cop')
+                ) AND durum IN ('yeni', 'metin_hazir')
             ''')
-            # 3. Uzakta 'yayinlandi' durumuna geçmişse yerelde de yayınlandı yap
+            con.execute('''
+                INSERT OR IGNORE INTO haberler 
+                SELECT * FROM remote_db.haberler 
+                WHERE id NOT IN (SELECT id FROM haberler)
+            ''')
+            # 3. Uzakta 'yayinlandi' durumuna geçmişse yerelde de yayınlandı yap ve post ID'lerini güncelle
             con.execute('''
                 UPDATE haberler
                 SET durum = r.durum,
@@ -138,10 +129,28 @@ def _sqlite_db_birlestir(yerel_db_yolu: str, uzak_db_yolu: str) -> None:
                     facebook_post_id = COALESCE(r.facebook_post_id, haberler.facebook_post_id),
                     twitter_post_id = COALESCE(r.twitter_post_id, haberler.twitter_post_id),
                     youtube_post_id = COALESCE(r.youtube_post_id, haberler.youtube_post_id),
-                    tiktok_post_id = COALESCE(r.tiktok_post_id, haberler.tiktok_post_id)
+                    tiktok_post_id = COALESCE(r.tiktok_post_id, haberler.tiktok_post_id),
+                    gonderim_zamani = COALESCE(r.gonderim_zamani, haberler.gonderim_zamani)
                 FROM remote_db.haberler AS r
                 WHERE haberler.id = r.id
                   AND r.durum = 'yayinlandi'
+                  AND haberler.durum != 'yayinlandi'
+            ''')
+            # 4. Yerelde eksik kalan alanları (ig_caption, son_dakika vb.) uzaktan doldur
+            con.execute('''
+                UPDATE haberler
+                SET ig_caption = COALESCE(haberler.ig_caption, r.ig_caption),
+                    son_dakika = MAX(COALESCE(haberler.son_dakika, 0), COALESCE(r.son_dakika, 0)),
+                    slayt_ozet = COALESCE(haberler.slayt_ozet, r.slayt_ozet),
+                    ig_hashtag = COALESCE(haberler.ig_hashtag, r.ig_hashtag),
+                    sana_etkisi = COALESCE(haberler.sana_etkisi, r.sana_etkisi),
+                    neden_onemli = COALESCE(haberler.neden_onemli, r.neden_onemli),
+                    gorsel_url = COALESCE(haberler.gorsel_url, r.gorsel_url),
+                    story_url = COALESCE(haberler.story_url, r.story_url),
+                    detay_url = COALESCE(haberler.detay_url, r.detay_url),
+                    detay_metni = COALESCE(haberler.detay_metni, r.detay_metni)
+                FROM remote_db.haberler AS r
+                WHERE haberler.id = r.id
             ''')
             # 4. Ayarları birleştir
             try:
