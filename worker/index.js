@@ -449,18 +449,26 @@ const KOMUT_ADI = {
 };
 
 /**
- * Butonları kaldırıp mesajın başına "işleniyor" satırı koyar.
- *
- * NEDEN: GitHub Actions'ın uyanıp işi bitirmesi 40-90 saniye sürüyor.
- * O sürede hiçbir şey değişmezse iş alındı mı belli olmuyor ve insan
- * ikinci kez basıyor — "yayınla"da bu çift post demek.
- *
- * Butonları kaldırmak çift basmayı kökten engelliyor; sonucu yazan
- * `onay_isle.py` başarısız olursa menüyü geri koyuyor.
+ * Yayın/iptal işlemlerinde butonları kaldırır; fotoğraf/metin düzenleme işlemlerinde
+ * butonları tamamen yok etmek yerine "İşleniyor" ve "Menüyü Geri Getir" güvenliği sunar.
  */
 async function islemeAlindiGoster(env, sohbetId, mesajId, mesajMetni, komut) {
-  const ad = KOMUT_ADI[komut.split(":")[0]] || "İşleniyor";
+  const kokKomut = komut.split(":")[0];
+  const ad = KOMUT_ADI[kokKomut] || "İşleniyor";
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/editMessageText`;
+
+  const sonlandirici = ["yayinla", "iptal", "cope_at", "manuel_paket"].includes(kokKomut)
+    || kokKomut.startsWith("yayinla_sonra");
+
+  const klavye = sonlandirici
+    ? { inline_keyboard: [] }
+    : {
+        inline_keyboard: [
+          [{ text: `⏳ ${ad}…`, callback_data: "isleniyor" }],
+          [{ text: "↩️ Menüyü Geri Getir", callback_data: `kurtar:${mesajId}` }],
+        ],
+      };
+
   await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -468,7 +476,7 @@ async function islemeAlindiGoster(env, sohbetId, mesajId, mesajMetni, komut) {
       chat_id: sohbetId,
       message_id: mesajId,
       text: `⏳ ${ad}…\n\n${mesajMetni || ""}`.slice(0, 4096),
-      reply_markup: { inline_keyboard: [] },
+      reply_markup: klavye,
       disable_web_page_preview: true,
     }),
   });
@@ -1025,6 +1033,35 @@ export default {
           "HTML"
       );
       await butonuDurdur(env, cb.id, "Yanıtını bekliyorum...");
+      return new Response("ok");
+    }
+
+    // --- "İşleniyor" butonuna basılırsa kullanıcıyı bilgilendir ---
+    if (komut === "isleniyor") {
+      await butonuDurdur(env, cb.id, "⏳ İşlem devam ediyor, lütfen bekle…");
+      return new Response("ok");
+    }
+
+    // --- Kurtar: Worker menüyü ve butonları anında geri yükler ---
+    if (KURTAR.test(komut)) {
+      const mid = Number(komut.split(":")[1]);
+      let temizMetin = (cb.message ? cb.message.text : "") || "";
+      if (temizMetin.startsWith("⏳")) {
+        temizMetin = temizMetin.replace(/^⏳[^\n]*\n\n/, "");
+      }
+      const editUrl = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/editMessageText`;
+      await fetch(editUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chat_id: sohbetId,
+          message_id: mid,
+          text: (temizMetin || "Daily Brief Onay Menüsü").slice(0, 4096),
+          reply_markup: anaMenu(3),
+          disable_web_page_preview: true,
+        }),
+      });
+      await butonuDurdur(env, cb.id, "✅ Menü geri yüklendi");
       return new Response("ok");
     }
 

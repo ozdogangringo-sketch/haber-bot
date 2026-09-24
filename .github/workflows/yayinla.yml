@@ -32,9 +32,20 @@ on:
 # --theirs, çözemezse abort). CLAUDE.md 1d'deki felaketin sebebi
 # grupların ayrı olması DEĞİL, YAML'daki ham `git rebase`'ti; o kod
 # yolu `scripts/db_kaydet.py` ile kapatıldı.
+# ⚠️ HEDEF BAZLI KUYRUK VE CONCURRENCY AYRIMI:
+# 24 Eyl 2026: Kullanıcı KPSS haberinde fotoğraf değiştire bastığında,
+# arkada 'hazirla' çalıştığı için ve tüm komutlar statik 'veritabani-yayin'
+# grubunda toplandığı için, yeni bir event geldiğinde GitHub Actions kuyruktaki
+# 'foto_gercek' job'ını CANCEL etti!
+#
+# Çözüm: Her bağımsız hedef/eylem kendi concurrency grubunu alır:
+#   - hazirla:<id> -> yayinla-hazirla:<id> (farklı haber hazırlıkları birbirini ezmez)
+#   - mesaj_id -> yayinla-<mesaj_id> (aynı mesaja peş peşe basılırsa eski istek iptal edilir ama başka postları etkilemez)
+#   - genel komutlar -> yayinla-<komut>
 concurrency:
-  group: veritabani-yayin
+  group: yayinla-${{ startsWith(github.event.client_payload.komut, 'hazirla:') && github.event.client_payload.komut || (github.event.client_payload.mesaj_id || github.event.client_payload.komut || github.run_id) }}
   cancel-in-progress: false
+
 
 jobs:
   isle:
