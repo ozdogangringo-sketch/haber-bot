@@ -153,21 +153,56 @@ def aciklama_kur(
 ) -> str:
     """
     TikTok fotoğraf modunun tam açıklama metnini kurar.
-    Editoryal metni ve etiketleri 4000 karaktere kadar eksiksiz korur.
+    Editoryal metni ve etiketleri tekrarsız (mükerrersiz) olarak 4000 karaktere kadar kurar.
+    Metnin sonunda zaten etiket satırı varsa onu ayıklar ve tek bir temiz etiket bloğu üretir.
     """
-    temiz = (metin or "").strip()
-    ham = [str(e).strip().lstrip("#") for e in (etiketler or []) if str(e).strip()]
-    if not ham:
-        ham = ["DailyBrief", "Haber", "Gündem", "SonDakika"]
+    metin_temiz = (metin or "").strip()
 
-    etiket_metni = " ".join(f"#{e}" for e in ham)
-    if etiket_metni:
-        if temiz:
-            birlestirilmis = f"{temiz}\n\n{etiket_metni}"
-        else:
-            birlestirilmis = etiket_metni
+    # 1. Metnin sonundaki mevcut hashtag kuyruğunu (yalnızca etiketlerden oluşan satırları) ayıkla
+    satirlar = metin_temiz.splitlines()
+    mevcut_kuyruk_etiketleri = []
+    while satirlar:
+        s = satirlar[-1].strip()
+        if not s:
+            satirlar.pop()
+            continue
+        tokens = s.split()
+        if tokens and all(t.startswith("#") for t in tokens):
+            for t in tokens:
+                tag = t.lstrip("#").strip()
+                if tag and tag.lower() not in [x.lower() for x in mevcut_kuyruk_etiketleri]:
+                    mevcut_kuyruk_etiketleri.append(tag)
+            satirlar.pop()
+            continue
+        break
+
+    govde = "\n".join(satirlar).rstrip()
+
+    # 2. Etiketleri birleştir ve dedupe et (sıralamayı koru)
+    hedef_etiketler = []
+    goruldu = set()
+
+    kaynak_etiketler = (etiketler or []) + mevcut_kuyruk_etiketleri
+    if not kaynak_etiketler:
+        kaynak_etiketler = ["DailyBrief", "Haber", "Gündem", "SonDakika"]
+
+    for e in kaynak_etiketler:
+        e_str = str(e).strip().lstrip("#")
+        if not e_str:
+            continue
+        k = e_str.lower()
+        if k not in goruldu:
+            goruldu.add(k)
+            hedef_etiketler.append(e_str)
+
+    etiket_metni = " ".join(f"#{e}" for e in hedef_etiketler[:8])
+
+    if govde and etiket_metni:
+        birlestirilmis = f"{govde}\n\n{etiket_metni}"
+    elif etiket_metni:
+        birlestirilmis = etiket_metni
     else:
-        birlestirilmis = temiz
+        birlestirilmis = govde
 
     return birlestirilmis[:azami_uzunluk].strip()
 

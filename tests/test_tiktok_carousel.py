@@ -22,6 +22,26 @@ def test_aciklama_kur_tam_metin_ve_etiketler():
     assert "#haber" in sonuc
 
 
+def test_aciklama_kur_mukerrer_etiket_engeli():
+    """Metnin sonunda zaten etiketler varsa, bunlar ikinci kez alt satıra mükerrer basılmamalıdır."""
+    metin = (
+        "📌 Bakan Şimşek New York'ta konuştu.\n\n"
+        "Ekonomimiz şoklara karşı dayanıklı.\n\n"
+        "Kaynak: AA\n\n"
+        "#ekonomi #haber #türkiye #finans #keşfet"
+    )
+    etiketler = ["ekonomi", "haber", "türkiye", "finans", "keşfet"]
+    sonuc = tiktok.aciklama_kur(metin, etiketler)
+
+    # Her etiket tam olarak 1 kez geçmeli
+    assert sonuc.count("#ekonomi") == 1
+    assert sonuc.count("#haber") == 1
+    assert sonuc.count("#türkiye") == 1
+    assert sonuc.count("#finans") == 1
+    assert sonuc.count("#keşfet") == 1
+    assert "#ekonomi #haber" in sonuc
+
+
 def test_foto_carousel_bos_url_listesi():
     """Boş URL listesi verildiğinde hata dönmelidir."""
     sonuc = tiktok.foto_carousel_yukle([], "Test Başlık")
