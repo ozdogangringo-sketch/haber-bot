@@ -4572,17 +4572,23 @@ def main() -> int:
 
     haberler = turu_getir(con, mesaj_id)
 
-    # YARIŞ DURUMU KORUMASI: turu hazırlayan job veritabanını henüz
-    # push etmemiş olabilir. Bu job checkout'u ondan önce yapmışsa turu
-    # göremiyor. Bir kez en güncel hâli çekip tekrar bakıyoruz.
+    # YARIŞ DURUMU KORUMASI: Turu hazırlayan job (son dakika / öneri)
+    # Telegram'a mesajı attıktan hemen sonra veritabanını push ediyor (15-25 sn sürebilir).
+    # Kullanıcı mesaj gelir gelmez (ilk 5-10 sn içinde) 'Yayınla'ya bastığında
+    # onay job'ı veritabanını henüz GitHub'da göremiyor olabilir.
+    # Bu yüzden tek seferde vazgeçmek yerine aralıklarla güncel veritabanını çekip bekliyoruz.
     if not haberler:
-        log.warning("tur bulunamadı, güncel veritabanı çekiliyor…")
-        if db_senkron.uzaktan_tazele():
-            con.close()
-            con = db.baglan()
-            haberler = turu_getir(con, mesaj_id)
-            if haberler:
-                log.info("tur güncel veritabanında bulundu")
+        import time
+        log.warning("tur bulunamadı, veritabanı senkronizasyonu bekleniyor (mesaj_id=%s)…", mesaj_id)
+        for deneme in range(1, 8):
+            time.sleep(3.5)
+            if db_senkron.uzaktan_tazele():
+                con.close()
+                con = db.baglan()
+                haberler = turu_getir(con, mesaj_id)
+                if haberler:
+                    log.info("tur güncel veritabanında bulundu (deneme %s/7)", deneme)
+                    break
 
     if not haberler:
         # ⚠️ BU BİR SİSTEM HATASI DEĞİL — çoğu zaman kullanıcı ESKİ bir
@@ -4608,16 +4614,26 @@ def main() -> int:
             ek = "\n\nŞu an açık tur yok. Yeni tur için /tur yazabilirsin."
 
         log.warning("mesaj_id=%s artık geçerli değil (eski mesaj)", mesaj_id)
-        try:
+        # Sadece tur veritabanında daha önce gerçekten var olmuş ama durumu 'yayinlandi'
+        # veya 'ertelendi' olarak kapanmışsa butonu kaldırıyoruz.
+        # Hiç bulunamayan durumlarda butonu ezmemek için sonucu_yaz ile butonları yok etmiyoruz.
+        eski_kayit = con.execute(
+            "SELECT id, durum FROM haberler WHERE id = ?", (mesaj_id,)
+        ).fetchone() or con.execute(
+            "SELECT id, durum FROM haberler WHERE telegram_message_id = ?", (mesaj_id,)
+        ).fetchone()
+
+        if eski_kayit and eski_kayit["durum"] in ("yayinlandi", "ertelendi", "cop", "reddedildi"):
             telegram_bot.sonucu_yaz(
                 mesaj_id,
                 "ℹ️ <b>Bu mesaj artık geçerli değil.</b>\n"
                 "Gönderi kapanmış, atlanmış ya da yayınlanmış olabilir." + ek,
             )
-        except Exception:
+        else:
             telegram_bot.mesaj_gonder(
-                "ℹ️ Bu mesaj artık geçerli değil.\n"
-                "Gönderi kapanmış, atlanmış ya da yayınlanmış olabilir." + ek
+                "⚠️ <b>Gönderi veritabanına henüz yansımadı veya tur bulunamadı.</b>\n"
+                "Lütfen birkaç saniye bekleyip butona tekrar dokunun." + ek,
+                html=True,
             )
         # Sistem hatası olmadığı için job BAŞARILI sayılıyor.
         return 0
