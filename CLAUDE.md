@@ -1577,10 +1577,10 @@ instabot/
   Kullanıcı Telegram'da ister düz "✅ Yayınla", ister "🎙️ Sesli Yayınla" ("fon müzikli" veya "fon müziksiz")
   seçsin, YouTube Shorts ve Facebook Reels'e giden video HER ZAMAN ElevenLabs seslendirmeli VE fon müzikli
   (`muzik=True`) üretilir. Telegram/Reels/TikTok ise kullanıcının tercihine (sessiz veya müziksiz sesli) sadık kalır.
-- **KATI KURAL — Sesli Modda Instagram'a Gönderi Değil Reels Gider & Her Durumda Telegram'a Video Düşer (26 Eyl 2026):**
-  Kullanıcı "🎙️ Sesli Yayınla" seçtiğinde Instagram'a statik carousel gönderisi ASLA gitmez; doğrudan Reels (`instagram.reels_yayinla`)
-  yayınlanır (`paylas_reels=True, paylas_ig=False`). Ayrıca video üretilen HER YAYINDA (`her türlü`), video ve kopyalanabilir
-  açıklama metni Telegram'a koşulsuz iletilir.
+- **KATI KURAL — IG Seçiliyse Carousel Gönderi Gider & TikTok Video / Reels Ayrımı (26 Eyl 2026):**
+  Kullanıcı `[✅ IG]` seçtiğinde Instagram'a her zaman 4:5 Carousel gönderi gider; sesli yayın seçimi bu tercihi ASLA Reels'e zorlamaz. `[✅ Reels]` seçildiyse Instagram Reels yayınlanır. TikTok için ise `[✅ TT]` (Fotoğraf Carouseli) ve `[✅ TT Video]` (Dikey Video) butonları sunulur (birbirini dışlar). TikTok Video seçildiyse sesli/normal moda göre video TikTok'a yüklenir.
+- **KATI KURAL — Her Durumda Telegram'a Seslendirilmiş Video & Sessiz Modda Ham Video Düşer (26 Eyl 2026):**
+  YouTube & FB Reels için üretilen ElevenLabs seslendirmeli (+ fon müzikli) video HER YAYINDA Telegram'a koşulsuz iletilir. Eğer kullanıcı Reels veya TikTok Video seçtiyse ve sesli mod seçmediyse (düz "✅ Yayınla"), Instagram/TikTok trend müziklerini kolayca ekleyebilmek için sessiz video da AYRICA Telegram'a gönderilir. Kopyalanabilir açıklama metni her durumda iletilir.
 - **⚠️ `_sesli` ADI ZORUNLU.** `youtube.youtube_icin_sesli_video_hazirla` adında `_yt`
   olmayan her videonun sesini fon müziğiyle DEĞİŞTİRİYOR (`shorts_yukle` ve
   `facebook.reels_yayinla` onu çağırıyor). Seslendirmeli çıktı her zaman `…_sesli.mp4`

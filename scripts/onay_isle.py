@@ -271,14 +271,15 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     if secili:
         k_set = {k.strip().lower() for k in secili.split(",") if k.strip()}
         paylas_reels = "reels" in k_set
-        paylas_ig = "ig" in k_set and not paylas_reels
+        paylas_ig = "ig" in k_set
         paylas_story = "story" in k_set
         paylas_fb = "facebook" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
         paylas_fb_reels = paylas_fb and bool((ayarlar.get("sosyal", {}) or {}).get("facebook_reelse_de_at", True))
         paylas_th = "threads" in k_set and bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
         paylas_tw = ("twitter" in k_set or "x" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
         paylas_yt = ("youtube" in k_set or "yt" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("youtube_a_da_at"))
-        paylas_tt = ("tiktok" in k_set or "tt" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
+        paylas_tt_video = ("tiktok_video" in k_set or "tt_video" in k_set or "v" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
+        paylas_tt = ("tiktok" in k_set or "tt" in k_set or "k" in k_set) and not paylas_tt_video and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
     else:
         paylas_reels = False
         paylas_ig = True
@@ -288,6 +289,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_th = bool((ayarlar.get("sosyal", {}) or {}).get("threadse_de_at")) and threads.kullanilabilir_mi()
         paylas_tw = bool((ayarlar.get("sosyal", {}) or {}).get("twittera_da_at")) and twitter.kullanilabilir_mi()
         paylas_yt = bool((ayarlar.get("sosyal", {}) or {}).get("youtube_a_da_at"))
+        paylas_tt_video = False
         paylas_tt = bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
 
     # "🎙️ Sesli Yayınla" (2026-09-26, postedm'den): Worker kanal listesine ses_muzikli /
@@ -297,13 +299,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     ses_modu = "muzikli" if "ses_muzikli" in ses_kumesi else ("muziksiz" if "ses_muziksiz" in ses_kumesi else None)
     ses_notu = ""
     ses_sonucu: dict = {}
-
-    if ses_modu:
-        # Sesli video modunda Instagram hedefi statik gönderi (carousel) değil REELS'tir!
-        # Kullanıcı sesli video seçeneğini seçtiğinde statik gönderi gitmez, doğrudan Reels paylaşılır.
-        if paylas_ig or paylas_reels or (not secili):
-            paylas_reels = True
-            paylas_ig = False
+    ses_sonucu_yt: dict = {}
 
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
@@ -334,16 +330,17 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     # İlerleme çubuğu hesaplaması (Telegram canlı progress bar)
     kanallar_sayisi = sum([
-        bool(paylas_tt),
+        bool(paylas_tt or paylas_tt_video),
         bool(paylas_yt),
         bool(paylas_fb_reels),
-        bool(paylas_reels or paylas_ig),
+        bool(paylas_reels),
+        bool(paylas_ig),
         bool(paylas_story),
         bool(paylas_fb),
         bool(paylas_th),
         bool(paylas_tw),
     ])
-    video_adimi = 1 if ((paylas_yt or paylas_tt or paylas_fb_reels or paylas_reels) and urller) else 0
+    video_adimi = 1 if ((paylas_yt or paylas_tt or paylas_tt_video or paylas_fb_reels or paylas_reels or ses_modu) and urller) else 0
     toplam_yayin_adimi = max(1, kanallar_sayisi + video_adimi + 1)
     guncel_yayin_adimi = 1
 
@@ -359,7 +356,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     # Görsellerin canlılığını ve Meta uyumluluğunu doğrula, süresi geçmiş/uguu olanları onar
     urller = _urlleri_dogrula_ve_onar(con, ayarlar, haberler, urller)
 
-    if len(urller) < 2 and not paylas_reels:
+    if len(urller) < 2 and not (paylas_reels or paylas_tt_video):
         raise RuntimeError(
             f"yayın için en az 2 görsel gerekli, {len(urller)} var. "
             f"Tur bozuk görünüyor — /tur ile yenisini kurabilirsin."
@@ -378,6 +375,9 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     post_id = None
     baglanti = None
+    reels_post_id = None
+    reels_baglanti = None
+    reels_notu = ""
     ig_notu = ""
     story_notu = ""
     story_id = None
@@ -409,7 +409,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     # 1. Ortak Video Üretimi
     # - TikTok ve Instagram Reels (Telegram): SESSİZ video (trend müzik ekleyebilmek için)
     # - YouTube Shorts ve Facebook Reels: MÜZİKLİ sesli video
-    if (paylas_yt or paylas_tt or paylas_fb_reels or paylas_reels or ses_modu) and urller:
+    if (paylas_yt or paylas_tt or paylas_tt_video or paylas_fb_reels or paylas_reels or ses_modu) and urller:
         if mesaj_id:
             telegram_bot.durum_guncelle(
                 mesaj_id,
@@ -443,78 +443,106 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 sessiz_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
                 paylasilan_video_yolu = sessiz_video_yolu
                 # YouTube Shorts ve Facebook Reels: Her türlü ElevenLabs sesli ve fon müzikli!
-                if (paylas_yt or paylas_fb_reels):
+                try:
+                    from src import ses
+                    ses_sonucu_yt.clear()
+                    sesli = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar,
+                                                     muzik=True, sonuc=ses_sonucu_yt)
+                    if sesli and sesli.exists():
+                        sesli_video_yolu = sesli
+                        if ses_sonucu_yt.get("anlatim"):
+                            ses_notu = "\n🎙️ YouTube Shorts & FB Reels: ElevenLabs sesli + fon müzikli"
+                except Exception as e_ses:
+                    log.warning("YouTube/FB için sesli video üretilemedi: %s", e_ses)
+                if not sesli_video_yolu and sessiz_video_yolu:
                     try:
-                        from src import ses
-                        ses_sonucu_yt: dict = {}
-                        sesli = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar,
-                                                         muzik=True, sonuc=ses_sonucu_yt)
+                        from src import youtube
+                        sesli = youtube.youtube_icin_sesli_video_hazirla(sessiz_video_yolu)
                         if sesli and sesli.exists():
                             sesli_video_yolu = sesli
-                            if ses_sonucu_yt.get("anlatim"):
-                                ses_notu = "\n🎙️ YouTube Shorts & FB Reels: ElevenLabs sesli + fon müzikli"
                     except Exception as e_ses:
-                        log.warning("YouTube/FB için sesli video üretilemedi: %s", e_ses)
-                    if not sesli_video_yolu and sessiz_video_yolu:
-                        try:
-                            from src import youtube
-                            sesli = youtube.youtube_icin_sesli_video_hazirla(sessiz_video_yolu)
-                            if sesli and sesli.exists():
-                                sesli_video_yolu = sesli
-                        except Exception as e_ses:
-                            log.warning("Ortak fon müziği mikslenemedi: %s", e_ses)
+                        log.warning("Ortak fon müziği mikslenemedi: %s", e_ses)
         except Exception as e:
             log.exception("YouTube/TikTok/Facebook için ortak video üretilemedi: %s", e)
 
         # Telegram'a Her Durumda Video ve Açıklama Gönderimi:
-        # Kullanıcı kuralı: "her türlü telegrama video ve açıklaması düşsün"
-        # Video üretildiyse (ister sesli, ister sessiz, hangi kanallar seçili olursa olsun)
-        # Telegram grubuna video ve kopyalanabilir açıklama metni iletilir.
-        v_telegram = paylasilan_video_yolu or sesli_video_yolu or sessiz_video_yolu
-        if v_telegram and Path(v_telegram).exists():
-            try:
-                import html as html_lib
-                reels_aciklama_tg = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
-                temiz_metin_tg = html_lib.escape(reels_aciklama_tg.strip())
-                if ses_modu and ses_sonucu.get("anlatim"):
-                    ses_aciklama_tg = (
-                        "🎙️ <b>Daily Brief Seslendirmeli Reels Videosu (1080x1920 MP4)</b>\n\n"
-                        f"🔊 <b>ElevenLabs Seslendirmesi:</b> {'🎵 Fon müzikli' if ses_modu == 'muzikli' else '🔇 Fon müziksiz (saf seslendirme)'}\n"
-                        "💡 <i>Yapay zeka haber sunucusu seslendirmesi videoya eklenmiştir.</i>"
+        # Kullanıcı kuralları:
+        # 1. YouTube & Facebook için üretilen seslendirilmiş video HER TÜRLÜ Telegram'a düşer.
+        # 2. Eğer Reels veya TikTok Video seçildiyse ve seslendirme seçilmediyse (düz "Yayınla"),
+        #    trend müzik eklemek üzere sessiz video da Telegram'a düşer.
+        v_sesli = sesli_video_yolu if (sesli_video_yolu and Path(sesli_video_yolu).exists()) else (
+            paylasilan_video_yolu if (ses_modu and paylasilan_video_yolu and Path(paylasilan_video_yolu).exists()) else None
+        )
+        v_sessiz = sessiz_video_yolu if (
+            (paylas_reels or paylas_tt_video) and not ses_modu and sessiz_video_yolu and Path(sessiz_video_yolu).exists()
+        ) else None
+
+        # Eğer yukarıdaki ayrımda hiçbiri bulunamadıysa ama herhangi bir video üretildiyse kaybolmasın:
+        if not v_sesli and not v_sessiz:
+            v_sesli = paylasilan_video_yolu or sessiz_video_yolu or sesli_video_yolu
+
+        try:
+            import html as html_lib
+            reels_aciklama_tg = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
+            temiz_metin_tg = html_lib.escape(reels_aciklama_tg.strip())
+
+            # 1. Seslendirilmiş video gönderimi (Her durumda)
+            if v_sesli and Path(v_sesli).exists():
+                try:
+                    if (ses_modu and ses_sonucu.get("anlatim")) or (ses_sonucu_yt and ses_sonucu_yt.get("anlatim")):
+                        ses_aciklama_tg = (
+                            "🎙️ <b>Daily Brief Seslendirmeli Video (Shorts / FB Reels - 1080x1920 MP4)</b>\n\n"
+                            "🔊 <b>ElevenLabs Seslendirmesi:</b> 🎵 Fon müzikli\n"
+                            "💡 <i>Yapay zeka haber sunucusu seslendirmesi ve fon müziği videoya eklenmiştir.</i>"
+                        )
+                    else:
+                        ses_aciklama_tg = (
+                            "🎬 <b>Daily Brief Dikey Videosu (1080x1920 MP4)</b>\n\n"
+                            "💡 <i>Shorts / FB Reels için üretilen video.</i>"
+                        )
+                    telegram_bot.video_gonder(
+                        v_sesli,
+                        aciklama=ses_aciklama_tg,
                     )
-                elif ses_modu:
-                    ses_aciklama_tg = (
-                        "⚠️ <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
-                        "⚠️ <i>ElevenLabs seslendirmesi üretilemedi (API hatası/kota). Video seslendirmesiz oluşturuldu.</i>"
+                except Exception as e_tg_v:
+                    log.warning("Telegram'a sesli video iletilemedi: %s", e_tg_v)
+
+            # 2. Sessiz video gönderimi (Reels / TT Video seçili ve ses_modu seçilmemişse)
+            if v_sessiz and Path(v_sessiz).exists() and v_sessiz != v_sesli:
+                try:
+                    sessiz_aciklama_tg = (
+                        "🎬 <b>Daily Brief Reels & TikTok Videosu (Sessiz - 1080x1920 MP4)</b>\n\n"
+                        "💡 <i>Videoyu kaydedip Instagram Reels / TikTok uygulamasından trend müzik ekleyerek paylaşabilirsiniz.</i>"
                     )
-                else:
-                    ses_aciklama_tg = (
-                        "🎬 <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
-                        "💡 <i>Videoyu kaydedip Instagram/TikTok uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>"
+                    telegram_bot.video_gonder(
+                        v_sessiz,
+                        aciklama=sessiz_aciklama_tg,
                     )
-                telegram_bot.video_gonder(
-                    v_telegram,
-                    aciklama=ses_aciklama_tg,
-                )
+                except Exception as e_tg_vs:
+                    log.warning("Telegram'a sessiz video iletilemedi: %s", e_tg_vs)
+
+            if v_sesli or v_sessiz:
                 telegram_bot.mesaj_gonder(
-                    "📝 <b>Reels Açıklama Metni (Kopyalamak için dokunun):</b>\n"
+                    "📝 <b>Reels / Video Açıklama Metni (Kopyalamak için dokunun):</b>\n"
                     f"<pre>{temiz_metin_tg}</pre>",
                     html=True,
                 )
-                log.info("Her durumda Telegram'a video ve açıklama iletildi: %s", v_telegram)
-            except Exception as e_tg_v:
-                log.warning("Telegram'a video/açıklama iletilemedi: %s", e_tg_v)
+                log.info("Telegram'a video ve açıklama iletildi")
+        except Exception as e_tg_all:
+            log.warning("Telegram video/açıklama bloğunda hata: %s", e_tg_all)
 
     # 2. 🚀 EzanPlusBot Standartlarında Paralel Dağıtım Motoru (ThreadPoolExecutor)
     hedef_kanallar = []
-    if paylas_tt:
+    if paylas_tt or paylas_tt_video:
         hedef_kanallar.append("tiktok")
     if paylas_yt:
         hedef_kanallar.append("youtube")
     if paylas_fb_reels:
         hedef_kanallar.append("facebook_reels")
-    if paylas_reels or paylas_ig:
+    if paylas_ig:
         hedef_kanallar.append("instagram")
+    if paylas_reels:
+        hedef_kanallar.append("instagram_reels")
     if paylas_story and story_url:
         hedef_kanallar.append("instagram_story")
     if paylas_fb:
@@ -572,7 +600,38 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         baslik_tt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
         etiket_tt = caption.etiketleri_sec(haberler, kanal="tiktok", ayarlar=ayarlar)
 
-        # 1. ÖNCELİK: TikTok Photo Mode (Carousel)
+        # 1. EĞER paylas_tt_video seçildiyse: DOĞRUDAN VİDEO YÜKLE
+        if paylas_tt_video:
+            # ses_modu varsa sesli video (paylasilan_video_yolu), yoksa sessiz video (sessiz_video_yolu)
+            v_hedef = paylasilan_video_yolu or sessiz_video_yolu or sesli_video_yolu
+            if not v_hedef or not Path(v_hedef).exists():
+                with _lock:
+                    tt_notu = "\n⚠️ TikTok videosu oluşturulamadı"
+                _bildir("tiktok", "❌ Video Yok", increment=True)
+                return
+            try:
+                tt_res = tiktok.video_yukle(v_hedef, baslik=baslik_tt, ayarlar=ayarlar, etiketler=etiket_tt)
+                if tt_res.get("durum"):
+                    with _lock:
+                        tt_publish_id = tt_res.get("publish_id")
+                        if tt_res.get("mod") == "inbox_draft":
+                            tt_notu = "\n🎵 TikTok: Video TASLAK olarak yüklendi — uygulamadan elle yayınla"
+                        else:
+                            tt_notu = "\n🎵 TikTok videosu yayınlandı"
+                    _bildir("tiktok", "✅ Yayında (Video)", increment=True)
+                else:
+                    hata_tt = tt_res.get("hata", "")[:60]
+                    with _lock:
+                        tt_notu = f"\n⚠️ TikTok gitmedi: {hata_tt}"
+                    _bildir("tiktok", "❌ Hata", increment=True)
+            except Exception as e:
+                log.warning("TikTok video paylaşılamadı: %s", e)
+                with _lock:
+                    tt_notu = f"\n⚠️ TikTok hatası: {type(e).__name__}"
+                _bildir("tiktok", "❌ Hata", increment=True)
+            return
+
+        # 2. Carousel (Fotoğraf Modu)
         # 1080x1920 dikey infografik slaytları varsa doğrudan Carousel olarak yükle
         if urller and len(urller) >= 2:
             try:
@@ -600,7 +659,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             except Exception as e_car:
                 log.warning("TikTok carousel yükleme hatası (%s), videoya geçiliyor...", e_car)
 
-        # 2. YEDEK: Dikey Video (Video Fallback)
+        # 3. YEDEK: Dikey Video (Video Fallback)
         if not v_yolu_tt:
             with _lock:
                 tt_notu = "\n⚠️ TikTok içeriği (carousel/video) oluşturulamadı"
@@ -691,49 +750,46 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     def _is_instagram():
         nonlocal post_id, baglanti, ig_notu
         _bildir("instagram", "⏳ Yükleniyor...")
-        if paylas_reels:
-            try:
-                v_yolu_reels = paylasilan_video_yolu or sesli_video_yolu or sessiz_video_yolu
-                if not v_yolu_reels or not Path(v_yolu_reels).exists():
-                    from src import video
-                    dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-                    v_yolu_reels = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
-
-                aciklama_reels = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
-
-                # Instagram Reels API ile doğrudan yayınla
-                video_url = upload_image.video_yukle(v_yolu_reels, ayarlar)
-                kapak_url = urller[0] if urller else None
-                p_id = instagram.reels_yayinla(video_url, aciklama_reels, ayarlar, kapak_url=kapak_url)
-                bgl = instagram.post_baglantisi(p_id, ayarlar)
-                with _lock:
-                    post_id = p_id
-                    baglanti = bgl
-                    ig_notu = "\n🎬 Instagram Reels yayınlandı"
-                _bildir("instagram", "✅ Yayında", increment=True)
-            except Exception as e:
-                log.exception("Instagram Reels yayınlama hatası: %s", e)
-                with _lock:
-                    ig_notu = f"\n⚠️ Instagram Reels gitmedi: {type(e).__name__}"
-                _bildir("instagram", "❌ Hata", increment=True)
-        elif paylas_ig:
-            try:
-                p_id = instagram.carousel_yayinla(urller_4_5, metin, ayarlar)
-                bgl = instagram.post_baglantisi(p_id, ayarlar)
-                with _lock:
-                    post_id = p_id
-                    baglanti = bgl
-                    ig_notu = "\n📸 Instagram gönderisi (4:5) yayınlandı"
-                _bildir("instagram", "✅ Yayında", increment=True)
-            except Exception as e:
-                log.exception("Instagram gönderi hatası: %s", e)
-                with _lock:
-                    ig_notu = f"\n⚠️ Instagram gitmedi: {type(e).__name__}"
-                _bildir("instagram", "❌ Hata", increment=True)
-        else:
+        try:
+            p_id = instagram.carousel_yayinla(urller_4_5, metin, ayarlar)
+            bgl = instagram.post_baglantisi(p_id, ayarlar)
             with _lock:
-                ig_notu = "\n📸 Instagram atlandı"
-            _bildir("instagram", "⏭️ Atlandı", increment=True)
+                post_id = p_id
+                baglanti = bgl
+                ig_notu = "\n📸 Instagram gönderisi (4:5) yayınlandı"
+            _bildir("instagram", "✅ Yayında", increment=True)
+        except Exception as e:
+            log.exception("Instagram gönderi hatası: %s", e)
+            with _lock:
+                ig_notu = f"\n⚠️ Instagram gitmedi: {type(e).__name__}"
+            _bildir("instagram", "❌ Hata", increment=True)
+
+    def _is_instagram_reels():
+        nonlocal reels_post_id, reels_baglanti, reels_notu
+        _bildir("instagram_reels", "⏳ Yükleniyor...")
+        try:
+            v_yolu_reels = paylasilan_video_yolu or sessiz_video_yolu or sesli_video_yolu
+            if not v_yolu_reels or not Path(v_yolu_reels).exists():
+                from src import video
+                dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
+                v_yolu_reels = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
+
+            aciklama_reels = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
+
+            video_url = upload_image.video_yukle(v_yolu_reels, ayarlar)
+            kapak_url = urller[0] if urller else None
+            p_id = instagram.reels_yayinla(video_url, aciklama_reels, ayarlar, kapak_url=kapak_url)
+            bgl = instagram.post_baglantisi(p_id, ayarlar)
+            with _lock:
+                reels_post_id = p_id
+                reels_baglanti = bgl
+                reels_notu = "\n🎬 Instagram Reels yayınlandı"
+            _bildir("instagram_reels", "✅ Yayında", increment=True)
+        except Exception as e:
+            log.exception("Instagram Reels yayınlama hatası: %s", e)
+            with _lock:
+                reels_notu = f"\n⚠️ Instagram Reels gitmedi: {type(e).__name__}"
+            _bildir("instagram_reels", "❌ Hata", increment=True)
 
     def _is_story():
         nonlocal story_id, story_notu
@@ -843,6 +899,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         "youtube": _is_youtube,
         "facebook_reels": _is_fb_reels,
         "instagram": _is_instagram,
+        "instagram_reels": _is_instagram_reels,
         "instagram_story": _is_story,
         "facebook": _is_facebook,
         "threads": _is_threads,
@@ -879,15 +936,16 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         "facebook_post_id = ?, facebook_reel_id = ?, threads_post_id = ?, story_post_id = ?, "
         "twitter_post_id = ?, youtube_post_id = ?, tiktok_post_id = ? "
         "WHERE telegram_message_id = ?",
-        (post_id, fb_id, fb_reel_id, th_gonderi_id, story_id, tw_gonderi_id, yt_url, tt_publish_id, mesaj_id),
+        (post_id or reels_post_id, fb_id, fb_reel_id, th_gonderi_id, story_id, tw_gonderi_id, yt_url, tt_publish_id, mesaj_id),
     )
     con.commit()
 
     # Doğrudan canlı gönderi link butonları
     tum_linkler = []
     if baglanti:
-        btn_etiket = "🎬 Reels'i Gör" if paylas_reels else "📸 Instagram'da Gör"
-        tum_linkler.append({"text": btn_etiket, "url": baglanti})
+        tum_linkler.append({"text": "📸 Instagram'da Gör", "url": baglanti})
+    if reels_baglanti:
+        tum_linkler.append({"text": "🎬 Reels'i Gör", "url": reels_baglanti})
     if th_gonderi_id:
         th_url = threads.post_baglantisi(th_gonderi_id)
         if th_url:
@@ -921,11 +979,11 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         telafi_dugmeleri.append([{"text": "🔄 🐦 X'e Tekrar Gönder", "callback_data": f"retry_kanal:twitter:{mesaj_id}"}])
     if paylas_yt and (not yt_url or "⚠️" in yt_notu):
         telafi_dugmeleri.append([{"text": "🔄 ▶️ Shorts'a Tekrar Yükle", "callback_data": f"retry_kanal:youtube:{mesaj_id}"}])
-    if paylas_tt and "⚠️" in tt_notu:
+    if (paylas_tt or paylas_tt_video) and "⚠️" in tt_notu:
         telafi_dugmeleri.append([{"text": "🔄 🎵 TikTok'a Tekrar Yükle", "callback_data": f"retry_kanal:tiktok:{mesaj_id}"}])
-    if paylas_reels and (not post_id or "⚠️" in ig_notu):
+    if paylas_reels and (not reels_post_id or "⚠️" in reels_notu):
         telafi_dugmeleri.append([{"text": "🔄 🎬 Reels'i Tekrar Gönder", "callback_data": f"retry_kanal:reels:{mesaj_id}"}])
-    elif paylas_ig and not post_id:
+    if paylas_ig and (not post_id or "⚠️" in ig_notu):
         telafi_dugmeleri.append([{"text": "🔄 📸 Instagram'ı Tekrar Dene", "callback_data": f"retry_kanal:ig:{mesaj_id}"}])
 
     if len(telafi_dugmeleri) > 1:
@@ -936,10 +994,10 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     ozet_str = html_lib.escape(_yayin_ozeti(haberler))
 
     sonuc_metni = (
-        f"✅ <b>YAYINLANDI</b> — {len(urller)} slayt{ig_notu}{story_notu}{fb_notu}{th_notu}{tw_notu}{yt_notu}{tt_notu}{ses_notu}\n\n"
+        f"✅ <b>YAYINLANDI</b> — {len(urller)} slayt{ig_notu}{reels_notu}{story_notu}{fb_notu}{th_notu}{tw_notu}{yt_notu}{tt_notu}{ses_notu}\n\n"
         f"{ozet_str}\n\n"
         f"👤 <b>Onaylayan:</b> {onaylayan_str}"
-        + (f"\n\n🔗 {baglanti}" if baglanti else "")
+        + (f"\n\n🔗 {baglanti or reels_baglanti}" if (baglanti or reels_baglanti) else "")
     )
 
     telegram_bot.sonucu_yaz(

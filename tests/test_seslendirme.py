@@ -216,26 +216,34 @@ class TestYayinBaglantisi(unittest.TestCase):
         self.assertIn('sesli = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar,', govde)
         self.assertIn('muzik=True, sonuc=ses_sonucu_yt)', govde)
 
-    def test_ses_modunda_instagrama_gonderi_degil_reels_gider(self):
-        """Kullanıcı kuralı 2026-09-26: sesli video seçildiğinde IG gönderisi değil Reels yayınlanmalı."""
+    def test_ig_seciliyse_gonderi_gider_ses_modu_ezmez(self):
+        """Kullanıcı kuralı 2026-09-26: IG seçiliyse gönderi (carousel) gitmeli; ses modu onu Reels'e zorlamamalı."""
         kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
         govde = kaynak[kaynak.index("def yayinla(con, ayarlar, haberler"):kaynak.index("\ndef kanal_telafi_et(")]
-        self.assertIn("if ses_modu:", govde)
-        self.assertIn("paylas_reels = True", govde)
-        self.assertIn("paylas_ig = False", govde)
+        self.assertIn('paylas_ig = "ig" in k_set', govde)
+        self.assertIn("def _is_instagram():", govde)
+        self.assertIn("def _is_instagram_reels():", govde)
+
+    def test_tiktok_video_secenegi_ve_yukleme(self):
+        """Kullanıcı kuralı 2026-09-26: TikTok için hem carousel hem video seçilebilmeli."""
+        kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
+        govde = kaynak[kaynak.index("def yayinla(con, ayarlar, haberler"):kaynak.index("\ndef kanal_telafi_et(")]
+        self.assertIn("paylas_tt_video", govde)
+        self.assertIn("tiktok.video_yukle(v_hedef,", govde)
 
     def test_her_durumda_telegrama_video_ve_aciklama_iletilir(self):
-        """Kullanıcı kuralı 2026-09-26: her türlü telegrama video ve açıklaması düşsün."""
+        """Kullanıcı kuralı 2026-09-26: seslendirilmiş video her türlü Telegram'a gitmeli; sessiz modda sessiz video da eklenmeli."""
         kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
         govde = kaynak[kaynak.index("def yayinla(con, ayarlar, haberler"):kaynak.index("\ndef kanal_telafi_et(")]
-        self.assertIn("v_telegram = paylasilan_video_yolu or sesli_video_yolu or sessiz_video_yolu", govde)
+        self.assertIn("v_sesli", govde)
+        self.assertIn("v_sessiz", govde)
         self.assertIn("telegram_bot.video_gonder(", govde)
-        self.assertIn("Reels Açıklama Metni (Kopyalamak için dokunun)", govde)
+        self.assertIn("Reels / Video Açıklama Metni (Kopyalamak için dokunun)", govde)
 
     def test_reels_instagram_api_ile_yayinlanir(self):
         """Reels yayını Instagram Graph API reels_yayinla üzerinden yapılır."""
         kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
-        govde = kaynak[kaynak.index("def _is_instagram():"):kaynak.index("def _is_story():")]
+        govde = kaynak[kaynak.index("def _is_instagram_reels():"):kaynak.index("def _is_story():")]
         self.assertIn("instagram.reels_yayinla(", govde)
         self.assertIn("instagram.post_baglantisi(", govde)
 

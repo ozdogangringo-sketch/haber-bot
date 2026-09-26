@@ -72,7 +72,7 @@ const YAYINLA_SONRA = /^yayinla_sonra:(30|60|120|180|240)$/;
 // ses_muziksiz ekler. Planlı yayın ve çalar saati olduğu gibi çalışır; plan
 // yayin_kanallari'na kanal listesiyle birlikte yazıldığı için kip de taşınır.
 const SESLI_YAYIN = /^yayinla_ses:(muzikli|muziksiz)$|^yayinla_ses_sonra:(muzikli|muziksiz):(30|60|120|180|240)$/;
-const VIDEO_KANALLARI = ["reels", "facebook", "youtube", "tiktok"];
+const VIDEO_KANALLARI = ["reels", "facebook", "youtube", "tiktok", "tiktok_video"];
 
 // Turdaki bir haberi başkasıyla değiştirme.
 //   "haber_degistir:3"      -> 3. slayt için 2 alternatif iste
@@ -195,8 +195,8 @@ function ayarAltMenu(yol, kodlar) {
   return { inline_keyboard: [satir, [{ text: "← Ayarlara dön", callback_data: "ayar" }]] };
 }
 
-// Kanal seçimi toggle komutu ("kanal:ig", "kanal:reels", "kanal:story", "kanal:threads", "kanal:facebook", "kanal:twitter", "kanal:youtube", "kanal:tiktok")
-const KANAL_TOGGLE = /^kanal:(ig|reels|story|threads|facebook|twitter|youtube|tiktok)$/;
+// Kanal seçimi toggle komutu ("kanal:ig", "kanal:reels", "kanal:story", "kanal:threads", "kanal:facebook", "kanal:twitter", "kanal:youtube", "kanal:tiktok", "kanal:tiktok_video")
+const KANAL_TOGGLE = /^kanal:(ig|reels|story|threads|facebook|twitter|youtube|tiktok|tiktok_video)$/;
 
 function seciliKanallariCikar(klavye) {
   if (!klavye || !klavye.length) return null;
@@ -216,6 +216,7 @@ const KANAL_KODLARI = {
   twitter: "x",
   youtube: "y",
   tiktok: "k",
+  tiktok_video: "v",
 };
 const KOD_TO_KANAL = {
   i: "ig",
@@ -226,6 +227,7 @@ const KOD_TO_KANAL = {
   x: "twitter",
   y: "youtube",
   k: "tiktok",
+  v: "tiktok_video",
 };
 
 function kanallariKodla(kanallar) {
@@ -243,7 +245,7 @@ function kanalButonlariSatirlari(kanallar) {
   const varMi = (k) => {
     if (Array.isArray(kanallar)) return kanallar.includes(k) || kanallar.includes(KANAL_KODLARI[k]);
     if (kanallar && typeof kanallar === "object") return Boolean(kanallar[k]);
-    if (k === "reels") return false; // Varsayılan kapalı (Reels, IG post ile çakışmasın)
+    if (k === "reels" || k === "tiktok_video") return false; // Varsayılan kapalı (Reels, IG post ile; TT Video, TT Foto ile çakışmasın)
     return true; // IG, Story, Threads, FB, X, YT, TT varsayılan AKTİF
   };
   return [
@@ -258,6 +260,7 @@ function kanalButonlariSatirlari(kanallar) {
       { text: `${varMi('twitter') ? '✅' : '⬜'} X`, callback_data: "kanal:twitter" },
       { text: `${varMi('youtube') ? '✅' : '⬜'} YT`, callback_data: "kanal:youtube" },
       { text: `${varMi('tiktok') ? '✅' : '⬜'} TT`, callback_data: "kanal:tiktok" },
+      { text: `${varMi('tiktok_video') ? '✅' : '⬜'} TT Video`, callback_data: "kanal:tiktok_video" },
     ],
   ];
 }
@@ -1216,6 +1219,12 @@ export default {
           } else if (hedefKanal === "ig" && hedefYeniSecili && buKanal === "reels") {
             // IG AÇILDIYSA -> Reels MUTLAKA KAPANIR
             kopya.text = "⬜ Reels";
+          } else if (hedefKanal === "tiktok_video" && hedefYeniSecili && buKanal === "tiktok") {
+            // TikTok Video AÇILDIYSA -> TT (Carousel) MUTLAKA KAPANIR
+            kopya.text = "⬜ TT";
+          } else if (hedefKanal === "tiktok" && hedefYeniSecili && buKanal === "tiktok_video") {
+            // TT (Carousel) AÇILDIYSA -> TikTok Video MUTLAKA KAPANIR
+            kopya.text = "⬜ TT Video";
           }
           return kopya;
         })

@@ -120,3 +120,26 @@ test("uydurma kip ve süre reddedilir", async () => {
   assert.equal(dispatchler.length, 0);
   assert.equal(ENV.PLANLAR.m.size, 0);
 });
+
+test("tiktok_video toggle TT ile birbirini dışlar ve sesli yayın kanalı sayılır", async () => {
+  const klavye = [
+    [{ text: "✅ IG", callback_data: "kanal:ig" }, { text: "⬜ Reels", callback_data: "kanal:reels" }],
+    [{ text: "✅ TT", callback_data: "kanal:tiktok" }, { text: "⬜ TT Video", callback_data: "kanal:tiktok_video" }],
+  ];
+  await tikla("kanal:tiktok_video", klavye);
+  const kSon = sonKlavye();
+  const ttBtn = kSon.flat().find((b) => b.callback_data === "kanal:tiktok");
+  const ttVBtn = kSon.flat().find((b) => b.callback_data === "kanal:tiktok_video");
+  assert.equal(ttBtn.text, "⬜ TT");
+  assert.equal(ttVBtn.text, "✅ TT Video");
+
+  // tiktok_video sesli yayın için geçerli video kanalıdır
+  await tikla("yayinla_ses:muzikli", [
+    [{ text: "⬜ IG", callback_data: "kanal:ig" }],
+    [{ text: "✅ TT Video", callback_data: "kanal:tiktok_video" }],
+  ]);
+  assert.equal(dispatchler.length, 1);
+  assert.equal(dispatchler[0].client_payload.komut, "yayinla");
+  assert.equal(dispatchler[0].client_payload.kanallar, "tiktok_video,ses_muzikli");
+});
+
