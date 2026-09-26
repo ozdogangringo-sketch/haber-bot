@@ -298,6 +298,13 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     ses_notu = ""
     ses_sonucu: dict = {}
 
+    if ses_modu:
+        # Sesli video modunda Instagram hedefi statik gönderi (carousel) değil REELS'tir!
+        # Kullanıcı sesli video seçeneğini seçtiğinde statik gönderi gitmez, doğrudan Reels paylaşılır.
+        if paylas_ig or paylas_reels or (not secili):
+            paylas_reels = True
+            paylas_ig = False
+
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
     # Ekonomi turu: 1. slayt Piyasa Isı Haritası, 2. slayt 30 Varlık Tablosudur
@@ -402,7 +409,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     # 1. Ortak Video Üretimi
     # - TikTok ve Instagram Reels (Telegram): SESSİZ video (trend müzik ekleyebilmek için)
     # - YouTube Shorts ve Facebook Reels: MÜZİKLİ sesli video
-    if (paylas_yt or paylas_tt or paylas_fb_reels or paylas_reels) and urller:
+    if (paylas_yt or paylas_tt or paylas_fb_reels or paylas_reels or ses_modu) and urller:
         if mesaj_id:
             telegram_bot.durum_guncelle(
                 mesaj_id,
@@ -458,6 +465,45 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                             log.warning("Ortak fon müziği mikslenemedi: %s", e_ses)
         except Exception as e:
             log.exception("YouTube/TikTok/Facebook için ortak video üretilemedi: %s", e)
+
+        # Telegram'a Her Durumda Video ve Açıklama Gönderimi:
+        # Kullanıcı kuralı: "her türlü telegrama video ve açıklaması düşsün"
+        # Video üretildiyse (ister sesli, ister sessiz, hangi kanallar seçili olursa olsun)
+        # Telegram grubuna video ve kopyalanabilir açıklama metni iletilir.
+        v_telegram = paylasilan_video_yolu or sesli_video_yolu or sessiz_video_yolu
+        if v_telegram and Path(v_telegram).exists():
+            try:
+                import html as html_lib
+                reels_aciklama_tg = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
+                temiz_metin_tg = html_lib.escape(reels_aciklama_tg.strip())
+                if ses_modu and ses_sonucu.get("anlatim"):
+                    ses_aciklama_tg = (
+                        "🎙️ <b>Daily Brief Seslendirmeli Reels Videosu (1080x1920 MP4)</b>\n\n"
+                        f"🔊 <b>ElevenLabs Seslendirmesi:</b> {'🎵 Fon müzikli' if ses_modu == 'muzikli' else '🔇 Fon müziksiz (saf seslendirme)'}\n"
+                        "💡 <i>Yapay zeka haber sunucusu seslendirmesi videoya eklenmiştir.</i>"
+                    )
+                elif ses_modu:
+                    ses_aciklama_tg = (
+                        "⚠️ <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
+                        "⚠️ <i>ElevenLabs seslendirmesi üretilemedi (API hatası/kota). Video seslendirmesiz oluşturuldu.</i>"
+                    )
+                else:
+                    ses_aciklama_tg = (
+                        "🎬 <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
+                        "💡 <i>Videoyu kaydedip Instagram/TikTok uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>"
+                    )
+                telegram_bot.video_gonder(
+                    v_telegram,
+                    aciklama=ses_aciklama_tg,
+                )
+                telegram_bot.mesaj_gonder(
+                    "📝 <b>Reels Açıklama Metni (Kopyalamak için dokunun):</b>\n"
+                    f"<pre>{temiz_metin_tg}</pre>",
+                    html=True,
+                )
+                log.info("Her durumda Telegram'a video ve açıklama iletildi: %s", v_telegram)
+            except Exception as e_tg_v:
+                log.warning("Telegram'a video/açıklama iletilemedi: %s", e_tg_v)
 
     # 2. 🚀 EzanPlusBot Standartlarında Paralel Dağıtım Motoru (ThreadPoolExecutor)
     hedef_kanallar = []
@@ -647,46 +693,28 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         _bildir("instagram", "⏳ Yükleniyor...")
         if paylas_reels:
             try:
-                import html as html_lib
-                video_yolu = sessiz_video_yolu or paylasilan_video_yolu
-                if not video_yolu:
+                v_yolu_reels = paylasilan_video_yolu or sesli_video_yolu or sessiz_video_yolu
+                if not v_yolu_reels or not Path(v_yolu_reels).exists():
                     from src import video
                     dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-                    video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
-                reels_aciklama = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
-                temiz_metin = html_lib.escape(reels_aciklama.strip())
-                if ses_modu and ses_sonucu.get("anlatim"):
-                    ses_aciklama = (
-                        "🎙️ <b>Daily Brief Seslendirmeli Reels Videosu (1080x1920 MP4)</b>\n\n"
-                        f"🔊 <b>ElevenLabs Seslendirmesi:</b> {'🎵 Fon müzikli' if ses_modu == 'muzikli' else '🔇 Fon müziksiz (saf seslendirme)'}\n"
-                        "💡 <i>Yapay zeka haber sunucusu seslendirmesi videoya eklenmiştir.</i>"
-                    )
-                elif ses_modu:
-                    ses_aciklama = (
-                        "⚠️ <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
-                        "⚠️ <i>ElevenLabs seslendirmesi üretilemedi (API hatası/kota). Video seslendirmesiz oluşturuldu.</i>"
-                    )
-                else:
-                    ses_aciklama = (
-                        "🎬 <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
-                        "💡 <i>Videoyu kaydedip Instagram/TikTok uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>"
-                    )
-                telegram_bot.video_gonder(
-                    video_yolu,
-                    aciklama=ses_aciklama,
-                )
-                telegram_bot.mesaj_gonder(
-                    "📝 <b>Reels Açıklama Metni (Kopyalamak için dokunun):</b>\n"
-                    f"<pre>{temiz_metin}</pre>",
-                    html=True,
-                )
+                    v_yolu_reels = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
+
+                aciklama_reels = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
+
+                # Instagram Reels API ile doğrudan yayınla
+                video_url = upload_image.video_yukle(v_yolu_reels, ayarlar)
+                kapak_url = urller[0] if urller else None
+                p_id = instagram.reels_yayinla(video_url, aciklama_reels, ayarlar, kapak_url=kapak_url)
+                bgl = instagram.post_baglantisi(p_id, ayarlar)
                 with _lock:
-                    ig_notu = "\n🎬 Reels videosu ve açıklama metni Telegram'a iletildi"
+                    post_id = p_id
+                    baglanti = bgl
+                    ig_notu = "\n🎬 Instagram Reels yayınlandı"
                 _bildir("instagram", "✅ Yayında", increment=True)
             except Exception as e:
-                log.exception("Instagram Reels video hazırlama hatası")
+                log.exception("Instagram Reels yayınlama hatası: %s", e)
                 with _lock:
-                    ig_notu = f"\n⚠️ Reels videosu hazırlanamadı: {type(e).__name__}: {e}"
+                    ig_notu = f"\n⚠️ Instagram Reels gitmedi: {type(e).__name__}"
                 _bildir("instagram", "❌ Hata", increment=True)
         elif paylas_ig:
             try:
@@ -858,7 +886,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     # Doğrudan canlı gönderi link butonları
     tum_linkler = []
     if baglanti:
-        tum_linkler.append({"text": "📸 Instagram'da Gör", "url": baglanti})
+        btn_etiket = "🎬 Reels'i Gör" if paylas_reels else "📸 Instagram'da Gör"
+        tum_linkler.append({"text": btn_etiket, "url": baglanti})
     if th_gonderi_id:
         th_url = threads.post_baglantisi(th_gonderi_id)
         if th_url:

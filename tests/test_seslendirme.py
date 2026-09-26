@@ -216,6 +216,30 @@ class TestYayinBaglantisi(unittest.TestCase):
         self.assertIn('sesli = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar,', govde)
         self.assertIn('muzik=True, sonuc=ses_sonucu_yt)', govde)
 
+    def test_ses_modunda_instagrama_gonderi_degil_reels_gider(self):
+        """Kullanıcı kuralı 2026-09-26: sesli video seçildiğinde IG gönderisi değil Reels yayınlanmalı."""
+        kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
+        govde = kaynak[kaynak.index("def yayinla(con, ayarlar, haberler"):kaynak.index("\ndef kanal_telafi_et(")]
+        self.assertIn("if ses_modu:", govde)
+        self.assertIn("paylas_reels = True", govde)
+        self.assertIn("paylas_ig = False", govde)
+
+    def test_her_durumda_telegrama_video_ve_aciklama_iletilir(self):
+        """Kullanıcı kuralı 2026-09-26: her türlü telegrama video ve açıklaması düşsün."""
+        kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
+        govde = kaynak[kaynak.index("def yayinla(con, ayarlar, haberler"):kaynak.index("\ndef kanal_telafi_et(")]
+        self.assertIn("v_telegram = paylasilan_video_yolu or sesli_video_yolu or sessiz_video_yolu", govde)
+        self.assertIn("telegram_bot.video_gonder(", govde)
+        self.assertIn("Reels Açıklama Metni (Kopyalamak için dokunun)", govde)
+
+    def test_reels_instagram_api_ile_yayinlanir(self):
+        """Reels yayını Instagram Graph API reels_yayinla üzerinden yapılır."""
+        kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
+        govde = kaynak[kaynak.index("def _is_instagram():"):kaynak.index("def _is_story():")]
+        self.assertIn("instagram.reels_yayinla(", govde)
+        self.assertIn("instagram.post_baglantisi(", govde)
+
 
 if __name__ == "__main__":
     unittest.main()
+
