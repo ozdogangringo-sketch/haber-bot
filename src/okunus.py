@@ -447,3 +447,18 @@ def okunusa_cevir(metin: str) -> str:
     for adim in ADIMLAR:
         metin = adim(metin)
     return metin
+
+
+def tek_harfleri_belirginlestir(metin: str) -> str:
+    """Sese giderken tek başına duran büyük harfi tırnağa alır: "A Milli Takım" → '"A" Milli Takım'.
+
+    Kullanıcı "A çok hızlı söyleniyor" dedi (2026-09-26). Ölçüldü (kelime zaman damgası,
+    3'er deneme): düz "A" 0,02-0,04 sn ve 6'da 4 duyuldu; tırnaklı "A" daha belirgin ve
+    6'da 6 duyuldu, cümle birebir okundu. <break> etiketi REDDEDİLDİ: ses cümle başına
+    uydurma kelime ekledi ("Ayrıca", "Hatta", "Tacan"); virgül "Uluslararası" okuttu.
+    Harf-tire-sayı kodu da: düz "F-16" "F-36"/"fon a…", "D-100" "Kazadei 100" okundu;
+    '"F"-16' ve '"D"-100' ikişer denemede doğru. okunusa_cevir'den SONRA çağrılır
+    (o tırnakları temizler).
+    """
+    return re.sub(r"(?<![\w'’\"-])([A-ZÇĞİÖŞÜ])(?=[ \t,.;:!?]|-\d|$)", r'"\1"', metin or "")
+

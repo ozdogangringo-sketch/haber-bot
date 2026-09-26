@@ -1222,9 +1222,10 @@ seslendirme:
     use_speaker_boost: true
     speed: 1.12
   hedef_lufs: -14
-  # kapak: yalnızca ilk slayt (başlık + özet) okunur — postedm'de seçilen.
-  # basliklar: turda her haberin başlığı kendi slaytında okunur (10'lu turda kapak
-  # tek başına kalan 9 haberi sessiz bırakır).
-  tur_kipi: "kapak"
+  # Tek haberli postta (son dakika) her zaman kapak: başlık + özet.
+  # Turda (birden çok haber) — kullanıcı kararı 2026-09-26: "sadece başlıkları okunsun".
+  #   basliklar: her slayt YALNIZCA kendi haberinin başlığını okur
+  #   kapak: yalnızca ilk slayt, başlık + özet (kalan haberler sessiz)
+  tur_kipi: "basliklar"
   # Son slaytta; önce gerekçe sonra çağrı. "Beğenin" bilerek yok.
   kapanis_cagrisi: "Gündemi kaçırmak istemiyorsanız takipte kalın."

@@ -42,13 +42,21 @@ def _ayar(**seslendirme):
 
 
 class TestNeOkunur(unittest.TestCase):
-    def test_kapak_kipinde_yalniz_ilk_slayt(self):
+    def test_tek_haberde_kapak_baslik_ve_ozet_detay_sessiz(self):
+        """Son dakika: 1 haber + detay sayfaları; tur_kipi ne olursa olsun kapak okunur."""
+        for kip in ("basliklar", "kapak"):
+            self.assertEqual(ses.slayt_metinleri([_haber(1)], _ayar(tur_kipi=kip), 3),
+                             ["Başlık 1. Özet cümlesi 1.", None, None])
+
+    def test_turda_yalniz_basliklar(self):
+        """Kullanıcı kararı 2026-09-26: elle tetiklenen turda yalnızca başlıklar okunur."""
+        self.assertEqual(AYARLAR["seslendirme"]["tur_kipi"], "basliklar")
+        self.assertEqual(ses.slayt_metinleri([_haber(1), _haber(2), _haber(3)], AYARLAR, 3),
+                         ["Başlık 1.", "Başlık 2.", "Başlık 3."])
+
+    def test_tur_kapak_kipi_yalniz_ilk_slayt(self):
         self.assertEqual(ses.slayt_metinleri([_haber(1), _haber(2), _haber(3)], _ayar(tur_kipi="kapak"), 3),
                          ["Başlık 1. Özet cümlesi 1.", None, None])
-
-    def test_basliklar_kipinde_her_haberin_basligi(self):
-        self.assertEqual(ses.slayt_metinleri([_haber(1), _haber(2), _haber(3)], _ayar(tur_kipi="basliklar"), 3),
-                         ["Başlık 1. Özet cümlesi 1.", "Başlık 2.", "Başlık 3."])
 
     def test_ekonomi_turunda_okunmaz(self):
         self.assertEqual(ses.slayt_metinleri([_haber(1, tur="ekonomi")], AYARLAR, 3), [None, None, None])

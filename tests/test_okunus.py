@@ -209,6 +209,23 @@ class TestSayilar(unittest.TestCase):
             self.assertEqual(sira_yazi(n), s)
 
 
+class TestTekHarf(unittest.TestCase):
+    """Tek harf sese tırnakla gider: düz hâli çok hızlı okunuyor ve yutuluyordu (ölçüldü)."""
+
+    def test_tek_harf_tirnaklanir_yol_kodu_ve_kelime_icindeki_harf_degil(self):
+        from src.okunus import tek_harfleri_belirginlestir as b
+        self.assertEqual(b("A Milli Takım Uluslar A Ligi'ne"), '"A" Milli Takım Uluslar "A" Ligi\'ne')
+        self.assertEqual(b("numara elli sekiz A."), 'numara elli sekiz "A".')
+        self.assertEqual(b("D-100 ve F-16"), '"D"-100 ve "F"-16')  # düz hâli "Kazadei 100", "F-36" okundu
+        self.assertEqual(b("TBMM ve KDV'li Ali"), "TBMM ve KDV'li Ali")
+        self.assertEqual(b('"A" Milli'), '"A" Milli')  # ikinci kez uygulanınca değişmez
+        self.assertEqual(b(""), "")
+
+    def test_zincirin_ciktisi_tirnagi_korur(self):
+        from src.okunus import tek_harfleri_belirginlestir as b
+        self.assertEqual(b(okunusa_cevir("A Milli Takım 1-0 yenildi")), '"A" Milli Takım bir-sıfır yenildi')
+
+
 class TestKaristirmaSabotaji(unittest.TestCase):
     """Tuzaklı parçaları rastgele birleştirir: hiçbir girdi çökertmemeli, çıktı kararlı olmalı."""
 

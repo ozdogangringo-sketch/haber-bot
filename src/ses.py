@@ -78,7 +78,8 @@ def metin_seslendir(metin: str, ayarlar: Optional[Dict[str, Any]] = None,
     if not anahtar:
         log.warning("ELEVENLABS_API_KEY yok, seslendirme atlanıyor.")
         return None
-    temiz = okunus.okunusa_cevir(metin or "")
+    # Okunuş, sonra tek harfin tırnağı ("A Milli Takım": düz "A" çok hızlı okunuyordu — ölçüldü)
+    temiz = okunus.tek_harfleri_belirginlestir(okunus.okunusa_cevir(metin or ""))
     if not temiz:
         return None
     sesler = [s for s in dict.fromkeys([_ayar(ayarlar, "ses_id"), _ayar(ayarlar, "yedek_ses_id"), YEDEK_SES_ID]) if s]
@@ -119,9 +120,11 @@ def _slayt_metni(haber: Any, alan: str, ayarlar: Optional[Dict[str, Any]]) -> st
 def slayt_metinleri(haberler: List[Any], ayarlar: Optional[Dict[str, Any]], slayt_sayisi: int) -> List[Optional[str]]:
     """Her slaytta okunacak metin (None = sessiz). Başlık ve özet dışında hiçbir şey okunmaz.
 
-    Kapak: ilk haberin başlığı + özeti. "basliklar" kipinde (yalnızca tur) sonraki
-    slaytlarda o slaydın haber başlığı. Ekonomi turunun ilk slaytları ısı haritası ve
-    tablo: haber metni o görsellerin üstünde okunmaz, kapak seslendirilmez.
+    Tek haber (son dakika, tekil): kapakta başlık + özet, detay sayfaları sessiz.
+    Tur (birden çok haber): her slayt YALNIZCA kendi haberinin başlığını okur —
+    kullanıcı kararı 2026-09-26 ("elle tetiklediğimde sadece başlıkları okunsun");
+    `tur_kipi: kapak` eski davranışa (yalnız ilk slayt, başlık + özet) döner.
+    Ekonomi turunun ilk slaytları ısı haritası ve tablo: haber metni okunmaz.
     """
     metinler: List[Optional[str]] = [None] * max(0, slayt_sayisi)
     if not haberler or not metinler:
@@ -142,10 +145,11 @@ def slayt_metinleri(haberler: List[Any], ayarlar: Optional[Dict[str, Any]], slay
                 temiz.append(p)
         return " ".join(temiz) or None
 
-    metinler[0] = cumle(_slayt_metni(haberler[0], "ig_baslik", ayarlar), _slayt_metni(haberler[0], "slayt_ozet", ayarlar))
-    if _ayar(ayarlar, "tur_kipi", "kapak") == "basliklar":
-        for i in range(1, min(len(haberler), slayt_sayisi)):
+    if len(haberler) > 1 and _ayar(ayarlar, "tur_kipi", "basliklar") == "basliklar":
+        for i in range(min(len(haberler), slayt_sayisi)):
             metinler[i] = cumle(_slayt_metni(haberler[i], "ig_baslik", ayarlar))
+        return metinler
+    metinler[0] = cumle(_slayt_metni(haberler[0], "ig_baslik", ayarlar), _slayt_metni(haberler[0], "slayt_ozet", ayarlar))
     return metinler
 
 
