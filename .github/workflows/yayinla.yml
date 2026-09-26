@@ -75,6 +75,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_IMAGE_API_KEY: ${{ secrets.GEMINI_IMAGE_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          # "🎙️ Sesli Yayınla" seslendirmesi (yoksa videolar seslendirmesiz çıkar)
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}

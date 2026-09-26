@@ -92,6 +92,10 @@ def youtube_icin_sesli_video_hazirla(
     yol = Path(video_yolu)
     if not yol.exists():
         return yol
+    # "🎙️ Sesli Yayınla" videosu (ses.anlatimli_video_uret, "_sesli"): sesi son hâlinde.
+    # Aşağıdaki komut sesi fon müziğiyle DEĞİŞTİRİYOR — anlatım silinirdi (2026-09-26).
+    if yol.stem.endswith("_sesli"):
+        return yol
 
     try:
         import imageio_ffmpeg

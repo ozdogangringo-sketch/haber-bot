@@ -1203,3 +1203,28 @@ sosyal:
     - x
     - youtube
     - tiktok
+
+# ---------------------------------------------------------
+# SESLENDİRME (ElevenLabs) — "🎙️ Sesli Yayınla" (2026-09-26, postedm'den)
+# ---------------------------------------------------------
+# Düz "✅ Yayınla" eskisi gibi seslendirmesiz. "🎙️ Sesli Yayınla" → fon müzikli /
+# fon müziksiz; seslendirme yalnızca video kanallarına (Reels, TikTok, Shorts,
+# FB Reels) uygulanır. Anahtar GitHub secret'ı: ELEVENLABS_API_KEY. Ses ve ayarlar
+# kullanıcının postedm'de dinleyip seçtikleriyle aynı.
+seslendirme:
+  ses_id: "r3deco0KTo6o0Kb5inro"        # Sıla Özalp — haber sunucusu (profesyonel ses)
+  yedek_ses_id: "J17lijyP1BHYcM7ld0Rg"  # Adam — Sıla kütüphaneden kalkarsa
+  model: "eleven_multilingual_v2"
+  ayarlar:                              # "biraz daha hızlı ve heyecanlı"
+    stability: 0.40
+    similarity_boost: 0.80
+    style: 0.30
+    use_speaker_boost: true
+    speed: 1.12
+  hedef_lufs: -14
+  # kapak: yalnızca ilk slayt (başlık + özet) okunur — postedm'de seçilen.
+  # basliklar: turda her haberin başlığı kendi slaytında okunur (10'lu turda kapak
+  # tek başına kalan 9 haberi sessiz bırakır).
+  tur_kipi: "kapak"
+  # Son slaytta; önce gerekçe sonra çağrı. "Beğenin" bilerek yok.
+  kapanis_cagrisi: "Gündemi kaçırmak istemiyorsanız takipte kalın."

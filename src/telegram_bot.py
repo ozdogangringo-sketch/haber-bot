@@ -254,7 +254,8 @@ def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
     return {"inline_keyboard": [
         *kanal_butonlari(kanallar),
         [{"text": "✅ Yayınla", "callback_data": f"yayin_menu:{adet}"},
-         {"text": "📲 Manuel Paylaşım Paketi", "callback_data": "manuel_paket"}],
+         {"text": "🎙️ Sesli Yayınla", "callback_data": f"ses_menu:{adet}"}],
+        [{"text": "📲 Manuel Paylaşım Paketi", "callback_data": "manuel_paket"}],
         [{"text": "🔄 Başka Fotoğraf Bul", "callback_data": f"foto_menu:{adet}"},
          {"text": "✍️ Metinleri Yenile", "callback_data": f"metin_menu:{adet}"}],
         [{"text": f"🎨 Slayt düzenle ({adet} slayt)",
@@ -425,6 +426,53 @@ def yayin_zamani_menusu(adet: int, kanallar: dict | None = None) -> dict:
         [{"text": "3 saat", "callback_data": "yayinla_sonra:180"},
          {"text": "4 saat", "callback_data": "yayinla_sonra:240"}],
         [{"text": "← Geri", "callback_data": f"yayin_geri:{adet}"}],
+    ]}
+
+
+def ses_menusu(adet: int, kanallar: dict | None = None) -> dict:
+    """
+    "🎙️ Sesli Yayınla" alt menüsü: fon müzikli mi, müziksiz mi (2026-09-26, postedm'den).
+
+    Düz "✅ Yayınla" eskisi gibi seslendirmesiz. Seçilen kip Worker'da kanal listesine
+    ses_muzikli / ses_muziksiz olarak eklenir, komut yine "yayinla" / "yayinla_sonra:N".
+    ⚠️ worker/index.js › sesMenusu ile BİREBİR AYNI olmalı.
+    """
+    return {"inline_keyboard": [
+        *kanal_butonlari(kanallar),
+        [{"text": "🎵 Fon müzikli", "callback_data": f"ses_zaman:muzikli:{adet}"},
+         {"text": "🔇 Fon müziksiz", "callback_data": f"ses_zaman:muziksiz:{adet}"}],
+        [{"text": "← Geri", "callback_data": f"yayin_geri:{adet}"}],
+    ]}
+
+
+def sesli_yayin_zamani_menusu(muzikli: bool, adet: int, kanallar: dict | None = None) -> dict:
+    """
+    Sesli yayının zaman menüsü: yayin_zamani_menusu ile aynı yapı.
+
+    ⚠️ Kip ve süre yer tutucuyla DEĞİL, açıkça yazılı: sözleşme testi
+    callback_data'daki yer tutucuları "1" ile doldurup Worker'a soruyor;
+    "yayinla_ses_sonra:muzikli:1" gibi bir örnek "ölü düğme" sayılırdı.
+    """
+    if muzikli:
+        simdi = {"text": "▶️ Şimdi 🎵", "callback_data": "yayinla_ses:muzikli"}
+        sonra = [{"text": "30 dk", "callback_data": "yayinla_ses_sonra:muzikli:30"},
+                 {"text": "1 saat", "callback_data": "yayinla_ses_sonra:muzikli:60"},
+                 {"text": "2 saat", "callback_data": "yayinla_ses_sonra:muzikli:120"},
+                 {"text": "3 saat", "callback_data": "yayinla_ses_sonra:muzikli:180"},
+                 {"text": "4 saat", "callback_data": "yayinla_ses_sonra:muzikli:240"}]
+    else:
+        simdi = {"text": "▶️ Şimdi 🔇", "callback_data": "yayinla_ses:muziksiz"}
+        sonra = [{"text": "30 dk", "callback_data": "yayinla_ses_sonra:muziksiz:30"},
+                 {"text": "1 saat", "callback_data": "yayinla_ses_sonra:muziksiz:60"},
+                 {"text": "2 saat", "callback_data": "yayinla_ses_sonra:muziksiz:120"},
+                 {"text": "3 saat", "callback_data": "yayinla_ses_sonra:muziksiz:180"},
+                 {"text": "4 saat", "callback_data": "yayinla_ses_sonra:muziksiz:240"}]
+    return {"inline_keyboard": [
+        *kanal_butonlari(kanallar),
+        [simdi, sonra[0]],
+        [sonra[1], sonra[2]],
+        [sonra[3], sonra[4]],
+        [{"text": "← Geri", "callback_data": f"ses_menu:{adet}"}],
     ]}
 
 

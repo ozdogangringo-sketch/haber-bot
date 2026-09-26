@@ -290,6 +290,13 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_yt = bool((ayarlar.get("sosyal", {}) or {}).get("youtube_a_da_at"))
         paylas_tt = bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
 
+    # "🎙️ Sesli Yayınla" (2026-09-26, postedm'den): Worker kanal listesine ses_muzikli /
+    # ses_muziksiz ekler; planlı yayında da yayin_kanallari ile taşınır. Seslendirme
+    # yalnızca video kanallarına (Reels, TikTok, Shorts, FB Reels) uygulanır.
+    ses_kumesi = {k.strip().lower() for k in (secili or "").split(",")}
+    ses_modu = "muzikli" if "ses_muzikli" in ses_kumesi else ("muziksiz" if "ses_muziksiz" in ses_kumesi else None)
+    ses_notu = ""
+
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
     # Ekonomi turu: 1. slayt Piyasa Isı Haritası, 2. slayt 30 Varlık Tablosudur
@@ -406,7 +413,19 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         try:
             from src import video
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-            if dikey_gorseller:
+            if dikey_gorseller and ses_modu:
+                # Seslendirmeli video BÜTÜN video kanallarına gider; adı "_sesli" olduğu için
+                # YouTube/Facebook yükleyicileri sesini fon müziğiyle değiştirmez.
+                from src import ses
+                ses_sonucu: dict = {}
+                anlatimli = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar,
+                                                     muzik=(ses_modu == "muzikli"), sonuc=ses_sonucu)
+                sessiz_video_yolu = paylasilan_video_yolu = sesli_video_yolu = anlatimli
+                kip = "fon müzikli" if ses_modu == "muzikli" else "fon müziksiz"
+                # ⚠️ Kanal notlarına karışmaz: "⚠️" orada kanalı başarısız sayar
+                ses_notu = (f"\n🎙️ Seslendirme eklendi ({kip})" if ses_sonucu.get("anlatim")
+                            else "\n🔇 Seslendirme üretilemedi (ElevenLabs anahtarı/kotası) — videolar seslendirmesiz çıktı")
+            elif dikey_gorseller:
                 sessiz_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
                 paylasilan_video_yolu = sessiz_video_yolu
                 # SADECE YouTube Shorts ve Facebook Reels için fon müziğini tek seferde miksle
@@ -854,7 +873,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     ozet_str = html_lib.escape(_yayin_ozeti(haberler))
 
     sonuc_metni = (
-        f"✅ <b>YAYINLANDI</b> — {len(urller)} slayt{ig_notu}{story_notu}{fb_notu}{th_notu}{tw_notu}{yt_notu}{tt_notu}\n\n"
+        f"✅ <b>YAYINLANDI</b> — {len(urller)} slayt{ig_notu}{story_notu}{fb_notu}{th_notu}{tw_notu}{yt_notu}{tt_notu}{ses_notu}\n\n"
         f"{ozet_str}\n\n"
         f"👤 <b>Onaylayan:</b> {onaylayan_str}"
         + (f"\n\n🔗 {baglanti}" if baglanti else "")

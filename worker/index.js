@@ -66,6 +66,14 @@ const GORSEL_ONAY = /^(gorsel_kabul|gorsel_yeni):([1-9]|10):\d{1,12}$/;
 // düğme yalan söylerdi.
 const YAYINLA_SONRA = /^yayinla_sonra:(30|60|120|180|240)$/;
 
+// "🎙️ Sesli Yayınla" (2026-09-26, postedm'den): "yayinla_ses:muzikli" ve
+// "yayinla_ses_sonra:muziksiz:60". GitHub'a YENİ komut gitmez: Worker bunları
+// "yayinla" / "yayinla_sonra:N"e çevirip kanal listesine ses_muzikli /
+// ses_muziksiz ekler. Planlı yayın ve çalar saati olduğu gibi çalışır; plan
+// yayin_kanallari'na kanal listesiyle birlikte yazıldığı için kip de taşınır.
+const SESLI_YAYIN = /^yayinla_ses:(muzikli|muziksiz)$|^yayinla_ses_sonra:(muzikli|muziksiz):(30|60|120|180|240)$/;
+const VIDEO_KANALLARI = ["reels", "facebook", "youtube", "tiktok"];
+
 // Turdaki bir haberi başkasıyla değiştirme.
 //   "haber_degistir:3"      -> 3. slayt için 2 alternatif iste
 //   "haber_sec:3:16380"     -> 3. slayta 16380 numaralı haberi koy
@@ -123,7 +131,7 @@ const SECILENLERI_HAZIRLA = "hazirla_secilenler";
 // 30+ saniye sürüyor ve menü açmak anında olmalı. Worker mesajın
 // butonlarını doğrudan düzenliyor.
 const MENU_GEZINME =
-  /^(slayt_menu:(\d{1,2})(?::([a-z0-9_,]+))?|geri:(\d{1,2})(?::([a-z0-9_,]+))?|slayt:([1-9]|10):(\d{1,2})(?::([a-z0-9_,]+))?|yayin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|yayin_geri:(\d{1,2})(?::([a-z0-9_,]+))?|foto_menu:(\d{1,2})(?::([a-z0-9_,]+))?|foto_geri:(\d{1,2})(?::([a-z0-9_,]+))?|metin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|metin_geri:(\d{1,2})(?::([a-z0-9_,]+))?)$/;
+  /^(slayt_menu:(\d{1,2})(?::([a-z0-9_,]+))?|geri:(\d{1,2})(?::([a-z0-9_,]+))?|slayt:([1-9]|10):(\d{1,2})(?::([a-z0-9_,]+))?|yayin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|yayin_geri:(\d{1,2})(?::([a-z0-9_,]+))?|foto_menu:(\d{1,2})(?::([a-z0-9_,]+))?|foto_geri:(\d{1,2})(?::([a-z0-9_,]+))?|metin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|metin_geri:(\d{1,2})(?::([a-z0-9_,]+))?|ses_menu:(\d{1,2})(?::([a-z0-9_,]+))?|ses_zaman:(muzikli|muziksiz):(\d{1,2})(?::([a-z0-9_,]+))?)$/;
 
 // Yayından kaldırma. Tur id'si komuta GÖMÜLÜ ("kaldir:144") çünkü bu
 // düğme yayın sonucu mesajında duruyor ve o mesajın kendi message_id'si
@@ -267,6 +275,7 @@ function kanalButonlariSatirlari(kanallar) {
 function anaMenu(adet, kanallar) {
   const kStr = kanallariKodla(kanallar);
   const yayinCb = kStr ? `yayin_menu:${adet}:${kStr}` : `yayin_menu:${adet}`;
+  const sesCb = kStr ? `ses_menu:${adet}:${kStr}` : `ses_menu:${adet}`;
   const slaytCb = kStr ? `slayt_menu:${adet}:${kStr}` : `slayt_menu:${adet}`;
   const fotoCb  = kStr ? `foto_menu:${adet}:${kStr}`  : `foto_menu:${adet}`;
   const metinCb = kStr ? `metin_menu:${adet}:${kStr}` : `metin_menu:${adet}`;
@@ -274,7 +283,8 @@ function anaMenu(adet, kanallar) {
     inline_keyboard: [
       ...kanalButonlariSatirlari(kanallariCoz(kStr)),
       [{ text: "✅ Yayınla", callback_data: yayinCb },
-       { text: "📲 Manuel Paylaşım Paketi", callback_data: "manuel_paket" }],
+       { text: "🎙️ Sesli Yayınla", callback_data: sesCb }],
+      [{ text: "📲 Manuel Paylaşım Paketi", callback_data: "manuel_paket" }],
       [{ text: "🔄 Başka Fotoğraf Bul", callback_data: fotoCb },
        { text: "✍️ Metinleri Yenile", callback_data: metinCb }],
       [{ text: `🎨 Slayt düzenle (${adet} slayt)`, callback_data: slaytCb }],
@@ -330,6 +340,38 @@ function yayinZamaniMenusu(adet, kanallar) {
       [{ text: "3 saat", callback_data: "yayinla_sonra:180" },
        { text: "4 saat", callback_data: "yayinla_sonra:240" }],
       [{ text: "← Geri", callback_data: geriCb }],
+    ],
+  };
+}
+
+// ⚠️ src/telegram_bot.py -> ses_menusu() ile BİREBİR AYNI olmalı.
+function sesMenusu(adet, kanallar) {
+  const kStr = kanallariKodla(kanallar);
+  const ek = kStr ? `:${kStr}` : "";
+  return {
+    inline_keyboard: [
+      ...kanalButonlariSatirlari(kanallariCoz(kStr)),
+      [{ text: "🎵 Fon müzikli", callback_data: `ses_zaman:muzikli:${adet}${ek}` },
+       { text: "🔇 Fon müziksiz", callback_data: `ses_zaman:muziksiz:${adet}${ek}` }],
+      [{ text: "← Geri", callback_data: `yayin_geri:${adet}${ek}` }],
+    ],
+  };
+}
+
+// ⚠️ src/telegram_bot.py -> sesli_yayin_zamani_menusu() ile BİREBİR AYNI olmalı.
+function sesliYayinZamaniMenusu(mod, adet, kanallar) {
+  const kStr = kanallariKodla(kanallar);
+  const simge = mod === "muziksiz" ? "🔇" : "🎵";
+  return {
+    inline_keyboard: [
+      ...kanalButonlariSatirlari(kanallariCoz(kStr)),
+      [{ text: `▶️ Şimdi ${simge}`, callback_data: `yayinla_ses:${mod}` },
+       { text: "30 dk", callback_data: `yayinla_ses_sonra:${mod}:30` }],
+      [{ text: "1 saat", callback_data: `yayinla_ses_sonra:${mod}:60` },
+       { text: "2 saat", callback_data: `yayinla_ses_sonra:${mod}:120` }],
+      [{ text: "3 saat", callback_data: `yayinla_ses_sonra:${mod}:180` },
+       { text: "4 saat", callback_data: `yayinla_ses_sonra:${mod}:240` }],
+      [{ text: "← Geri", callback_data: kStr ? `ses_menu:${adet}:${kStr}` : `ses_menu:${adet}` }],
     ],
   };
 }
@@ -1017,7 +1059,7 @@ export default {
     // 200 dönüyoruz ki Telegram tekrar tekrar denemesin.
     if (!cb) return new Response("ok");
 
-    const komut = cb.data;
+    let komut = cb.data;  // let: "yayinla_ses…" aşağıda "yayinla…"ya çevriliyor
     const sohbetId = cb.message ? cb.message.chat.id : null;
     const mesajId = cb.message ? cb.message.message_id : null;
 
@@ -1204,6 +1246,14 @@ export default {
         const kanallarStr = parcalar[2] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
         const kanallar = kanallarStr ? kanallarStr.split(",") : klavyedenKanallar;
         menu = yayinZamaniMenusu(adet, kanallar);
+      } else if (kok === "ses_menu") {
+        const adet = Number(parcalar[1]);
+        const kanallarStr = parcalar[2] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
+        menu = sesMenusu(adet, kanallarStr ? kanallarStr.split(",") : klavyedenKanallar);
+      } else if (kok === "ses_zaman") {
+        const adet = Number(parcalar[2]);
+        const kanallarStr = parcalar[3] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
+        menu = sesliYayinZamaniMenusu(parcalar[1], adet, kanallarStr ? kanallarStr.split(",") : klavyedenKanallar);
       } else if (kok === "foto_menu") {
         const adet = Number(parcalar[1]);
         const kanallarStr = parcalar[2] || (klavyedenKanallar ? klavyedenKanallar.join(",") : "");
@@ -1263,6 +1313,13 @@ export default {
     }
 
     // --- Gerçek eylem: GitHub Actions'a iletiliyor ---
+    // Sesli yayın komutu mevcut yayın komutuna çevrilir; kip kanal listesinde taşınır.
+    let sesKipi = null;
+    const sesEslesme = SESLI_YAYIN.exec(komut);
+    if (sesEslesme) {
+      sesKipi = sesEslesme[1] || sesEslesme[2];
+      komut = sesEslesme[3] ? `yayinla_sonra:${sesEslesme[3]}` : "yayinla";
+    }
     if (!eylemMi(komut)) {
       await butonuDurdur(env, cb.id, "Tanınmayan komut");
       return new Response("ok");
@@ -1272,6 +1329,11 @@ export default {
     // Sıfır kanal seçimi koruması (Senaryo A)
     if (seciliKanallar !== null && seciliKanallar.length === 0 && (komut === "yayinla" || komut.startsWith("yayinla_sonra:"))) {
       await butonuDurdur(env, cb.id, "⚠️ En az bir yayın kanalı seçmelisin!");
+      return new Response("ok");
+    }
+    // Seslendirme yalnızca videoya uygulanır: video kanalı yoksa sesli yayın anlamsız
+    if (sesKipi && !(seciliKanallar || []).some((k) => VIDEO_KANALLARI.includes(k))) {
+      await butonuDurdur(env, cb.id, "🎙️ Sesli yayın için en az bir video kanalı seç (Reels, FB, YT, TT)");
       return new Response("ok");
     }
 
@@ -1289,7 +1351,7 @@ export default {
       hedefMesajId = Number(kaldirEslesme[1]);
     }
 
-    const kanallarStr = seciliKanallar ? seciliKanallar.join(",") : "";
+    const kanallarStr = (seciliKanallar ? seciliKanallar.join(",") : "") + (sesKipi ? `,ses_${sesKipi}` : "");
     const iletildi = await githubaIlet(env, gonderilecek, hedefMesajId, basan, kanallarStr);
 
     // ⚠️ ÇALAR SAATİ KUR. "2 saat sonra yayınla" seçildiğinde GitHub

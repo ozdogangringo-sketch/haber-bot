@@ -43,3 +43,11 @@ jobs:
 
       - name: Sözleşme testleri (davranış kuralları)
         run: python tests/test_7_sozlesme.py
+
+      # "🎙️ Sesli Yayınla" (2026-09-26, postedm'den): okunuş sabotaj tablosu, ne okunur,
+      # ses seçimi, karıştırma, zamanlama; Worker'ı gerçekten çağıran menü/komut testleri
+      - name: Seslendirme testleri
+        run: |
+          python tests/test_okunus.py
+          python tests/test_seslendirme.py
+          node --test tests/worker_sesli.test.mjs
