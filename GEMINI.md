@@ -172,6 +172,15 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 
 ---
 
+### R. 🎙️ Sesli Yayınla — ElevenLabs Seslendirmesi & Türkçe Okunuş Katmanı (`src/ses.py`, `src/okunus.py`) — 26 Eyl 2026
+- **İsteğe bağlı:** Onay menüsünde "✅ Yayınla"nın yanında "🎙️ Sesli Yayınla" → "🎵 Fon müzikli" / "🔇 Fon müziksiz" → aynı zaman menüsü (Şimdi / 30 dk … 4 saat). Düz "✅ Yayınla" eskisi gibi **seslendirmesiz** (Reels/TikTok sessiz, Shorts/FB Reels fon müzikli).
+- **Worker çevirisi:** `yayinla_ses:muzikli` → `yayinla`, `yayinla_ses_sonra:muziksiz:60` → `yayinla_sonra:60`; kanal listesine `ses_muzikli` / `ses_muziksiz` eklenir. `onay_isle`'de yeni komut YOK; planlı yayın ve KV çalar saati olduğu gibi çalışır (kip `yayin_kanallari` ile taşınır). Video kanalı (Reels/FB/YT/TT) seçilmemişse sesli yayın başlamaz.
+- **Ne okunur:** yalnızca kapak — ilk haberin başlığı + özeti, içerik filtresinden geçmiş (slayttakiyle AYNI metin). `config.yaml → seslendirme.tur_kipi: basliklar` turdaki her haberin başlığını kendi slaytında okutur. Ekonomi turunda haber metni okunmaz. Sonda "Gündemi kaçırmak istemiyorsanız takipte kalın." ("beğenin" bilerek yok).
+- **Ses:** Sıla Özalp (ElevenLabs kütüphanesi, haber sunucusu), hız 1.12, stability 0.40, style 0.30, -14 LUFS; yedek Adam. Kullanıcı postedm'de örnekleri dinleyip seçti. Anahtar: GitHub secret `ELEVENLABS_API_KEY` (yoksa video seslendirmesiz çıkar ve rapor bunu yazar).
+- **⚠️ `_sesli` koruması:** `youtube_icin_sesli_video_hazirla` adında `_yt` olmayan videonun sesini fon müziğiyle DEĞİŞTİRİYOR; seslendirmeli video `_sesli` adlıdır ve bu fonksiyon ona dokunmaz — yoksa Shorts/FB Reels'te anlatım silinirdi.
+- **Okunuş katmanı (`src/okunus.py`, postedm'le birebir aynı dosya):** "Hz." → Hazreti, "1/5000" → beş binde bir, "54. dakikada" → elli dördüncü dakikada, Markdown `**vurgu**` okunmaz. Kısaltmalar ve tek harfler OLDUĞU GİBİ kalır — ölçüldü: harf harf yazmak "beblokta", "kadeveliği" diye okunuyordu. Bilinen sınır: tek harflik kelime ("Uluslar A Ligi") uzun cümlede bazen okunmuyor.
+- **Testler (CI'da):** `tests/test_okunus.py` (100+ satır sabotaj tablosu, 3000 rastgele sayı, 3000 karışık girdi), `tests/test_seslendirme.py` (15), `tests/worker_sesli.test.mjs` (6); sözleşme testindeki düğme kapsamı yeni düğmeleri de kapsıyor.
+
 ## 4. Görsel Seçim Standartları ve İyileştirme Yol Haritası
 
 ### 4 Katmanlı Akıllı Görsel Hiyerarşisi:
@@ -215,9 +224,10 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 
 ---
 
-## 6. Son 1 Ayın Kapsamlı Kronolojik Geliştirme Günlüğü (15 Ağustos – 24 Eylül 2026)
+## 6. Son 1 Ayın Kapsamlı Kronolojik Geliştirme Günlüğü (15 Ağustos – 26 Eylül 2026)
 
 ### 🗓️ 21 – 24 Eylül 2026 (TikTok Photo Carousel, Veritabanı Bütünlüğü & Ses Ayrımı)
+- **26 Eyl:** **🎙️ Sesli Yayınla — ElevenLabs Seslendirmesi (`src/ses.py`, `src/okunus.py`, Worker `6a9b5d67`):** postedm'de kullanıcının dinleyip seçtiği seslendirme (Sıla Özalp, yalnız kapak, kapanış çağrısı) isteğe bağlı olarak Instabot'a taşındı; düz Yayınla değişmedi. Seslendirmeli video bütün video kanallarına gider ve `_sesli` adıyla YouTube/Facebook fon müziği miksinden korunur. Canlı deneme #4880'de 12 sn video, yazıya dökümde metin birebir (`d40da76`). Ayrıntı: 3. bölüm R.
 - **24 Eyl:** **TikTok Content Posting API v2 Photo Mode (Carousel) Motoru (`src/tiktok.py` & `scripts/onay_isle.py`):** TikTok'ta infografik ve haber carousellerinin videolara kıyasla çok daha yüksek etkileşim, tamamlama ve kaydetme (save) alması nedeniyle Photo Mode entegre edildi (`POST /v2/post/publish/content/init/`, `media_type: PHOTO`, `source: PULL_FROM_URL`). 1080x1920 R2 slaytları doğrudan TikTok Carousel olarak gönderilir; app audit kısıtı varsa otomatik `MEDIA_UPLOAD` (Inbox/Taslak) moduna geçer, alan adı doğrulaması eksikse veya beklenmeyen bir durumda kesintisiz dikey video fallback'ine düşer.
 - **22 Eyl:** **Veritabanı Çakışma ve Bütünlük Kurtarması (`def5d1b` & `veritabani_saglam_mi`):** 20:14 TR'de `oneriyi_hazirla` alt işlemi sırasında SQLite bağlantısı açıkken arka planda yapılan git rebase/checkout sonucu dosya tutacı (inode) kaymış ve `db_kaydet.py` hasarlı veritabanını (`def5d1b`) GitHub'a pushlamıştı. Sağlıklı commit (`71b4b7e`) geri yüklenerek sıfır veri kaybıyla veritabanı kurtarıldı; `db_senkron` ve `db_kaydet` içine `veritabani_saglam_mi` PRAGMA quick_check ve header doğrulaması eklenerek bozuk dosyaların git'e pushlanması kalıcı olarak engellendi (`5f89d40`).
 - **22 Eyl:** **Dengeli Detay Slaytı Bölümleme & Yetim Blok Koruması (`_sayfalari_dengeli_bol`):** Açgözlü (greedy) sayfalama mantığı kaldırılarak yerine varyansı ve yükseklik farkını minimize eden kombinatorik optimizasyon algoritması getirildi. 2. Detay Slaytının 4 blokla tıkış tıkış dolup alt çizgiye dayanması, 3. Detay Slaytının ise sadece 1 alıntıyla (%85 boşluk) yetim kalması sorunu çözüldü; sayfalar arası fark 758px'den 90px'e indirilip optik merkeze oturtuldu (`c148a2a`).

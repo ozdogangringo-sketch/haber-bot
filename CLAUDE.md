@@ -300,6 +300,7 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
 | Kuruluş bayrağı | `ulke_kodu` yerine kuruluş kodu yazılabilir: `nato, un, eu, who, unesco, unicef, opec, oic, africanunion, arableague, commonwealth, redcross`. Commons'tan çekilir. **Spor kulübü / şirket / parti logosu YOK** — tescilli marka, haber sitesi fotoğrafıyla aynı gerekçe. |
 | Arşiv ibaresi | Fotoğraf kullanılan slaytlarda alt bilgiye `· ARŞİV GÖRSELİ` ekleniyor — görsel o olayın belgesi değil. |
 | Facebook & Reels (16 Eyl 2026) | Instagram'a yayınlanan içerik **aynı jetonla** Facebook sayfasına da gidiyor (`src/facebook.py`). Ek anahtar yok — `pages_manage_posts` izni mevcut sayfa jetonunda tanımlı. **Reels de paylaşılıyor** (`facebook.reels_yayinla`): 3 aşamalı resumable upload (start -> rupload binary -> finish) ile 9:16 video ve telifsiz haber fon müziği Facebook Sayfasına Reels olarak yayınlanır (`https://www.facebook.com/reel/{video_id}`). **Story de paylaşılıyor** (`/photo_stories`). Carousel Facebook'ta **albüm**: görseller `published=false` ile yüklenip `/feed`'de `attached_media` ile tek posta bağlanıyor. İKİNCİL KANAL: patlarsa ana yayın kalır, Telegram sonucuna not düşülür. `config.yaml → sosyal.facebooka_da_at` ve `sosyal.facebook_reelse_de_at` ile yönetilir. |
+| 🎙️ Sesli Yayınla (26 Eyl 2026) | **İsteğe bağlı ElevenLabs seslendirmesi**, postedm'den taşındı; kararlar kullanıcının postedm'de örnekleri DİNLEYEREK verdiği kararlar — yeniden sorma. Düz "✅ Yayınla" seslendirmesiz (eskisi gibi). "🎙️ Sesli Yayınla" → fon müzikli / müziksiz → aynı zaman menüsü. Ses Sıla Özalp (`config.yaml → seslendirme`), yalnızca KAPAK okunur (başlık + özet, filtreden geçmiş), sonda "Gündemi kaçırmak istemiyorsanız takipte kalın." Tur için `tur_kipi: basliklar` seçeneği var (varsayılan `kapak`). Worker sesli komutu `yayinla`/`yayinla_sonra:N`e çevirip kanal listesine `ses_muzikli`/`ses_muziksiz` ekler — `onay_isle`'de yeni komut yok. Ayrıntı: §6 `ses.py`. |
 | ⚠️ Çapraz paylaşım neden olmaz | Instagram'ın kendi "Facebook'a paylaş" ayarı denendi ve ELENDİ: o ayar Instagram UYGULAMASINDAN yapılan paylaşımlar için, API ile gidenleri tetiklemiyor. Ayrıca menüde yalnızca kişisel profil çıkıyor, sayfa çıkmıyor. |
 | Kanal ikonları | Slayt alt bilgisinde Instagram / X / Facebook ikonları, `config.yaml → sosyal.kanallar`. Resmi logolar SVG ve Pillow SVG okumuyor; Unicode sembolleri de fontta yok (ölçüldü, "NO GLYPH" çıkıyor). Bu yüzden Pillow ile çizilen tanınabilir sadeleştirmeler kullanılıyor. |
 | Threads (18 Ağu 2026) | **KURULDU, jeton alındı.** `src/threads.py`, carousel destekli (2-20 görsel). ⚠️ **Instagram/Facebook jetonu BURADA ÇALIŞMAZ** — `graph.threads.net` ayrı API, ayrı jeton: `THREADS_ACCESS_TOKEN` + `THREADS_USER_ID` (28048974518044795, @dailybrief.co). İkincil kanal: patlarsa Instagram postu yayında kalır. `config.yaml → sosyal.threadse_de_at: false` ile kapatılır. |
@@ -1567,6 +1568,27 @@ instabot/
 
 ## 6. Teknik notlar — `src/`
 
+### `ses.py` + `okunus.py` — 🎙️ Sesli Yayınla (26 Eyl 2026, postedm'den)
+
+- **Akış:** `onay_isle.yayinla` kanal listesinde `ses_muzikli`/`ses_muziksiz` görürse
+  `ses.anlatimli_video_uret(dikey, haberler, ayarlar, muzik=…)` çağırır; çıkan video
+  TikTok, Reels (Telegram teslimi), Shorts ve FB Reels'in HEPSİNE gider.
+- **⚠️ `_sesli` ADI ZORUNLU.** `youtube.youtube_icin_sesli_video_hazirla` adında `_yt`
+  olmayan her videonun sesini fon müziğiyle DEĞİŞTİRİYOR (`shorts_yukle` ve
+  `facebook.reels_yayinla` onu çağırıyor). Seslendirmeli çıktı her zaman `…_sesli.mp4`
+  ve o fonksiyon `_sesli`'ye dokunmuyor. Fon müziksiz + ses yoksa da `_sesli` kopyası
+  döner ki yükleyici müzik eklemesin.
+- **Seslendirme notu (`ses_notu`) kanal notlarına KARIŞMAZ**: başarısızlık "⚠️" ile
+  ölçülüyor; notta "⚠️" yok (postedm'de aynı sınıf hata başarılı yayını "başarısız" gösterdi).
+- **Zamanlama:** okunan slayt ses bitene kadar ekranda (0,4 + ses + 0,8 + 0,5 sn); kapanış
+  çağrısı son slaytın SONUNA yaslı. Bu projede son slayt geçiş payı yemez: video sonu =
+  süre toplamı (postedm'de 0,5 sn eksik).
+- **`okunus.py` postedm'le BİREBİR AYNI dosya** — birinde düzelteni ötekine taşı.
+  Kısaltma/tek harf olduğu gibi kalır (ölçüldü); Markdown `**` okunmaz (Instabot özetlerinde
+  var: "**Mbappe'nin**" virgüllü duraklama yaratıyordu).
+- Testler: `tests/test_okunus.py`, `tests/test_seslendirme.py`, `tests/worker_sesli.test.mjs`
+  (CI'da "Seslendirme testleri" adımı).
+
 ### `db.py`
 - Düz SQL, ORM yok (kullanıcı SQL biliyor, okuyabilsin diye bilinçli tercih).
 - `kur()` şemayı kurar **ve otomatik migration yapar**: `EK_KOLONLAR` sözlüğüne
@@ -1923,6 +1945,7 @@ IG_USER_ID, IG_ACCESS_TOKEN, META_APP_ID, META_APP_SECRET
 GEMINI_API_KEY
 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 IMGBB_API_KEY
+ELEVENLABS_API_KEY   # 🎙️ Sesli Yayınla (26 Eyl 2026); yayinla.yml + son-dakika.yml (planlı yayın)
 ```
 Worker tarafı ayrıca: `GITHUB_PAT`, `WEBHOOK_SECRET`.
 
