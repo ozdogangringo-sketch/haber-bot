@@ -1572,8 +1572,11 @@ instabot/
 ### `ses.py` + `okunus.py` — 🎙️ Sesli Yayınla (26 Eyl 2026, postedm'den)
 
 - **Akış:** `onay_isle.yayinla` kanal listesinde `ses_muzikli`/`ses_muziksiz` görürse
-  `ses.anlatimli_video_uret(dikey, haberler, ayarlar, muzik=…)` çağırır; çıkan video
-  TikTok, Reels (Telegram teslimi), Shorts ve FB Reels'in HEPSİNE gider.
+  `ses.anlatimli_video_uret(dikey, haberler, ayarlar, muzik=…)` çağırır.
+- **KATI KURAL — YouTube Shorts ve FB Reels Her Türlü Sesli ve Fon Müzikli (26 Eyl 2026):**
+  Kullanıcı Telegram'da ister düz "✅ Yayınla", ister "🎙️ Sesli Yayınla" ("fon müzikli" veya "fon müziksiz")
+  seçsin, YouTube Shorts ve Facebook Reels'e giden video HER ZAMAN ElevenLabs seslendirmeli VE fon müzikli
+  (`muzik=True`) üretilir. Telegram/Reels/TikTok ise kullanıcının tercihine (sessiz veya müziksiz sesli) sadık kalır.
 - **⚠️ `_sesli` ADI ZORUNLU.** `youtube.youtube_icin_sesli_video_hazirla` adında `_yt`
   olmayan her videonun sesini fon müziğiyle DEĞİŞTİRİYOR (`shorts_yukle` ve
   `facebook.reels_yayinla` onu çağırıyor). Seslendirmeli çıktı her zaman `…_sesli.mp4`

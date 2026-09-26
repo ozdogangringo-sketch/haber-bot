@@ -169,7 +169,7 @@ class TestZamanlama(unittest.TestCase):
              patch.object(video, "slayt_surelerini_hesapla", return_value=[4.2, 5.0, 5.0]), \
              patch.object(video, "slaytlardan_reels_uret", side_effect=reels), \
              patch.object(ses, "_anlatim_izi", side_effect=lambda p, t, c: yakalanan.update(parcalar=p, toplam=t) or c), \
-             patch.object(ses, "sesli_video_hazirla", side_effect=lambda v, k, m, a=None: yakalanan.update(konusma=k, muzik=m) or Path("/tmp/reels_x_sesli.mp4")):
+             patch.object(ses, "sesli_video_hazirla", side_effect=lambda v, k, m, a=None, **kw: yakalanan.update(konusma=k, muzik=m) or Path("/tmp/reels_x_sesli.mp4")):
             sonuc = {}
             ses.anlatimli_video_uret(["a.jpg", "b.jpg", "c.jpg"], [_haber(1), _haber(2), _haber(3)],
                                      _ayar(tur_kipi=kip), muzik=True, sonuc=sonuc)
@@ -207,6 +207,14 @@ class TestYayinBaglantisi(unittest.TestCase):
         self.assertIn("ses.anlatimli_video_uret(", govde)
         self.assertIn("{tt_notu}{ses_notu}", govde)
         self.assertNotIn("⚠️", govde[govde.index("ses_notu = ("):govde.index("elif dikey_gorseller:")])
+
+    def test_youtube_ve_facebook_her_turlu_sesli_ve_muzikli(self):
+        """Kullanıcı kuralı 2026-09-26: YouTube ve Facebook her türlü sesli ve fon müzikli yayınlamalı."""
+        kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
+        govde = kaynak[kaynak.index("def yayinla(con, ayarlar, haberler"):kaynak.index("\ndef kanal_telafi_et(")]
+        self.assertIn('ses_modu == "muziksiz" and ses_sonucu.get("video_muzikli")', govde)
+        self.assertIn('sesli = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar,', govde)
+        self.assertIn('muzik=True, sonuc=ses_sonucu_yt)', govde)
 
 
 if __name__ == "__main__":

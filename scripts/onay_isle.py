@@ -418,26 +418,44 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 # Seslendirmeli video BÜTÜN video kanallarına gider; adı "_sesli" olduğu için
                 # YouTube/Facebook yükleyicileri sesini fon müziğiyle değiştirmez.
                 from src import ses
-                ses_sonucu: dict = {}
+                ses_sonucu.clear()
                 anlatimli = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar,
                                                      muzik=(ses_modu == "muzikli"), sonuc=ses_sonucu)
-                sessiz_video_yolu = paylasilan_video_yolu = sesli_video_yolu = anlatimli
+                sessiz_video_yolu = paylasilan_video_yolu = anlatimli
+                # YouTube Shorts ve Facebook Reels: Her türlü sesli ve fon müzikli!
+                if ses_modu == "muziksiz" and ses_sonucu.get("video_muzikli"):
+                    sesli_video_yolu = ses_sonucu["video_muzikli"]
+                else:
+                    sesli_video_yolu = anlatimli
                 kip = "fon müzikli" if ses_modu == "muzikli" else "fon müziksiz"
                 # ⚠️ Kanal notlarına karışmaz: "⚠️" orada kanalı başarısız sayar
                 ses_notu = (f"\n🎙️ Seslendirme eklendi ({kip})" if ses_sonucu.get("anlatim")
                             else "\n🔇 Seslendirme üretilemedi (ElevenLabs anahtarı/kotası) — videolar seslendirmesiz çıktı")
             elif dikey_gorseller:
+                # Düz "✅ Yayınla": Instagram Reels/TikTok sessiz video
                 sessiz_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
                 paylasilan_video_yolu = sessiz_video_yolu
-                # SADECE YouTube Shorts ve Facebook Reels için fon müziğini tek seferde miksle
-                if (paylas_yt or paylas_fb_reels) and sessiz_video_yolu:
+                # YouTube Shorts ve Facebook Reels: Her türlü ElevenLabs sesli ve fon müzikli!
+                if (paylas_yt or paylas_fb_reels):
                     try:
-                        from src import youtube
-                        sesli = youtube.youtube_icin_sesli_video_hazirla(sessiz_video_yolu)
+                        from src import ses
+                        ses_sonucu_yt: dict = {}
+                        sesli = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar,
+                                                         muzik=True, sonuc=ses_sonucu_yt)
                         if sesli and sesli.exists():
                             sesli_video_yolu = sesli
+                            if ses_sonucu_yt.get("anlatim"):
+                                ses_notu = "\n🎙️ YouTube Shorts & FB Reels: ElevenLabs sesli + fon müzikli"
                     except Exception as e_ses:
-                        log.warning("Ortak fon müziği mikslenemedi: %s", e_ses)
+                        log.warning("YouTube/FB için sesli video üretilemedi: %s", e_ses)
+                    if not sesli_video_yolu and sessiz_video_yolu:
+                        try:
+                            from src import youtube
+                            sesli = youtube.youtube_icin_sesli_video_hazirla(sessiz_video_yolu)
+                            if sesli and sesli.exists():
+                                sesli_video_yolu = sesli
+                        except Exception as e_ses:
+                            log.warning("Ortak fon müziği mikslenemedi: %s", e_ses)
         except Exception as e:
             log.exception("YouTube/TikTok/Facebook için ortak video üretilemedi: %s", e)
 
@@ -1104,10 +1122,12 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
 
         if bool((ayarlar.get("sosyal", {}) or {}).get("facebook_reelse_de_at", True)):
             try:
-                from src import video
+                from src import video, ses
                 dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
                 if dikey_gorseller:
-                    v_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
+                    v_yolu = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar, muzik=True)
+                    if not v_yolu or not v_yolu.exists():
+                        v_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
                     aciklama_fb = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
                     fb_reel_id = facebook.reels_yayinla(v_yolu, aciklama_fb, ayarlar)
                     con.execute("UPDATE haberler SET facebook_reel_id = ? WHERE telegram_message_id = ?", (fb_reel_id, mesaj_id))
@@ -1211,9 +1231,11 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
     # 7. YOUTUBE SHORTS TELAFİSİ
     if kanal in ("youtube", "hepsi"):
         try:
-            from src import youtube, video
+            from src import youtube, video, ses
             dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=haberler, ayarlar=ayarlar)
-            video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
+            video_yolu = ses.anlatimli_video_uret(dikey_gorseller, haberler, ayarlar, muzik=True)
+            if not video_yolu or not video_yolu.exists():
+                video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
             h0 = dict(haberler[0]) if haberler else {}
             baslik_yt = h0.get("ig_baslik") or h0.get("baslik_orj") or "Günün Gelişmeleri"
             aciklama_yt = caption.aciklamayi_kur(

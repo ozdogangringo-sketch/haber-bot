@@ -188,9 +188,10 @@ def seslendirilmis_mi(yol: Optional[Path | str]) -> bool:
 
 
 def sesli_video_hazirla(video_yolu: Path, konusma: Optional[Path], muzik: bool,
-                        ayarlar: Optional[Dict[str, Any]] = None) -> Path:
+                        ayarlar: Optional[Dict[str, Any]] = None,
+                        cikti_yolu: Optional[Path | str] = None) -> Path:
     """Anlatım (varsa) + fon müziği (istenirse) → "<ad>_sesli.mp4", ses seviyesi normalleşmiş."""
-    cikti = video_yolu.with_name(f"{video_yolu.stem}_sesli.mp4")
+    cikti = Path(cikti_yolu) if cikti_yolu else video_yolu.with_name(f"{video_yolu.stem}_sesli.mp4")
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
     seviye = f"loudnorm=I={_ayar(ayarlar, 'hedef_lufs', -14)}:TP=-1.5:LRA=11"
     muzikli = muzik and FON_MUZIGI.exists()
@@ -269,6 +270,15 @@ def anlatimli_video_uret(dikey_gorseller: List[Path | str], haberler: List[Any],
         sonuc["anlatim"] = bool(anlatim)
     try:
         cikti = sesli_video_hazirla(sessiz, anlatim, muzik, ayarlar)
+        # Eğer müziksiz istendiyse ama YouTube/Facebook için fon müzikli versiyon da gerekiyorsa:
+        if not muzik and sonuc is not None:
+            muzikli_yol = sessiz.with_name(f"{sessiz.stem}_muzikli_sesli.mp4")
+            try:
+                sonuc["video_muzikli"] = sesli_video_hazirla(sessiz, anlatim, True, ayarlar, cikti_yolu=muzikli_yol)
+            except Exception as e_m:
+                log.warning("YouTube/FB için fon müzikli versiyon üretilemedi: %s", e_m)
+        elif muzik and sonuc is not None:
+            sonuc["video_muzikli"] = cikti
     except Exception as e:
         log.warning("Ses miksi başarısız, sessiz videoyla devam: %s", e)
         return sessiz
