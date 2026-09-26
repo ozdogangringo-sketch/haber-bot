@@ -95,9 +95,11 @@ def metin_seslendir(metin: str, ayarlar: Optional[Dict[str, Any]] = None,
                                   headers=basliklar, json=govde, timeout=45)
                 if r.status_code == 200 and len(r.content) > 500:
                     cikti_yolu.write_bytes(r.content)
+                    log.info("ElevenLabs seslendirme başarılı: %s (ses_id: %s, boyut: %d bayt)", cikti_yolu.name, ses_id, len(r.content))
                     return cikti_yolu
                 log.warning("ElevenLabs hatası (deneme %d/3) [%s]: %s", deneme, r.status_code, r.text[:120])
-                if r.status_code in (401, 402):
+                if r.status_code in (401, 402) or (r.status_code == 400 and "invalid_api_key" in r.text):
+                    log.error("ElevenLabs kimlik/kota hatası: API anahtarını veya kotayı kontrol edin.")
                     return None  # yetki/kota: başka ses denemek de aynı hatayı alır
                 if r.status_code in (400, 404) and "voice" in r.text.lower():
                     break  # ses kütüphaneden kalkmış: yedek sese geç

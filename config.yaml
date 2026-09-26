@@ -1215,12 +1215,12 @@ seslendirme:
   ses_id: "r3deco0KTo6o0Kb5inro"        # Sıla Özalp — haber sunucusu (profesyonel ses)
   yedek_ses_id: "J17lijyP1BHYcM7ld0Rg"  # Adam — Sıla kütüphaneden kalkarsa
   model: "eleven_multilingual_v2"
-  ayarlar:                              # "biraz daha hızlı ve heyecanlı"
-    stability: 0.40
-    similarity_boost: 0.80
-    style: 0.30
+  ayarlar:                              # Canlı ve akıcı haber spikeri ayarı (Sıla Özalp)
+    stability: 0.28
+    similarity_boost: 0.75
+    style: 0.50
     use_speaker_boost: true
-    speed: 1.12
+    speed: 1.05
   hedef_lufs: -14
   # Tek haberli postta (son dakika) her zaman kapak: başlık + özet.
   # Turda (birden çok haber) — kullanıcı kararı 2026-09-26: "sadece başlıkları okunsun".

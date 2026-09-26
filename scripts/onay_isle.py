@@ -296,6 +296,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     ses_kumesi = {k.strip().lower() for k in (secili or "").split(",")}
     ses_modu = "muzikli" if "ses_muzikli" in ses_kumesi else ("muziksiz" if "ses_muziksiz" in ses_kumesi else None)
     ses_notu = ""
+    ses_sonucu: dict = {}
 
     urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
 
@@ -636,10 +637,25 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                     video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
                 reels_aciklama = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
                 temiz_metin = html_lib.escape(reels_aciklama.strip())
+                if ses_modu and ses_sonucu.get("anlatim"):
+                    ses_aciklama = (
+                        "🎙️ <b>Daily Brief Seslendirmeli Reels Videosu (1080x1920 MP4)</b>\n\n"
+                        f"🔊 <b>ElevenLabs Seslendirmesi:</b> {'🎵 Fon müzikli' if ses_modu == 'muzikli' else '🔇 Fon müziksiz (saf seslendirme)'}\n"
+                        "💡 <i>Yapay zeka haber sunucusu seslendirmesi videoya eklenmiştir.</i>"
+                    )
+                elif ses_modu:
+                    ses_aciklama = (
+                        "⚠️ <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
+                        "⚠️ <i>ElevenLabs seslendirmesi üretilemedi (API hatası/kota). Video seslendirmesiz oluşturuldu.</i>"
+                    )
+                else:
+                    ses_aciklama = (
+                        "🎬 <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
+                        "💡 <i>Videoyu kaydedip Instagram/TikTok uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>"
+                    )
                 telegram_bot.video_gonder(
                     video_yolu,
-                    aciklama="🎬 <b>Daily Brief Reels Videosu (1080x1920 MP4)</b>\n\n"
-                             "💡 <i>Videoyu kaydedip Instagram/TikTok uygulamasından trend müzikle kolayca paylaşabilirsiniz.</i>",
+                    aciklama=ses_aciklama,
                 )
                 telegram_bot.mesaj_gonder(
                     "📝 <b>Reels Açıklama Metni (Kopyalamak için dokunun):</b>\n"
