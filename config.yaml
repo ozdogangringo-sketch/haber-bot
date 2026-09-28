@@ -1212,15 +1212,15 @@ sosyal:
 # FB Reels) uygulanır. Anahtar GitHub secret'ı: ELEVENLABS_API_KEY. Ses ve ayarlar
 # kullanıcının postedm'de dinleyip seçtikleriyle aynı.
 seslendirme:
-  ses_id: "J17lijyP1BHYcM7ld0Rg"        # Adam — tok, vakur Türkçe İstanbul spiker (EzanPlusBot sesi)
-  yedek_ses_id: "r3deco0KTo6o0Kb5inro"  # Sıla Özalp — haber sunucusu (yedek ses)
+  ses_id: "KediIz7pebzt5TaDHiiZ"        # Alex — derin, epik, güçlü bariton anlatıcı (haber/belgesel tonu)
+  yedek_ses_id: "J17lijyP1BHYcM7ld0Rg"  # Adam — tok Türkçe İstanbul spikeri (1. yedek ses)
   model: "eleven_multilingual_v2"
-  ayarlar:                              # Tok, net ve akıcı haber spikeri ayarı (Adam)
+  ayarlar:                              # Derin, net ve akıcı haber spikeri ayarı (Alex)
     stability: 0.55
     similarity_boost: 0.75
     style: 0.0
     use_speaker_boost: true
-    speed: 1.18
+    speed: 1.15
   hedef_lufs: -14
   # Tek haberli postta (son dakika) her zaman kapak: başlık + özet.
   # Turda (birden çok haber) — kullanıcı kararı 2026-09-26: "sadece başlıkları okunsun".

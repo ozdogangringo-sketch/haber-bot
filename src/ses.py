@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 KOK = Path(__file__).resolve().parent.parent
 CIKTI = KOK / "data" / "output"
 FON_MUZIGI = KOK / "assets" / "audio" / "haber_fon.mp3"
-YEDEK_SES_ID = "r3deco0KTo6o0Kb5inro"  # Sıla Özalp — config.yaml'da ses yoksa yedek
+YEDEK_SES_ID = "J17lijyP1BHYcM7ld0Rg"  # Adam — config.yaml'da ses yoksa yedek
 
 ANLATIM_ONCESI_SN = 0.4   # slayt açıldıktan sonra sesin başlaması
 ANLATIM_SONRASI_SN = 0.8  # ses bittikten sonra geçişe kadar nefes
@@ -81,7 +81,7 @@ def metin_seslendir(metin: str, ayarlar: Optional[Dict[str, Any]] = None,
     temiz = okunus.tek_harfleri_belirginlestir(okunus.okunusa_cevir(metin or ""))
     if not temiz:
         return None
-    sesler = [s for s in dict.fromkeys([_ayar(ayarlar, "ses_id"), _ayar(ayarlar, "yedek_ses_id"), YEDEK_SES_ID]) if s]
+    sesler = [s for s in dict.fromkeys([_ayar(ayarlar, "ses_id"), _ayar(ayarlar, "yedek_ses_id"), YEDEK_SES_ID, "r3deco0KTo6o0Kb5inro"]) if s]
     cikti_yolu = Path(cikti_yolu or CIKTI / f"ses_{os.getpid()}_{int(time.time() * 1000)}.mp3")
     cikti_yolu.parent.mkdir(parents=True, exist_ok=True)
     basliklar = {"xi-api-key": anahtar, "Content-Type": "application/json"}

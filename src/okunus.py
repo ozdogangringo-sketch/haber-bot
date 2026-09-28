@@ -193,7 +193,7 @@ _ACILIM = {
     "TMK": "Türk Medeni Kanunu", "TBK": "Türk Borçlar Kanunu", "HMK": "Hukuk Muhakemeleri Kanunu",
     "İİK": "İcra ve İflas Kanunu", "DOP": "düzenleme ortaklık payı", "KOP": "kamu ortaklık payı",
     "TL": "lira", "USD": "dolar", "EUR": "avro", "GBP": "sterlin", "RG": "Resmî Gazete",
-    "ABD": "Amerika Birleşik Devletleri",
+    "ABD": "Amerika Birleşik Devletleri", "BİST": "Borsa İstanbul", "BIST": "Borsa İstanbul",
 }
 
 # Büyük harfle yazılmış iki harfli GERÇEK kelimeler: harf harf okunmaz ("VE", "EN")
@@ -302,6 +302,32 @@ def _kisaltmalar(metin: str) -> str:
     metin = re.sub(r"(?i)\bh\s*max\b", "azami yükseklik", metin)
     metin = re.sub(rf"(?<![{_HARF}])E\s*[:=]\s*(?=\d)", "emsal ", metin)
     metin = re.sub(rf"(?<![{_HARF}])H\s*[:=]\s*(?=\d)", "yükseklik ", metin)
+    return metin
+
+
+def _borsa_kisaltmalari(metin: str) -> str:
+    """BİST / BIST / Bist kısaltmalarını editoryal olarak 'Borsa İstanbul'a çevirir.
+
+    Sayı ve eklerden ÖNCE çözülmeli:
+      * 'BİST-100' / 'BİST 100' / 'BİST100' → 'Borsa İstanbul 100' (sonrasında 100 → 'yüz' olur)
+      * 'BİST'te' / 'BİST'e' / 'BİST'in' → 'Borsa İstanbul'da' / 'Borsa İstanbul'a' / 'Borsa İstanbul'un'
+      * 'BİST' → 'Borsa İstanbul' (yalın)
+    """
+    # 1. BİST 100, BİST-100, BIST100, Bist-30, BİST 50 vb.
+    metin = re.sub(r"(?i)\b(?:b[iıİI]st)[ -]?(\d+)\b", r"Borsa İstanbul \1", metin)
+
+    # 2. BİST'te, BIST'e, Bist'in, BİST'i ve kesmesiz BİSTte, BİSTe, BİSTin vb.
+    def bist_ek(m: "re.Match[str]") -> str:
+        ek = m.group(1) or m.group(2)
+        return "Borsa İstanbul'" + _ek_uyumu("Borsa İstanbul", ek)
+
+    metin = re.sub(
+        r"(?i)\b(?:b[iıİI]st)(?:['’]([a-zçğıöşü]+)|(te|de|e|a|in|ın|un|ün|ten|tan|den|dan|i|ı|u|ü|le|la|ye|ya))\b",
+        bist_ek, metin,
+    )
+
+    # 3. Yalın BİST, BIST, Bist
+    metin = re.sub(r"(?i)\b(?:b[iıİI]st)\b", "Borsa İstanbul", metin)
     return metin
 
 
@@ -600,7 +626,7 @@ def _son_temizlik(metin: str) -> str:
 
 
 ADIMLAR: List[Callable[[str], str]] = [
-    _temizle, _kisaltmalar, _ada_parsel, _tarih_saat, _birimler, _kesirler, _siralar,
+    _temizle, _kisaltmalar, _borsa_kisaltmalari, _ada_parsel, _tarih_saat, _birimler, _kesirler, _siralar,
     _isaretler_sayi, _sayilar, _ingilizce_terimler, _buyuk_harfler, _son_temizlik,
 ]
 
