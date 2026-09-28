@@ -122,6 +122,23 @@ TABLO = [
     ("BÜTÇENİZ YOK", "bütçeniz yok"),
     ("HARÇ ŞERH RİSK MÜLK", "harç şerh risk mülk"),
     ("VE", "ve"),
+    # Görünmez ve süs karakterleri
+    ("✅ Tapu 🏠", "Tapu"),
+    ("Konuk ekip **Mbappe'nin** 54. dakikada", "Konuk ekip Mbappe'nin elli dördüncü dakikada"),  # Instabot özeti
+    ("__önemli__ not", "önemli not"),
+    ("O​t​u​z", "Otuz"),
+    ("‮tersine", "tersine"),
+    ("satır bir\nsatır iki", "satır bir. satır iki"),
+    ("tapu/imar", "tapu, imar"),
+    ("emsal (KAKS) 0,60", "emsal, kaks, sıfır virgül altmış"),
+    ("info@edmyapigayrimenkul.com", "info et edmyapigayrimenkul nokta com"),
+    ("https://x.com/a", ""),
+    # Sayı sınırları
+    ("0", "sıfır"), ("100", "yüz"), ("101", "yüz bir"), ("1000", "bin"), ("1001", "bin bir"),
+    ("10000000000000000", "10000000000000000"),  # trilyonun üstü: uydurulmaz, rakam kalır
+]
+
+INGILIZCE_TABLO = [
     # İngilizce kısaltmalar, unvanlar ve yaygın terimler (Türkçe fonetik okunuş)
     ("Apple CEO'su Tim Cook", "Apple si-i-o'su Tim Cook"),
     ("OpenAI CEOsu Sam Altman", "open ey-ay si-i-o'su Sam Altman"),
@@ -153,20 +170,10 @@ TABLO = [
     ("Fake hesaplar ve hacker saldırısı", "feyk hesaplar ve hekır saldırısı"),
     ("Influencer paylaşımları ve feedback", "influensır paylaşımları ve fidbek"),
     ("Yeni bir workshop ve deadline", "Yeni bir vörkşap ve dedlayn"),
-    # Görünmez ve süs karakterleri
-    ("✅ Tapu 🏠", "Tapu"),
-    ("Konuk ekip **Mbappe'nin** 54. dakikada", "Konuk ekip Mbappe'nin elli dördüncü dakikada"),  # Instabot özeti
-    ("__önemli__ not", "önemli not"),
-    ("O​t​u​z", "Otuz"),
-    ("‮tersine", "tersine"),
-    ("satır bir\nsatır iki", "satır bir. satır iki"),
-    ("tapu/imar", "tapu, imar"),
-    ("emsal (KAKS) 0,60", "emsal, kaks, sıfır virgül altmış"),
-    ("info@edmyapigayrimenkul.com", "info et edmyapigayrimenkul nokta com"),
-    ("https://x.com/a", ""),
-    # Sayı sınırları
-    ("0", "sıfır"), ("100", "yüz"), ("101", "yüz bir"), ("1000", "bin"), ("1001", "bin bir"),
-    ("10000000000000000", "10000000000000000"),  # trilyonun üstü: uydurulmaz, rakam kalır
+    ("Nvidia yeni GPU modelini duyurdu", "Nvidia yeni ci-pi-yu modelini duyurdu"),
+    ("Güçlü CPU ve LLM mimarisi", "Güçlü si-pi-yu ve el-el-em mimarisi"),
+    ("SpaceX roketi fırlatıldı", "speys-eks roketi fırlatıldı"),
+    ("Microsoft ve Google rekabeti", "maykrosoft ve gugıl rekabeti"),
 ]
 
 _KISALTMA_KALINTISI = re.compile(r"\b(?:Hz|Dr|Av|Prof|Doç|vb|vs|bkz|md|Mah|Cad|Sok|Apt)\.")
@@ -213,6 +220,13 @@ class TestOkunusTablosu(unittest.TestCase):
                     self.assertNotRegex(re.sub(r"[A-ZÇĞİÖŞÜ]-\d+", "", cikti), r"\d")  # "D-100" yol kodu kalır
                 self.assertFalse(any(unicodedata.category(c)[0] == "C" for c in cikti))
                 self.assertNotRegex(cikti, _KISALTMA_KALINTISI)
+
+    def test_ingilizce_terimler_okunusu(self):
+        for girdi, beklenen in INGILIZCE_TABLO:
+            with self.subTest(girdi=girdi):
+                cikti = okunusa_cevir(girdi)
+                self.assertEqual(cikti, beklenen)
+                self.assertEqual(okunusa_cevir(cikti), cikti)
 
 
 class TestSayilar(unittest.TestCase):
