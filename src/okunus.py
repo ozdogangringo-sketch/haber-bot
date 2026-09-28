@@ -143,14 +143,50 @@ def _sayi_oku(belirtec: str) -> str:
     return f"{_tam_oku(tam or '0')} virgül {' '.join(ondalik) or 'sıfır'}"
 
 
+# 3. tekil iyelik ile biten kurum ve tamlamalar (zamir n'si alır: Emirlikleri'ne, Birliği'nde vb.)
+_IYELIKLI_BITISLER = (
+    "Devletleri", "Emirlikleri", "Cumhuriyeti", "Yönetimi", "Birliği",
+    "Belediyesi", "Müdürlüğü", "Bakanlığı", "Konseyi", "Örgütü",
+    "Mahkemesi", "Kurulu", "Kurumu", "Teşkilatı", "Ajansı", "Yolları", "Bankası", "Kanunu",
+    "payı",
+)
+
+
 def _ek_uyumu(kok: str, ek: str) -> str:
     """Kökü değişen ekin ünlülerini ve baştaki d/t'sini yeni köke uydurur ("TL'lik" → "liralık")."""
+    if not ek:
+        return ""
     onceki = _son_unlu(kok)
-    son = kok[-1].lower() if kok else "a"
+    kalin = onceki in _KALIN
+    u_dortlu = _dortlu(onceki)
+    e_a = "a" if kalin else "e"
+    son_harf = kok[-1].lower() if kok else "a"
+
+    # 3. tekil iyelik ile biten kurum ve tamlamalar (Devletleri, Emirlikleri, Birliği, Belediyesi, Kurulu, Bakanlığı vb.)
+    iyelikli = any(kok.endswith(son) for son in _IYELIKLI_BITISLER)
+
+    ek_l = ek.lower()
+    if iyelikli:
+        # Yönelme: -ye / -ya / -e / -a -> -ne / -na (Emirlikleri'ne, Birliği'ne, Bakanlığı'na)
+        if ek_l in ("ye", "ya", "e", "a"):
+            return f"n{e_a}"
+        # Bulunma: -de / -da / -te / -ta -> -nde / -nda (Emirlikleri'nde, Birliği'nde)
+        if ek_l in ("de", "da", "te", "ta"):
+            return f"nd{e_a}"
+        # Ayrılma: -den / -dan / -ten / -tan -> -nden / -ndan (Emirlikleri'nden, Birliği'nden)
+        if ek_l in ("den", "dan", "ten", "tan"):
+            return f"nd{e_a}n"
+        # Belirtme: -yi / -yı / -yu / -yü / -i / -ı / -u / -ü -> -ni / -nı (Emirlikleri'ni)
+        if ek_l in ("yi", "yı", "yu", "yü", "i", "ı", "u", "ü"):
+            return f"n{u_dortlu}"
+        # İlgi / tamlayan: -nin / -nın / -in / -ın -> -nin / -nın (Emirlikleri'nin)
+        if ek_l in ("nin", "nın", "nun", "nün", "in", "ın", "un", "ün"):
+            return f"n{u_dortlu}n"
+
     cikti = []
-    for i, c in enumerate(ek):
+    for i, c in enumerate(ek_l):
         if i == 0 and c in "dt":
-            c = "t" if son in _SERT else "d"
+            c = "t" if son_harf in _SERT else "d"
         if c in "ıiuü":
             c = _dortlu(onceki)
             onceki = c
@@ -185,15 +221,33 @@ _NOKTALI: List[Tuple[str, str, bool]] = [
     ("Bkz.", "Bakınız", False), ("örn.", "örneğin", False), ("Örn.", "Örneğin", False), ("yak.", "yaklaşık", False),
     ("yy.", "yüzyıl", True), ("maks.", "maksimum", True), ("max.", "maksimum", True), ("min.", "minimum", True),
     ("ort.", "ortalama", True), ("Ort.", "Ortalama", False), ("sy.", "sayılı", False),
+    ("A.B.D.", "Amerika Birleşik Devletleri", False), ("B.A.E.", "Birleşik Arap Emirlikleri", False),
+    ("K.K.T.C.", "Kuzey Kıbrıs Türk Cumhuriyeti", False), ("A.B.", "Avrupa Birliği", False),
 ]
 
-# Harfle okununca anlaşılmayan ya da yanlış okunan kurum/kanun kısaltmaları
+# Harfle okununca anlaşılmayan ya da editoryal olarak açılması gereken kurum/ülke kısaltmaları
 _ACILIM = {
+    # Kamu ve Kanunlar
     "İBB": "İstanbul Büyükşehir Belediyesi", "TKGM": "Tapu ve Kadastro Genel Müdürlüğü",
     "TMK": "Türk Medeni Kanunu", "TBK": "Türk Borçlar Kanunu", "HMK": "Hukuk Muhakemeleri Kanunu",
     "İİK": "İcra ve İflas Kanunu", "DOP": "düzenleme ortaklık payı", "KOP": "kamu ortaklık payı",
     "TL": "lira", "USD": "dolar", "EUR": "avro", "GBP": "sterlin", "RG": "Resmî Gazete",
-    "ABD": "Amerika Birleşik Devletleri", "BİST": "Borsa İstanbul", "BIST": "Borsa İstanbul",
+    # Ülkeler
+    "ABD": "Amerika Birleşik Devletleri", "BAE": "Birleşik Arap Emirlikleri",
+    "KKTC": "Kuzey Kıbrıs Türk Cumhuriyeti", "GKRY": "Güney Kıbrıs Rum Yönetimi",
+    "RF": "Rusya Federasyonu", "ÇHC": "Çin Halk Cumhuriyeti", "BK": "Birleşik Krallık",
+    # Uluslararası Birlikler ve Örgütler
+    "AB": "Avrupa Birliği", "BM": "Birleşmiş Milletler", "BMGK": "Birleşmiş Milletler Güvenlik Konseyi",
+    "DSÖ": "Dünya Sağlık Örgütü", "DTÖ": "Dünya Ticaret Örgütü",
+    "AİHM": "Avrupa İnsan Hakları Mahkemesi", "AIHM": "Avrupa İnsan Hakları Mahkemesi",
+    "AYM": "Anayasa Mahkemesi", "YSK": "Yüksek Seçim Kurulu",
+    "TDT": "Türk Devletleri Teşkilatı", "İİT": "İslam İşbirliği Teşkilatı", "IIT": "İslam İşbirliği Teşkilatı",
+    "UAEA": "Uluslararası Atom Enerjisi Ajansı",
+    # Finans ve Önemli Kurumlar
+    "BİST": "Borsa İstanbul", "BIST": "Borsa İstanbul",
+    "THY": "Türk Hava Yolları", "MSB": "Milli Savunma Bakanlığı", "MEB": "Milli Eğitim Bakanlığı",
+    "TCMB": "Türkiye Cumhuriyet Merkez Bankası", "SPK": "Sermaye Piyasası Kurulu",
+    "BDDK": "Bankacılık Düzenleme ve Denetleme Kurumu",
 }
 
 # Büyük harfle yazılmış iki harfli GERÇEK kelimeler: harf harf okunmaz ("VE", "EN")
@@ -302,6 +356,14 @@ def _kisaltmalar(metin: str) -> str:
     metin = re.sub(r"(?i)\bh\s*max\b", "azami yükseklik", metin)
     metin = re.sub(rf"(?<![{_HARF}])E\s*[:=]\s*(?=\d)", "emsal ", metin)
     metin = re.sub(rf"(?<![{_HARF}])H\s*[:=]\s*(?=\d)", "yükseklik ", metin)
+    # Noktalı ve yaygın ülke kısaltmaları (G. Kore, S. Arabistan, K. Kore, Bae, Abd vb.)
+    metin = re.sub(r"(?i)\bG\.\s*Kore\b", "Güney Kore", metin)
+    metin = re.sub(r"(?i)\bK\.\s*Kore\b", "Kuzey Kore", metin)
+    metin = re.sub(r"(?i)\bG\.\s*Afrika\b", "Güney Afrika", metin)
+    metin = re.sub(r"(?i)\bS\.\s*Arabistan\b", "Suudi Arabistan", metin)
+    metin = re.sub(r"(?i)\bK\.\s*Kıbrıs\b", "Kuzey Kıbrıs", metin)
+    metin = re.sub(r"\bBae\b", "Birleşik Arap Emirlikleri", metin)
+    metin = re.sub(r"\bAbd\b", "Amerika Birleşik Devletleri", metin)
     return metin
 
 

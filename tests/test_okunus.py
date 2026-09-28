@@ -432,6 +432,58 @@ class TestSabotajKorumasi(unittest.TestCase):
                 # İkinci kez çevrilince asla değişmemeli (idempotency)
                 self.assertEqual(okunusa_cevir(beklenen), beklenen)
 
+    def test_ulke_ve_kurum_acimlari(self):
+        """Ülke ve uluslararası/ulusal kurum kısaltmaları editoryal olarak doğru açılmalı."""
+        ornekler = [
+            ("Türkiye ile BAE arasında ticaret hacmi arttı.", "Türkiye ile Birleşik Arap Emirlikleri arasında ticaret hacmi arttı."),
+            ("BAE'ye resmi ziyaret düzenlendi.", "Birleşik Arap Emirliklerine resmi ziyaret düzenlendi."),
+            ("BAE'de düzenlenen fuar büyük ilgi gördü.", "Birleşik Arap Emirliklerinde düzenlenen fuar büyük ilgi gördü."),
+            ("BAE'nin Ankara Büyükelçisi konuştu.", "Birleşik Arap Emirliklerinin Ankara Büyükelçisi konuştu."),
+            ("BAE'den Türkiye'ye yatırım kararı.", "Birleşik Arap Emirliklerinden Türkiye'ye yatırım kararı."),
+            ("Bae Devlet Başkanı ile görüştü.", "Birleşik Arap Emirlikleri Devlet Başkanı ile görüştü."),
+            ("ABD Başkanı basın toplantısı düzenledi.", "Amerika Birleşik Devletleri Başkanı basın toplantısı düzenledi."),
+            ("ABD'ye giden heyet yurda döndü.", "Amerika Birleşik Devletlerine giden heyet yurda döndü."),
+            ("ABD'de enflasyon beklentileri aştı.", "Amerika Birleşik Devletlerinde enflasyon beklentileri aştı."),
+            ("Abd Başkanı ile bir araya geldi.", "Amerika Birleşik Devletleri Başkanı ile bir araya geldi."),
+            ("AB Komisyonu yeni yaptırım paketini açıkladı.", "Avrupa Birliği Komisyonu yeni yaptırım paketini açıkladı."),
+            ("AB'ye katılım süreci ele alındı.", "Avrupa Birliğine katılım süreci ele alındı."),
+            ("AB'den kritik Türkiye kararı.", "Avrupa Birliğinden kritik Türkiye kararı."),
+            ("AB'nin enerji politikası tartışılıyor.", "Avrupa Birliğinin enerji politikası tartışılıyor."),
+            ("BM Güvenlik Konseyi toplandı.", "Birleşmiş Milletler Güvenlik Konseyi toplandı."),
+            ("BM'de oylama yapıldı.", "Birleşmiş Milletlerde oylama yapıldı."),
+            ("BM'den acil ateşkes çağrısı.", "Birleşmiş Milletlerden acil ateşkes çağrısı."),
+            ("BMGK acil toplantı kararı aldı.", "Birleşmiş Milletler Güvenlik Konseyi acil toplantı kararı aldı."),
+            ("KKTC Cumhurbaşkanı açıklama yaptı.", "Kuzey Kıbrıs Türk Cumhuriyeti Cumhurbaşkanı açıklama yaptı."),
+            ("KKTC'ye su temini projesi.", "Kuzey Kıbrıs Türk Cumhuriyetine su temini projesi."),
+            ("KKTC'de seçim heyecanı yaşanıyor.", "Kuzey Kıbrıs Türk Cumhuriyetinde seçim heyecanı yaşanıyor."),
+            ("GKRY lideri müzakereleri durdurdu.", "Güney Kıbrıs Rum Yönetimi lideri müzakereleri durdurdu."),
+            ("DSÖ küresel salgın uyarısı yaptı.", "Dünya Sağlık Örgütü küresel salgın uyarısı yaptı."),
+            ("DSÖ'den yeni rapor yayımlandı.", "Dünya Sağlık Örgütünden yeni rapor yayımlandı."),
+            ("DSÖ'nün açıkladığı veriler dikkat çekti.", "Dünya Sağlık Örgütünün açıkladığı veriler dikkat çekti."),
+            ("AİHM Türkiye başvurusunu karara bağladı.", "Avrupa İnsan Hakları Mahkemesi Türkiye başvurusunu karara bağladı."),
+            ("AYM yeni kanun maddesini iptal etti.", "Anayasa Mahkemesi yeni kanun maddesini iptal etti."),
+            ("YSK seçim takvimini belirledi.", "Yüksek Seçim Kurulu seçim takvimini belirledi."),
+            ("THY yeni uçak siparişlerini duyurdu.", "Türk Hava Yolları yeni uçak siparişlerini duyurdu."),
+            ("THY'nin yolcu sayısı rekor kırdı.", "Türk Hava Yollarının yolcu sayısı rekor kırdı."),
+            ("THY'ye yeni ödül verildi.", "Türk Hava Yollarına yeni ödül verildi."),
+            ("MSB terörle mücadele bilançosunu açıkladı.", "Milli Savunma Bakanlığı terörle mücadele bilançosunu açıkladı."),
+            ("MSB'den son dakika duyurusu.", "Milli Savunma Bakanlığından son dakika duyurusu."),
+            ("MEB yeni müfredatı tanıttı.", "Milli Eğitim Bakanlığı yeni müfredatı tanıttı."),
+            ("MEB'in yeni kararı velileri sevindirdi.", "Milli Eğitim Bakanlığının yeni kararı velileri sevindirdi."),
+            ("TCMB politika faizini sabit tuttu.", "Türkiye Cumhuriyet Merkez Bankası politika faizini sabit tuttu."),
+            ("SPK 5 şirketin halka arzına onay verdi.", "Sermaye Piyasası Kurulu beş şirketin halka arzına onay verdi."),
+            ("BDDK konut kredisi sınırlarını esnetti.", "Bankacılık Düzenleme ve Denetleme Kurumu konut kredisi sınırlarını esnetti."),
+            ("G. Kore ile yeni ticaret anlaşması.", "Güney Kore ile yeni ticaret anlaşması."),
+            ("K. Kore balistik füze denemesi yaptı.", "Kuzey Kore balistik füze denemesi yaptı."),
+            ("S. Arabistan Veliaht Prensi ile görüştü.", "Suudi Arabistan Veliaht Prensi ile görüştü."),
+            ("G. Afrika Cumhuriyeti başvuruda bulundu.", "Güney Afrika Cumhuriyeti başvuruda bulundu."),
+        ]
+        for girdi, beklenen in ornekler:
+            with self.subTest(girdi=girdi):
+                self.assertEqual(okunusa_cevir(girdi), beklenen)
+                # İkinci kez çevrilince asla bozulmamalı (idempotency)
+                self.assertEqual(okunusa_cevir(beklenen), beklenen)
+
 
 if __name__ == "__main__":
     unittest.main()
