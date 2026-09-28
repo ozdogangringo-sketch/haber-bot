@@ -1609,11 +1609,16 @@ instabot/
     DM (`di-em`), TT (`ti-ti`), SUV (`es-yu-vi`), EV (`i-vi`), Cybertruck (`saybırtrak`), Autopilot (`otopaylıt`),
     SSD (`es-es-di`), USB (`yu-es-bi`), Copilot (`kopaylıt`), Midjourney (`midcörni`), Perplexity (`pörpleksiti`),
     Claude (`klod`), Big Tech (`big tek`), phishing (`fişing`), ransomware (`rensımver`), malware (`melver`),
-    spyware (`spayver`), clickbait (`klikbeyt`).
+    spyware (`spayver`), clickbait (`klikbeyt`),
+    Dacia (`Daçya`), BYD (`bi-vay-di`), Peugeot (`Pejo`), Renault (`Reno`), Citroën (`Sitroen`), Porsche (`Porşe`),
+    Chevrolet (`Şevrole`), TSMC (`ti-es-em-si`), ASML (`ey-es-em-el`), Xiaomi (`Şaomi`), Huawei (`Huavey`),
+    AMD (`ey-em-di`), RAM (`rem`), blockchain (`blokçeyn`), bitcoin (`bitkoyn`),
+    Bill Gates (`Bil Geyts`), Elon Musk (`İlan Mask`), Mark Zuckerberg (`Mark Zakırbörg`),
+    Grand Prix (`gran pri`), F1 (`ef-bir`), FIFA (`fifa`), UEFA (`uefa`), play-off / play-in (`pley-of` / `pley-in`).
   * Sabotaj Test Koruması (`TestSabotajKorumasi`): Türkçe kelimeler (`tehlike` != `layk`, `reel` != `rils`,
     `it` != `ay-ti`, `ev` != `i-vi`, `su` != `es-yu-vi`, `can`, `at`, `on`, `in`, `TBMM`, `SGK`, `KDV`, `İBB`, `BİST`, `TOKİ`,
-    `D-100`, `E-5`, `Prof. Dr.`) asla bozulmaz. Eklerin ünlü/ünsüz uyumu (`SUV'lar` → `es-yu-vi'ler`, `iPhone'un` → `ayfon'un`)
-    ve çift çevrim kararlılığı (idempotency) %100 garantilidir.
+    `D-100`, `E-5`, `Prof. Dr.`) asla bozulmaz. Eklerin ünlü/ünsüz uyumu (`SUV'lar` → `es-yu-vi'ler`, `iPhone'un` → `ayfon'un`,
+    `Dacia'ya` → `Daçya'ya`, `BYD'nin` → `bi-vay-di'nin`) ve çift çevrim kararlılığı (idempotency) %100 garantilidir.
 - **Ses Seçimi (28 Eyl 2026):** Birincil ses "Alex" (`KediIz7pebzt5TaDHiiZ`, derin, güçlü ve epik bariton haber anlatıcısı; `stability: 0.55`, `style: 0.0`, `speed: 1.15`). 1. yedek ses "Adam" (`J17lijyP1BHYcM7ld0Rg`), 2. yedek ses "Sıla Özalp" (`r3deco0KTo6o0Kb5inro`).
 - **BİST → Borsa İstanbul Katmanı (`okunus._borsa_kisaltmalari`):** BİST/BIST kısaltmaları harf harf veya "bist" diye okunmaz; editoryal olarak "Borsa İstanbul" olarak okunur. Sayı ve eklerden önce çözülür: "BİST 100" / "BİST-100" → "Borsa İstanbul yüz", "BİST 30" → "Borsa İstanbul otuz", "BİST'te" → "Borsa İstanbul'da", "BIST'e" → "Borsa İstanbul'a", "BİST'in" → "Borsa İstanbul'un", "BİST'ten" → "Borsa İstanbul'dan".
 - **Ülke, Kurum, Finans, Güvenlik ve Ulaşım Kısaltmaları Katmanı (`okunus._ACILIM`, `_kisaltmalar` & `_ek_uyumu` - 28 Eyl 2026):**
@@ -1621,11 +1626,12 @@ instabot/
   * **Finans, Ekonomi & Merkez Bankaları:** ECB (`Avrupa Merkez Bankası`), OVP (`Orta Vadeli Program`), KKM (`Kur Korumalı Mevduat`), GSYİH / GSYH (`Gayri Safi Yurt İçi Hasıla`), BOE (`İngiltere Merkez Bankası`), BOJ (`Japonya Merkez Bankası`), KGF (`Kredi Garanti Fonu`), IMF (`Uluslararası Para Fonu`), VİOP (`Vadeli İşlem ve Opsiyon Piyasası`), TCMB (`Türkiye Cumhuriyet Merkez Bankası`), SPK (`Sermaye Piyasası Kurulu`), BDDK (`Bankacılık Düzenleme ve Denetleme Kurumu`).
   * **Savunma, Güvenlik, Asayiş & Yargı:** TSK (`Türk Silahlı Kuvvetleri`), SSB (`Savunma Sanayii Başkanlığı`), EGM (`Emniyet Genel Müdürlüğü`), JGK (`Jandarma Genel Komutanlığı`), MİT (`Milli İstihbarat Teşkilatı`), MSB (`Milli Savunma Bakanlığı`), MEB (`Milli Eğitim Bakanlığı`), THY (`Türk Hava Yolları`). *(Not: MİT, efsane anlamındaki Türkçe 'mit' kelimesini ezmemek için bağlam korumalıdır).*
   * **Ulaşım, Altyapı & Şehir:** YHT (`Yüksek Hızlı Tren`), TCDD (`Devlet Demiryolları`), KGM (`Karayolları Genel Müdürlüğü`), DHMİ (`Devlet Hava Meydanları İşletmesi`), SHGM (`Sivil Havacılık Genel Müdürlüğü`), HGS (`Hızlı Geçiş Sistemi`), OGS (`Otomatik Geçiş Sistemi`).
-  * **Spor Dünyası:** TFF (`Türkiye Futbol Federasyonu`), PFDK (`Profesyonel Futbol Disiplin Kurulu`), TBF (`Türkiye Basketbol Federasyonu`), TVF (`Türkiye Voleybol Federasyonu`).
-  * **Sosyal, Eğitim & İş Dünyası:** KYK (`Kredi ve Yurtlar Kurumu`), TOBB (`Türkiye Odalar ve Borsalar Birliği`), TİM (`Türkiye İhracatçılar Meclisi`), DEİK (`Dış Ekonomik İlişkiler Kurulu`), KHK (`Kanun Hükmünde Kararname`), İBB (`İstanbul Büyükşehir Belediyesi`), TKGM (`Tapu ve Kadastro Genel Müdürlüğü`).
+  * **Spor Dünyası:** TFF (`Türkiye Futbol Federasyonu`), PFDK (`Profesyonel Futbol Disiplin Kurulu`), TBF (`Türkiye Basketbol Federasyonu`), TVF (`Türkiye Voleybol Federasyonu`), FK (`Futbol Kulübü`), JK (`Jimnastik Kulübü`), SK (`Spor Kulübü`).
+  * **Sosyal, Eğitim, Sanayi & İş Dünyası:** KYK (`Kredi ve Yurtlar Kurumu`), TOBB (`Türkiye Odalar ve Borsalar Birliği`), TİM (`Türkiye İhracatçılar Meclisi`), DEİK (`Dış Ekonomik İlişkiler Kurulu`), KHK (`Kanun Hükmünde Kararname`), İBB (`İstanbul Büyükşehir Belediyesi`), TKGM (`Tapu ve Kadastro Genel Müdürlüğü`), TMD (`Türkiye Madenciler Derneği`).
+  * **Teknik Birimler & Sayı-Para Ölçeği:** mAh (`miliamper saat`), kWh (`kilovatsaat`), kW (`kilovat`), MW (`megavat`), km/s & km/h (`kilometre bölü saat`), GHz (`gigahertz`), MHz (`megahertz`), Hz (`hertz`), GB (`gigabayt`), TB (`terabayt`), MB (`megabayt`), HP (`beygir gücü`). Sayı + ölçek + simge uyumu: `6,3 milyar $` → `altı virgül üç milyar dolar`, `100 milyon ₺'lik` → `yüz milyon liralık`.
   * **Başlık Düzeninden (Title-Case) Gelen Kısaltmalar:** RSS başlıklarında gelen `Bae`, `Abd`, `Tsk`, `Yht`, `Ovp`, `Kkm`, `Tff`, `Ecb`, `Kyk`, `Tobb`, `Spk`, `Bddk`, `Pfdk`, `Ucm`, `Tcdd`, `Kgm`, `Dhmi`, `Shgm`, `Tbf`, `Tvf`, `Gsyih` otomatik olarak büyük harfe normalize edilip tam ek uyumu motoruna sokulur.
   * **Linguistic Zamir N'si & Ünsüz Kaynaştırma Düşmesi Motoru (`_ek_uyumu` & `_IYELIKLI_BITISLER`):**
-    - 3. tekil iyelikli adlarda zamir n'si kusursuz işletilir (`BAE'ye` → `Birleşik Arap Emirliklerine`, `TSK'ya` → `Türk Silahlı Kuvvetlerine`, `TFF'ye` → `Türkiye Futbol Federasyonuna`, `ECB'de` → `Avrupa Merkez Bankasında`, `SSB'nin` → `Savunma Sanayii Başkanlığının`, `DHMİ'ye` → `Devlet Hava Meydanları İşletmesine`, `KYK'dan` → `Kredi ve Yurtlar Kurumundan`, `TOBB'a` → `Türkiye Odalar ve Borsalar Birliğine`).
+    - 3. tekil iyelikli adlarda zamir n'si kusursuz işletilir (`BAE'ye` → `Birleşik Arap Emirliklerine`, `TSK'ya` → `Türk Silahlı Kuvvetlerine`, `TFF'ye` → `Türkiye Futbol Federasyonuna`, `ECB'de` → `Avrupa Merkez Bankasında`, `SSB'nin` → `Savunma Sanayii Başkanlığının`, `DHMİ'ye` → `Devlet Hava Meydanları İşletmesine`, `KYK'dan` → `Kredi ve Yurtlar Kurumundan`, `TOBB'a` → `Türkiye Odalar ve Borsalar Birliğine`, `Vanspor FK'da` → `Vanspor Futbol Kulübünde`, `TMD'den` → `Türkiye Madenciler Derneğinden`).
     - Kısaltma kökünden kalan haksız kaynaştırma harfleri ('y' ve 'n') ünsüzle biten gerçek kelimelerde düşürülür: `OVP'ye` → `Orta Vadeli Programa`, `YHT'ye` → `Yüksek Hızlı Trene`, `KKM'ye` → `Kur Korumalı Mevduata`, `YHT'nin` → `Yüksek Hızlı Trenin`, `KKM'den` → `Kur Korumalı Mevduattan`.
   * **Dokunulmayan (Akronim) Kelimeler:** `AFAD`, `TÜİK`, `TOKİ`, `TBMM`, `SGK`, `KDV`, `ASELSAN`, `ROKETSAN`, `TUSAŞ`, `UEFA`, `FIFA`, `İSKİ`, `İETT`, `TÜBİTAK`, `KOSGEB`, `İŞKUR` kendi Türkçe fonetiğiyle akıcı okunduğu için bilerek açılmaz.
 - **Tek harf sese TIRNAKLA gider** (`okunus.tek_harfleri_belirginlestir`): "A Milli Takım"da

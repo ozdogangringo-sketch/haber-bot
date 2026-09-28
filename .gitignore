@@ -40,6 +40,8 @@ data/haber.db-shm
 # kök dizine düşenler için:
 debug_*.jpg
 test_*.jpg
+*.mp3
+data/*.mp3
 
 # OAuth akışının geçici artıkları — tek seferlik yetkilendirme
 # sırasında üretilir, sonrasında hiçbir kod okumaz. 4 Eyl 2026'da

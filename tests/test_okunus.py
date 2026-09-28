@@ -208,6 +208,29 @@ INGILIZCE_TABLO = [
     ("Phishing ve ransomware saldırıları arttı", "fişing ve rensımver saldırıları arttı"),
     ("Malware ve spyware tehlikesi", "melver ve spayver tehlikesi"),
     ("Clickbait başlıklardan kaçının", "klikbeyt başlıklardan kaçının"),
+    # Spor ve Uluslararası Organizasyonlar
+    ("Monaco Grand Prix'sinde zafer", "Monaco gran pri'sinde zafer"),
+    ("F1 pilotları yarışa hazır", "ef-bir pilotları yarışa hazır"),
+    ("FIFA yeni kuralları duyurdu", "fifa yeni kuralları duyurdu"),
+    ("UEFA Şampiyonlar Ligi maçı", "uefa Şampiyonlar Ligi maçı"),
+    ("EuroLeague play-off maçları", "EuroLeague pley-of maçları"),
+    # Liderler ve Kurucular
+    ("Bill Gates yapay zeka hakkında konuştu", "Bil Geyts yapay zeka hakkında konuştu"),
+    ("Elon Musk xAI şirketini büyütüyor", "İlan Mask xAI şirketini büyütüyor"),
+    ("Mark Zuckerberg yeni Meta gözlüğünü tanıttı", "Mark Zakırbörg yeni Meta gözlüğünü tanıttı"),
+    # Kripto, Donanım ve Otomotiv
+    ("Blockchain teknolojisi gelişiyor", "blokçeyn teknolojisi gelişiyor"),
+    ("Bitcoin rekor kırdı", "bitkoyn rekor kırdı"),
+    ("16 GB RAM kapasitesi", "on altı gigabayt rem kapasitesi"),
+    ("AMD yeni işlemcilerini tanıttı", "ey-em-di yeni işlemcilerini tanıttı"),
+    ("BYD elektrikli araç satışında lider", "bi-vay-di elektrikli araç satışında lider"),
+    ("Yeni Dacia modelleri yollarda", "Yeni Daçya modelleri yollarda"),
+    ("Peugeot yeni SUV modelini tanıttı", "Pejo yeni es-yu-vi modelini tanıttı"),
+    ("Renault elektrikli otomobil üretecek", "Reno elektrikli otomobil üretecek"),
+    ("Porsche yeni spor arabasını tanıttı", "Porşe yeni spor arabasını tanıttı"),
+    ("TSMC çip üretim kapasitesini artırıyor", "ti-es-em-si çip üretim kapasitesini artırıyor"),
+    ("Xiaomi yeni telefonunu duyurdu", "Şaomi yeni telefonunu duyurdu"),
+    ("Huawei yeni işletim sistemini tanıttı", "Huavey yeni işletim sistemini tanıttı"),
 ]
 
 _KISALTMA_KALINTISI = re.compile(r"\b(?:Hz|Dr|Av|Prof|Doç|vb|vs|bkz|md|Mah|Cad|Sok|Apt)\.")
@@ -565,6 +588,15 @@ class TestSabotajKorumasi(unittest.TestCase):
             ("KHK ile yeni düzenleme yürürlüğe girdi.", "Kanun Hükmünde Kararname ile yeni düzenleme yürürlüğe girdi."),
             ("HGS geçiş ücretlerine düzenleme yapıldı.", "Hızlı Geçiş Sistemi geçiş ücretlerine düzenleme yapıldı."),
             ("HGS'de yeni bakiye limiti.", "Hızlı Geçiş Sisteminde yeni bakiye limiti."),
+            # Kulüpler, Dernekler ve Birimler
+            ("Vanspor FK'da flaş gelişme.", "Vanspor Futbol Kulübünde flaş gelişme."),
+            ("Beşiktaş JK kongresi yapıldı.", "Beşiktaş Jimnastik Kulübü kongresi yapıldı."),
+            ("Fenerbahçe SK duyurdu.", "Fenerbahçe Spor Kulübü duyurdu."),
+            ("TMD'den kritik maden açıklaması.", "Türkiye Madenciler Derneğinden kritik maden açıklaması."),
+            ("6,3 milyar $ değerinde yatırım.", "altı virgül üç milyar dolar değerinde yatırım."),
+            ("100 milyon ₺'lik bütçe ayrıldı.", "yüz milyon liralık bütçe ayrıldı."),
+            ("5000 mAh batarya kapasitesi.", "beş bin miliamper saat batarya kapasitesi."),
+            ("250 kW şarj hızı sağlandı.", "iki yüz elli kilovat şarj hızı sağlandı."),
         ]
         for girdi, beklenen in ornekler:
             with self.subTest(girdi=girdi):

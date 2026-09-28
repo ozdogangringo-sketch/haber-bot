@@ -149,7 +149,7 @@ _IYELIKLI_BITISLER = (
     "belediyesi", "müdürlüğü", "bakanlığı", "başkanlığı", "konseyi", "örgütü",
     "mahkemesi", "kurulu", "kurumu", "teşkilatı", "ajansı", "yolları", "bankası", "kanunu",
     "kuvvetleri", "federasyonu", "komutanlığı", "işletmesi", "meclisi", "fonu", "sistemi",
-    "piyasası", "merkezi",
+    "piyasası", "merkezi", "kulübü", "derneği",
     "payı",
 )
 
@@ -290,6 +290,9 @@ _ACILIM = {
     "PFDK": "Profesyonel Futbol Disiplin Kurulu",
     "TBF": "Türkiye Basketbol Federasyonu",
     "TVF": "Türkiye Voleybol Federasyonu",
+    "FK": "Futbol Kulübü",
+    "JK": "Jimnastik Kulübü",
+    "SK": "Spor Kulübü",
     # Sosyal, Eğitim & İş Dünyası
     "KYK": "Kredi ve Yurtlar Kurumu",
     "TOBB": "Türkiye Odalar ve Borsalar Birliği",
@@ -298,6 +301,7 @@ _ACILIM = {
     "KHK": "Kanun Hükmünde Kararname",
     "HGS": "Hızlı Geçiş Sistemi",
     "OGS": "Otomatik Geçiş Sistemi",
+    "TMD": "Türkiye Madenciler Derneği",
 }
 
 # Büyük harfle yazılmış iki harfli GERÇEK kelimeler: harf harf okunmaz ("VE", "EN")
@@ -344,6 +348,18 @@ _BIRIMLER = [  # uzun olan önce: m² "m"den, km "m"den önce
     ("m", "metre"), ("ha", "hektar"), ("kg", "kilogram"), ("lt", "litre"), ("dk", "dakika"), ("sn", "saniye"),
     ("TL", "lira"), ("₺", "lira"), ("USD", "dolar"), ("$", "dolar"), ("EUR", "avro"), ("€", "avro"),
     ("GBP", "sterlin"), ("£", "sterlin"),
+    ("mAh", "miliamper saat"), ("mah", "miliamper saat"),
+    ("kWh", "kilovatsaat"), ("kwh", "kilovatsaat"),
+    ("kW", "kilovat"), ("kw", "kilovat"),
+    ("MW", "megavat"), ("mw", "megavat"),
+    ("km/s", "kilometre bölü saat"), ("km/h", "kilometre bölü saat"),
+    ("GHz", "gigahertz"), ("ghz", "gigahertz"),
+    ("MHz", "megahertz"), ("mhz", "megahertz"),
+    ("Hz", "hertz"),
+    ("GB", "gigabayt"), ("gb", "gigabayt"),
+    ("TB", "terabayt"), ("tb", "terabayt"),
+    ("MB", "megabayt"), ("mb", "megabayt"),
+    ("HP", "beygir gücü"), ("hp", "beygir gücü"),
 ]
 _SAYI_BICIMI = r"\d{1,3}(?:\.\d{3})+(?:,\d+)?(?![.\d])|\d+(?:\.\d+){2,}|\d+[.,]\d+|\d+"
 _EK = rf"(?:['’]([{_KUCUK}]+))?"
@@ -474,7 +490,7 @@ def _tarih_saat(metin: str) -> str:
 
 
 _PARA = {"TL": "lira", "₺": "lira", "lira": "lira", "USD": "dolar", "$": "dolar", "dolar": "dolar",
-         "EUR": "avro", "€": "avro", "avro": "avro"}
+         "EUR": "avro", "€": "avro", "avro": "avro", "GBP": "sterlin", "£": "sterlin", "sterlin": "sterlin"}
 
 
 def _birimler(metin: str) -> str:
@@ -484,6 +500,13 @@ def _birimler(metin: str) -> str:
     metin = re.sub(rf"({_SAYI_BICIMI})\s*({para})\s*/\s*m[²2](?![0-9]){_EK}",
                    lambda m: f"metrekaresi {m[1]} {_PARA[m[2]]}" + (_ek_uyumu(_PARA[m[2]], m[3]) if m[3] else ""), metin)
     metin = re.sub(rf"\s*/\s*m[²2](?![0-9])(?:['’][{_KUCUK}]+)?", " metrekare başına", metin)
+    # Sayı + ölçek + para birimi: "6,3 milyar $", "100 milyon ₺'lik", "50 bin €", "2 trilyon dolar"
+    olcek_para = rf"({_SAYI_BICIMI}\s+(?:trilyon|milyar|milyon|bin))\s*({para}){_EK}"
+    def olcek_para_cevir(m: "re.Match[str]") -> str:
+        kok = _PARA[m[2]]
+        ek = _ek_uyumu(kok, m[3]) if m[3] else ""
+        return f"{m[1]} {kok}{ek}"
+    metin = re.sub(olcek_para, olcek_para_cevir, metin)
     metin = re.sub(rf"%\s*({_SAYI_BICIMI})", r"yüzde \1", metin)
     metin = re.sub(rf"({_SAYI_BICIMI})\s*%", r"yüzde \1", metin)
     for kisa, acik in _BIRIMLER:
@@ -572,6 +595,17 @@ _INGILIZCE_TABLO: List[Tuple[str, str]] = [
     (rf"(?i)(?<![{_HARF}])Claude(?:['’]([{_KUCUK}]+)|(un|ün|a|e|da|de))?(?![{_HARF}])", "klod"),
     (rf"(?i)(?<![{_HARF}])Daily\s+Brief(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "Deyli Brif"),
     (r"(?i)\bUI\s*/\s*UX\b", "yu-ay, yu-eks"),
+    # Spor ve Uluslararası Organizasyonlar
+    (rf"(?i)(?<![{_HARF}])Grand\s+Prix(?:['’]([{_KUCUK}]+)|(si|sine|sinde|sinden|sinin|ye|den))?(?![{_HARF}])", "gran pri"),
+    (r"(?i)\bF1\b", "ef-bir"),
+    (rf"(?i)(?<![{_HARF}])FIFA(?:['’]([{_KUCUK}]+)|(dan|den|ya|ye|da|de|nın|nin))?(?![{_HARF}])", "fifa"),
+    (rf"(?i)(?<![{_HARF}])UEFA(?:['’]([{_KUCUK}]+)|(dan|den|ya|ye|da|de|nın|nin))?(?![{_HARF}])", "uefa"),
+    (rf"(?i)(?<![{_HARF}])play-?off(?:['’]([{_KUCUK}]+)|(lar|ler|a|e|ta|te))?(?![{_HARF}])", "pley-of"),
+    (rf"(?i)(?<![{_HARF}])play-?in(?:['’]([{_KUCUK}]+)|(e|de))?(?![{_HARF}])", "pley-in"),
+    # Tanınmış Liderler ve Kurucular
+    (rf"(?i)(?<![{_HARF}])Bill\s+Gates(?:['’]([{_KUCUK}]+)|(in|e|den))?(?![{_HARF}])", "Bil Geyts"),
+    (rf"(?i)(?<![{_HARF}])Elon\s+Musk(?:['’]([{_KUCUK}]+)|(ın|a|tan))?(?![{_HARF}])", "İlan Mask"),
+    (rf"(?i)(?<![{_HARF}])Mark\s+Zuckerberg(?:['’]([{_KUCUK}]+)|(in|e|ten))?(?![{_HARF}])", "Mark Zakırbörg"),
     # C-Suite unvanlar
     (rf"(?i)(?<![{_HARF}])(CEO|CFO|CTO|COO|CMO|CIO|CPO|CSO|CRO)"
      rf"(?:['’]([{_KUCUK}]+)|(su|sü|ya|ye|nun|nün|da|de|dan|den|lar|ler|luk|lük|yu|yü|"
@@ -624,6 +658,11 @@ _INGILIZCE_TABLO: List[Tuple[str, str]] = [
     (rf"(?i)(?<![{_HARF}])screenshot(?:['’]([{_KUCUK}]+)|(ler|lar|ı|i))?(?![{_HARF}])", "skrinşat"),
     (rf"(?i)(?<![{_HARF}])livestream(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "layvstrim"),
     (rf"(?i)(?<![{_HARF}])trailer(?:['’]([{_KUCUK}]+)|(ı|i|ler|lar))?(?![{_HARF}])", "treyler"),
+    # Kripto ve Blokzincir
+    (rf"(?i)(?<![{_HARF}])blockchain(?:\.com)?(?:['’]([{_KUCUK}]+)|(da|de|a|e|in|ın))?(?![{_HARF}])", "blokçeyn"),
+    (rf"(?i)(?<![{_HARF}])bitcoin(?:['’]([{_KUCUK}]+)|(de|da|den|dan|e|a|in|ın))?(?![{_HARF}])", "bitkoyn"),
+    (rf"(?<![{_HARF}])RAM\b", "rem"),
+    (rf"(?<![{_HARF}])AMD(?:['’]([{_KUCUK}]+)|(nin|nin|ye|den))?(?![{_HARF}])", "ey-em-di"),
     # Sosyal Medya ve İletişim
     (rf"(?i)(?<![{_HARF}])YouTube(?:['’]([{_KUCUK}]+)|(da|de|a|e|un|ün|dan|den))?(?![{_HARF}])", "yutub"),
     (rf"(?i)(?<![{_HARF}])Threads(?:['’]([{_KUCUK}]+)|(te|ta|e|a|in|ın|ten|tan))?(?![{_HARF}])", "treds"),
@@ -633,11 +672,23 @@ _INGILIZCE_TABLO: List[Tuple[str, str]] = [
     (rf"(?<![{_HARF}\d])DM(?:['’]([{_KUCUK}]+)|(den|de|ye|e|ler))?(?![{_HARF}])", "di-em"),
     (rf"(?<![{_HARF}])TT(?:['’]([{_KUCUK}]+)|(?=[ \t]+(?:oldu|olmuş|listesi|girdi|sıralaması)))(?![{_HARF}])", "ti-ti"),
     # Otomotiv ve Donanım
+    (rf"(?i)(?<![{_HARF}])BYD(?:['’]([{_KUCUK}]+)|(nin|nin|ye|den|da))?(?![{_HARF}])", "bi-vay-di"),
+    (rf"(?i)(?<![{_HARF}])Dacia(?:['’]([{_KUCUK}]+)|(nın|nin|ya|ye|da|de|dan|den))?(?![{_HARF}])", "Daçya"),
+    (rf"(?i)(?<![{_HARF}])Peugeot(?:['’]([{_KUCUK}]+)|(nun|nün|ya|ye|da|de))?(?![{_HARF}])", "Pejo"),
+    (rf"(?i)(?<![{_HARF}])Renault(?:['’]([{_KUCUK}]+)|(nun|nün|ya|ye|da|de))?(?![{_HARF}])", "Reno"),
+    (rf"(?i)(?<![{_HARF}])Citro[eë]n(?:['’]([{_KUCUK}]+)|(in|e|de))?(?![{_HARF}])", "Sitroen"),
+    (rf"(?i)(?<![{_HARF}])Porsche(?:['’]([{_KUCUK}]+)|(nin|nin|ye|de))?(?![{_HARF}])", "Porşe"),
+    (rf"(?i)(?<![{_HARF}])Chevrolet(?:['’]([{_KUCUK}]+)|(nin|ye|de))?(?![{_HARF}])", "Şevrole"),
     (rf"(?i)(?<![{_HARF}])SUV(?:['’]([{_KUCUK}]+)|(lar|ler|a|e|da|de|dan|den|u|ü|un|ün|ın|in))?(?![{_HARF}])", "es-yu-vi"),
     (rf"(?<![{_HARF}])EV(?:['’]([{_KUCUK}]+)|(?=[ \t]+(?:pazarı|piyasası|satış|üretim|model|şarj|batarya|sektör|araç)))(?![{_HARF}])", "i-vi"),
     (rf"(?i)(?<![{_HARF}])Cybertruck(?:['’]([{_KUCUK}]+)|(ı|i|a|e|da|de|tan|ten))?(?![{_HARF}])", "saybırtrak"),
     (rf"(?i)(?<![{_HARF}])Autopilot(?:['’]([{_KUCUK}]+)|(ı|i|a|e|da|de|tan|ten))?(?![{_HARF}])", "otopaylıt"),
     (rf"(?i)(?<![{_HARF}])Big\s+Tech(?:['’]([{_KUCUK}]+)|(in|ın|e|a|de|da))?(?![{_HARF}])", "big tek"),
+    # Yarı İletken ve Donanım Devleri
+    (rf"(?<![{_HARF}])TSMC(?:['’]([{_KUCUK}]+)|(nin|nin|ye|de))?(?![{_HARF}])", "ti-es-em-si"),
+    (rf"(?<![{_HARF}])ASML(?:['’]([{_KUCUK}]+)|(in|e|de))?(?![{_HARF}])", "ey-es-em-el"),
+    (rf"(?i)(?<![{_HARF}])Xiaomi(?:['’]([{_KUCUK}]+)|(nin|nın|ye|ya|de|da))?(?![{_HARF}])", "Şaomi"),
+    (rf"(?i)(?<![{_HARF}])Huawei(?:['’]([{_KUCUK}]+)|(nin|nin|ye|den))?(?![{_HARF}])", "Huavey"),
     # Güvenlik ve Tehdit Terimleri
     (rf"(?i)(?<![{_HARF}])phishing(?:['’]([{_KUCUK}]+)|(e|a|de|da))?(?![{_HARF}])", "fişing"),
     (rf"(?i)(?<![{_HARF}])ransomware(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da))?(?![{_HARF}])", "rensımver"),
@@ -727,7 +778,8 @@ def _son_temizlik(metin: str) -> str:
     metin = re.sub(r"([^\s.!?:;,]+)[ \t]*\n+", _satir_sonu, metin)
     metin = re.sub(r"\s*\n+\s*", " ", metin)
     metin = metin.replace("&", " ve ").replace("=", " eşittir ").replace("~", " yaklaşık ").replace("@", " ")
-    for simge, okunus in (("km²", "kilometrekare"), ("m²", "metrekare"), ("m³", "metreküp"), ("°", " derece"), ("₺", " lira")):
+    for simge, okunus in (("km²", "kilometrekare"), ("m²", "metrekare"), ("m³", "metreküp"), ("°", " derece"),
+                          ("₺", " lira"), ("$", " dolar"), ("€", " avro"), ("£", " sterlin")):
         # "m²'si" → "metrekaresi": ek kelimeye yapışır, ünlüsü yeni köke uyar
         metin = re.sub(rf"{re.escape(simge)}['’]([{_KUCUK}]+)",
                        lambda m, o=okunus: o.strip() + _ek_uyumu(o.strip(), m[1]), metin)
