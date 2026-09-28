@@ -1602,6 +1602,18 @@ instabot/
   "online" → "onlayn", "startup" → "startap", "fintech" → "fintek", "ChatGPT" → "çet ci-pi-ti",
   "DeepSeek" → "dip siik", "reels" → "rils", "tweet" → "tivit"). `_ek_uyumu` ile çekim ekleri
   ("CEO'ye" → "si-i-o'ya") yeni kökün son ünlüsüne otomatik uyarlanır.
+  * Genişletilmiş havuz (Sabotaj Korumalı): iPhone (`ayfon`), iPad (`ayped`), iMac (`aymek`),
+    MacBook (`mekbuk`), AirPods (`eyrpods`), Apple Watch (`epıl voç`), App Store (`ep stor`),
+    Google Play (`gugıl pley`), Google Cloud (`gugıl klaud`), iCloud (`ayklaud`), Bluetooth (`blutut`),
+    YouTube (`yutub`), Threads (`treds`), LinkedIn (`linkdin`), Spotify (`spatifay`), Twitch (`tiviç`),
+    DM (`di-em`), TT (`ti-ti`), SUV (`es-yu-vi`), EV (`i-vi`), Cybertruck (`saybırtrak`), Autopilot (`otopaylıt`),
+    SSD (`es-es-di`), USB (`yu-es-bi`), Copilot (`kopaylıt`), Midjourney (`midcörni`), Perplexity (`pörpleksiti`),
+    Claude (`klod`), Big Tech (`big tek`), phishing (`fişing`), ransomware (`rensımver`), malware (`melver`),
+    spyware (`spayver`), clickbait (`klikbeyt`).
+  * Sabotaj Test Koruması (`TestSabotajKorumasi`): Türkçe kelimeler (`tehlike` != `layk`, `reel` != `rils`,
+    `it` != `ay-ti`, `ev` != `i-vi`, `su` != `es-yu-vi`, `can`, `at`, `on`, `in`, `TBMM`, `SGK`, `KDV`, `İBB`, `BİST`, `TOKİ`,
+    `D-100`, `E-5`, `Prof. Dr.`) asla bozulmaz. Eklerin ünlü/ünsüz uyumu (`SUV'lar` → `es-yu-vi'ler`, `iPhone'un` → `ayfon'un`)
+    ve çift çevrim kararlılığı (idempotency) %100 garantilidir.
 - **Tek harf sese TIRNAKLA gider** (`okunus.tek_harfleri_belirginlestir`): "A Milli Takım"da
   düz "A" çok hızlı ve yutuluyordu; düz "F-16" "F-36" okundu. Tırnaklı hâli ölçümle doğru.
   **`<break>` etiketi KULLANMA**: ses cümle başına uydurma kelime ekledi ("Ayrıca", "Tacan").

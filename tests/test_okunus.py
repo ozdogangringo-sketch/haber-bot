@@ -174,6 +174,40 @@ INGILIZCE_TABLO = [
     ("Güçlü CPU ve LLM mimarisi", "Güçlü si-pi-yu ve el-el-em mimarisi"),
     ("SpaceX roketi fırlatıldı", "speys-eks roketi fırlatıldı"),
     ("Microsoft ve Google rekabeti", "maykrosoft ve gugıl rekabeti"),
+    # Yeni eklenen tüketici elektroniği, otomotiv, sosyal medya ve güvenlik terimleri
+    ("Apple yeni iPhone 16 modelini tanıttı.", "Apple yeni ayfon on altı modelini tanıttı."),
+    ("iPhone'lar Türkiye'de satışta", "ayfon'lar Türkiye'de satışta"),
+    ("iPad Pro ve iPad'ler güncellendi", "ayped Pro ve ayped'ler güncellendi"),
+    ("Yeni iMac gücünü M4 çipten alıyor", "Yeni aymek gücünü M4 çipten alıyor"),
+    ("MacBook Air ve MacBook Pro", "mekbuk Air ve mekbuk Pro"),
+    ("AirPods kulaklıklar piyasada", "eyrpods kulaklıklar piyasada"),
+    ("Apple Watch pil ömrü uzatıldı", "epıl voç pil ömrü uzatıldı"),
+    ("App Store üzerinden indirildi", "ep stor üzerinden indirildi"),
+    ("Google Play mağazasında yer aldı", "gugıl pley mağazasında yer aldı"),
+    ("Google Cloud ve iCloud servisleri", "gugıl klaud ve ayklaud servisleri"),
+    ("Bluetooth bağlantı sorunu çözüldü", "blutut bağlantı sorunu çözüldü"),
+    ("YouTube üzerinden canlı yayın yapıldı", "yutub üzerinden canlı yayın yapıldı"),
+    ("Threads kullanıcı sayısı rekor kırdı", "treds kullanıcı sayısı rekor kırdı"),
+    ("LinkedIn profilinde paylaştı", "linkdin profilinde paylaştı"),
+    ("Spotify müzik listelerinde zirvede", "spatifay müzik listelerinde zirvede"),
+    ("Twitch canlı yayın platformu", "tiviç canlı yayın platformu"),
+    ("Bana DM'den ulaşabilirsiniz", "Bana di-em'den ulaşabilirsiniz"),
+    ("Haber Twitter'da TT oldu", "Haber Twitter'da ti-ti oldu"),
+    ("Yeni elektrikli SUV modeli tanıtıldı", "Yeni elektrikli es-yu-vi modeli tanıtıldı"),
+    ("SUV'lar çok satanlar arasında", "es-yu-vi'ler çok satanlar arasında"),
+    ("Türkiye'de EV pazarı büyüyor", "Türkiye'de i-vi pazarı büyüyor"),
+    ("EV'ler için yeni teşvikler geldi", "i-vi'ler için yeni teşvikler geldi"),
+    ("Hızlı SSD ve USB bağlantı noktası", "Hızlı es-es-di ve yu-es-bi bağlantı noktası"),
+    ("Tesla Cybertruck teslimatları başladı", "Tesla saybırtrak teslimatları başladı"),
+    ("Autopilot sürüş modu devrede", "otopaylıt sürüş modu devrede"),
+    ("Microsoft Copilot yapay zeka asistanı", "maykrosoft kopaylıt yapay zeka asistanı"),
+    ("Midjourney ile görsel üretildi", "midcörni ile görsel üretildi"),
+    ("Perplexity arama motoru geliştirildi", "pörpleksiti arama motoru geliştirildi"),
+    ("Anthropic Claude modeli tanıtıldı", "Anthropic klod modeli tanıtıldı"),
+    ("Big Tech şirketlerine ceza kesildi", "big tek şirketlerine ceza kesildi"),
+    ("Phishing ve ransomware saldırıları arttı", "fişing ve rensımver saldırıları arttı"),
+    ("Malware ve spyware tehlikesi", "melver ve spayver tehlikesi"),
+    ("Clickbait başlıklardan kaçının", "klikbeyt başlıklardan kaçının"),
 ]
 
 _KISALTMA_KALINTISI = re.compile(r"\b(?:Hz|Dr|Av|Prof|Doç|vb|vs|bkz|md|Mah|Cad|Sok|Apt)\.")
@@ -296,6 +330,99 @@ class TestKaristirmaSabotaji(unittest.TestCase):
     def test_metin_olmayan_girdi(self):
         for girdi in (None, 5, [], {}, b"Hz."):
             self.assertEqual(okunusa_cevir(girdi), "")  # type: ignore[arg-type]
+
+
+class TestSabotajKorumasi(unittest.TestCase):
+    """İngilizce terim havuzunun Türkçe kelimelerle çakışmadığını ve ek uyumunu denetler."""
+
+    def test_turkce_kelimeler_ve_kisaltmalar_korunur(self):
+        """Sabotaj: Türkçe kelimeler ve yerli kısaltmalar İngilizce fonetikle ezilmemeli."""
+        tuzaklar = [
+            # like != tehlike
+            ("Büyük bir tehlike atlattık.", "Büyük bir tehlike atlattık."),
+            ("Hep birlikte hareket ediyoruz.", "Hep birlikte hareket ediyoruz."),
+            # reels != reel
+            ("Reel sektör güven endeksi açıklandı.", "Reel sektör güven endeksi açıklandı."),
+            ("Reel faiz oranları yükselişte.", "Reel faiz oranları yükselişte."),
+            # IT != it
+            ("İti an çomağı hazırla demişler.", "İti an çomağı hazırla demişler."),
+            ("Kapıyı hafifçe it ve aç.", "Kapıyı hafifçe it ve aç."),
+            # EV != ev
+            ("Ev fiyatları son bir yılda arttı.", "Ev fiyatları son bir yılda arttı."),
+            ("Ev sahibi ve kiracı anlaşmazlığı.", "Ev sahibi ve kiracı anlaşmazlığı."),
+            ("Satılık ev ilanları güncellendi.", "Satılık ev ilanları güncellendi."),
+            ("Evler kışa hazırlanıyor.", "Evler kışa hazırlanıyor."),
+            ("Eve erken gelmesini söyledi.", "Eve erken gelmesini söyledi."),
+            ("Evde huzur ve mutluluk var.", "Evde huzur ve mutluluk var."),
+            ("Evden çalışma sistemi yaygınlaştı.", "Evden çalışma sistemi yaygınlaştı."),
+            ("Ev alma komşu al atalar sözüdür.", "Ev alma komşu al atalar sözüdür."),
+            ("Evlilik yıldönümü kutlaması.", "Evlilik yıldönümü kutlaması."),
+            # SUV != su
+            ("Su faturaları bu ay yüksek geldi.", "Su faturaları bu ay yüksek geldi."),
+            ("Barajlardaki su seviyesi kritik.", "Barajlardaki su seviyesi kritik."),
+            ("Bir bardak su ikram etti.", "Bir bardak su ikram etti."),
+            ("Akar sular duruldu nihayet.", "Akar sular duruldu nihayet."),
+            ("Karasu ilçesinde festival düzenlendi.", "Karasu ilçesinde festival düzenlendi."),
+            # can, at, on, in
+            ("Can sağlığı her şeyden önemli.", "Can sağlığı her şeyden önemli."),
+            ("Ata binmek geleneksel sporumuz.", "Ata binmek geleneksel sporumuz."),
+            ("On bir ayın sultanı Ramazan.", "On bir ayın sultanı Ramazan."),
+            ("İn cin top oynuyor sokaklarda.", "İn cin top oynuyor sokaklarda."),
+            # Yerli kısaltmalar ve kurumlar
+            ("TBMM genel kurulunda oylandı.", "TBMM genel kurulunda oylandı."),
+            ("SGK prim borçları yapılandırıldı.", "SGK prim borçları yapılandırıldı."),
+            ("KDV indirim kararı Resmî Gazete'de.", "KDV indirim kararı Resmî Gazete'de."),
+            ("İBB metrobüs hattında çalışma.", "İstanbul Büyükşehir Belediyesi metrobüs hattında çalışma."),
+            ("BİST endeksi günü artıda kapattı.", "bist endeksi günü artıda kapattı."),
+            ("TOKİ konut kura çekilişi yapıldı.", "toki konut kura çekilişi yapıldı."),
+            # Karayolu ve unvan korumaları
+            ("D-100 karayolunda kaza meydana geldi.", "D-100 karayolunda kaza meydana geldi."),
+            ("E-5 trafiği yoğunlaştı.", "E-5 trafiği yoğunlaştı."),
+            ("Prof. Dr. Ahmet Yılmaz açıkladı.", "Profesör Doktor Ahmet Yılmaz açıkladı."),
+        ]
+        for girdi, beklenen in tuzaklar:
+            with self.subTest(girdi=girdi):
+                self.assertEqual(okunusa_cevir(girdi), beklenen)
+
+    def test_ingilizce_ek_ve_unlu_uyumu(self):
+        """Sabotaj: İngilizce köklere gelen Türkçe eklerin ünlü ve ünsüz uyumu bozulmamalı."""
+        ornekler = [
+            ("iPhone'un kamerası çok gelişmiş.", "ayfon'un kamerası çok gelişmiş."),
+            ("iPhone'lar Türkiye'de rekor kırdı.", "ayfon'lar Türkiye'de rekor kırdı."),
+            ("iPhone'a yoğun ilgi gösterildi.", "ayfon'a yoğun ilgi gösterildi."),
+            ("iPad'in yeni ekran teknolojisi.", "ayped'in yeni ekran teknolojisi."),
+            ("iPad'ler piyasaya sürüldü.", "ayped'ler piyasaya sürüldü."),
+            ("iPad'e yeni çip takıldı.", "ayped'e yeni çip takıldı."),
+            ("Yeni SUV'lar yollarda görüldü.", "Yeni es-yu-vi'ler yollarda görüldü."),
+            ("SUV'ye olan talep patladı.", "es-yu-vi'ye olan talep patladı."),
+            ("SUV'un bagaj hacmi çok geniş.", "es-yu-vi'in bagaj hacmi çok geniş."),
+            ("EV pazarı her geçen gün büyüyor.", "i-vi pazarı her geçen gün büyüyor."),
+            ("Yeni EV'ler yollara çıkıyor.", "Yeni i-vi'ler yollara çıkıyor."),
+            ("EV'ye geçiş teşvik ediliyor.", "i-vi'ye geçiş teşvik ediliyor."),
+            ("Bana DM'den yazabilirsiniz.", "Bana di-em'den yazabilirsiniz."),
+            ("DM kutusu mesajla doldu taştı.", "di-em kutusu mesajla doldu taştı."),
+            ("Haber kısa sürede TT oldu.", "Haber kısa sürede ti-ti oldu."),
+            ("Günün TT listesi belli oldu.", "Günün ti-ti listesi belli oldu."),
+            ("YouTube'da canlı yayın açıldı.", "yutub'da canlı yayın açıldı."),
+            ("Threads'te yeni akım başladı.", "treds'te yeni akım başladı."),
+            ("LinkedIn'de yeni iş ilanları.", "linkdin'de yeni iş ilanları."),
+            ("Spotify'da en çok dinlenenler.", "spatifay'da en çok dinlenenler."),
+            ("Kulaklık Bluetooth'la bağlanıyor.", "Kulaklık blutut'la bağlanıyor."),
+            ("Veriler hızlı SSD'ye yazılıyor.", "Veriler hızlı es-es-di'ye yazılıyor."),
+            ("Cihaz USB'ye doğrudan takıldı.", "Cihaz yu-es-bi'ye doğrudan takıldı."),
+            ("Uygulama App Store'dan indirildi.", "Uygulama ep stor'dan indirildi."),
+            ("Oyun Google Play'de yayınlandı.", "Oyun gugıl pley'de yayınlandı."),
+            ("Apple Watch'un nabız sensörü.", "epıl voç'un nabız sensörü."),
+            ("Microsoft Copilot'a yeni yetenek.", "maykrosoft kopaylıt'a yeni yetenek."),
+            ("Midjourney'ye yeni sürüm geldi.", "midcörni'ye yeni sürüm geldi."),
+            ("Claude'un zeka puanı yükseldi.", "klod'un zeka puanı yükseldi."),
+            ("Big Tech'e yönelik yeni düzenleme.", "big tek'e yönelik yeni düzenleme."),
+        ]
+        for girdi, beklenen in ornekler:
+            with self.subTest(girdi=girdi):
+                self.assertEqual(okunusa_cevir(girdi), beklenen)
+                # İkinci kez çevrilince asla değişmemeli (idempotency)
+                self.assertEqual(okunusa_cevir(beklenen), beklenen)
 
 
 if __name__ == "__main__":
