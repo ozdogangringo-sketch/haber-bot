@@ -1220,7 +1220,7 @@ seslendirme:
     similarity_boost: 0.75
     style: 0.0
     use_speaker_boost: true
-    speed: 1.05
+    speed: 1.18
   hedef_lufs: -14
   # Tek haberli postta (son dakika) her zaman kapak: başlık + özet.
   # Turda (birden çok haber) — kullanıcı kararı 2026-09-26: "sadece başlıkları okunsun".

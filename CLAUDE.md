@@ -1614,7 +1614,7 @@ instabot/
     `it` != `ay-ti`, `ev` != `i-vi`, `su` != `es-yu-vi`, `can`, `at`, `on`, `in`, `TBMM`, `SGK`, `KDV`, `İBB`, `BİST`, `TOKİ`,
     `D-100`, `E-5`, `Prof. Dr.`) asla bozulmaz. Eklerin ünlü/ünsüz uyumu (`SUV'lar` → `es-yu-vi'ler`, `iPhone'un` → `ayfon'un`)
     ve çift çevrim kararlılığı (idempotency) %100 garantilidir.
-- **Ses Seçimi (28 Eyl 2026):** Birincil ses "Adam" (`J17lijyP1BHYcM7ld0Rg`, tok, vakur Türkçe İstanbul spikeri — EzanPlusBot ile birebir aynı ses; `stability: 0.55`, `style: 0.0`, `speed: 1.05`). Yedek ses "Sıla Özalp" (`r3deco0KTo6o0Kb5inro`).
+- **Ses Seçimi (28 Eyl 2026):** Birincil ses "Adam" (`J17lijyP1BHYcM7ld0Rg`, tok, vakur Türkçe İstanbul spikeri — EzanPlusBot ile birebir aynı ses; `stability: 0.55`, `style: 0.0`, `speed: 1.18`). Yedek ses "Sıla Özalp" (`r3deco0KTo6o0Kb5inro`).
 - **Tek harf sese TIRNAKLA gider** (`okunus.tek_harfleri_belirginlestir`): "A Milli Takım"da
   düz "A" çok hızlı ve yutuluyordu; düz "F-16" "F-36" okundu. Tırnaklı hâli ölçümle doğru.
   **`<break>` etiketi KULLANMA**: ses cümle başına uydurma kelime ekledi ("Ayrıca", "Tacan").
