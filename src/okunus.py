@@ -16,6 +16,13 @@ küçük "a" ise yutuluyordu ("Uluslar a Ligi" → "Uluslar Ligi"). Yalnızca a�
 bilinen kurumlar (İBB, TKGM…) açılır ve okunabilen büyük harfli kelimeler
 ("YENİ İMAR PLANI") küçültülür.
 
+İNGİLİZCE KISALTMA VE TERİMLER TÜRKÇE FONETİKLE YAZILIR (2026-09-28):
+ElevenLabs'a "language_code: tr" verildiği için İngilizce unvan ve terimler
+Türkçe harf harf okunuyordu: "CEO" → "ce-o" / "ceosu", "AI" → "a-ı", "Wi-Fi" → "vi-fi",
+"online" → "on-li-ne". Bunlar haber spikeri standartlarında fonetik karşılıklarına
+çevrilir ("si-i-o'su", "ey-ay", "vay-fay", "onlayn"). Ek uyumu (_ek_uyumu) ile
+çekim ekleri yeni köke otomatik uyarlanır ("CEO'ya" → "si-i-o'ya").
+
 Slayttaki metne DOKUNULMAZ; yalnızca sese giden kopya çevrilir.
 
 İLKE — emin olunmayan hiçbir şey çevrilmez: kötü bir okunuş yayını çirkinleştirir,
@@ -397,6 +404,106 @@ def _sayilar(metin: str) -> str:
     return re.sub(rf"(?<![{_HARF}\d])(?<![A-ZÇĞİÖŞÜ]-)({_SAYI_BICIMI}){_EK}(?![{_HARF}\d])", cevir, metin)
 
 
+# ---------------------------------------------------------------------------
+# İngilizce terimler, unvanlar ve kısaltmalar (Türkçe fonetik okunuş)
+# ---------------------------------------------------------------------------
+# Türkçe haberlerde sıkça geçen ve doğrudan Türkçe harfleriyle okunduğunda
+# ("ceosu", "a-ı", "vi-fi", "on-li-ne") kulağı tırmalayan İngilizce kısaltma,
+# unvan ve kelimeler. Doğrudan Türkçe fonetik okunuşa çevrilir.
+_C_SUITE_MAP = {
+    "CEO": "si-i-o", "CFO": "si-ef-o", "CTO": "si-ti-o", "COO": "si-o-o",
+    "CMO": "si-em-o", "CIO": "si-ay-o", "CPO": "si-pi-o", "CSO": "si-es-o",
+    "CRO": "si-ar-o",
+}
+
+_INGILIZCE_TABLO: List[Tuple[str, str]] = [
+    # Markalar ve yapay zeka modelleri
+    (rf"(?i)(?<![{_HARF}])ChatGPT(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "çet ci-pi-ti"),
+    (rf"(?i)(?<![{_HARF}])OpenAI(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "open ey-ay"),
+    (rf"(?i)(?<![{_HARF}])DeepSeek(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "dip siik"),
+    (rf"(?i)(?<![{_HARF}])Daily\s+Brief(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "Deyli Brif"),
+    (r"(?i)\bUI\s*/\s*UX\b", "yu-ay, yu-eks"),
+    # C-Suite unvanlar
+    (rf"(?i)(?<![{_HARF}])(CEO|CFO|CTO|COO|CMO|CIO|CPO|CSO|CRO)"
+     rf"(?:['’]([{_KUCUK}]+)|(su|sü|ya|ye|nun|nün|da|de|dan|den|lar|ler|luk|lük|yu|yü|"
+     rf"suna|süne|sunda|sünde|sundan|sünden|larının|lerinin))?(?![{_HARF}])", "c_suite"),
+    # Teknoloji & Kısaltmalar
+    (rf"(?i)(?<![{_HARF}])GenAI(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "cen ey-ay"),
+    (rf"(?<![{_HARF}])(?:AI|Ai|Aİ|A\.I\.|A\.İ\.)(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "ey-ay"),
+    (rf"(?i)(?<![{_HARF}])(?:wi-fi|wifi)(?:['’]([{_KUCUK}]+)|(ya|ye|a|e|da|de|dan|den|ın|in))?(?![{_HARF}])", "vay-fay"),
+    (rf"(?<![{_HARF}])(?:API|Api)(?:['’]([{_KUCUK}]+)|(ler|lar|si|sı|ye|ya|de|da))?(?![{_HARF}])", "ey-pi-ay"),
+    (rf"(?<![{_HARF}])UI(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "yu-ay"),
+    (rf"(?<![{_HARF}])UX(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "yu-eks"),
+    (rf"(?<![{_HARF}])IT(?:['’]([{_KUCUK}]+)|(de|da|ye|ya|nin|nin|sektörü|ekibi))?(?![{_HARF}])", "ay-ti"),
+    (rf"(?<![{_HARF}])(?:PR|Pr)(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "pi-ar"),
+    (rf"(?<![{_HARF}])(?:HR|Hr)(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "eyç-ar"),
+    (rf"(?i)(?<![{_HARF}])(?:FBI|Fbi)(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "ef-bi-ay"),
+    (rf"(?i)(?<![{_HARF}])(?:CIA|Cia)(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", "si-ay-ey"),
+    (r"(?i)\bB2B\b", "bi-tu-bi"),
+    (r"(?i)\bB2C\b", "bi-tu-si"),
+    # Yaygın İngilizce kelimeler
+    (rf"(?i)(?<![{_HARF}])online(?:['’]([{_KUCUK}]+)|(da|de|dan|den|a|e|ya|ye))?(?![{_HARF}])", "onlayn"),
+    (rf"(?i)(?<![{_HARF}])offline(?:['’]([{_KUCUK}]+)|(da|de|dan|den|a|e|ya|ye))?(?![{_HARF}])", "oflayn"),
+    (rf"(?i)(?<![{_HARF}])(?:startup|start-up)(?:['’]([{_KUCUK}]+)|(lar|ler|ı|i|a|e|da|de|dan|den))?(?![{_HARF}])", "startap"),
+    (rf"(?i)(?<![{_HARF}])(?:scaleup|scale-up)(?:['’]([{_KUCUK}]+)|(lar|ler|ı|i|a|e|da|de|dan|den))?(?![{_HARF}])", "skeylap"),
+    (rf"(?i)(?<![{_HARF}])fintech(?:['’]([{_KUCUK}]+)|(ler|lar|i|ı|e|a|de|da|den|dan))?(?![{_HARF}])", "fintek"),
+    (rf"(?i)(?<![{_HARF}])podcast(?:['’]([{_KUCUK}]+)|(ler|lar|i|ı|e|a|de|da|den|dan))?(?![{_HARF}])", "podkast"),
+    (rf"(?i)(?<![{_HARF}])streaming(?:['’]([{_KUCUK}]+)|(ler|lar|e|a|de|da))?(?![{_HARF}])", "striming"),
+    (rf"(?i)(?<![{_HARF}])briefing(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da))?(?![{_HARF}])", "brifing"),
+    (rf"(?i)(?<![{_HARF}])developer(?:['’]([{_KUCUK}]+)|(lar|ler|ı|i))?(?![{_HARF}])", "divelopır"),
+    (rf"(?i)(?<![{_HARF}])software(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da))?(?![{_HARF}])", "softver"),
+    (rf"(?i)(?<![{_HARF}])hardware(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da))?(?![{_HARF}])", "hardver"),
+    (rf"(?i)(?<![{_HARF}])update(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da|den|dan|ler|lar))?(?![{_HARF}])", "apdeyt"),
+    (rf"(?i)(?<![{_HARF}])upgrade(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da|den|dan|ler|lar))?(?![{_HARF}])", "apgreyd"),
+    (rf"(?i)(?<![{_HARF}])reels(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da|den|dan|ler|lar))?(?![{_HARF}])", "rils"),
+    (rf"(?i)(?<![{_HARF}])tweet(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da|den|dan|ler|lar))?(?![{_HARF}])", "tivit"),
+    (rf"(?i)(?<![{_HARF}])retweet(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da|den|dan|ler|lar))?(?![{_HARF}])", "ritivit"),
+    (rf"(?i)(?<![{_HARF}])story(?:['’]([{_KUCUK}]+)|(si|ye|ya|de|da|den|dan|ler|lar))?(?![{_HARF}])", "stori"),
+    (rf"(?i)(?<![{_HARF}])like(?:['’]([{_KUCUK}]+)|(lar|ler|a|e|da|de))?(?![{_HARF}])", "layk"),
+    (rf"(?i)(?<![{_HARF}])dislike(?:['’]([{_KUCUK}]+)|(lar|ler|a|e|da|de))?(?![{_HARF}])", "dislayk"),
+    (rf"(?i)(?<![{_HARF}])influencer(?:['’]([{_KUCUK}]+)|(lar|ler|ı|i|a|e|da|de|dan|den))?(?![{_HARF}])", "influensır"),
+    (rf"(?i)(?<![{_HARF}])hacker(?:['’]([{_KUCUK}]+)|(lar|ler|ı|i|a|e|da|de|dan|den))?(?![{_HARF}])", "hekır"),
+    (rf"(?i)(?<![{_HARF}])fake(?:['’]([{_KUCUK}]+)|(ler|lar|i|ı))?(?![{_HARF}])", "feyk"),
+    (rf"(?i)(?<![{_HARF}])workshop(?:['’]([{_KUCUK}]+)|(lar|ler|ı|i|a|e|da|de|dan|den))?(?![{_HARF}])", "vörkşap"),
+    (rf"(?i)(?<![{_HARF}])deadline(?:['’]([{_KUCUK}]+)|(ı|i|a|e|da|de|dan|den))?(?![{_HARF}])", "dedlayn"),
+    (rf"(?i)(?<![{_HARF}])feedback(?:['’]([{_KUCUK}]+)|(ler|lar|i|ı|e|a|de|da|den|dan))?(?![{_HARF}])", "fidbek"),
+    (rf"(?i)(?<![{_HARF}])networking(?:['’]([{_KUCUK}]+)|(e|a|de|da))?(?![{_HARF}])", "netvörking"),
+    (rf"(?i)(?<![{_HARF}])deepfake(?:['’]([{_KUCUK}]+)|(ler|lar|i|ı))?(?![{_HARF}])", "dipfeyk"),
+    (rf"(?i)(?<![{_HARF}])e-?mail(?:['’]([{_KUCUK}]+)|(i|ı|e|a|de|da|den|dan|ler|lar))?(?![{_HARF}])", "i-meyl"),
+]
+
+
+def _ingilizce_terimler(metin: str) -> str:
+    for desen, okunus in _INGILIZCE_TABLO:
+        if okunus == "c_suite":
+            def cevir_c(m: "re.Match[str]") -> str:
+                unvan = m.group(1).upper()
+                kok = _C_SUITE_MAP[unvan]
+                ek_apostrof = m.group(2)
+                ek_duz = m.group(3)
+                if ek_apostrof:
+                    ek_uyumlu = _ek_uyumu(kok, ek_apostrof)
+                    return f"{kok}'{ek_uyumlu}"
+                elif ek_duz:
+                    ek_uyumlu = _ek_uyumu(kok, ek_duz)
+                    return f"{kok}'{ek_uyumlu}"
+                return kok
+            metin = re.sub(desen, cevir_c, metin)
+        else:
+            def cevir_genel(m: "re.Match[str]", o: str = okunus) -> str:
+                ek_apostrof = m.group(1) if m.re.groups >= 1 else None
+                ek_duz = m.group(2) if m.re.groups >= 2 else None
+                if ek_apostrof:
+                    ek_uyumlu = _ek_uyumu(o, ek_apostrof)
+                    return f"{o}'{ek_uyumlu}"
+                elif ek_duz:
+                    ek_uyumlu = _ek_uyumu(o, ek_duz)
+                    return f"{o}{ek_uyumlu}"
+                return o
+            metin = re.sub(desen, cevir_genel, metin)
+    return metin
+
+
 def _buyuk_harfler(metin: str) -> str:
     return re.sub(rf"(?<![{_HARF}])([A-ZÇĞİÖŞÜ]+)(?:['’]([{_KUCUK}]+))?(?![{_HARF}])", _buyuk_harfli, metin)
 
@@ -436,7 +543,7 @@ def _son_temizlik(metin: str) -> str:
 
 ADIMLAR: List[Callable[[str], str]] = [
     _temizle, _kisaltmalar, _ada_parsel, _tarih_saat, _birimler, _kesirler, _siralar,
-    _isaretler_sayi, _sayilar, _buyuk_harfler, _son_temizlik,
+    _isaretler_sayi, _sayilar, _ingilizce_terimler, _buyuk_harfler, _son_temizlik,
 ]
 
 

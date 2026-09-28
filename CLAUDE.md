@@ -1594,6 +1594,14 @@ instabot/
 - **`okunus.py` postedm'le BİREBİR AYNI dosya** — birinde düzelteni ötekine taşı.
   Kısaltma/tek harf olduğu gibi kalır (ölçüldü); Markdown `**` okunmaz (Instabot özetlerinde
   var: "**Mbappe'nin**" virgüllü duraklama yaratıyordu).
+- **İngilizce terimler & C-Suite unvanlar Türkçe fonetikle yazılır (28 Eyl 2026):**
+  ElevenLabs'a `language_code: tr` verildiği için İngilizce unvan ve terimler Türkçe harf harf
+  okunuyordu ("CEO" → "ce-o" / "ceosu", "AI" → "a-ı", "Wi-Fi" → "vi-fi", "online" → "on-li-ne").
+  `src/okunus.py` içindeki `_ingilizce_terimler` katmanı bunları doğrudan Türkçe editoryal fonetik
+  karşılıklarına çevirir ("CEO'su" → "si-i-o'su", "CFO" → "si-ef-o", "AI" → "ey-ay", "Wi-Fi" → "vay-fay",
+  "online" → "onlayn", "startup" → "startap", "fintech" → "fintek", "ChatGPT" → "çet ci-pi-ti",
+  "DeepSeek" → "dip siik", "reels" → "rils", "tweet" → "tivit"). `_ek_uyumu` ile çekim ekleri
+  ("CEO'ye" → "si-i-o'ya") yeni kökün son ünlüsüne otomatik uyarlanır.
 - **Tek harf sese TIRNAKLA gider** (`okunus.tek_harfleri_belirginlestir`): "A Milli Takım"da
   düz "A" çok hızlı ve yutuluyordu; düz "F-16" "F-36" okundu. Tırnaklı hâli ölçümle doğru.
   **`<break>` etiketi KULLANMA**: ses cümle başına uydurma kelime ekledi ("Ayrıca", "Tacan").
