@@ -597,6 +597,20 @@ class TestSabotajKorumasi(unittest.TestCase):
             ("100 milyon ₺'lik bütçe ayrıldı.", "yüz milyon liralık bütçe ayrıldı."),
             ("5000 mAh batarya kapasitesi.", "beş bin miliamper saat batarya kapasitesi."),
             ("250 kW şarj hızı sağlandı.", "iki yüz elli kilovat şarj hızı sağlandı."),
+            # Savunma Sanayii, Uçak & Model İsimleri, Romen Rakamları
+            ("TUSAŞ ilk HÜRKUŞ-II uçaklarını Hava Kuvvetleri'ne teslim etti.", "tusaş ilk hürkuş iki uçaklarını Hava Kuvvetleri'ne teslim etti."),
+            ("HÜRKUŞ-II'nin yeni motoru test edildi.", "hürkuş ikinin yeni motoru test edildi."),
+            ("HÜRKUŞ-II'ye tam not verildi.", "hürkuş ikiye tam not verildi."),
+            ("TUSAŞ ilk Hürkuş -2 uçaklarını teslim etti.", "tusaş ilk Hürkuş iki uçaklarını teslim etti."),
+            ("HÜRKUŞ-2 modeli tanıtıldı.", "hürkuş iki modeli tanıtıldı."),
+            ("NATO resmi hesabından TUSAŞ üretimi ANKA III'ü paylaştı.", "nato resmi hesabından tusaş üretimi anka üçü paylaştı."),
+            ("ANKA-III ilk uçuşunu yaptı.", "anka üç ilk uçuşunu yaptı."),
+            ("ANKA-III'ün menzili açıklandı.", "anka üçün menzili açıklandı."),
+            ("KAAN-2 için geri sayım başladı.", "kaan iki için geri sayım başladı."),
+            ("Bayraktar TB2 siha envantere girdi.", "Bayraktar TB iki siha envantere girdi."),
+            ("Bayraktar TB-2 teslim edildi.", "Bayraktar TB iki teslim edildi."),
+            ("Faz-II klinik çalışmaları başladı.", "Faz iki klinik çalışmaları başladı."),
+            ("Tip II diyabet hastalarına müjde.", "Tip iki diyabet hastalarına müjde."),
         ]
         for girdi, beklenen in ornekler:
             with self.subTest(girdi=girdi):

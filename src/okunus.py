@@ -535,19 +535,94 @@ def _kesirler(metin: str) -> str:
     return re.sub(rf"(?<![\d.,]){sayi}\s*/\s*{sayi}(?![\d,]|\.\d)", kesir, metin)
 
 
-_ROMEN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10}
+_ROMEN = {
+    "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10,
+    "XI": 11, "XII": 12, "XIII": 13, "XIV": 14, "XV": 15, "XVI": 16, "XVII": 17, "XVIII": 18, "XIX": 19, "XX": 20
+}
+_ROMEN_DESEN = r"XX|XIX|XVIII|XVII|XVI|XV|XIV|XIII|XII|XI|IX|VIII|VII|VI|IV|III|II"
+_TEK_ROMEN_DESEN = r"X|V|I"
+_ROMEN_SINIFLANDIRICI = (
+    r"Faz|Tip|Etap|Bölüm|Kısım|Cilt|Bölge|Seviye|Grup|Kategori|Tier|Sınıf|Derece|"
+    r"Hürkuş|HÜRKUŞ|Anka|ANKA|Hürjet|HÜRJET|Gökbey|GÖKBEY|Akıncı|AKINCI|PlayStation|PS|GTA|Apollo"
+)
 
 
 def _siralar(metin: str) -> str:
     # Yalnızca noktalı ve ardından bir isim gelen Romen rakamı: tek "V" bir harf olabilir
     # Ardından büyük harfli bir isim gelmeli ("II. Etap"): tek harf artık olduğu gibi
     # kaldığı için "X. iki yüz…" gibi bir cümle sonu da Romen rakamı sanılıyordu
-    metin = re.sub(rf"(?<![{_HARF}])(X|IX|VIII|VII|VI|V|IV|III|II|I)\.(?=[ \t]+[A-ZÇĞİÖŞÜ])",
+    metin = re.sub(rf"(?<![{_HARF}])(XX|XIX|XVIII|XVII|XVI|XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\.(?=[ \t]+[A-ZÇĞİÖŞÜ])",
                    lambda m: sira_yazi(_ROMEN[m[1]]), metin)
     sira = _guvenli(lambda m: sira_yazi(int(m[1])))
     metin = re.sub(r"\b(\d+)['’](?:inci|ıncı|uncu|üncü|nci|ncı|ncu|ncü)\b", sira, metin)
     # Satır atlamaz ([ \t], \s değil); "D-100." yol kodu sıra sayısı değildir
-    return re.sub(rf"(?<![A-ZÇĞİÖŞÜ]-)\b(\d+)\.(?=[ \t]+(?:[{_KUCUK}]|{_SIRA_ISIMLERI}\b))", sira, metin)
+    return re.sub(rf"(?<!(?<![{_HARF}])[A-ZÇĞİÖŞÜ]-)\b(\d+)\.(?=[ \t]+(?:[{_KUCUK}]|{_SIRA_ISIMLERI}\b))", sira, metin)
+
+
+def _romen_rakamlari(metin: str) -> str:
+    """Noktasız Romen rakamlarını model, nesil veya aşama bağlamında sayıya çevirir:
+    'HÜRKUŞ-II' → 'HÜRKUŞ iki', 'ANKA III'ü' → 'ANKA üçü', 'Faz-II' → 'Faz iki'
+    """
+    tum_romen = rf"(?:{_ROMEN_DESEN}|{_TEK_ROMEN_DESEN})"
+
+    # 1. Tire ile bağlanan Romen rakamları (tek harfliler I, V, X dahil):
+    # 'HÜRKUŞ-II', 'ANKA-III', 'Faz-I', 'Tip-II'nin'
+    desen_tireli = rf"(?<![{_HARF}\d])([A-Za-zÇĞİÖŞÜçğıöşü]+)[ \t]*-[ \t]*({tum_romen}){_EK}(?![{_HARF}\d])"
+    def cevir_tireli(m: "re.Match[str]") -> str:
+        kok, rom, ek = m.group(1), m.group(2), m.group(3) or ""
+        sayi_metin = sayi_yazi(_ROMEN[rom])
+        if ek:
+            return f"{kok} {sayi_metin}{_ek_uyumu(sayi_metin, ek)}"
+        return f"{kok} {sayi_metin}"
+    metin = re.sub(desen_tireli, cevir_tireli, metin)
+
+    # 2. Boşlukla gelen çok harfli Romen rakamları:
+    # 'ANKA III', 'Hürkuş II', 'Faz II', 'Tip II', 'PlayStation IV'
+    # (II, III, IV, VI, VII, VIII, IX vb. Türkçe kelime olamaz)
+    desen_bosluklu = rf"(?<![{_HARF}\d])([A-Za-zÇĞİÖŞÜçğıöşü]+)[ \t]+({_ROMEN_DESEN}){_EK}(?![{_HARF}\d])"
+    def cevir_bosluklu(m: "re.Match[str]") -> str:
+        kok, rom, ek = m.group(1), m.group(2), m.group(3) or ""
+        sayi_metin = sayi_yazi(_ROMEN[rom])
+        if ek:
+            return f"{kok} {sayi_metin}{_ek_uyumu(sayi_metin, ek)}"
+        return f"{kok} {sayi_metin}"
+    metin = re.sub(desen_bosluklu, cevir_bosluklu, metin)
+
+    # 3. Sınıflandırıcı/model kelimesiyle gelen tek harfli Romenler:
+    # 'Faz I', 'Tip I', 'Etap V', 'Bölüm X'
+    desen_sinif = rf"\b({_ROMEN_SINIFLANDIRICI})[ \t]+({_TEK_ROMEN_DESEN}){_EK}(?![{_HARF}\d])"
+    def cevir_sinif(m: "re.Match[str]") -> str:
+        kok, rom, ek = m.group(1), m.group(2), m.group(3) or ""
+        sayi_metin = sayi_yazi(_ROMEN[rom])
+        if ek:
+            return f"{kok} {sayi_metin}{_ek_uyumu(sayi_metin, ek)}"
+        return f"{kok} {sayi_metin}"
+    return re.sub(desen_sinif, cevir_sinif, metin)
+
+
+def _model_ve_surum_sayilari(metin: str) -> str:
+    """İki veya daha fazla harfli kelimelerden sonra gelen tireli model/sürüm sayıları:
+    'HÜRKUŞ-2' → 'HÜRKUŞ iki', 'Hürkuş -2' → 'Hürkuş iki', 'KAAN-2' → 'KAAN iki',
+    'Bayraktar TB-2' → 'Bayraktar TB iki', 'TB2' → 'TB iki'.
+    Tek harfliler (D-100, E-5, F-16) korunur, dokunulmaz.
+    """
+    # Bayraktar TB2 / TB3 (bitişik yazılanlar)
+    metin = re.sub(rf"\bTB([23]){_EK}(?![{_HARF}\d])",
+                   lambda m: f"TB {sayi_yazi(int(m[1]))}" + (_ek_uyumu(sayi_yazi(int(m[1])), m[2]) if m[2] else ""),
+                   metin)
+    # 2 veya daha fazla harfli kelimeden sonra tire ve sayı
+    desen_tireli = rf"(?<![{_HARF}\d])([A-Za-zÇĞİÖŞÜçğıöşü]{{2,}})[ \t]*-[ \t]*(\d+){_EK}(?![{_HARF}\d])"
+    def cevir_tireli(m: "re.Match[str]") -> str:
+        kok, num_str, ek = m.group(1), m.group(2), m.group(3) or ""
+        try:
+            num = int(num_str)
+            sayi_metin = sayi_yazi(num)
+        except ValueError:
+            return m.group(0)
+        if ek:
+            return f"{kok} {sayi_metin}{_ek_uyumu(sayi_metin, ek)}"
+        return f"{kok} {sayi_metin}"
+    return re.sub(desen_tireli, cevir_tireli, metin)
 
 
 def _isaretler_sayi(metin: str) -> str:
@@ -568,8 +643,8 @@ def _sayilar(metin: str) -> str:
         if ek and ek[0] in _UNLULER and okunus.endswith("dört"):  # boş ek her dizginin "içinde"dir
             okunus = okunus[:-1] + "d"  # "dörte" değil "dörde"
         return okunus + ek
-    # "D-100", "E-5" yol kodu olduğu gibi kalır: ses doğru okuyor, "D yüz" "Kazada 100" oldu (ölçüldü)
-    return re.sub(rf"(?<![{_HARF}\d])(?<![A-ZÇĞİÖŞÜ]-)({_SAYI_BICIMI}){_EK}(?![{_HARF}\d])", cevir, metin)
+    # "D-100", "E-5", "F-16" yol ve uçak kodu olduğu gibi kalır: ses doğru okuyor, "D yüz" "Kazada 100" oldu (ölçüldü)
+    return re.sub(rf"(?<![{_HARF}\d])(?<!(?<![{_HARF}])[A-ZÇĞİÖŞÜ]-)({_SAYI_BICIMI}){_EK}(?![{_HARF}\d])", cevir, metin)
 
 
 # ---------------------------------------------------------------------------
@@ -798,6 +873,7 @@ def _son_temizlik(metin: str) -> str:
 
 ADIMLAR: List[Callable[[str], str]] = [
     _temizle, _kisaltmalar, _borsa_kisaltmalari, _ada_parsel, _tarih_saat, _birimler, _kesirler, _siralar,
+    _romen_rakamlari, _model_ve_surum_sayilari,
     _isaretler_sayi, _sayilar, _ingilizce_terimler, _buyuk_harfler, _son_temizlik,
 ]
 
