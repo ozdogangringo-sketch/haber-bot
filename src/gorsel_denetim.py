@@ -87,6 +87,10 @@ Sırayla cevapla:
    Juventus forması giyiyorsa false. Bağlam "milli takım forması" ise ve
    sporcu kulüp forması giyiyorsa false. Bağlamla ÇELİŞEN bir şey
    görmüyorsan true ver — emin olamamak çelişki değildir.
+   ⚠️ SPORDA BRANŞ VE KATEGORİ UYUMU ZORUNLUDUR: Haber A Milli Takım
+   hakkındaysa ve fotoğrafta Ampute takımı (koltuk değnekleri, protez/ampute
+   sporcular) ya da Kadın/Genç takımı görünüyorsa (veya tersi) baglam_uyuyor_mu
+   ve konuyu_gosteriyor_mu KESİNLİKLE false verilmelidir.
 
 4) sebep: Kararını tek kısa cümleyle açıkla."""
 

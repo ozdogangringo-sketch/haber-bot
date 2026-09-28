@@ -234,6 +234,21 @@ KARDES_AZAMI = 3
 # taramaya gerek yok. Fetch başına 0.7-3.8 sn ödüyoruz, bedavaya değil.
 MUKEMMEL_GENISLIK = 1600
 
+# ⚠️ Branş, yaş, cinsiyet ve kategori ayrıştırıcıları (29 Eyl 2026).
+# Bu kelimelerden biri hedef haberde varken diğerinde yoksa (veya tersi),
+# o iki haber ASLA aynı olayın kardeşi sayılamaz (örn: "Ampute Milli Takımı"
+# ile "A Milli Futbol Takımı", "Kadın Voleybol" ile "Erkek Voleybol", "U21" vb.).
+BRANS_VE_KATEGORI_AYIRICILARI = {
+    "ampute", "kadın", "kadınlar", "u21", "u19", "u18", "u17", "u16", "u15", "genç", "gençler",
+    "engelli", "engelliler", "tekerlekli", "paralimpik", "işitme", "görme",
+}
+
+
+def _brans_ayiricilari(baslik: str) -> set[str]:
+    """Başlıktaki branş/kategori/yaş/cinsiyet ayrıştırıcı kelimeleri çıkarır."""
+    kelimeler = set(re.findall(r"\b\w+\b", (baslik or "").lower()))
+    return kelimeler & BRANS_VE_KATEGORI_AYIRICILARI
+
 
 def kardes_linkler(con, haber, azami: int = KARDES_AZAMI) -> list[str]:
     """
@@ -261,6 +276,8 @@ def kardes_linkler(con, haber, azami: int = KARDES_AZAMI) -> list[str]:
     k1, i1 = secim.konu_imzasi(baslik)
     if not i1:
         return []
+    ayiricilar_hedef = _brans_ayiricilari(baslik)
+
     # ⚠️ ÖNCE EŞLEŞTİR, SONRA SIRALA — tersi çalışmıyor.
     # İlk yazımda sorgu `ORDER BY agirlik DESC LIMIT 400` idi: en yüksek
     # ağırlıklı 400 satır alınıp içinde eşleşme aranıyordu. Aynı olayın
@@ -280,20 +297,26 @@ def kardes_linkler(con, haber, azami: int = KARDES_AZAMI) -> list[str]:
 
     esler = []
     for r in satirlar:
-        k2, i2 = secim.konu_imzasi(r["baslik_orj"] or "")
-        if len(secim.ortak_kelime(k1, k2)) >= 3 and (i1 & i2):
-            esler.append((r["agirlik"] or 0, r["link"]))
+        r_baslik = r["baslik_orj"] or ""
+        # ⚠️ Branş/yaş/cinsiyet uyumsuzluğu kontrolü (örn. Ampute vs A Milli)
+        if _brans_ayiricilari(r_baslik) != ayiricilar_hedef:
+            continue
+        k2, i2 = secim.konu_imzasi(r_baslik)
+        ortak = secim.ortak_kelime(k1, k2)
+        kesisim = i1 & i2
+        if len(ortak) >= 3 and kesisim:
+            esler.append((len(ortak), len(kesisim), r["agirlik"] or 0, r["link"]))
 
-    # Ağırlık sıralaması EŞLEŞENLER arasında yapılır. Yüksek ağırlıklı
-    # kaynak (AA, TRT, Habertürk) daha büyük fotoğraf koyuyor.
-    esler.sort(key=lambda x: -x[0])
-    linkler = [link for _, link in esler[:azami]]
+    # Sıralama: Önce kaynak ağırlığı (AA, TRT daha kaliteli/büyük fotoğraf koyuyor),
+    # ardından en çok ortak kelime ve ortak özel isim.
+    esler.sort(key=lambda x: (-x[2], -x[0], -x[1]))
+    linkler = [link for _, _, _, link in esler[:azami]]
     if linkler:
         log.info("aynı olayın %d ek kaynağı bulundu (#%s)", len(linkler), haber["id"])
     return linkler
 
 
-def _haber_gorseli_alternatifi(haber, g, con, sira: int):
+def _haber_gorseli_alternatifi(haber, g, con, sira: int, ayarlar: dict | None = None):
     """
     "Başka fotoğraf" için SIRADAKİ haber görseli.
 
@@ -327,6 +350,12 @@ def _haber_gorseli_alternatifi(haber, g, con, sira: int):
         foto = _gorseli_indir(url, g)
         if foto is None:
             return None, None
+        # Kardeş görseli Vision denetiminden geçir (farklı kaynaktan geldiği için)
+        if ayarlar is not None and link != haber.get("link"):
+            uygun, sebep = _vision_onayi(foto, haber, ayarlar)
+            if not uygun:
+                log.info("alternatif kardeş görseli Vision onayından geçemedi (%s)", sebep)
+                return None, None
         kaynak = _kaynak_adi(con, link)
         log.info("haber görseli alternatifi #%d: %dx%d (%s)",
                  sira, foto.width, foto.height, kaynak)
@@ -348,7 +377,7 @@ def _kaynak_adi(con, link: str) -> str:
     return "haber kaynağı"
 
 
-def _en_iyi_haber_gorseli(haber, g: dict, con=None):
+def _en_iyi_haber_gorseli(haber, g: dict, con=None, ayarlar: dict | None = None):
     """
     og:image adayları arasından EN İYİSİNİ seçer (ilkini değil).
 
@@ -393,8 +422,15 @@ def _en_iyi_haber_gorseli(haber, g: dict, con=None):
                 continue
             alan = foto.width * foto.height
             if en_iyi is None or alan > en_iyi_alan:
+                # Kardeş görseli Vision denetiminden geçir (farklı kaynaktan geldiği için)
+                if ayarlar is not None:
+                    uygun, sebep = _vision_onayi(foto, haber, ayarlar)
+                    if not uygun:
+                        log.info("kardeş görseli Vision onayından geçemedi (%s), geçiliyor", sebep)
+                        continue
                 en_iyi, en_iyi_alan = foto, alan
-                log.info("daha iyi kardeş görseli: %dx%d", foto.width, foto.height)
+                en_iyi_kaynak = _kaynak_adi(con, link)
+                log.info("daha iyi kardeş görseli: %dx%d (%s)", foto.width, foto.height, en_iyi_kaynak)
                 # Yeterince iyi bulunduysa kalanları tarama — her aday
                 # 0.7-3.8 sn maliyetli ve 1600px üstü zaten fazlasıyla
                 # yeterli (slayt 1080 basılıyor).
@@ -594,7 +630,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             except Exception as e:  # noqa: BLE001
                 log.warning("yerel özel görsel okunamadı: %s", e)
 
-        foto, foto_kaynak = _en_iyi_haber_gorseli(haber, g, con)
+        foto, foto_kaynak = _en_iyi_haber_gorseli(haber, g, con, ayarlar=ayarlar)
         if foto is not None:
             return (
                 make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
@@ -602,7 +638,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                 f"Foto: {foto_kaynak}",
             )
     elif atlanacak > 0 and con is not None:
-        foto, foto_kaynak = _haber_gorseli_alternatifi(haber, g, con, atlanacak)
+        foto, foto_kaynak = _haber_gorseli_alternatifi(haber, g, con, atlanacak, ayarlar=ayarlar)
         if foto is not None:
             return (
                 make_image.fotograftan_arkaplan(foto, genislik, yukseklik),

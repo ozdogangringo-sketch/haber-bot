@@ -253,6 +253,28 @@ ETKISIZ_KELIMELER = {
 }
 
 
+# ⚠️ ÖZEL İSİM SAYILMAYACAK GENEL KALIP VE TERİMLER (29 Eyl 2026).
+# Başlıklarda büyük harfle başlasa dahi (örn: "Milli Takım", "Süper Lig",
+# "Futbol Federasyonu", "Ankara Valiliği") bir olayı tekil olarak
+# nitelemeyen, her haberde geçebilen genel kategori, spor ve idari adlar.
+# `_anahtar_kelimeler` bunları konu kelimesi olarak KORUR; ancak `isimler`
+# (özel isim) kümesine girmeleri ENGELLENİR. Böylece "A Milli Takım" haberi
+# "Ampute Milli Takımı" ya da "İrlanda Milli Takımı" ile "ortak özel isim"
+# taşıyor diye eşleşmez.
+ETKISIZ_OZEL_ISIMLER = {
+    # Spor, organizasyon ve müsabaka terimleri
+    "milli", "takım", "takımı", "takımımız", "takımlar",
+    "futbol", "basketbol", "voleybol", "hentbol",
+    "kupa", "kupası", "turnuva", "turnuvası", "şampiyona", "şampiyonası",
+    "lig", "ligi", "sezon", "sezonu",
+    "maç", "maçı", "maçlar", "karşılaşma", "karşılaşması", "mücadele", "mücadelesi",
+    "dünya", "avrupa",
+    # İdari ve kurumsal ekler
+    "federasyonu", "belediyesi", "valiliği", "müdürlüğü", "kulübü", "derneği",
+    "komisyonu", "heyeti", "kurulu",
+}
+
+
 def _ozel_isimler(baslik: str) -> set[str]:
     """
     Başlıktaki özel isimler (kişi, yer, kurum) — küçük harfe indirilmiş.
@@ -279,7 +301,8 @@ def _ozel_isimler(baslik: str) -> set[str]:
         # listesi bir tarafta hiç tutmaz ve eleme sessizce çalışmaz.
         kucuk = temiz.lower()
         if len(temiz) >= 4 and temiz[:1].isupper() \
-                and kucuk not in ETKISIZ_KELIMELER:
+                and kucuk not in ETKISIZ_KELIMELER \
+                and kucuk not in ETKISIZ_OZEL_ISIMLER:
             isimler.add(kucuk)
     return isimler
 
@@ -306,7 +329,7 @@ def konu_imzasi(baslik: str) -> tuple[set[str], set[str]]:
         temiz = "".join(k for k in ham if k.isalnum())
         if len(temiz) >= 4 and temiz[:1].isupper():
             kucuk = temiz.lower()
-            if kucuk not in ETKISIZ_KELIMELER:
+            if kucuk not in ETKISIZ_KELIMELER and kucuk not in ETKISIZ_OZEL_ISIMLER:
                 isimler.add(kucuk)
     return kelimeler, isimler
 

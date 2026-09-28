@@ -1405,6 +1405,82 @@ def test_kardes_gorsel_havuzu() -> None:
                 "sessizce devre dışı kalır")
 
 
+def test_spor_ve_brans_kardes_ayrimi() -> None:
+    """
+    Spor ve branş ayrımı kardeş görsel eşleştirmesinde korunmalı (29 Eyl 2026).
+
+    ÖLÇÜLDÜ: 'A Milli Futbol Takımımız, İtalya'ya mağlup oldu' haberine
+    'Ampute Futbol Milli Takımı'nın 2026 Dünya Kupası'ndaki rakipleri belli oldu'
+    haberi kardeş seçildi ve A Milli Takım maçına ampute takımı fotoğrafı kondu.
+    Sebep: 'milli', 'futbol', 'takımı' kelimeleri büyük harfle yazıldığı için
+    özel isim sayılıyordu ve İtalya maçı ile Dünya Kupası kura çekimi 'aynı olay'
+    zannediliyordu.
+
+    Bu test:
+      1) 'Milli', 'Futbol', 'Takımı' gibi genel terimlerin özel isim sanılmadığını,
+      2) Ampute, Kadın, U21 gibi branş/kategori ayrıştırıcılarının farklı haberleri
+         asla eşleştirmediğini,
+      3) 'Bursa'da oynanan spor maçının 'burs' kelimesi yüzünden 'ÖĞRENCİLERİN DİKKATİNE'
+         kicker'ı almadığını denetler.
+    """
+    sys.path.insert(0, str(KOK))
+    from src import secim
+    from src import slaytlar as slayt_mod
+    from src import hook_motoru
+
+    # 1. Konu imzası denetimi
+    b_turkiye = "A Milli Futbol Takımımız, İtalya'ya mağlup oldu"
+    b_ampute = "Ampute Futbol Milli Takımı'nın 2026 Dünya Kupası'ndaki rakipleri belli oldu"
+    b_italya = "A Milli Futbol Takımı, İtalya'ya 4-1 yenildi"
+    b_irlanda = "İrlanda Milli Futbol Takımı İsrail'in milli marşı okunurken topluca yere baktı"
+
+    k1, i1 = secim.konu_imzasi(b_turkiye)
+    denetle("milli" not in i1 and "futbol" not in i1 and "takımımız" not in i1,
+            "Genel spor kelimeleri özel isim sayılmıyor",
+            f"i1={i1} içinde genel spor terimi olmamalı")
+    denetle(any("talya" in x for x in i1), "İtalya özel isim olarak yakalanıyor")
+
+    # 2. Kardeş eşleşme testi
+    con = gecici_db()
+    con.executescript("""
+        INSERT INTO haberler (id, kaynak, agirlik, baslik_orj, link, cekilme_zamani)
+        VALUES
+          (10, 'TRT Haber', 10, "A Milli Futbol Takımımız, İtalya'ya mağlup oldu",
+           'http://a/10', datetime('now')),
+          (11, 'AA Spor', 8, "Ampute Futbol Milli Takımı'nın 2026 Dünya Kupası'ndaki rakipleri belli oldu",
+           'http://b/11', datetime('now')),
+          (12, 'AA Spor', 8, "A Milli Futbol Takımı, İtalya'ya 4-1 yenildi",
+           'http://c/12', datetime('now')),
+          (13, 'Ekonomim', 8, "İrlanda Milli Futbol Takımı İsrail'in milli marşı okunurken topluca yere baktı",
+           'http://d/13', datetime('now'));
+    """)
+    hedef = con.execute("SELECT * FROM haberler WHERE id = 10").fetchone()
+    linkler = slayt_mod.kardes_linkler(con, hedef, azami=5)
+
+    denetle("http://c/12" in linkler, "Aynı maç haberi (İtalya 4-1) kardeş olarak bulundu")
+    denetle("http://b/11" not in linkler, "Ampute milli takımı haberi A Milli Takım maçına kardeş SEÇİLMEDİ")
+    denetle("http://d/13" not in linkler, "İrlanda maçı haberi Türkiye maçına kardeş SEÇİLMEDİ")
+
+    # 3. Kicker 'Bursa' / 'burs' hatası denetimi
+    haber_mock = {
+        "baslik_orj": "A Milli Futbol Takımımız, İtalya'ya mağlup oldu",
+        "ozet_orj": "Bursa'da oynanan maçta İtalya'ya mağlup olduk.",
+        "ig_baslik": "Türkiye İtalya'ya 4-1 yenildi",
+        "makale_metni": "Bursa Yüzüncü Yıl Atatürk Stadı'nda karşılaştığı İtalya'ya 4-1 mağlup oldu.",
+        "ig_caption": "Bursa'da oynanan karşılaşma...",
+        "kategori": "spor",
+        "onem_puani": 8,
+    }
+    hook_veri = hook_motoru.hook_olustur(haber_mock)
+    kicker = (hook_veri or {}).get("kicker") or ""
+    denetle("ÖĞRENCİ" not in kicker,
+            "Bursa şehri 'burs' kelimesini tetikleyip ÖĞRENCİLERİN DİKKATİNE kicker'ı üretmiyor",
+            f"kicker={kicker}")
+    denetle("SPOR GÜNDEMİ" in kicker or kicker == "",
+            "Spor haberi spor kicker'ı alıyor",
+            f"kicker={kicker}")
+
+
 def test_onaylanan_gorsel_videoya_giriyor() -> None:
     """
     Videoda ONAYLANAN görseller kullanılmalı, eski/yeniden üretilen değil.
@@ -5472,6 +5548,7 @@ def main() -> int:
         test_foto_ile_yazi_arasinda_olu_bant_yok,
         test_fotograf_alt_kenari_keskin_degil,
         test_kardes_gorsel_havuzu,
+        test_spor_ve_brans_kardes_ayrimi,
         test_onaylanan_gorsel_videoya_giriyor,
         test_vision_denetimi,
         test_db_yazan_workflow_commit_ediyor,

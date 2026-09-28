@@ -576,16 +576,16 @@ def hook_olustur(haber: dict) -> dict | None:
     # Uyacak etiket yoksa kicker BOŞ kalır ve satır hiç çizilmez.
     if acil_haber and _son_dakika_esigini_geciyor(haber):
         kicker = "● SON DAKİKA GELİŞMESİ"
-    elif any(w in metin_tum for w in ["savunma", "siha", "iha", "tusaş", "tsk", "nato", "baykar", "aselsan", "uçağı", "savaş uçağı"]):
+    elif kategori == "spor":
+        kicker = "● SPOR GÜNDEMİ"
+    elif any(re.search(r"\b" + re.escape(w) + r"\b", metin_tum) for w in ["savunma", "siha", "iha", "tusaş", "tsk", "nato", "baykar", "aselsan", "uçağı", "savaş uçağı"]):
         kicker = "● SAVUNMA SANAYİİ"
-    elif any(w in metin_tum for w in ["öğrenci", "yurt", "ösym", "dgs", "yks", "kyk", "burs", "üniversite", "sınav"]):
+    elif any(re.search(r"\b" + re.escape(w) + r"\b", metin_tum) for w in ["öğrenci", "öğrenciler", "yurt", "yurtlar", "ösym", "dgs", "yks", "kyk", "burs", "burslar", "üniversite", "sınav"]):
         kicker = "● ÖĞRENCİLERİN DİKKATİNE"
-    elif any(w in metin_tum for w in ["zam", "enflasyon", "bist", "faiz", "dolar", "euro", "petrol", "altın", "mevduat"]):
+    elif any(re.search(r"\b" + re.escape(w) + r"\b", metin_tum) for w in ["zam", "enflasyon", "bist", "faiz", "dolar", "euro", "petrol", "altın", "mevduat"]):
         kicker = "● PİYASA & EKONOMİ"
     elif kategori in ["teknoloji", "bilim"]:
         kicker = "● TEKNOLOJİ DÜNYASI"
-    elif kategori == "spor":
-        kicker = "● SPOR GÜNDEMİ"
     else:
         kicker = ""
 
