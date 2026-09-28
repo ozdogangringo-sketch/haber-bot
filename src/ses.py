@@ -4,9 +4,8 @@ ses.py — ElevenLabs seslendirmesi ve seslendirmeli dikey video ("🎙️ Sesli
 postedm'den taşındı (2026-09-26, edm/postedm/src/ses.py). Kullanıcı kararları
 orada dinlenerek verildi ve burada aynen geçerli:
 
-  * Ses "Sıla Özalp" (ElevenLabs kütüphanesi, haber sunucusu), "biraz daha hızlı ve
-    heyecanlı" ayarla. Tek kaynak config.yaml › seslendirme; ses kütüphaneden
-    kalkarsa yedek sese düşülür.
+  * Ses "Adam" (ElevenLabs kütüphanesi, tok, vakur Türkçe İstanbul spikeri — EzanPlusBot sesi).
+    Tek kaynak config.yaml › seslendirme; ses kütüphaneden kalkarsa yedek sese (Sıla Özalp) düşülür.
   * Yalnızca KAPAK okunur. Tur (10 ayrı haber) için "basliklar" kipi de var:
     her haberin başlığı kendi slaytında okunur (config.yaml › seslendirme.tur_kipi).
   * Son slaytta kısa kapanış çağrısı ("…istemiyorsanız takipte kalın"); "beğenin" yok.
@@ -41,7 +40,7 @@ log = logging.getLogger(__name__)
 KOK = Path(__file__).resolve().parent.parent
 CIKTI = KOK / "data" / "output"
 FON_MUZIGI = KOK / "assets" / "audio" / "haber_fon.mp3"
-YEDEK_SES_ID = "J17lijyP1BHYcM7ld0Rg"  # Adam — config.yaml'da ses yoksa
+YEDEK_SES_ID = "r3deco0KTo6o0Kb5inro"  # Sıla Özalp — config.yaml'da ses yoksa yedek
 
 ANLATIM_ONCESI_SN = 0.4   # slayt açıldıktan sonra sesin başlaması
 ANLATIM_SONRASI_SN = 0.8  # ses bittikten sonra geçişe kadar nefes

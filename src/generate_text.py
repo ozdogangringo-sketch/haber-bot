@@ -750,9 +750,9 @@ def _anahtarla_dene(prompt, ayarlar, modeller, anahtar, anahtar_adi):
                 return _cevabi_coz(cevap.json()), None, False
 
             son_hata = f"HTTP {cevap.status_code}: {cevap.text[:200]}"
-            if cevap.status_code == 429:
+            if cevap.status_code in (429, 503):
                 kota_doldu = True
-                if _gunluk_kota_hatasi(cevap):
+                if cevap.status_code == 429 and _gunluk_kota_hatasi(cevap):
                     # Günlük kota bitmiş: bu ikiliyi bir daha deneme.
                     _TUKENMIS.add((model, anahtar_adi))
                     log.warning("%s/%s günlük kotası doldu, bu çalıştırmada "
@@ -930,6 +930,11 @@ def metinleri_uret(limit: int = 10, ayarlar: dict | None = None,
                 rapor["hatali"] += 1
                 rapor["haberler"].append(satir)
                 log.error("haber %d başarısız: %s", haber["id"], e)
+                try:
+                    from . import hata_bildir
+                    hata_bildir.son_ham_hata_kaydet(str(e))
+                except Exception:
+                    pass
                 continue
 
             db.metin_kaydet(con, haber["id"], uretilen, govde)

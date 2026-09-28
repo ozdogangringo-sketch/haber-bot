@@ -1212,13 +1212,13 @@ sosyal:
 # FB Reels) uygulanır. Anahtar GitHub secret'ı: ELEVENLABS_API_KEY. Ses ve ayarlar
 # kullanıcının postedm'de dinleyip seçtikleriyle aynı.
 seslendirme:
-  ses_id: "r3deco0KTo6o0Kb5inro"        # Sıla Özalp — haber sunucusu (profesyonel ses)
-  yedek_ses_id: "J17lijyP1BHYcM7ld0Rg"  # Adam — Sıla kütüphaneden kalkarsa
+  ses_id: "J17lijyP1BHYcM7ld0Rg"        # Adam — tok, vakur Türkçe İstanbul spiker (EzanPlusBot sesi)
+  yedek_ses_id: "r3deco0KTo6o0Kb5inro"  # Sıla Özalp — haber sunucusu (yedek ses)
   model: "eleven_multilingual_v2"
-  ayarlar:                              # Canlı ve akıcı haber spikeri ayarı (Sıla Özalp)
-    stability: 0.28
+  ayarlar:                              # Tok, net ve akıcı haber spikeri ayarı (Adam)
+    stability: 0.55
     similarity_boost: 0.75
-    style: 0.50
+    style: 0.0
     use_speaker_boost: true
     speed: 1.05
   hedef_lufs: -14
