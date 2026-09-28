@@ -145,11 +145,17 @@ def _sayi_oku(belirtec: str) -> str:
 
 # 3. tekil iyelik ile biten kurum ve tamlamalar (zamir n'si alır: Emirlikleri'ne, Birliği'nde vb.)
 _IYELIKLI_BITISLER = (
-    "Devletleri", "Emirlikleri", "Cumhuriyeti", "Yönetimi", "Birliği",
-    "Belediyesi", "Müdürlüğü", "Bakanlığı", "Konseyi", "Örgütü",
-    "Mahkemesi", "Kurulu", "Kurumu", "Teşkilatı", "Ajansı", "Yolları", "Bankası", "Kanunu",
+    "devletleri", "emirlikleri", "cumhuriyeti", "yönetimi", "birliği",
+    "belediyesi", "müdürlüğü", "bakanlığı", "başkanlığı", "konseyi", "örgütü",
+    "mahkemesi", "kurulu", "kurumu", "teşkilatı", "ajansı", "yolları", "bankası", "kanunu",
+    "kuvvetleri", "federasyonu", "komutanlığı", "işletmesi", "meclisi", "fonu", "sistemi",
+    "piyasası", "merkezi",
     "payı",
 )
+
+
+def _tr_kucuk(s: str) -> str:
+    return s.replace("I", "ı").replace("İ", "i").lower()
 
 
 def _ek_uyumu(kok: str, ek: str) -> str:
@@ -163,7 +169,8 @@ def _ek_uyumu(kok: str, ek: str) -> str:
     son_harf = kok[-1].lower() if kok else "a"
 
     # 3. tekil iyelik ile biten kurum ve tamlamalar (Devletleri, Emirlikleri, Birliği, Belediyesi, Kurulu, Bakanlığı vb.)
-    iyelikli = any(kok.endswith(son) for son in _IYELIKLI_BITISLER)
+    kok_kucuk = _tr_kucuk(kok)
+    iyelikli = any(kok_kucuk.endswith(son) for son in _IYELIKLI_BITISLER)
 
     ek_l = ek.lower()
     if iyelikli:
@@ -182,6 +189,14 @@ def _ek_uyumu(kok: str, ek: str) -> str:
         # İlgi / tamlayan: -nin / -nın / -in / -ın -> -nin / -nın (Emirlikleri'nin)
         if ek_l in ("nin", "nın", "nun", "nün", "in", "ın", "un", "ün"):
             return f"n{u_dortlu}n"
+
+    # Ünsüzle biten köklerde kısaltmadan kalan kaynaştırma 'y' veya 'n' harfi düşer:
+    # (Program'ye -> Program'a, Tren'ye -> Tren'e, Mevduat'ye -> Mevduata, Tren'nin -> Trenin)
+    if son_harf not in _UNLULER:
+        if ek_l.startswith("y"):
+            ek_l = ek_l[1:]
+        elif ek_l in ("nin", "nın", "nun", "nün"):
+            ek_l = ek_l[1:]
 
     cikti = []
     for i, c in enumerate(ek_l):
@@ -227,7 +242,7 @@ _NOKTALI: List[Tuple[str, str, bool]] = [
 
 # Harfle okununca anlaşılmayan ya da editoryal olarak açılması gereken kurum/ülke kısaltmaları
 _ACILIM = {
-    # Kamu ve Kanunlar
+    # Kamu, Kanunlar ve Para Birimleri
     "İBB": "İstanbul Büyükşehir Belediyesi", "TKGM": "Tapu ve Kadastro Genel Müdürlüğü",
     "TMK": "Türk Medeni Kanunu", "TBK": "Türk Borçlar Kanunu", "HMK": "Hukuk Muhakemeleri Kanunu",
     "İİK": "İcra ve İflas Kanunu", "DOP": "düzenleme ortaklık payı", "KOP": "kamu ortaklık payı",
@@ -243,11 +258,46 @@ _ACILIM = {
     "AYM": "Anayasa Mahkemesi", "YSK": "Yüksek Seçim Kurulu",
     "TDT": "Türk Devletleri Teşkilatı", "İİT": "İslam İşbirliği Teşkilatı", "IIT": "İslam İşbirliği Teşkilatı",
     "UAEA": "Uluslararası Atom Enerjisi Ajansı",
-    # Finans ve Önemli Kurumlar
+    # Finans, Ekonomi & Merkez Bankaları
     "BİST": "Borsa İstanbul", "BIST": "Borsa İstanbul",
-    "THY": "Türk Hava Yolları", "MSB": "Milli Savunma Bakanlığı", "MEB": "Milli Eğitim Bakanlığı",
     "TCMB": "Türkiye Cumhuriyet Merkez Bankası", "SPK": "Sermaye Piyasası Kurulu",
     "BDDK": "Bankacılık Düzenleme ve Denetleme Kurumu",
+    "ECB": "Avrupa Merkez Bankası",
+    "OVP": "Orta Vadeli Program",
+    "KKM": "Kur Korumalı Mevduat",
+    "GSYİH": "Gayri Safi Yurt İçi Hasıla", "GSYH": "Gayri Safi Yurt İçi Hasıla",
+    "BOE": "İngiltere Merkez Bankası",
+    "BOJ": "Japonya Merkez Bankası",
+    "KGF": "Kredi Garanti Fonu",
+    "IMF": "Uluslararası Para Fonu",
+    "VİOP": "Vadeli İşlem ve Opsiyon Piyasası", "VIOP": "Vadeli İşlem ve Opsiyon Piyasası",
+    # Savunma, Güvenlik, Asayiş & Yargı
+    "THY": "Türk Hava Yolları", "MSB": "Milli Savunma Bakanlığı", "MEB": "Milli Eğitim Bakanlığı",
+    "TSK": "Türk Silahlı Kuvvetleri",
+    "SSB": "Savunma Sanayii Başkanlığı",
+    "EGM": "Emniyet Genel Müdürlüğü",
+    "JGK": "Jandarma Genel Komutanlığı",
+    "MİT": "Milli İstihbarat Teşkilatı", "MIT": "Milli İstihbarat Teşkilatı",
+    "UCM": "Uluslararası Ceza Mahkemesi",
+    # Ulaşım & Altyapı
+    "YHT": "Yüksek Hızlı Tren",
+    "TCDD": "Devlet Demiryolları",
+    "KGM": "Karayolları Genel Müdürlüğü",
+    "DHMİ": "Devlet Hava Meydanları İşletmesi", "DHMI": "Devlet Hava Meydanları İşletmesi",
+    "SHGM": "Sivil Havacılık Genel Müdürlüğü",
+    # Spor Dünyası
+    "TFF": "Türkiye Futbol Federasyonu",
+    "PFDK": "Profesyonel Futbol Disiplin Kurulu",
+    "TBF": "Türkiye Basketbol Federasyonu",
+    "TVF": "Türkiye Voleybol Federasyonu",
+    # Sosyal, Eğitim & İş Dünyası
+    "KYK": "Kredi ve Yurtlar Kurumu",
+    "TOBB": "Türkiye Odalar ve Borsalar Birliği",
+    "TİM": "Türkiye İhracatçılar Meclisi", "TIM": "Türkiye İhracatçılar Meclisi",
+    "DEİK": "Dış Ekonomik İlişkiler Kurulu", "DEIK": "Dış Ekonomik İlişkiler Kurulu",
+    "KHK": "Kanun Hükmünde Kararname",
+    "HGS": "Hızlı Geçiş Sistemi",
+    "OGS": "Otomatik Geçiş Sistemi",
 }
 
 # Büyük harfle yazılmış iki harfli GERÇEK kelimeler: harf harf okunmaz ("VE", "EN")
@@ -258,10 +308,6 @@ _IKI_HARFLI_KELIME = {
 # Dört harfe kadar kelimede izin verilen son ünsüz ikilisi: HARÇ, ŞERH, RİSK, MÜLK, TERK
 _IZINLI_SON = {"rt", "rk", "st", "sk", "nk", "nt", "lk", "lt", "ls", "rs", "rp", "rç", "nç", "lç", "lp", "ks",
                "ft", "şt", "rz", "rd", "rm", "rh", "nd", "ng", "yt", "yk", "lm", "rf", "rn", "yl", "ym", "yn"}
-
-
-def _tr_kucuk(s: str) -> str:
-    return s.replace("I", "ı").replace("İ", "i").lower()
 
 
 def _okunamaz(kelime: str) -> bool:
@@ -356,14 +402,25 @@ def _kisaltmalar(metin: str) -> str:
     metin = re.sub(r"(?i)\bh\s*max\b", "azami yükseklik", metin)
     metin = re.sub(rf"(?<![{_HARF}])E\s*[:=]\s*(?=\d)", "emsal ", metin)
     metin = re.sub(rf"(?<![{_HARF}])H\s*[:=]\s*(?=\d)", "yükseklik ", metin)
-    # Noktalı ve yaygın ülke kısaltmaları (G. Kore, S. Arabistan, K. Kore, Bae, Abd vb.)
+    # Noktalı ve yaygın ülke kısaltmaları (G. Kore, S. Arabistan, K. Kore, K. Kıbrıs vb.)
     metin = re.sub(r"(?i)\bG\.\s*Kore\b", "Güney Kore", metin)
     metin = re.sub(r"(?i)\bK\.\s*Kore\b", "Kuzey Kore", metin)
     metin = re.sub(r"(?i)\bG\.\s*Afrika\b", "Güney Afrika", metin)
     metin = re.sub(r"(?i)\bS\.\s*Arabistan\b", "Suudi Arabistan", metin)
     metin = re.sub(r"(?i)\bK\.\s*Kıbrıs\b", "Kuzey Kıbrıs", metin)
-    metin = re.sub(r"\bBae\b", "Birleşik Arap Emirlikleri", metin)
-    metin = re.sub(r"\bAbd\b", "Amerika Birleşik Devletleri", metin)
+    # Başlık düzeninden gelen (Title-Case) yaygın kısaltmaları büyük harfe çevirir ki
+    # _buyuk_harfler ve _ACILIM tüm ek uyumlarıyla (zamir n'si, ünsüz düşmesi vb.) eksiksiz işletsin.
+    _BASLIK_KISALTMALARI = (
+        "Bae", "Abd", "Tsk", "Yht", "Ovp", "Kkm", "Tff", "Ecb", "Kyk", "Tobb",
+        "Spk", "Bddk", "Pfdk", "Ucm", "Tcdd", "Kgm", "Dhmi", "Shgm", "Tbf", "Tvf",
+        "Gsyih", "Gsyh", "Viop", "Kgf", "Ssb", "Egm", "Jgk", "Deik", "Khk", "Hgs", "Ogs",
+    )
+    for bk in _BASLIK_KISALTMALARI:
+        metin = re.sub(rf"\b{bk}\b(?=[ \t'’]|$)", bk.upper(), metin)
+    # MİT için özel koruma: Türkçe "mit" (efsane) kelimesini ezmemek için yalnızca kesmeli
+    # (Mit'e, Mit'ten) veya unvan/operasyon bağlamında büyük harfe çevrilir
+    metin = re.sub(r"\bMit(?=['’](?:e|a|in|ın|te|ta|ten|tan|le|la|i|ı)\b)", "MİT", metin)
+    metin = re.sub(r"\bMit(?=\s+(?:mensub|operasyon|başkan|müsteşar|rapor|bina|yerleşke))", "MİT", metin)
     return metin
 
 
