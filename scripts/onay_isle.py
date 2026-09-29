@@ -333,7 +333,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         bool(paylas_tt or paylas_tt_video),
         bool(paylas_yt),
         bool(paylas_fb_reels),
-        bool(paylas_reels),
+        bool(paylas_reels and ses_modu),
         bool(paylas_ig),
         bool(paylas_story),
         bool(paylas_fb),
@@ -541,8 +541,10 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         hedef_kanallar.append("facebook_reels")
     if paylas_ig:
         hedef_kanallar.append("instagram")
-    if paylas_reels:
+    if paylas_reels and ses_modu:
         hedef_kanallar.append("instagram_reels")
+    elif paylas_reels and not ses_modu:
+        reels_notu = "\n🎬 Reels videosu ve açıklama metni Telegram'a iletildi (trend müzik için)"
     if paylas_story and story_url:
         hedef_kanallar.append("instagram_story")
     if paylas_fb:
@@ -981,7 +983,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         telafi_dugmeleri.append([{"text": "🔄 ▶️ Shorts'a Tekrar Yükle", "callback_data": f"retry_kanal:youtube:{mesaj_id}"}])
     if (paylas_tt or paylas_tt_video) and "⚠️" in tt_notu:
         telafi_dugmeleri.append([{"text": "🔄 🎵 TikTok'a Tekrar Yükle", "callback_data": f"retry_kanal:tiktok:{mesaj_id}"}])
-    if paylas_reels and (not reels_post_id or "⚠️" in reels_notu):
+    if paylas_reels and ses_modu and (not reels_post_id or "⚠️" in reels_notu):
         telafi_dugmeleri.append([{"text": "🔄 🎬 Reels'i Tekrar Gönder", "callback_data": f"retry_kanal:reels:{mesaj_id}"}])
     if paylas_ig and (not post_id or "⚠️" in ig_notu):
         telafi_dugmeleri.append([{"text": "🔄 📸 Instagram'ı Tekrar Dene", "callback_data": f"retry_kanal:ig:{mesaj_id}"}])

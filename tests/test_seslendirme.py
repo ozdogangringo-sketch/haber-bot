@@ -241,13 +241,22 @@ class TestYayinBaglantisi(unittest.TestCase):
         self.assertIn("Reels / Video Açıklama Metni (Kopyalamak için dokunun)", govde)
 
     def test_reels_instagram_api_ile_yayinlanir(self):
-        """Reels yayını Instagram Graph API reels_yayinla üzerinden yapılır."""
+        """Reels yayını Instagram Graph API reels_yayinla üzerinden yapılır (ses_modu açıkken)."""
         kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
         govde = kaynak[kaynak.index("def _is_instagram_reels():"):kaynak.index("def _is_story():")]
         self.assertIn("instagram.reels_yayinla(", govde)
         self.assertIn("instagram.post_baglantisi(", govde)
 
+    def test_duz_yayinda_reels_apiden_atilmaz_telegrama_iletilir(self):
+        """Düz yayında (ses_modu yok) Reels seçilirse Instagram API'den atılmaz; trend müzik için Telegram'a iletilir."""
+        kaynak = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
+        govde = kaynak[kaynak.index("def yayinla(con, ayarlar, haberler"):kaynak.index("\ndef kanal_telafi_et(")]
+        self.assertIn("if paylas_reels and ses_modu:", govde)
+        self.assertIn("elif paylas_reels and not ses_modu:", govde)
+        self.assertIn("Reels videosu ve açıklama metni Telegram'a iletildi (trend müzik için)", govde)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
