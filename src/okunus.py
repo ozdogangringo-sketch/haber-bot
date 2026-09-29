@@ -143,7 +143,7 @@ def _sayi_oku(belirtec: str) -> str:
     return f"{_tam_oku(tam or '0')} virgül {' '.join(ondalik) or 'sıfır'}"
 
 
-# 3. tekil iyelik ile biten kurum ve tamlamalar (zamir n'si alır: Emirlikleri'ne, Birliği'nde vb.)
+# 3. tekil iyelik ile biten kurum ve tamlamalar (zamir n'si alır: Emirlikleri'ne, Birliği'nde, Ortaklığı'na, Odası'na vb.)
 _IYELIKLI_BITISLER = (
     "devletleri", "emirlikleri", "cumhuriyeti", "yönetimi", "birliği",
     "belediyesi", "müdürlüğü", "bakanlığı", "başkanlığı", "konseyi", "örgütü",
@@ -151,6 +151,16 @@ _IYELIKLI_BITISLER = (
     "kuvvetleri", "federasyonu", "komutanlığı", "işletmesi", "meclisi", "fonu", "sistemi",
     "piyasası", "merkezi", "kulübü", "derneği",
     "payı",
+    # Yeni eklenen kurum, sermaye piyasası ve sınav tamlama bitişleri
+    "ortaklığı", "üniversitesi", "odası", "ofisi", "şirketi", "platformu",
+    "bölgesi", "vergisi", "teşebbüsü", "teşekkülü", "sınavı", "testi",
+    "konfederasyonu", "sendikası", "vakfı", "kuruluşu", "enstitüsü", "sandığı", "idaresi",
+    # Çoğul iyelikli kurum tamlamaları
+    "ortaklıkları", "üniversiteleri", "odaları", "ofisleri", "şirketleri", "platformları",
+    "bölgeleri", "vergileri", "teşebbüsleri", "teşekkülleri", "sınavları", "testleri",
+    "kurumları", "kurulları", "birlikleri", "bakanlıkları", "başkanlıkları", "merkezleri",
+    "fonları", "sistemleri", "ajansları", "konfederasyonları", "federasyonları",
+    "kuruluşları", "enstitüleri", "sandıkları", "idareleri",
 )
 
 
@@ -230,6 +240,48 @@ def _ek_uyumu(kok: str, ek: str) -> str:
     return "".join(cikti)
 
 
+_COGUL_MAP = [
+    ("lığı", "lıkları"), ("liği", "likleri"), ("luğu", "lukları"), ("lüğü", "lükleri"),
+    ("belediyesi", "belediyeleri"), ("üniversitesi", "üniversiteleri"),
+    ("bölgesi", "bölgeleri"), ("vergisi", "vergileri"), ("şirketi", "şirketleri"),
+    ("ofisi", "ofisleri"), ("odası", "odaları"), ("platformu", "platformları"),
+    ("teşekkülü", "teşekkülleri"), ("teşebbüsü", "teşebbüsleri"),
+    ("sınavı", "sınavları"), ("testi", "testleri"),
+    ("kurumu", "kurumları"), ("kurulu", "kurulları"), ("birliği", "birlikleri"),
+    ("bakanlığı", "bakanlıkları"), ("başkanlığı", "başkanlıkları"), ("merkezi", "merkezleri"),
+    ("fonu", "fonları"), ("sistemi", "sistemleri"), ("ajansı", "ajansları"),
+    ("konfederasyonu", "konfederasyonları"), ("federasyonu", "federasyonları"),
+    ("kuruluşu", "kuruluşları"), ("enstitüsü", "enstitüleri"),
+    ("sandığı", "sandıkları"), ("idaresi", "idareleri"),
+]
+
+
+def _cogul_kok(kok: str) -> str:
+    """3. tekil iyelikli kurum tamlamasını çoğul iyelikli gövdeye çevirir (Ortaklığı -> Ortaklıkları)."""
+    k_kucuk = _tr_kucuk(kok)
+    for son, yenisi in _COGUL_MAP:
+        if k_kucuk.endswith(son):
+            eski_son = kok[-len(son):]
+            if eski_son[0].isupper():
+                yenisi = yenisi[0].upper() + yenisi[1:]
+            return kok[:-len(son)] + yenisi
+    return kok
+
+
+def _cogul_iyelik(kok: str, ek: str) -> Optional[str]:
+    """Çoğul eki almış kurum tamlamalarını zamir n'si ile doğru biçimlendirir (GYO'lara -> Gayrimenkul Yatırım Ortaklıklarına)."""
+    ek_l = ek.lower()
+    if not (ek_l.startswith("lar") or ek_l.startswith("ler")):
+        return None
+    ckok = _cogul_kok(kok)
+    if ckok == kok:
+        return None
+    kalan_ek = ek_l[3:]
+    if not kalan_ek:
+        return ckok
+    return ckok + _ek_uyumu(ckok, kalan_ek)
+
+
 # ---------------------------------------------------------------------------
 # Kısaltmalar ve harfler
 # ---------------------------------------------------------------------------
@@ -287,6 +339,41 @@ _ACILIM = {
     "KGF": "Kredi Garanti Fonu",
     "IMF": "Uluslararası Para Fonu",
     "VİOP": "Vadeli İşlem ve Opsiyon Piyasası", "VIOP": "Vadeli İşlem ve Opsiyon Piyasası",
+    # Sermaye Piyasası, Finans & Borsa
+    "GYO": "Gayrimenkul Yatırım Ortaklığı",
+    "GSYO": "Girişim Sermayesi Yatırım Ortaklığı",
+    "BYO": "Borsa Yatırım Ortaklığı",
+    "SYO": "Sağlık Yatırım Ortaklığı",
+    "KAP": "Kamuyu Aydınlatma Platformu",
+    "MKK": "Merkezi Kayıt Kuruluşu",
+    "TMSF": "Tasarruf Mevduatı Sigorta Fonu",
+    # Vergiler, Sanayi & Kamu İktisadi Teşebbüsleri
+    "ÖTV": "Özel Tüketim Vergisi", "OTV": "Özel Tüketim Vergisi",
+    "MTV": "Motorlu Taşıtlar Vergisi",
+    "KİT": "Kamu İktisadi Teşebbüsü", "KIT": "Kamu İktisadi Teşebbüsü",
+    "AŞ": "Anonim Şirketi", "AS": "Anonim Şirketi",
+    # Odalar, Birlikler, Ofisler & Kamu Şirketleri
+    "TMO": "Toprak Mahsulleri Ofisi",
+    "DMO": "Devlet Malzeme Ofisi",
+    "İTO": "İstanbul Ticaret Odası", "ITO": "İstanbul Ticaret Odası",
+    "ATO": "Ankara Ticaret Odası",
+    "ASO": "Ankara Sanayi Odası",
+    "İSO": "İstanbul Sanayi Odası", "ISO": "İstanbul Sanayi Odası",
+    "KTO": "Konya Ticaret Odası",
+    "DTO": "Deniz Ticaret Odası",
+    "TPAO": "Türkiye Petrolleri Anonim Ortaklığı",
+    "TEİAŞ": "Türkiye Elektrik İletim Anonim Şirketi", "TEIAS": "Türkiye Elektrik İletim Anonim Şirketi",
+    "EÜAŞ": "Elektrik Üretim Anonim Şirketi", "EUAS": "Elektrik Üretim Anonim Şirketi",
+    "TEDAŞ": "Türkiye Elektrik Dağıtım Anonim Şirketi", "TEDAS": "Türkiye Elektrik Dağıtım Anonim Şirketi",
+    # Eğitim & Sınavlar
+    "MSÜ": "Milli Savunma Üniversitesi", "MSU": "Milli Savunma Üniversitesi",
+    "AYT": "Alan Yeterlilik Testi",
+    "TYT": "Temel Yeterlilik Testi",
+    "YKS": "Yükseköğretim Kurumları Sınavı",
+    "LGS": "Liselere Geçiş Sistemi",
+    "DGS": "Dikey Geçiş Sınavı",
+    "TESK": "Türkiye Esnaf ve Sanatkarları Konfederasyonu",
+    "TÜED": "Türkiye Emekliler Derneği", "TUED": "Türkiye Emekliler Derneği",
     # Savunma, Güvenlik, Asayiş & Yargı
     "THY": "Türk Hava Yolları", "MSB": "Milli Savunma Bakanlığı", "MEB": "Milli Eğitim Bakanlığı",
     "TSK": "Türk Silahlı Kuvvetleri",
@@ -328,6 +415,11 @@ _IKI_HARFLI_KELIME = {
 # Dört harfe kadar kelimede izin verilen son ünsüz ikilisi: HARÇ, ŞERH, RİSK, MÜLK, TERK
 _IZINLI_SON = {"rt", "rk", "st", "sk", "nk", "nt", "lk", "lt", "ls", "rs", "rp", "rç", "nç", "lç", "lp", "ks",
                "ft", "şt", "rz", "rd", "rm", "rh", "nd", "ng", "yt", "yk", "lm", "rf", "rn", "yl", "ym", "yn"}
+# Yabancı kökenli olup Türkçede kelime başında bulunabilen ünsüz çiftleri (proje, plan, tren, kredi, spor vb.)
+_IZINLI_BASLANGIC = {
+    "pr", "pl", "tr", "kr", "kl", "br", "bl", "fr", "fl", "dr", "gr",
+    "sk", "sp", "st", "sl", "sm", "sn", "ps", "şp", "str", "spr"
+}
 
 
 def _okunamaz(kelime: str) -> bool:
@@ -339,6 +431,9 @@ def _okunamaz(kelime: str) -> bool:
         return True
     if len(k) == 2 and k not in _IKI_HARFLI_KELIME:
         return True
+    # 2 veya daha fazla harfli olup başlangıç ünsüz kümesi Türkçede ve alıntı sözcüklerde bulunmayanlar (GYO, TMO, DMO, KTO, MSÜ vb.)
+    if len(k) >= 2 and k[0] not in _UNLULER and k[1] not in _UNLULER and k[:2] not in _IZINLI_BASLANGIC:
+        return True
     if 2 < len(k) <= 4 and k[-1] not in _UNLULER and k[-2] not in _UNLULER and k[-2:] not in _IZINLI_SON:
         return True
     return False
@@ -348,7 +443,12 @@ def _buyuk_harfli(m: "re.Match[str]") -> str:
     kok, ek = m.group(1), m.group(2) or ""
     if kok in _ACILIM:
         acilim = _ACILIM[kok]
-        return acilim + _ek_uyumu(acilim, ek) if ek else acilim
+        if ek:
+            cogul = _cogul_iyelik(acilim, ek)
+            if cogul:
+                return cogul
+            return acilim + _ek_uyumu(acilim, ek)
+        return acilim
     if len(kok) == 1 or _okunamaz(kok):
         # Kısaltma ve tek harf: ses doğru okuyor ("KDV'li", "SGK'ya" — kesme işaretiyle ölçüldü)
         return kok + (f"'{ek}" if ek else "")
@@ -445,9 +545,17 @@ def _kisaltmalar(metin: str) -> str:
         "Bae", "Abd", "Tsk", "Yht", "Ovp", "Kkm", "Tff", "Ecb", "Kyk", "Tobb",
         "Spk", "Bddk", "Pfdk", "Ucm", "Tcdd", "Kgm", "Dhmi", "Shgm", "Tbf", "Tvf",
         "Gsyih", "Gsyh", "Viop", "Kgf", "Ssb", "Egm", "Jgk", "Deik", "Khk", "Hgs", "Ogs",
+        "Gyo", "Gsyo", "Byo", "Syo", "Tmo", "Dmo", "İto", "Ito", "Ato", "Aso", "İso", "Iso",
+        "Kto", "Dto", "Tpao", "Tmsf", "Ötv", "Otv", "Mtv", "Msu", "Msü", "Ayt", "Tyt",
+        "Yks", "Lgs", "Dgs", "Kit", "Kİt",
     )
     for bk in _BASLIK_KISALTMALARI:
         metin = re.sub(rf"\b{bk}\b(?=[ \t'’]|$)", bk.upper(), metin)
+    # KAP (Kamuyu Aydınlatma Platformu) koruması:
+    # "Kap'a", "Kap'ta" gibi kesmeli veya bildirim/açıklama bağlamındaki KAP ifadelerini büyük harfe çevirir.
+    # Türkçe "kap" (kap kacak, çantayı kap) kelimesi asla bozulmaz.
+    metin = re.sub(r"\bKap(?=['’])", "KAP", metin)
+    metin = re.sub(r"(?i)\bkap\s+(?=bildirim|açıklama|duyuru)", "KAP ", metin)
     # MİT için özel koruma: Türkçe "mit" (efsane) kelimesini ezmemek için yalnızca kesmeli
     # (Mit'e, Mit'ten) veya unvan/operasyon bağlamında büyük harfe çevrilir
     metin = re.sub(r"\bMit(?=['’](?:e|a|in|ın|te|ta|ten|tan|le|la|i|ı)\b)", "MİT", metin)
@@ -456,12 +564,13 @@ def _kisaltmalar(metin: str) -> str:
 
 
 def _borsa_kisaltmalari(metin: str) -> str:
-    """BİST / BIST / Bist kısaltmalarını editoryal olarak 'Borsa İstanbul'a çevirir.
+    """BİST / BIST / Bist ve GYO / GSYO / BYO / SYO kısaltmalarını editoryal olarak açar veya kanonik hale getirir.
 
     Sayı ve eklerden ÖNCE çözülmeli:
       * 'BİST-100' / 'BİST 100' / 'BİST100' → 'Borsa İstanbul 100' (sonrasında 100 → 'yüz' olur)
       * 'BİST'te' / 'BİST'e' / 'BİST'in' → 'Borsa İstanbul'da' / 'Borsa İstanbul'a' / 'Borsa İstanbul'un'
       * 'BİST' → 'Borsa İstanbul' (yalın)
+      * 'GYO'lar' / 'gyolara' / 'gyo'ya' / 'gyo hisseleri' → 'Gayrimenkul Yatırım Ortaklığı'
     """
     # 1. BİST 100, BİST-100, BIST100, Bist-30, BİST 50 vb.
     metin = re.sub(r"(?i)\b(?:b[iıİI]st)[ -]?(\d+)\b", r"Borsa İstanbul \1", metin)
@@ -478,6 +587,21 @@ def _borsa_kisaltmalari(metin: str) -> str:
 
     # 3. Yalın BİST, BIST, Bist
     metin = re.sub(r"(?i)\b(?:b[iıİI]st)\b", "Borsa İstanbul", metin)
+
+    # 4. GYO / GSYO / BYO / SYO (Gayrimenkul / Girişim Sermayesi / Borsa Yatırım Ortaklığı)
+    # Kesmesiz çoğul veya çekim eki almış biçimlerini apostroflu büyük harfe çevirir ki
+    # _buyuk_harfler ve _cogul_iyelik eksiksiz işletsin (gyolar -> GYO'lar, gyoya -> GYO'ya)
+    def gyo_ek(m: "re.Match[str]") -> str:
+        kok = m.group(1).upper()
+        ek = m.group(2) or m.group(3) or ""
+        return f"{kok}'{ek}" if ek else kok
+
+    metin = re.sub(
+        r"(?i)\b(gyo|gsyo|byo|syo)(?:['’]([a-zçğıöşü]+)|(lar[a-zçğıöşü]*|ler[a-zçğıöşü]*|ya|ye|da|de|dan|den|nun|nün|yu|yü|a|e))\b",
+        gyo_ek, metin,
+    )
+    # Yalın gyo / Gyo / Gsyo
+    metin = re.sub(r"(?i)\b(gyo|gsyo|byo|syo)\b", lambda m: m.group(1).upper(), metin)
     return metin
 
 

@@ -669,6 +669,104 @@ class TestSabotajKorumasi(unittest.TestCase):
                 # İkinci kez çevrilince asla bozulmamalı (idempotency)
                 self.assertEqual(okunusa_cevir(beklenen), beklenen)
 
+    def test_kurum_ve_finans_kisaltmalari(self):
+        """GYO, borsa, kamu kurumları, odalar ve sınav kısaltmaları doğru açılmalı ve zamir n'si almalı."""
+        ornekler = [
+            # GYO ve borsa yatırım ortaklıkları (büyük, küçük, TitleCase, kesmeli ve kesmesiz ekler)
+            ("GYO hisseleri yükselişte.", "Gayrimenkul Yatırım Ortaklığı hisseleri yükselişte."),
+            ("gyo hisseleri yükselişte.", "Gayrimenkul Yatırım Ortaklığı hisseleri yükselişte."),
+            ("Gyo hisseleri yükselişte.", "Gayrimenkul Yatırım Ortaklığı hisseleri yükselişte."),
+            ("GYO'ya yoğun talep geldi.", "Gayrimenkul Yatırım Ortaklığına yoğun talep geldi."),
+            ("gyo'ya yoğun talep geldi.", "Gayrimenkul Yatırım Ortaklığına yoğun talep geldi."),
+            ("gyoya yoğun talep geldi.", "Gayrimenkul Yatırım Ortaklığına yoğun talep geldi."),
+            ("GYO'da yeni dönem başladı.", "Gayrimenkul Yatırım Ortaklığında yeni dönem başladı."),
+            ("gyoda yeni dönem başladı.", "Gayrimenkul Yatırım Ortaklığında yeni dönem başladı."),
+            ("GYO'dan açıklama yapıldı.", "Gayrimenkul Yatırım Ortaklığından açıklama yapıldı."),
+            ("gyodan açıklama yapıldı.", "Gayrimenkul Yatırım Ortaklığından açıklama yapıldı."),
+            ("GYO'nun portföyü büyüdü.", "Gayrimenkul Yatırım Ortaklığının portföyü büyüdü."),
+            ("gyonun portföyü büyüdü.", "Gayrimenkul Yatırım Ortaklığının portföyü büyüdü."),
+            ("GYO'yu tercih eden yatırımcılar.", "Gayrimenkul Yatırım Ortaklığını tercih eden yatırımcılar."),
+            ("gyoyu tercih eden yatırımcılar.", "Gayrimenkul Yatırım Ortaklığını tercih eden yatırımcılar."),
+            ("GYO'lar rekor kırdı.", "Gayrimenkul Yatırım Ortaklıkları rekor kırdı."),
+            ("gyolar rekor kırdı.", "Gayrimenkul Yatırım Ortaklıkları rekor kırdı."),
+            ("GYO'lara yabancı ilgisi.", "Gayrimenkul Yatırım Ortaklıklarına yabancı ilgisi."),
+            ("gyolara yabancı ilgisi.", "Gayrimenkul Yatırım Ortaklıklarına yabancı ilgisi."),
+            ("GYO'larda hareketlilik arttı.", "Gayrimenkul Yatırım Ortaklıklarında hareketlilik arttı."),
+            ("gyolarda hareketlilik arttı.", "Gayrimenkul Yatırım Ortaklıklarında hareketlilik arttı."),
+            ("GYO'lardan kaçış başladı.", "Gayrimenkul Yatırım Ortaklıklarından kaçış başladı."),
+            ("gyolardan kaçış başladı.", "Gayrimenkul Yatırım Ortaklıklarından kaçış başladı."),
+            ("GYO'ların kârlılığı yükseldi.", "Gayrimenkul Yatırım Ortaklıklarının kârlılığı yükseldi."),
+            ("gyoların kârlılığı yükseldi.", "Gayrimenkul Yatırım Ortaklıklarının kârlılığı yükseldi."),
+            ("GYO'ları değerlendiren uzmanlar.", "Gayrimenkul Yatırım Ortaklıklarını değerlendiren uzmanlar."),
+            ("gyoları değerlendiren uzmanlar.", "Gayrimenkul Yatırım Ortaklıklarını değerlendiren uzmanlar."),
+            ("GSYO yatırımları arttı.", "Girişim Sermayesi Yatırım Ortaklığı yatırımları arttı."),
+            ("gsyo'lara yeni fon sağlandı.", "Girişim Sermayesi Yatırım Ortaklıklarına yeni fon sağlandı."),
+            ("gsyolar büyümeyi sürdürüyor.", "Girişim Sermayesi Yatırım Ortaklıkları büyümeyi sürdürüyor."),
+            # KAP (Kamuyu Aydınlatma Platformu)
+            ("KAP'a yapılan açıklamada.", "Kamuyu Aydınlatma Platformuna yapılan açıklamada."),
+            ("Kap'a bildirim yapıldı.", "Kamuyu Aydınlatma Platformuna bildirim yapıldı."),
+            ("KAP'ta yayımlanan bülten.", "Kamuyu Aydınlatma Platformunda yayımlanan bülten."),
+            ("KAP'tan son dakika açıklaması.", "Kamuyu Aydınlatma Platformundan son dakika açıklaması."),
+            ("KAP'ın resmi internet sitesi.", "Kamuyu Aydınlatma Platformunun resmi internet sitesi."),
+            ("KAP bildirimi geldi.", "Kamuyu Aydınlatma Platformu bildirimi geldi."),
+            # Türkçe kap kelimesi korunur (sabotaj)
+            ("Bir kap yemek ikram etti.", "Bir kap yemek ikram etti."),
+            ("Çantayı kap ve hemen gel.", "Çantayı kap ve hemen gel."),
+            # MKK ve TMSF
+            ("MKK verileri açıklandı.", "Merkezi Kayıt Kuruluşu verileri açıklandı."),
+            ("MKK'ya kayıtlı yatırımcı sayısı.", "Merkezi Kayıt Kuruluşuna kayıtlı yatırımcı sayısı."),
+            ("TMSF şirketleri devraldı.", "Tasarruf Mevduatı Sigorta Fonu şirketleri devraldı."),
+            ("TMSF'ye devredilen varlıklar.", "Tasarruf Mevduatı Sigorta Fonuna devredilen varlıklar."),
+            ("TMSF'de yeni yönetim.", "Tasarruf Mevduatı Sigorta Fonunda yeni yönetim."),
+            # TMO ve DMO
+            ("TMO buğday alım fiyatını açıkladı.", "Toprak Mahsulleri Ofisi buğday alım fiyatını açıkladı."),
+            ("TMO'ya teslim edilen ürünler.", "Toprak Mahsulleri Ofisine teslim edilen ürünler."),
+            ("TMO'da stoklar yenilendi.", "Toprak Mahsulleri Ofisinde stoklar yenilendi."),
+            ("Tmo randevu sistemi açıldı.", "Toprak Mahsulleri Ofisi randevu sistemi açıldı."),
+            ("DMO alımları hızlandırdı.", "Devlet Malzeme Ofisi alımları hızlandırdı."),
+            # Odalar (İTO, ATO, ASO, İSO, KTO, DTO)
+            ("İTO enflasyon verilerini duyurdu.", "İstanbul Ticaret Odası enflasyon verilerini duyurdu."),
+            ("İTO'ya kayıtlı üyeler.", "İstanbul Ticaret Odasına kayıtlı üyeler."),
+            ("İTO'da seçim heyecanı.", "İstanbul Ticaret Odasında seçim heyecanı."),
+            ("İto başkanı açıklama yaptı.", "İstanbul Ticaret Odası başkanı açıklama yaptı."),
+            ("ATO başkanı çağrıda bulundu.", "Ankara Ticaret Odası başkanı çağrıda bulundu."),
+            ("ASO sanayicilerle buluştu.", "Ankara Sanayi Odası sanayicilerle buluştu."),
+            ("İSO 500 listesi açıklandı.", "İstanbul Sanayi Odası beş yüz listesi açıklandı."),
+            ("KTO ihracat rakamlarını paylaştı.", "Konya Ticaret Odası ihracat rakamlarını paylaştı."),
+            ("DTO genel kurulu toplandı.", "Deniz Ticaret Odası genel kurulu toplandı."),
+            # Kamu Şirketleri (TPAO, TEİAŞ, EÜAŞ, TEDAŞ)
+            ("TPAO Gabar'da yeni petrol keşfetti.", "Türkiye Petrolleri Anonim Ortaklığı Gabar'da yeni petrol keşfetti."),
+            ("TPAO'ya yeni ruhsat verildi.", "Türkiye Petrolleri Anonim Ortaklığına yeni ruhsat verildi."),
+            ("TEİAŞ elektrik iletim hattını yeniledi.", "Türkiye Elektrik İletim Anonim Şirketi elektrik iletim hattını yeniledi."),
+            ("EÜAŞ hidroelektrik santralleri devrede.", "Elektrik Üretim Anonim Şirketi hidroelektrik santralleri devrede."),
+            ("TEDAŞ fatura yapılandırmasını duyurdu.", "Türkiye Elektrik Dağıtım Anonim Şirketi fatura yapılandırmasını duyurdu."),
+            # Vergiler (ÖTV, MTV)
+            ("ÖTV indirimi Resmi Gazete'de.", "Özel Tüketim Vergisi indirimi Resmi Gazete'de."),
+            ("ÖTV'ye yeni düzenleme geldi.", "Özel Tüketim Vergisine yeni düzenleme geldi."),
+            ("ÖTV'de muafiyet sınırları değişti.", "Özel Tüketim Vergisinde muafiyet sınırları değişti."),
+            ("Ötv muafiyetli araç satışı.", "Özel Tüketim Vergisi muafiyetli araç satışı."),
+            ("MTV taksit ödemeleri başladı.", "Motorlu Taşıtlar Vergisi taksit ödemeleri başladı."),
+            ("MTV'de son ödeme günü yaklaştı.", "Motorlu Taşıtlar Vergisinde son ödeme günü yaklaştı."),
+            # Eğitim & Sınavlar (MSÜ, AYT, TYT, YKS, LGS, DGS)
+            ("MSÜ sınav giriş belgeleri yayımlandı.", "Milli Savunma Üniversitesi sınav giriş belgeleri yayımlandı."),
+            ("MSÜ'ye kayıt yaptıran adaylar.", "Milli Savunma Üniversitesine kayıt yaptıran adaylar."),
+            ("AYT ve TYT oturumları tamamlandı.", "Alan Yeterlilik Testi ve Temel Yeterlilik Testi oturumları tamamlandı."),
+            ("AYT'ye giren öğrenciler ter döktü.", "Alan Yeterlilik Testine giren öğrenciler ter döktü."),
+            ("TYT'de baraj puanı kaldırıldı.", "Temel Yeterlilik Testinde baraj puanı kaldırıldı."),
+            ("YKS sonuçları yarın açıklanacak.", "Yükseköğretim Kurumları Sınavı sonuçları yarın açıklanacak."),
+            ("LGS tercih kılavuzu yayımlandı.", "Liselere Geçiş Sistemi tercih kılavuzu yayımlandı."),
+            ("DGS başvuruları için son gün.", "Dikey Geçiş Sınavı başvuruları için son gün."),
+            # KİT
+            ("KİT çalışanlarına kadro müjdesi.", "Kamu İktisadi Teşebbüsü çalışanlarına kadro müjdesi."),
+            ("KİT'lerin bütçesi açıklandı.", "Kamu İktisadi Teşebbüslerinin bütçesi açıklandı."),
+            ("KİT'e yeni atama yapıldı.", "Kamu İktisadi Teşebbüsüne yeni atama yapıldı."),
+        ]
+        for girdi, beklenen in ornekler:
+            with self.subTest(girdi=girdi):
+                self.assertEqual(okunusa_cevir(girdi), beklenen)
+                # İkinci kez çevrilince asla bozulmamalı (idempotency)
+                self.assertEqual(okunusa_cevir(beklenen), beklenen)
+
 
 if __name__ == "__main__":
     unittest.main()
