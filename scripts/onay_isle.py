@@ -1621,12 +1621,45 @@ def yayindan_kaldir(con, ayarlar, haberler, mesaj_id, basan) -> int:
     else:
         satirlar.append("· Threads: kayıtlı gönderi id yok")
 
-    # --- Instagram: elle ---
+    # --- YouTube Shorts ---
+    yt = ilk.get("youtube_post_id") if hasattr(ilk, "keys") and "youtube_post_id" in ilk.keys() else None
+    if yt:
+        try:
+            from src import youtube
+            if youtube.video_sil(yt):
+                satirlar.append("▶️ YouTube Shorts silindi")
+            else:
+                satirlar.append("⚠️ YouTube Shorts silinemedi")
+        except Exception as e:
+            satirlar.append(f"⚠️ YouTube silinemedi: {type(e).__name__}")
+
+    # --- Twitter / X ---
+    tw = ilk.get("twitter_post_id") if hasattr(ilk, "keys") and "twitter_post_id" in ilk.keys() else None
+    if tw:
+        try:
+            from src import twitter
+            if twitter.tweet_sil(tw):
+                satirlar.append("🐦 Twitter tweeti silindi")
+            else:
+                satirlar.append("⚠️ Twitter tweeti silinemedi")
+        except Exception as e:
+            satirlar.append(f"⚠️ Twitter silinemedi: {type(e).__name__}")
+
+    # --- Instagram Story ---
+    st_id = ilk.get("story_post_id") if hasattr(ilk, "keys") and "story_post_id" in ilk.keys() else None
+    if st_id:
+        try:
+            if instagram.story_sil(st_id, ayarlar):
+                satirlar.append("📷 Instagram Story silindi")
+        except Exception as e:
+            log.warning("Instagram story silinemedi: %s", e)
+
+    # --- Instagram Feed: elle ---
     ig = ilk["ig_post_id"]
     baglanti = instagram.post_baglantisi(ig, ayarlar) if ig else ""
     satirlar.append(
-        "\n📷 Instagram'dan ELLE silmen gerekiyor — Graph API yayınlanmış "
-        "postu silmeye izin vermiyor:\n" + (baglanti or f"post id: {ig}")
+        "\n📷 Instagram Akış (Carousel) postunu ELLE silmen gerekiyor — Meta API "
+        "yayınlanmış akış postunu silmeye izin vermiyor:\n" + (baglanti or f"post id: {ig}")
     )
 
     con.execute(

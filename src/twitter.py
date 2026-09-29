@@ -327,6 +327,26 @@ def post_baglantisi(tweet_id: str, kullanici_adi: str = "dailybrief_co") -> str:
     return f"https://x.com/{kullanici_adi}/status/{tweet_id}"
 
 
+def tweet_sil(tweet_id: str) -> bool:
+    """Yayınlanmış bir tweeti siler."""
+    anahtarlar = _anahtarlari_al()
+    if not anahtarlar or not tweet_id:
+        return False
+    try:
+        url = f"{TWEET_API_URL}/{tweet_id}"
+        hdr = _oauth1_header("DELETE", url, anahtarlar)
+        r = requests.delete(url, headers={"Authorization": hdr}, timeout=10)
+        if r.status_code == 200:
+            log.info("Tweet başarıyla silindi: %s", tweet_id)
+            return True
+        log.warning("Tweet silinemedi (%s): %s %s", tweet_id, r.status_code, r.text[:120])
+        return False
+    except Exception as e:
+        log.warning("Tweet silme hatası (%s): %s", tweet_id, e)
+        return False
+
+
+
 def api_saglik_testi() -> dict:
     """Twitter API v2 bağlantısını ve kimlik doğrulamasını test eder."""
     anahtarlar = _anahtarlari_al()

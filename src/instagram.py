@@ -507,3 +507,15 @@ def post_baglantisi(post_id: str, ayarlar: dict) -> str:
     except Exception as e:
         log.warning("permalink alınamadı: %s", e)
         return ""
+
+
+def story_sil(story_id: str, ayarlar: dict) -> bool:
+    """Yayınlanmış Instagram Story'sini siler."""
+    try:
+        _istek("DELETE", f"/{story_id}", ayarlar)
+        log.info("Instagram story silindi: %s", story_id)
+        return True
+    except Exception as e:
+        log.warning("Instagram story silinemedi (%s): %s", story_id, e)
+        return False
+

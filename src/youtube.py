@@ -399,3 +399,31 @@ def saglik_testi(ayarlar: dict) -> dict[str, Any]:
             "durum": False,
             "mesaj": "OAuth2 Token yenilenemedi, kimlik bilgilerini kontrol edin.",
         }
+
+
+def video_sil(video_id: str) -> bool:
+    """Yayınlanmış bir YouTube Shorts / video içeriğini siler."""
+    if not video_id:
+        return False
+    if "youtu" in video_id:
+        video_id = video_id.rstrip("/").split("/")[-1].split("?")[0]
+    token = access_token_al()
+    if not token:
+        log.warning("YouTube video silmek için access token alınamadı.")
+        return False
+    try:
+        r = requests.delete(
+            "https://www.googleapis.com/youtube/v3/videos",
+            params={"id": video_id},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        if r.status_code in (200, 204):
+            log.info("YouTube videosu başarıyla silindi: %s", video_id)
+            return True
+        log.warning("YouTube videosu silinemedi (%s): %s %s", video_id, r.status_code, r.text[:120])
+        return False
+    except Exception as e:
+        log.warning("YouTube video silme hatası (%s): %s", video_id, e)
+        return False
+
