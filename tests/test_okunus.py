@@ -88,6 +88,10 @@ TABLO = [
     ("±5", "artı eksi beş"),
     ("3+1 daire", "üç artı bir daire"),
     ("10x20 m", "on çarpı yirmi metre"),
+    # Hız, sıcaklık ve dijital birimler (km/s, °C, Mbps vb.)
+    ("Rüzgar hızı 80 km/s'ye ulaşacak", "Rüzgar hızı seksen kilometre bölü saate ulaşacak"),
+    ("Sıcaklık 25°C olacak", "Sıcaklık yirmi beş derece olacak"),
+    ("100 Mbps internet", "yüz megabit bölü saniye internet"),
     # Tarih ve saat
     ("25.09.2026 tarihinde", "yirmi beş Eylül iki bin yirmi altı tarihinde"),
     ("25/09/2026", "yirmi beş Eylül iki bin yirmi altı"),
@@ -233,6 +237,46 @@ INGILIZCE_TABLO = [
     ("Huawei yeni işletim sistemini tanıttı", "Huavey yeni işletim sistemini tanıttı"),
 ]
 
+BIRIMLER_TABLO = [
+    # Hız, rüzgar ve hareket birimleri (km/s, km/h, m/s vb.)
+    ("Rüzgar hızı 80 km/s'ye ulaşacak", "Rüzgar hızı seksen kilometre bölü saate ulaşacak"),
+    ("Rüzgar hızı 80 km/s'de kaldı", "Rüzgar hızı seksen kilometre bölü saatte kaldı"),
+    ("Rüzgar hızı 80 km/s'den fazla", "Rüzgar hızı seksen kilometre bölü saatten fazla"),
+    ("80 km/s'lik fırtına", "seksen kilometre bölü saatlik fırtına"),
+    ("Aracın hızı 120 km/s", "Aracın hızı yüz yirmi kilometre bölü saat"),
+    ("Rüzgar 90 km/saat hızında", "Rüzgar doksan kilometre bölü saat hızında"),
+    ("Hızı 100 km/h'ye çıktı", "Hızı yüz kilometre bölü saate çıktı"),
+    ("Hızı 100 km/sa'ya ulaştı", "Hızı yüz kilometre bölü saate ulaştı"),
+    ("saatte 80 km/s hızla esen rüzgar", "saatte seksen kilometre hızla esen rüzgar"),
+    ("saatte 100 km/h", "saatte yüz kilometre"),
+    ("90 km/saat'te", "doksan kilometre bölü saatte"),
+    ("Saniyede 15 m/s hızla", "Saniyede on beş metre bölü saniye hızla"),
+    ("15 m/s'ye ulaştı", "on beş metre bölü saniyeye ulaştı"),
+    ("8 km/sn hızla", "sekiz kilometre bölü saniye hızla"),
+    # Dijital hız, batarya, otomotiv, enerji ve basınç
+    ("İndirme hızı 50 MB/s seviyesinde", "İndirme hızı elli megabayt bölü saniye seviyesinde"),
+    ("100 Mbps internet", "yüz megabit bölü saniye internet"),
+    ("Motor 3000 d/d hızında", "Motor üç bin devir bölü dakika hızında"),
+    ("Basınç 1013 hPa ölçüldü", "Basınç bin on üç hektopaskal ölçüldü"),
+    ("Batarya 5000 mAh kapasiteli", "Batarya beş bin miliamper saat kapasiteli"),
+    ("Araç 150 hp gücünde", "Araç yüz elli beygir gücünde"),
+    ("Araç 150 hp'lik motor", "Araç yüz elli beygirlik motor"),
+    ("100 kW/h elektrik", "yüz kilovatsaat elektrik"),
+    ("Benzin 45 TL/lt oldu", "Benzin litresi kırk beş lira oldu"),
+    ("Et 400 TL/kg oldu", "Et kilogramı dört yüz lira oldu"),
+    ("1000 varil/gün üretim", "günlük bin varil üretim"),
+    ("Petrol 75 $/varil seviyesinde", "Petrol varili yetmiş beş dolar seviyesinde"),
+    ("Altın 2500 $/ons oldu", "Altın onsu iki bin beş yüz dolar oldu"),
+    ("İstanbul'da 80 kg/m² yağış", "İstanbul'da metrekareye seksen kilogram yağış"),
+    ("Sıcaklık 25°C olacak", "Sıcaklık yirmi beş derece olacak"),
+    ("Sıcaklık 25°C'ye çıkacak", "Sıcaklık yirmi beş dereceye çıkacak"),
+    ("Sıcaklık 25°'ye çıkacak", "Sıcaklık yirmi beş dereceye çıkacak"),
+    ("50 MP kamera", "elli megapiksel kamera"),
+    ("50 MP'lik sensör", "elli megapiksellik sensör"),
+    ("250 Nm tork", "iki yüz elli newton metre tork"),
+    ("1600 cc motor", "bin altı yüz santimetreküp motor"),
+]
+
 _KISALTMA_KALINTISI = re.compile(r"\b(?:Hz|Dr|Av|Prof|Doç|vb|vs|bkz|md|Mah|Cad|Sok|Apt)\.")
 
 
@@ -280,6 +324,13 @@ class TestOkunusTablosu(unittest.TestCase):
 
     def test_ingilizce_terimler_okunusu(self):
         for girdi, beklenen in INGILIZCE_TABLO:
+            with self.subTest(girdi=girdi):
+                cikti = okunusa_cevir(girdi)
+                self.assertEqual(cikti, beklenen)
+                self.assertEqual(okunusa_cevir(cikti), cikti)
+
+    def test_birimler_ve_hiz_okunusu(self):
+        for girdi, beklenen in BIRIMLER_TABLO:
             with self.subTest(girdi=girdi):
                 cikti = okunusa_cevir(girdi)
                 self.assertEqual(cikti, beklenen)

@@ -158,14 +158,30 @@ def _tr_kucuk(s: str) -> str:
     return s.replace("I", "ı").replace("İ", "i").lower()
 
 
+# Arapça/Farsça/Batı kökenli olup ince l, ince t veya istisnai ince ünlüyle biten kelimeler
+# (saate, saatlik, petrole, kontrole, alkolün, kalbe, harfe vb.)
+_INCE_UNLULU_ISTISNALAR = (
+    "saat", "santral", "petrol", "alkol", "rol", "gol", "kontrol",
+    "sembol", "protokol", "terminal", "metal", "moral", "hilal",
+    "hayal", "helal", "kalp", "harf", "dikkat", "şefkat", "sıhhat"
+)
+
+
 def _ek_uyumu(kok: str, ek: str) -> str:
     """Kökü değişen ekin ünlülerini ve baştaki d/t'sini yeni köke uydurur ("TL'lik" → "liralık")."""
     if not ek:
         return ""
-    onceki = _son_unlu(kok)
-    kalin = onceki in _KALIN
-    u_dortlu = _dortlu(onceki)
-    e_a = "a" if kalin else "e"
+    kok_kucuk = _tr_kucuk(kok)
+    if any(kok_kucuk.endswith(son) for son in _INCE_UNLULU_ISTISNALAR):
+        kalin = False
+        onceki = "e"
+        u_dortlu = "i"
+        e_a = "e"
+    else:
+        onceki = _son_unlu(kok)
+        kalin = onceki in _KALIN
+        u_dortlu = _dortlu(onceki)
+        e_a = "a" if kalin else "e"
     son_harf = kok[-1].lower() if kok else "a"
 
     # 3. tekil iyelik ile biten kurum ve tamlamalar (Devletleri, Emirlikleri, Birliği, Belediyesi, Kurulu, Bakanlığı vb.)
@@ -343,23 +359,22 @@ def _buyuk_harfli(m: "re.Match[str]") -> str:
 # Adımlar
 # ---------------------------------------------------------------------------
 _BIRIMLER = [  # uzun olan önce: m² "m"den, km "m"den önce
-    ("km²", "kilometrekare"), ("km2", "kilometrekare"), ("m²", "metrekare"), ("m2", "metrekare"),
-    ("m³", "metreküp"), ("m3", "metreküp"), ("km", "kilometre"), ("cm", "santimetre"), ("mm", "milimetre"),
-    ("m", "metre"), ("ha", "hektar"), ("kg", "kilogram"), ("lt", "litre"), ("dk", "dakika"), ("sn", "saniye"),
+    ("km²", "kilometrekare"), ("km2", "kilometrekare"),
+    ("m²", "metrekare"), ("m2", "metrekare"),
+    ("m³", "metreküp"), ("m3", "metreküp"),
+    ("cm²", "santimetrekare"), ("mm²", "milimetrekare"),
+    ("cm³", "santimetreküp"), ("mm³", "milimetreküp"),
+    ("km", "kilometre"), ("cm", "santimetre"), ("mm", "milimetre"),
+    ("m", "metre"), ("ha", "hektar"),
+    ("kg", "kilogram"), ("mg", "miligram"), ("gr", "gram"), ("g", "gram"), ("ton", "ton"),
+    ("lt", "litre"), ("ml", "mililitre"), ("cl", "santilitre"),
+    ("dk", "dakika"), ("sn", "saniye"),
     ("TL", "lira"), ("₺", "lira"), ("USD", "dolar"), ("$", "dolar"), ("EUR", "avro"), ("€", "avro"),
     ("GBP", "sterlin"), ("£", "sterlin"),
-    ("mAh", "miliamper saat"), ("mah", "miliamper saat"),
-    ("kWh", "kilovatsaat"), ("kwh", "kilovatsaat"),
-    ("kW", "kilovat"), ("kw", "kilovat"),
-    ("MW", "megavat"), ("mw", "megavat"),
-    ("km/s", "kilometre bölü saat"), ("km/h", "kilometre bölü saat"),
-    ("GHz", "gigahertz"), ("ghz", "gigahertz"),
-    ("MHz", "megahertz"), ("mhz", "megahertz"),
-    ("Hz", "hertz"),
-    ("GB", "gigabayt"), ("gb", "gigabayt"),
-    ("TB", "terabayt"), ("tb", "terabayt"),
-    ("MB", "megabayt"), ("mb", "megabayt"),
-    ("HP", "beygir gücü"), ("hp", "beygir gücü"),
+    ("kW", "kilovat"), ("MW", "megavat"), ("GW", "gigavat"), ("W", "vat"),
+    ("GHz", "gigahertz"), ("MHz", "megahertz"), ("kHz", "kilohertz"), ("Hz", "hertz"),
+    ("TB", "terabayt"), ("GB", "gigabayt"), ("MB", "megabayt"), ("KB", "kilobayt"),
+    ("bar", "bar"),
 ]
 _SAYI_BICIMI = r"\d{1,3}(?:\.\d{3})+(?:,\d+)?(?![.\d])|\d+(?:\.\d+){2,}|\d+[.,]\d+|\d+"
 _EK = rf"(?:['’]([{_KUCUK}]+))?"
@@ -494,13 +509,130 @@ _PARA = {"TL": "lira", "₺": "lira", "lira": "lira", "USD": "dolar", "$": "dola
 
 
 def _birimler(metin: str) -> str:
-    # "18.000 TL/m²'den satıldı" → "metrekaresi on sekiz bin liradan satıldı"; ek para
-    # birimine uydurulur ("metrekare başına'den" diye okunuyordu)
+    # 1. Sıcaklık: °C, ° C, ° (ek uyumu ile: 25°C'ye -> 25 dereceye)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*°\s*C(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} derece" + (_ek_uyumu("derece", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*°(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} derece" + (_ek_uyumu("derece", m[2]) if m[2] else ""), metin)
+
+    # 2. Hız & Hareket Birimleri (km/s, km/h, km/saat, km/sa, m/s, m/sn, km/sn, mph, knot):
+    # A) Önünde 'saatte' geçen kalıplar (çift 'saatte'yi önler: "saatte 80 km/s" -> "saatte 80 kilometre")
+    p_saatte = rf"\bsaatte\s+({_SAYI_BICIMI})\s*(?:km\s*/\s*(?:s|saat|sa|h)|km/s|km/h|km/saat|km/sa){_EK}"
+    metin = re.sub(p_saatte, lambda m: f"saatte {m[1]} kilometre" + (_ek_uyumu("kilometre", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # B) Apostrofsuz ek almış hız birimleri ("80 km/saatte", "80 km/saate", "80 km/saatten", "80 km/saatlik")
+    p_hiz_ekli = rf"({_SAYI_BICIMI})\s*km\s*/\s*saat(te|te|ten|lik|e|i|in)\b"
+    metin = re.sub(p_hiz_ekli, lambda m: f"{m[1]} kilometre bölü saat{m[2]}", metin, flags=re.IGNORECASE)
+
+    # C) km/s, km/h, km/saat, km/sa (saat ince ünlü alır: "80 km/s'ye" -> "80 kilometre bölü saate")
+    p_km_s = rf"({_SAYI_BICIMI})\s*(?:km\s*/\s*(?:s|saat|sa|h)|km/s|km/h|km/saat|km/sa)(?![{_HARF}0-9²³]){_EK}"
+    metin = re.sub(p_km_s, lambda m: f"{m[1]} kilometre bölü saat" + (_ek_uyumu("kilometre bölü saat", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # D) m/s, m/sn (metre bölü saniye)
+    p_m_s = rf"({_SAYI_BICIMI})\s*(?:m\s*/\s*(?:s|sn)|m/s|m/sn)(?![{_HARF}0-9²³]){_EK}"
+    metin = re.sub(p_m_s, lambda m: f"{m[1]} metre bölü saniye" + (_ek_uyumu("metre bölü saniye", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # E) km/sn (kilometre bölü saniye)
+    p_km_sn = rf"({_SAYI_BICIMI})\s*(?:km\s*/\s*sn|km/sn)(?![{_HARF}0-9²³]){_EK}"
+    metin = re.sub(p_km_sn, lambda m: f"{m[1]} kilometre bölü saniye" + (_ek_uyumu("kilometre bölü saniye", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # F) mil/saat, mph, knot
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:mil\s*/\s*saat|mph)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} mil bölü saat" + (_ek_uyumu("mil bölü saat", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:knot|kt)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} knot" + (_ek_uyumu("knot", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # 3. Otomotiv & Motor Birimleri:
+    # A) d/d, dev/dak, rpm (devir bölü dakika)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:d\s*/\s*d|dev\s*/\s*dak|rpm)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} devir bölü dakika" + (_ek_uyumu("devir bölü dakika", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # B) hp, bg (beygir gücü / beygirlik / beygir gücünde)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:hp|bg)\s*(?:gücü(?:nde)?|gücünde)\b",
+                   r"\1 beygir gücünde", metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:hp|bg)[\'’]lik\b",
+                   r"\1 beygirlik", metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:hp|bg)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} beygir gücü" + (_ek_uyumu("beygir gücü", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # C) Tork: Nm
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*Nm(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} newton metre" + (_ek_uyumu("newton metre", m[2]) if m[2] else ""), metin)
+
+    # D) Motor Hacmi: cc
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*cc(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} santimetreküp" + (_ek_uyumu("santimetreküp", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # 4. Ticari ve Oransal Kesirli Birimler:
     para = "|".join(re.escape(p) for p in _PARA)
     metin = re.sub(rf"({_SAYI_BICIMI})\s*({para})\s*/\s*m[²2](?![0-9]){_EK}",
                    lambda m: f"metrekaresi {m[1]} {_PARA[m[2]]}" + (_ek_uyumu(_PARA[m[2]], m[3]) if m[3] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*({para})\s*/\s*(?:kg|kilo(?:gram)?)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"kilogramı {m[1]} {_PARA[m[2]]}" + (_ek_uyumu(_PARA[m[2]], m[3]) if m[3] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*({para})\s*/\s*l[t|itre]?(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"litresi {m[1]} {_PARA[m[2]]}" + (_ek_uyumu(_PARA[m[2]], m[3]) if m[3] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*({para})\s*/\s*adet(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"adedi {m[1]} {_PARA[m[2]]}" + (_ek_uyumu(_PARA[m[2]], m[3]) if m[3] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*({para})\s*/\s*varil(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"varili {m[1]} {_PARA[m[2]]}" + (_ek_uyumu(_PARA[m[2]], m[3]) if m[3] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*({para})\s*/\s*ons(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"onsu {m[1]} {_PARA[m[2]]}" + (_ek_uyumu(_PARA[m[2]], m[3]) if m[3] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*varil\s*/\s*gün(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"günlük {m[1]} varil" + (_ek_uyumu("varil", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*bpd(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"günlük {m[1]} varil" + (_ek_uyumu("varil", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*ton\s*/\s*gün(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"günlük {m[1]} ton" + (_ek_uyumu("ton", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*kg\s*/\s*m[²2](?![{_HARF}0-9]){_EK}",
+                   lambda m: f"metrekareye {m[1]} kilogram" + (_ek_uyumu("kilogram", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # 5. Dijital Hız, Veri Akışı ve Kamera:
+    # A) Bayt Hızları (Büyük B harfi korunmalı: MB/s, GB/s, KB/s, TB/s)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*MB/s(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} megabayt bölü saniye" + (_ek_uyumu("megabayt bölü saniye", m[2]) if m[2] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*GB/s(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} gigabayt bölü saniye" + (_ek_uyumu("gigabayt bölü saniye", m[2]) if m[2] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*KB/s(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} kilobayt bölü saniye" + (_ek_uyumu("kilobayt bölü saniye", m[2]) if m[2] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*TB/s(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} terabayt bölü saniye" + (_ek_uyumu("terabayt bölü saniye", m[2]) if m[2] else ""), metin)
+    # B) Bit Hızları (mbps, mb/s, gbps, kbps)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:mbps|mb/s)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} megabit bölü saniye" + (_ek_uyumu("megabit bölü saniye", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:gbps|gb/s)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} gigabit bölü saniye" + (_ek_uyumu("gigabit bölü saniye", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:kbps|kb/s)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} kilobit bölü saniye" + (_ek_uyumu("kilobit bölü saniye", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+    # C) Kamera Sensörü: MP
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:MP|mp)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} megapiksel" + (_ek_uyumu("megapiksel", m[2]) if m[2] else ""), metin)
+
+    # 6. Enerji, Elektrik ve Batarya:
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:kWh|kwh|kW/h|kw/h)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} kilovatsaat" + (_ek_uyumu("kilovatsaat", m[2]) if m[2] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:MWh|mwh|MW/h|mw/h)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} megavatsaat" + (_ek_uyumu("megavatsaat", m[2]) if m[2] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:GWh|gwh|GW/h|gw/h)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} gigavatsaat" + (_ek_uyumu("gigavatsaat", m[2]) if m[2] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:TWh|twh)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} teravatsaat" + (_ek_uyumu("teravatsaat", m[2]) if m[2] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:mAh|mah)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} miliamper saat" + (_ek_uyumu("miliamper saat", m[2]) if m[2] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:Ah|ah)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} amper saat" + (_ek_uyumu("amper saat", m[2]) if m[2] else ""), metin)
+
+    # 7. Basınç:
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:hPa|hpa)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} hektopaskal" + (_ek_uyumu("hektopaskal", m[2]) if m[2] else ""), metin)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*(?:mbar|mb)(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} milibar" + (_ek_uyumu("milibar", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+    metin = re.sub(rf"({_SAYI_BICIMI})\s*psi(?![{_HARF}0-9]){_EK}",
+                   lambda m: f"{m[1]} pi-es-ay" + (_ek_uyumu("pi-es-ay", m[2]) if m[2] else ""), metin, flags=re.IGNORECASE)
+
+    # 8. Genel Metrekare Başına
     metin = re.sub(rf"\s*/\s*m[²2](?![0-9])(?:['’][{_KUCUK}]+)?", " metrekare başına", metin)
-    # Sayı + ölçek + para birimi: "6,3 milyar $", "100 milyon ₺'lik", "50 bin €", "2 trilyon dolar"
+
+    # 9. Sayı + ölçek + para birimi: "6,3 milyar $", "100 milyon ₺'lik", "50 bin €", "2 trilyon dolar"
     olcek_para = rf"({_SAYI_BICIMI}\s+(?:trilyon|milyar|milyon|bin))\s*({para}){_EK}"
     def olcek_para_cevir(m: "re.Match[str]") -> str:
         kok = _PARA[m[2]]
@@ -509,12 +641,31 @@ def _birimler(metin: str) -> str:
     metin = re.sub(olcek_para, olcek_para_cevir, metin)
     metin = re.sub(rf"%\s*({_SAYI_BICIMI})", r"yüzde \1", metin)
     metin = re.sub(rf"({_SAYI_BICIMI})\s*%", r"yüzde \1", metin)
+
+    # 10. Standart Birimler Listesi (_BIRIMLER)
+    # ⚠️ Bölü çizgisi (/) içeren birimlerden sonra başka birim gelmesini veya
+    # tek birimin (km, m, kg vb.) bileşik kesirli birimleri yutmasını önlemek için:
+    # Kesirli olmayan birimlerin ardında '/' aranmaz (?![{_HARF}0-9²³/]).
     for kisa, acik in _BIRIMLER:
         if not kisa[0].isalnum():  # "₺500", "$500"
             metin = re.sub(rf"{re.escape(kisa)}\s*({_SAYI_BICIMI})", rf"\1 {acik}", metin)
-        harf_duyarsiz = "(?i:" + re.escape(kisa) + ")" if kisa.isalpha() and kisa != "m" else re.escape(kisa)
-        desen = rf"({_SAYI_BICIMI})\s*{harf_duyarsiz}(?![{_HARF}0-9²³]){_EK}"
+        if kisa == "m":
+            desen = rf"({_SAYI_BICIMI})\s*m(?![{_HARF}0-9²³/]){_EK}"
+        else:
+            harf_duyarsiz = "(?i:" + re.escape(kisa) + ")"
+            desen = rf"({_SAYI_BICIMI})\s*{harf_duyarsiz}(?![{_HARF}0-9²³/]){_EK}"
         metin = re.sub(desen, lambda m, a=acik: f"{m[1]} {a}" + (_ek_uyumu(a, m[2]) if m[2] else ""), metin)
+
+    # 11. Sayısız Tek Başına Kalan Birimler
+    metin = re.sub(r"\bkm\s*/\s*s\b", "kilometre bölü saat", metin, flags=re.IGNORECASE)
+    metin = re.sub(r"\bkm\s*/\s*h\b", "kilometre bölü saat", metin, flags=re.IGNORECASE)
+    metin = re.sub(r"\bkm\s*/\s*sa(?:at)?\b", "kilometre bölü saat", metin, flags=re.IGNORECASE)
+    metin = re.sub(r"\bm\s*/\s*s\b", "metre bölü saniye", metin, flags=re.IGNORECASE)
+    metin = re.sub(r"\bm\s*/\s*sn\b", "metre bölü saniye", metin, flags=re.IGNORECASE)
+    metin = re.sub(r"\bkm\s*/\s*sn\b", "kilometre bölü saniye", metin, flags=re.IGNORECASE)
+    metin = re.sub(r"\bd\s*/\s*d\b", "devir bölü dakika", metin, flags=re.IGNORECASE)
+    metin = re.sub(r"\bbpd\b", "varil bölü gün", metin, flags=re.IGNORECASE)
+
     return metin
 
 
@@ -853,6 +1004,7 @@ def _son_temizlik(metin: str) -> str:
     metin = re.sub(r"([^\s.!?:;,]+)[ \t]*\n+", _satir_sonu, metin)
     metin = re.sub(r"\s*\n+\s*", " ", metin)
     metin = metin.replace("&", " ve ").replace("=", " eşittir ").replace("~", " yaklaşık ").replace("@", " ")
+    metin = re.sub(r"°\s*C\b", " santigrat derece", metin)
     for simge, okunus in (("km²", "kilometrekare"), ("m²", "metrekare"), ("m³", "metreküp"), ("°", " derece"),
                           ("₺", " lira"), ("$", " dolar"), ("€", " avro"), ("£", " sterlin")):
         # "m²'si" → "metrekaresi": ek kelimeye yapışır, ünlüsü yeni köke uyar
