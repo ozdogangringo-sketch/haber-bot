@@ -465,31 +465,27 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         except Exception as e:
             log.exception("YouTube/TikTok/Facebook için ortak video üretilemedi: %s", e)
 
-        # Telegram'a Her Durumda Video ve Açıklama Gönderimi:
-        # Kullanıcı kuralları:
-        # 1. YouTube & Facebook için üretilen seslendirilmiş video HER TÜRLÜ Telegram'a düşer.
-        # 2. Eğer Reels veya TikTok Video seçildiyse ve seslendirme seçilmediyse (düz "Yayınla"),
-        #    trend müzik eklemek üzere sessiz video da Telegram'a düşer.
+        # Telegram'a Video ve Açıklama Gönderimi:
+        # 1. YouTube & Facebook için ElevenLabs her halükarda çalışır (arka planda fiks).
+        # 2. Telegram'a gönderim tercihe bağlıdır:
+        #    - Eğer kullanıcı "🎙️ Sesli Yayınla" seçtiyse (ses_modu var): Seslendirilmiş video gider.
+        #    - Eğer kullanıcı normal "✅ Yayınla" seçtiyse (ses_modu yok): Normal/sessiz (trend müzik eklemeye hazır) video gider.
         v_sesli = sesli_video_yolu if (sesli_video_yolu and Path(sesli_video_yolu).exists()) else (
             paylasilan_video_yolu if (ses_modu and paylasilan_video_yolu and Path(paylasilan_video_yolu).exists()) else None
         )
-        v_sessiz = sessiz_video_yolu if (
-            (paylas_reels or paylas_tt_video) and not ses_modu and sessiz_video_yolu and Path(sessiz_video_yolu).exists()
-        ) else None
-
-        # Eğer yukarıdaki ayrımda hiçbiri bulunamadıysa ama herhangi bir video üretildiyse kaybolmasın:
-        if not v_sesli and not v_sessiz:
-            v_sesli = paylasilan_video_yolu or sessiz_video_yolu or sesli_video_yolu
+        v_sessiz = sessiz_video_yolu if (sessiz_video_yolu and Path(sessiz_video_yolu).exists()) else (
+            paylasilan_video_yolu if (paylasilan_video_yolu and Path(paylasilan_video_yolu).exists()) else None
+        )
 
         try:
             import html as html_lib
             reels_aciklama_tg = caption.aciklamayi_kur(metin, haberler, kanal="reels", ayarlar=ayarlar)
             temiz_metin_tg = html_lib.escape(reels_aciklama_tg.strip())
 
-            # 1. Seslendirilmiş video gönderimi (Her durumda)
-            if v_sesli and Path(v_sesli).exists():
+            # A) Kullanıcı "🎙️ Sesli Yayınla" seçtiyse -> Telegram'a seslendirilmiş video
+            if ses_modu and v_sesli and Path(v_sesli).exists():
                 try:
-                    if (ses_modu and ses_sonucu.get("anlatim")) or (ses_sonucu_yt and ses_sonucu_yt.get("anlatim")):
+                    if ses_sonucu.get("anlatim") or (ses_sonucu_yt and ses_sonucu_yt.get("anlatim")):
                         ses_aciklama_tg = (
                             "🎙️ <b>Daily Brief Seslendirmeli Video (Shorts / FB Reels - 1080x1920 MP4)</b>\n\n"
                             "🔊 <b>ElevenLabs Seslendirmesi:</b> 🎵 Fon müzikli\n"
@@ -507,8 +503,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 except Exception as e_tg_v:
                     log.warning("Telegram'a sesli video iletilemedi: %s", e_tg_v)
 
-            # 2. Sessiz video gönderimi (Reels / TT Video seçili ve ses_modu seçilmemişse)
-            if v_sessiz and Path(v_sessiz).exists() and v_sessiz != v_sesli:
+            # B) Kullanıcı normal "✅ Yayınla" seçtiyse -> Telegram'a normal/sessiz video
+            elif not ses_modu and v_sessiz and Path(v_sessiz).exists():
                 try:
                     sessiz_aciklama_tg = (
                         "🎬 <b>Daily Brief Reels & TikTok Videosu (Sessiz - 1080x1920 MP4)</b>\n\n"
@@ -521,7 +517,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 except Exception as e_tg_vs:
                     log.warning("Telegram'a sessiz video iletilemedi: %s", e_tg_vs)
 
-            if v_sesli or v_sessiz:
+            if (ses_modu and v_sesli) or (not ses_modu and v_sessiz):
                 telegram_bot.mesaj_gonder(
                     "📝 <b>Reels / Video Açıklama Metni (Kopyalamak için dokunun):</b>\n"
                     f"<pre>{temiz_metin_tg}</pre>",
@@ -1100,7 +1096,8 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
         telegram_bot.mesaj_gonder(f"⚠️ #{mesaj_id} numaralı tura ait haber kaydı bulunamadı.")
         return 0
 
-    ilk_h_dict = dict(haberler[0])
+    haberler = [dict(h) if not isinstance(h, dict) else h for h in haberler]
+    ilk_h_dict = haberler[0]
     son_dakika_mi = bool(ilk_h_dict.get("son_dakika")) or len(haberler) == 1
     tur_mu = len(haberler) > 1
 
