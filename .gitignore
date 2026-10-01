@@ -27,6 +27,11 @@ logs/
 # db_senkron._wal_bosalt() içerikleri ana dosyaya aktarıyor.
 data/haber.db-wal
 data/haber.db-shm
+*.db-wal
+*.db-shm
+data/*_temp*
+data/cache/
+data/cand/
 
 # wrangler files
 .wrangler

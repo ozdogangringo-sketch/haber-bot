@@ -440,7 +440,13 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                             else "\n🔇 Seslendirme üretilemedi (ElevenLabs anahtarı/kotası) — videolar seslendirmesiz çıktı")
             elif dikey_gorseller:
                 # Düz "✅ Yayınla": Instagram Reels/TikTok sessiz video
-                sessiz_video_yolu = video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=0.5, haberler=haberler)
+                sessiz_video_yolu = video.slaytlardan_reels_uret(
+                    dikey_gorseller,
+                    cikti_yolu=video.CIKTI_KLASORU / "reels_sessiz_trend.mp4",
+                    fps=30,
+                    gecis_suresi=0.5,
+                    haberler=haberler,
+                )
                 paylasilan_video_yolu = sessiz_video_yolu
                 # YouTube Shorts ve Facebook Reels: Her türlü ElevenLabs sesli ve fon müzikli!
                 try:

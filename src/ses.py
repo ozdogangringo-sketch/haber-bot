@@ -262,7 +262,8 @@ def anlatimli_video_uret(dikey_gorseller: List[Path | str], haberler: List[Any],
         sureler[-1] = round(max(sureler[-1], asgari - son_bas + d_cagri + ANLATIM_SONRASI_SN), 2)
         parcalar.append((cagri, max(asgari, sum(sureler) - d_cagri - ANLATIM_SONRASI_SN)))
 
-    sessiz = Path(video.slaytlardan_reels_uret(dikey_gorseller, fps=30, gecis_suresi=GECIS_SN,
+    sessiz_gecici = CIKTI / f"gecici_anlatim_{os.getpid()}_{int(time.time() * 1000)}.mp4"
+    sessiz = Path(video.slaytlardan_reels_uret(dikey_gorseller, cikti_yolu=sessiz_gecici, fps=30, gecis_suresi=GECIS_SN,
                                               slayt_sureleri=sureler, haberler=haberler))
     anlatim = _anlatim_izi(parcalar, sum(sureler), sessiz.with_name(f"{sessiz.stem}_anlatim.wav")) if parcalar else None
     if sonuc is not None:
