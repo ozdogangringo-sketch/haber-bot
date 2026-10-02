@@ -866,13 +866,73 @@ def test_sabotaj_50_tum_menuler_64_bayt_callback_limiti():
     print(f"  ✓ Sabotaj 50: {toplam_buton} butonun tamamı Telegram 64 bayt limitine eksiksiz uydu")
 
 
+def test_sabotaj_51_worker_kanal_senkronizasyonu():
+    """Worker alt menüler arası geçişlerde kanal seçimlerinin canlı korunması."""
+    import subprocess
+    js_kodu = """
+    const fs = require('fs');
+    const workerPath = process.argv[1];
+    let k = fs.readFileSync(workerPath, 'utf8').replace(/export default[\\s\\S]*$/, '');
+    const w = new Function(k + '; return { anaMenu, sesMenusu, sesliYayinZamaniMenusu, yayinZamaniMenusu, seciliKanallariCikar, kanallariKodla, kanallariCoz };')();
+
+    // 1. Initial menu: anaMenu without channels
+    const menu1 = w.anaMenu(3, null);
+    const kanallar1 = w.seciliKanallariCikar(menu1.inline_keyboard);
+    if (!kanallar1.includes('ig') || kanallar1.includes('reels')) {
+      throw new Error('Initial defaults wrong: ' + JSON.stringify(kanallar1));
+    }
+
+    // 2. Open sesMenusu
+    const menu2 = w.sesMenusu(3, kanallar1);
+    // Simulating user toggling Reels on sesMenusu:
+    const klavye2 = menu2.inline_keyboard.map(satir => satir.map(b => {
+      let copy = {...b};
+      if (b.callback_data === 'kanal:reels') copy.text = '✅ Reels';
+      if (b.callback_data === 'kanal:ig') copy.text = '⬜ IG';
+      return copy;
+    }));
+    const guncelKanallar = w.seciliKanallariCikar(klavye2);
+    if (!guncelKanallar.includes('reels') || guncelKanallar.includes('ig')) {
+      throw new Error('Toggle failed: ' + JSON.stringify(guncelKanallar));
+    }
+
+    // 3. User clicks "Fon müzikli" -> transition to sesliYayinZamaniMenusu
+    const menu3 = w.sesliYayinZamaniMenusu('muzikli', 3, guncelKanallar);
+    const kanallar3 = w.seciliKanallariCikar(menu3.inline_keyboard);
+    if (!kanallar3.includes('reels') || kanallar3.includes('ig')) {
+      throw new Error('Transition lost channel toggle: ' + JSON.stringify(kanallar3));
+    }
+
+    // 4. Back transition to anaMenu
+    const menu4 = w.anaMenu(3, kanallar3);
+    const kanallar4 = w.seciliKanallariCikar(menu4.inline_keyboard);
+    if (!kanallar4.includes('reels') || kanallar4.includes('ig')) {
+      throw new Error('Back to anaMenu lost channel toggle: ' + JSON.stringify(kanallar4));
+    }
+
+    // 5. Unchecking all channels test
+    const menu5 = w.anaMenu(3, []);
+    const kanallar5 = w.seciliKanallariCikar(menu5.inline_keyboard);
+    if (kanallar5.length !== 0) {
+      throw new Error('Unchecked all channels failed: ' + JSON.stringify(kanallar5));
+    }
+
+    console.log('OK');
+    """
+    worker_dosyasi = str(KOK / "worker" / "index.js")
+    res = subprocess.run(["node", "-e", js_kodu, worker_dosyasi], capture_output=True, text=True)
+    assert res.returncode == 0, f"Worker kanal senkronizasyon testi başarısız: {res.stderr}"
+    assert "OK" in res.stdout
+    print("  ✓ Sabotaj 51: Worker alt menülerinde kanal toggle senkronizasyonu ve default koruması doğrulandı")
+
+
 # ===========================================================================
 # ÇALIŞTIRICI & RAPORLAMA
 # ===========================================================================
 
 def main():
     print("\n" + "=" * 70)
-    print("TELEGRAM ALTYAPISI 50 SABOTAJ VE DAYANIKLILIK TESTİ")
+    print("TELEGRAM ALTYAPISI 51 SABOTAJ VE DAYANIKLILIK TESTİ")
     print("=" * 70)
 
     testler = [
@@ -935,6 +995,7 @@ def main():
         test_sabotaj_48_hata_bildir_taninan_hatalar,
         test_sabotaj_49_menuyu_geri_koy_dogru_klavye,
         test_sabotaj_50_tum_menuler_64_bayt_callback_limiti,
+        test_sabotaj_51_worker_kanal_senkronizasyonu,
     ]
 
     basarili = 0
