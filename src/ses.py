@@ -193,10 +193,11 @@ def sesli_video_hazirla(video_yolu: Path, konusma: Optional[Path], muzik: bool,
     cikti = Path(cikti_yolu) if cikti_yolu else video_yolu.with_name(f"{video_yolu.stem}_sesli.mp4")
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
     seviye = f"loudnorm=I={_ayar(ayarlar, 'hedef_lufs', -14)}:TP=-1.5:LRA=11"
+    muzik_seviye = _ayar(ayarlar, "fon_muzik_seviyesi", 0.35)
     muzikli = muzik and FON_MUZIGI.exists()
     if konusma and muzikli:
         komut = [ffmpeg, "-y", "-i", str(video_yolu), "-i", str(konusma), "-stream_loop", "-1", "-i", str(FON_MUZIGI),
-                 "-filter_complex", f"[1:a]volume=1.0[v];[2:a]volume=0.14[m];[v][m]amix=inputs=2:duration=first:"
+                 "-filter_complex", f"[1:a]volume=1.0[v];[2:a]volume={muzik_seviye}[m];[v][m]amix=inputs=2:duration=first:"
                  f"dropout_transition=2,{seviye}[aout]", "-map", "0:v", "-map", "[aout]"]
     elif konusma:
         komut = [ffmpeg, "-y", "-i", str(video_yolu), "-i", str(konusma), "-map", "0:v", "-map", "1:a", "-af", seviye]

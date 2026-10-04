@@ -1222,6 +1222,7 @@ seslendirme:
     use_speaker_boost: true
     speed: 1.15
   hedef_lufs: -14
+  fon_muzik_seviyesi: 0.35              # Arka plan fon müziği seviyesi (0.14 çok kısıktı, 0.35 dengeli haber/reels ambiyansı)
   # Tek haberli postta (son dakika) her zaman kapak: başlık + özet.
   # Turda (birden çok haber) — kullanıcı kararı 2026-09-26: "sadece başlıkları okunsun".
   #   basliklar: her slayt YALNIZCA kendi haberinin başlığını okur

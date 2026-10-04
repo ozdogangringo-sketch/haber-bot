@@ -127,7 +127,8 @@ class TestKaristirma(unittest.TestCase):
     def test_kipler(self):
         cikti, k = self._komut(True, True)
         self.assertTrue(cikti.name.endswith("_sesli.mp4"))
-        self.assertIn("volume=0.14", k)
+        muzik_seviye = AYARLAR.get("seslendirme", {}).get("fon_muzik_seviyesi", 0.35)
+        self.assertIn(f"volume={muzik_seviye}", k)
         self.assertIn("loudnorm=I=-14", k)
         _, k = self._komut(True, False)
         self.assertNotIn("haber_fon", k)
