@@ -5761,6 +5761,271 @@ def test_kopru_imzasi_iki_tarafta_ayni() -> None:
             f"python={uk.imza(jeton)[:16]}… worker={worker_imzasi[:16]}…")
 
 
+# ─────────────────────────────────────────────────────────────
+#  VERİTABANI KAYDI CANLI DOSYAYA GİT İLE DOKUNMAMALI
+# ─────────────────────────────────────────────────────────────
+#
+# ⚠️ 4-7 Eki 2026: "Hazırla" işlerinin 14'ü `file is not a database` ile kırmızıya
+# düştü (son 15 başarısız işin 14'ü). Öneri hazırlanıp gruba gidiyor, sonra
+# `oneriyi_hazirla` veritabanını yeniden açınca patlıyordu; çoklu seçimde kalan
+# haberler hiç hazırlanmıyordu. Sebep: push reddedilince `_birlestir` git ile
+# (rebase/checkout) veritabanı dosyasını YENİDEN YARATIYORDU — `son_dakika.main`'in
+# bağlantısı açıkken. Açık bağlantı silinmiş dosyaya bakıyor, yazdıkları yeni
+# dosyanın `-wal`'ına düşüyor (yol aynı, .gitignore'da, stash'e girmiyor) ve iki
+# ayrı veritabanının sayfaları karışıyor. Mac'te zararsız göründü, Linux runner'da
+# başlığı bozdu. Platformdan bağımsız ölçüt: dosyanın inode'u kayıt boyunca DEĞİŞMEMELİ.
+
+def _git_deneme_deposu(kok: Path):
+    """Uzak (bare) depo + iki klon: A bizim iş, B araya giren iş. Gerçek şema `db.kur` ile."""
+    import subprocess
+    from src import db as dbmod
+
+    def git(cwd, *a):
+        return subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True)
+
+    uzak, a, b = kok / "uzak.git", kok / "A", kok / "B"
+    git(kok, "init", "-q", "--bare", str(uzak))
+    git(uzak, "symbolic-ref", "HEAD", "refs/heads/main")
+    for k in (a, b):
+        git(kok, "clone", "-q", str(uzak), str(k))
+        git(k, "config", "user.name", "deneme")
+        git(k, "config", "user.email", "deneme@ornek")
+        git(k, "checkout", "-q", "-B", "main")
+    (a / ".gitignore").write_text("data/haber.db-wal\ndata/haber.db-shm\n")
+    (a / "data").mkdir()
+    (a / "assets" / "flags").mkdir(parents=True)
+    (a / "assets" / "flags" / "a.png").write_bytes(b"a")
+    dbmod.DB_YOLU = a / "data" / "haber.db"
+    dbmod.kur()
+    c = sqlite3.connect(dbmod.DB_YOLU)
+    for i in (1, 2, 3):
+        c.execute("INSERT INTO haberler (id, kaynak, kategori, baslik_orj, link) VALUES (?,?,?,?,?)",
+                  (i, "k", "turkiye", f"haber {i}", f"https://ornek/{i}"))
+    c.execute("INSERT INTO ayarlar VALUES ('x', 'taban'), ('y', 'taban')")
+    c.commit()
+    c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    c.close()
+    git(a, "add", ".")
+    git(a, "commit", "-qm", "ilk")
+    git(a, "push", "-q", "origin", "HEAD:main")
+    git(b, "pull", "-q", "origin", "main")
+
+    # B (araya giren iş): 2. haberi yayınladı, 'y' ayarını değiştirdi, bayrak ekledi.
+    c = sqlite3.connect(b / "data" / "haber.db")
+    c.execute("UPDATE haberler SET durum = 'yayinlandi', ig_post_id = 'B' WHERE id = 2")
+    c.execute("UPDATE ayarlar SET deger = 'B' WHERE anahtar = 'y'")
+    c.commit()
+    c.close()
+    (b / "assets" / "flags" / "b.png").write_bytes(b"b")
+    git(b, "add", ".")
+    git(b, "commit", "-qm", "B")
+    git(b, "push", "-q", "origin", "HEAD:main")
+    return git, a
+
+
+def _wal_baglan(yol) -> sqlite3.Connection:
+    """src/db.baglan ile aynı kip (WAL)."""
+    c = sqlite3.connect(yol, timeout=30)
+    c.execute("PRAGMA journal_mode = WAL")
+    return c
+
+
+def test_db_kaydi_canli_dosyaya_dokunmaz() -> None:
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+    from src import db as dbmod, db_senkron
+
+    if not shutil.which("git"):
+        denetle(False, "db kaydı: git bulunamadı, denetim yapılamadı")
+        return
+    kok = Path(tempfile.mkdtemp(prefix="dbkayit-"))
+    eski_cwd, eski_yol = Path.cwd(), dbmod.DB_YOLU
+    try:
+        git, a = _git_deneme_deposu(kok)
+        os.chdir(a)
+        # son_dakika.main'in bağlantısı: AÇIK kalıyor, yazıp commit ediyor, sonra kayıt çağrılıyor.
+        acik = _wal_baglan("data/haber.db")
+        acik.execute("UPDATE haberler SET durum = 'onay_bekliyor', telegram_message_id = 7 WHERE id = 1")
+        acik.execute("UPDATE ayarlar SET deger = 'A' WHERE anahtar = 'x'")
+        acik.commit()
+        ino = os.stat("data/haber.db").st_ino
+
+        sonuc = db_senkron._kaydet("A: onaya sunuldu", ["assets/flags"])
+
+        denetle(sonuc is True, "db kaydı: push reddedilince birleştirip yine gönderiyor", f"_kaydet={sonuc}")
+        denetle(os.stat("data/haber.db").st_ino == ino,
+                "db kaydı: git canlı veritabanı dosyasını YENİDEN YARATMIYOR (inode sabit)",
+                "inode değişti → açık bağlantı silinmiş dosyaya bakıyor, -wal iki veritabanı arasında karışıyor")
+
+        # Açık bağlantı kayıttan sonra da yazabilmeli, yazdığı kaybolmamalı.
+        acik.execute("UPDATE haberler SET hatirlatma_sayisi = 5 WHERE id = 3")
+        acik.commit()
+        acik.close()
+        c = _wal_baglan("data/haber.db")
+        qc = c.execute("PRAGMA quick_check").fetchone()[0]
+        s3 = c.execute("SELECT hatirlatma_sayisi FROM haberler WHERE id = 3").fetchone()[0]
+        s2 = c.execute("SELECT durum FROM haberler WHERE id = 2").fetchone()[0]
+        c.close()
+        denetle(qc == "ok" and s3 == 5, "db kaydı: kayıttan sonra açık bağlantının yazdığı korunuyor",
+                f"quick_check={qc}, sayaç={s3}")
+        denetle(s2 == "yayinlandi", "db kaydı: araya giren işin değişikliği yerel veritabanına da geliyor",
+                f"2. haber durumu={s2}")
+
+        git(a, "fetch", "-q", "origin")
+        uz = kok / "uzak.db"
+        uz.write_bytes(subprocess.run(["git", "show", "origin/main:data/haber.db"],
+                                      cwd=a, capture_output=True).stdout)
+        c = sqlite3.connect(uz)
+        r1 = c.execute("SELECT durum, telegram_message_id FROM haberler WHERE id = 1").fetchone()
+        r2 = c.execute("SELECT durum, ig_post_id FROM haberler WHERE id = 2").fetchone()
+        ay = dict(c.execute("SELECT anahtar, deger FROM ayarlar"))
+        c.close()
+        denetle(r1 == ("onay_bekliyor", 7) and r2 == ("yayinlandi", "B"),
+                "db kaydı: GitHub'daki sonuç iki işin değişikliğini de taşıyor", f"1={r1}, 2={r2}")
+        denetle(ay.get("x") == "A" and ay.get("y") == "B",
+                "db kaydı: iki işin ayar değişikliği de korunuyor (biri öbürünü ezmiyor)", f"ayarlar={ay}")
+        dosyalar = set(git(a, "ls-tree", "-r", "--name-only", "origin/main").stdout.split())
+        denetle({"assets/flags/a.png", "assets/flags/b.png"} <= dosyalar,
+                "db kaydı: başka işin eklediği dosya bizim kayıtla silinmiyor", f"uzaktaki bayraklar={sorted(d for d in dosyalar if 'flags' in d)}")
+        bas = git(a, "rev-parse", "HEAD").stdout.strip()
+        uzak_bas = git(a, "rev-parse", "origin/main").stdout.strip()
+        durum = git(a, "status", "--porcelain").stdout
+        denetle(bas == uzak_bas and (a / "assets" / "flags" / "b.png").exists()
+                and "rebase" not in git(a, "status").stdout.lower(),
+                "db kaydı: yerel dal gönderilen commit'te, yarım rebase yok, klasör güncel",
+                f"HEAD={bas[:7]} origin={uzak_bas[:7]} b.png={(a / 'assets' / 'flags' / 'b.png').exists()} durum={durum!r}")
+    finally:
+        os.chdir(eski_cwd)
+        dbmod.DB_YOLU = eski_yol
+        shutil.rmtree(kok, ignore_errors=True)
+
+
+def test_db_kaydi_yarista_tekrar_deniyor_ve_ezmiyor() -> None:
+    """
+    (1) Biz birleştirip gönderirken başka bir iş YİNE araya girerse tekrar denenmeli ve
+    üç işin değişikliği de kalmalı. Yarış, A'nın `pre-push` kancasıyla canlandırılıyor:
+    A'nın ikinci push denemesinden hemen önce B bir değişiklik daha push ediyor.
+    (2) Birleştirme başarısızsa HİÇ push edilmemeli — birleşmemiş sürümü göndermek
+    araya giren işin "yayınlandı" kaydını silerdi (eski kod uyarı yazıp gönderiyordu).
+    """
+    import os
+    import shutil
+    import stat
+    import subprocess
+    import tempfile
+    from src import db as dbmod, db_senkron
+
+    if not shutil.which("git"):
+        denetle(False, "db yarışı: git bulunamadı, denetim yapılamadı")
+        return
+    kok = Path(tempfile.mkdtemp(prefix="dbyaris-"))
+    eski_cwd, eski_yol = Path.cwd(), dbmod.DB_YOLU
+    try:
+        git, a = _git_deneme_deposu(kok)
+        b = kok / "B"
+        sayac = kok / "kanca-sayac"
+        betik = kok / "b_araya_gir.py"
+        betik.write_text(
+            "import sqlite3, subprocess, sys\n"
+            f"c = sqlite3.connect({str(b / 'data' / 'haber.db')!r})\n"
+            "c.execute(\"UPDATE haberler SET durum='yayinlandi', ig_post_id='C' WHERE id=3\")\n"
+            "c.commit(); c.close()\n"
+            f"subprocess.run(['git','commit','-qam','C'], cwd={str(b)!r})\n"
+            f"subprocess.run(['git','push','-q','origin','HEAD:main'], cwd={str(b)!r})\n")
+        kanca = a / ".git" / "hooks" / "pre-push"
+        kanca.write_text(
+            "#!/bin/sh\n"
+            f"n=$(cat '{sayac}' 2>/dev/null || echo 0); n=$((n+1)); echo $n > '{sayac}'\n"
+            # 1. push (_kaydet'in ilki) zaten reddedilecek; 2. push'tan (ilk birleştirme) hemen önce B araya giriyor.
+            f"[ \"$n\" = 2 ] && '{sys.executable}' '{betik}'\n"
+            "exit 0\n")
+        kanca.chmod(kanca.stat().st_mode | stat.S_IEXEC)
+        os.chdir(a)
+        acik = _wal_baglan("data/haber.db")
+        acik.execute("UPDATE haberler SET durum = 'onay_bekliyor' WHERE id = 1")
+        acik.commit()
+        sonuc = db_senkron._kaydet("A", ["assets/flags"])
+        acik.close()
+        git(a, "fetch", "-q", "origin")
+        uz = kok / "uzak.db"
+        uz.write_bytes(subprocess.run(["git", "show", "origin/main:data/haber.db"], cwd=a, capture_output=True).stdout)
+        c = sqlite3.connect(uz)
+        durumlar = dict(c.execute("SELECT id, durum FROM haberler"))
+        c.close()
+        denetle(sonuc is True and durumlar == {1: "onay_bekliyor", 2: "yayinlandi", 3: "yayinlandi"},
+                "db yarışı: ikinci kez araya girilince tekrar deneniyor, üç işin değişikliği de kalıyor",
+                f"_kaydet={sonuc}, push denemesi={sayac.read_text().strip() if sayac.exists() else '?'}, uzak={durumlar}")
+
+        # (2) Birleştirme başarısız → push YOK.
+        kanca.unlink()
+        git(b, "pull", "-q", "--no-rebase", "origin", "main")
+        cb = sqlite3.connect(b / "data" / "haber.db")
+        cb.execute("UPDATE haberler SET ig_post_id = 'D' WHERE id = 2")
+        cb.commit()
+        cb.close()
+        git(b, "commit", "-qam", "D")
+        git(b, "push", "-q", "origin", "HEAD:main")
+        once = git(b, "rev-parse", "HEAD").stdout.strip()
+        c = _wal_baglan("data/haber.db")
+        c.execute("UPDATE haberler SET hatirlatma_sayisi = 9 WHERE id = 1")
+        c.commit()
+        c.close()
+        asil = db_senkron._sqlite_db_birlestir
+        db_senkron._sqlite_db_birlestir = lambda *a, **k: False
+        try:
+            sonuc2 = db_senkron._kaydet("A2", [])
+        finally:
+            db_senkron._sqlite_db_birlestir = asil
+        git(a, "fetch", "-q", "origin")
+        sonra = git(a, "rev-parse", "origin/main").stdout.strip()
+        denetle(sonuc2 is False and sonra == once,
+                "db yarışı: birleştirme başarısızsa push YAPILMIYOR (araya gireni ezmemek için)",
+                f"_kaydet={sonuc2}, uzak değişti mi={sonra != once}")
+    finally:
+        os.chdir(eski_cwd)
+        dbmod.DB_YOLU = eski_yol
+        shutil.rmtree(kok, ignore_errors=True)
+
+
+def test_uzaktan_tazele_canli_dosyaya_dokunmaz() -> None:
+    """Yayın işi turu bulamayınca GitHub'daki veritabanını çekiyor — çağıranın bağlantısı AÇIKKEN."""
+    import os
+    import shutil
+    import tempfile
+    from src import db as dbmod, db_senkron
+
+    if not shutil.which("git"):
+        denetle(False, "uzaktan tazele: git bulunamadı, denetim yapılamadı")
+        return
+    kok = Path(tempfile.mkdtemp(prefix="dbtazele-"))
+    eski_cwd, eski_yol = Path.cwd(), dbmod.DB_YOLU
+    try:
+        _, a = _git_deneme_deposu(kok)
+        os.chdir(a)
+        acik = _wal_baglan("data/haber.db")
+        once = acik.execute("SELECT durum FROM haberler WHERE id = 2").fetchone()[0]
+        ino = os.stat("data/haber.db").st_ino
+        ok = db_senkron.uzaktan_tazele()
+        denetle(ok is True and os.stat("data/haber.db").st_ino == ino,
+                "uzaktan tazele: GitHub'daki sürüm alınırken dosya YENİDEN YARATILMIYOR",
+                f"sonuç={ok}, inode değişti mi={os.stat('data/haber.db').st_ino != ino}")
+        sonra = acik.execute("SELECT durum FROM haberler WHERE id = 2").fetchone()[0]
+        acik.close()
+        c = _wal_baglan("data/haber.db")
+        qc = c.execute("PRAGMA quick_check").fetchone()[0]
+        yeni = c.execute("SELECT durum FROM haberler WHERE id = 2").fetchone()[0]
+        c.close()
+        denetle(once != "yayinlandi" and sonra == "yayinlandi" and yeni == "yayinlandi" and qc == "ok",
+                "uzaktan tazele: açık bağlantı da yeni bağlantı da güncel veriyi görüyor",
+                f"önce={once}, açık bağlantı={sonra}, yeni bağlantı={yeni}, quick_check={qc}")
+    finally:
+        os.chdir(eski_cwd)
+        dbmod.DB_YOLU = eski_yol
+        shutil.rmtree(kok, ignore_errors=True)
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -5856,6 +6121,9 @@ def main() -> int:
         test_uygulama_koprusu_botu_durdurmaz,
         test_kaydet_adimlari_kopru_jetonunu_tasiyor,
         test_kopru_imzasi_iki_tarafta_ayni,
+        test_db_kaydi_canli_dosyaya_dokunmaz,
+        test_db_kaydi_yarista_tekrar_deniyor_ve_ezmiyor,
+        test_uzaktan_tazele_canli_dosyaya_dokunmaz,
     ):
         try:
             test()

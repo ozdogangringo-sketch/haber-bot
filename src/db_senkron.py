@@ -25,18 +25,23 @@ NEDEN PYTHON İÇİNDEN:
 
 from __future__ import annotations
 
+from contextlib import closing
 import logging
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import tempfile
 
 log = logging.getLogger(__name__)
 
 DAL = "main"
 
-# Çakışmada BİZİM sürümümüzün kazanacağı dosyalar. İkili dosyalar
-# birleştirilemiyor; birini seçmek zorundayız.
-BIZIM_KAZANIR = ("data/haber.db",)
+# Veritabanının depodaki yolu (git komutları ve SQLite aynı dosyaya bakıyor).
+DB_GIT_YOLU = "data/haber.db"
+
+# Push reddedilince (araya başka iş girince) birleştir-gönder kaç kez denensin.
+AZAMI_BIRLESTIRME = 4
 
 
 def veritabani_saglam_mi(db_yolu: str | Path = "data/haber.db") -> bool:
@@ -90,34 +95,61 @@ def _push() -> tuple[bool, str]:
     return _calistir("git", "push", "origin", f"HEAD:{DAL}", saniye=120)
 
 
-def _sqlite_db_birlestir(yerel_db_yolu: str, uzak_db_yolu: str) -> None:
+def _ortak_kolonlar(con: sqlite3.Connection, tablo: str) -> str:
     """
-    İki SQLite veritabanındaki haberler ve ayarlar tablolarını birleştirir.
+    Yerel ve uzak tablonun ORTAK kolonları, yereldeki sırayla.
+
+    `SELECT *` iki tarafın kolon sırası/sayısı birebir aynıysa çalışıyor; bir
+    job yeni kolonla (db.EK_KOLONLAR) çalışırken öbürü eski şemayla push etmişse
+    birleştirme patlıyordu. Ortak kolonlarla kopyalamak iki durumda da çalışıyor.
+    """
+    yerel = [r[1] for r in con.execute(f"PRAGMA main.table_info({tablo})")]
+    uzak = {r[1] for r in con.execute(f"PRAGMA remote_db.table_info({tablo})")}
+    return ", ".join(f'"{k}"' for k in yerel if k in uzak)
+
+
+def _sqlite_db_birlestir(yerel_db_yolu: str | Path, uzak_db_yolu: str | Path,
+                         taban_db_yolu: str | Path | None = None) -> bool:
+    """
+    Uzaktaki veritabanını SQLite üzerinden YERELİN İÇİNE alır.
+
     Uzakta onaylanan/yayınlanan veya yeni eklenen haberler korunur,
     yerelde üretilen taze haber/slayt verileri ezilmez.
+
+    ⚠️ Dosyayı yalnızca SQLite değiştiriyor — açık bağlantılar (çağıranın `con`'u)
+    tutarlı kalıyor. Eskiden çakışmada git dosyayı diskte yeniden yaratıyordu.
+
+    Ayarlar ÜÇ YÖNLÜ birleşiyor (`taban` = iki işin ortak başlangıcı): bizim
+    değiştirmediğimiz anahtar uzaktakini alıyor, bizim değiştirdiğimiz bizde
+    kalıyor. Eskiden uzak her zaman kazanıyordu ve bu işte yapılan bir ayar
+    değişikliği (ör. uygulamadan/Telegram'dan /ayar) sessizce kayboluyordu.
+
+    Başarısızsa False — o zaman PUSH EDİLMEMELİ: birleşmemiş yerel sürümü
+    göndermek araya giren işin değişikliklerini (ör. "yayınlandı") silerdi.
     """
-    import sqlite3
     try:
-        with sqlite3.connect(yerel_db_yolu, timeout=30) as con:
+        with closing(sqlite3.connect(yerel_db_yolu, timeout=30)) as con:
+            con.execute("PRAGMA busy_timeout = 30000")
             con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            con.execute(f'ATTACH "{uzak_db_yolu}" AS remote_db')
+            con.execute("ATTACH DATABASE ? AS remote_db", (str(uzak_db_yolu),))
+            kol = _ortak_kolonlar(con, "haberler")
             # 1. Uzakta olup yerelde hiç olmayan haberleri ekle
-            con.execute('''
-                INSERT OR IGNORE INTO haberler 
-                SELECT * FROM remote_db.haberler 
+            con.execute(f'''
+                INSERT OR IGNORE INTO haberler ({kol})
+                SELECT {kol} FROM remote_db.haberler
                 WHERE id NOT IN (SELECT id FROM haberler)
             ''')
             # 2. Uzakta onay bekleyen, yayınlanan veya işlem gören haberler yereldeki işlenmemiş ('yeni', 'metin_hazir') halini tamamen ezer
             con.execute('''
-                DELETE FROM haberler 
+                DELETE FROM haberler
                 WHERE id IN (
-                    SELECT id FROM remote_db.haberler 
+                    SELECT id FROM remote_db.haberler
                     WHERE durum IN ('onay_bekliyor', 'yayinlandi', 'ertelendi', 'reddedildi', 'cop')
                 ) AND durum IN ('yeni', 'metin_hazir')
             ''')
-            con.execute('''
-                INSERT OR IGNORE INTO haberler 
-                SELECT * FROM remote_db.haberler 
+            con.execute(f'''
+                INSERT OR IGNORE INTO haberler ({kol})
+                SELECT {kol} FROM remote_db.haberler
                 WHERE id NOT IN (SELECT id FROM haberler)
             ''')
             # 3. Uzakta 'yayinlandi' durumuna geçmişse yerelde de yayınlandı yap ve post ID'lerini güncelle
@@ -152,80 +184,152 @@ def _sqlite_db_birlestir(yerel_db_yolu: str, uzak_db_yolu: str) -> None:
                 FROM remote_db.haberler AS r
                 WHERE haberler.id = r.id
             ''')
-            # 4. Ayarları birleştir
-            try:
-                con.execute('INSERT OR REPLACE INTO ayarlar SELECT * FROM remote_db.ayarlar')
-            except Exception:
-                pass
+            # 5. Ayarları birleştir
+            if taban_db_yolu:
+                con.execute("ATTACH DATABASE ? AS taban_db", (str(taban_db_yolu),))
+                # Bizdeki değer tabandakiyle aynıysa (bu iş o anahtarı değiştirmediyse)
+                # uzaktakini al; değiştirdiysek bizimki kalsın. İki tarafta da olmayan
+                # yeni anahtar (NULL IS NULL) uzaktan gelir.
+                con.execute('''
+                    INSERT OR REPLACE INTO ayarlar (anahtar, deger)
+                    SELECT r.anahtar, r.deger FROM remote_db.ayarlar r
+                    LEFT JOIN main.ayarlar l ON l.anahtar = r.anahtar
+                    LEFT JOIN taban_db.ayarlar t ON t.anahtar = r.anahtar
+                    WHERE l.deger IS t.deger
+                ''')
+            else:
+                # Ortak başlangıç bilinmiyorsa eski kural: uzak kazanır.
+                con.execute('INSERT OR REPLACE INTO ayarlar (anahtar, deger) '
+                            'SELECT anahtar, deger FROM remote_db.ayarlar')
             con.commit()
             con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            log.info("db_senkron: yerel ve uzak veritabanları başarıyla birleştirildi")
-    except Exception as e:
+        log.info("db_senkron: yerel ve uzak veritabanları birleştirildi (SQLite, dosyaya git dokunmadı)")
+        return True
+    except Exception as e:                                  # noqa: BLE001
         log.warning("db_senkron: SQLite birleştirme hatası: %s", e)
+        return False
 
 
-def _birlestir() -> None:
-    """
-    Uzaktaki değişikliği üstümüze alır, çakışmayı kendisi çözer.
-
-    ⚠️ `git pull --rebase` TEK BAŞINA KULLANILMAMALI. `data/haber.db`
-    ikili bir dosya; iki job aynı anda yazdığında rebase çakışıyor ve
-    YARIM KALIYOR — repo detached HEAD'de kilitleniyor, sonraki her
-    git komutu patlıyor. Akşam turunu bu düşürdü.
-
-    Burada çakışma akıllı SQLite birleştirme ile çözülür: uzakta onaylanan/
-    yayınlanan haberler ile yerelde üretilen taze haberler tek veritabanında
-    harmanlanır.
-    """
-    _calistir("git", "fetch", "origin", DAL, saniye=90)
-    _calistir("git", "stash", "--include-untracked")
-
-    tamam, _ = _calistir("git", "rebase", f"origin/{DAL}")
-    if tamam:
-        _calistir("git", "stash", "pop")
-        return
-
-    # Rebase sırasında çakışma oldu:
-    # 1. Uzaktaki (origin/main) haber.db dosyasını geçici konuma alalım
-    import os
-    import shutil
-    uzak_gecici = "data/haber_uzak_temp.db"
-    _calistir("git", "checkout", "--ours", "--", "data/haber.db")
+def _git(*komut: str, ortam: dict | None = None, saniye: int = 60) -> tuple[bool, str]:
+    """git komutu; başarı + STDOUT (tak/ağaç kimliği okumak için). Ortam: geçici index."""
     try:
-        shutil.copyfile("data/haber.db", uzak_gecici)
-    except Exception:
-        uzak_gecici = ""
+        s = subprocess.run(["git", *komut], capture_output=True, text=True, timeout=saniye,
+                           env={**os.environ, **ortam} if ortam else None)
+        return s.returncode == 0, s.stdout.strip() if s.returncode == 0 else s.stderr.strip()
+    except Exception as e:                                  # noqa: BLE001
+        return False, f"{type(e).__name__}: {e}"
 
-    # 2. Yereldeki commit edilmiş haber.db dosyasını geri yükle
-    _calistir("git", "checkout", "--theirs", "--", "data/haber.db")
 
-    # 3. Akıllı SQLite merge çalıştır
-    if uzak_gecici and os.path.exists(uzak_gecici):
-        _sqlite_db_birlestir("data/haber.db", uzak_gecici)
-        try:
-            os.remove(uzak_gecici)
-        except Exception:
-            pass
+def _surumu_yaz(kaynak: str, hedef: Path) -> bool:
+    """Depodaki bir sürümün veritabanını (ör. origin/main) GEÇİCİ dosyaya yazar."""
+    try:
+        s = subprocess.run(["git", "show", f"{kaynak}:{DB_GIT_YOLU}"], capture_output=True, timeout=90)
+    except Exception:                                       # noqa: BLE001
+        return False
+    if s.returncode != 0 or not s.stdout.startswith(b"SQLite format 3\x00"):
+        return False
+    hedef.write_bytes(s.stdout)
+    return True
 
-    # Merge sonrası sağlamlık kontrolü
-    if not veritabani_saglam_mi("data/haber.db"):
-        log.critical("db_senkron: Merge sonrası 'data/haber.db' bozuldu! Rebase iptal ediliyor.")
-        _calistir("git", "rebase", "--abort")
-        _calistir("git", "stash", "pop")
+
+def _commit_kur(mesaj: str, yollar: list[str], uzak_tak: str, index_yolu: Path) -> str | None:
+    """
+    Uzak dalın üstüne, ÇALIŞMA KLASÖRÜNE DOKUNMADAN commit kurar (geçici index).
+
+    `git add --ignore-removal`: başka bir işin eklediği dosya bizde yoksa (ör. yeni
+    indirilmiş bayrak) commit onu SİLMESİN; yalnızca bizim eklediğimiz/değiştirdiğimiz
+    dosyalar uzak ağacın üstüne yazılıyor.
+    """
+    ortam = {"GIT_INDEX_FILE": str(index_yolu)}
+    mevcut = [y for y in yollar if Path(y).exists()]
+    ok, cikti = _git("read-tree", uzak_tak, ortam=ortam)
+    if ok:
+        ok, cikti = _git("add", "--ignore-removal", "--", *mevcut, ortam=ortam)
+    if ok:
+        ok, agac = _git("write-tree", ortam=ortam)
+        cikti = agac
+    if ok:
+        ok, cikti = _git("commit-tree", agac, "-p", uzak_tak, "-m", mesaj)
+    if not ok:
+        log.warning("db_senkron: commit kurulamadı: %s", cikti[:200])
+        return None
+    return cikti
+
+
+def _yereli_tasi(tak: str) -> None:
+    """
+    Yerel dalı gönderilen commit'e taşır — veritabanı dosyasına DOKUNMADAN.
+
+    `reset --mixed` yalnızca HEAD'i ve index'i değiştirir. Başka işlerin değiştirdiği
+    küçük dosyalar (bayraklar, rapor dosyaları) çalışma klasöründe güncellenir; bu işin
+    henüz commit etmediği değişiklikler (sonraki adımlar `--ek` ile ekleyecek) korunur.
+    """
+    ok, eski = _git("rev-parse", "HEAD")
+    yerel_degisen: set[str] = set()
+    if ok:
+        ok2, cikti = _git("diff", "--name-only", "-z", eski)
+        if ok2:
+            yerel_degisen = {p for p in cikti.split("\0") if p}
+    _git("reset", "-q", "--mixed", tak)
+    ok, cikti = _git("diff", "--name-only", "-z")
+    if not ok:
         return
+    yenile = [p for p in cikti.split("\0")
+              if p and not p.startswith(DB_GIT_YOLU) and p not in yerel_degisen]
+    for i in range(0, len(yenile), 100):
+        _git("checkout", tak, "--", *yenile[i:i + 100])
 
-    for dosya in BIZIM_KAZANIR:
-        if dosya != "data/haber.db":
-            _calistir("git", "checkout", "--theirs", "--", dosya)
-        _calistir("git", "add", dosya)
 
-    tamam, cikti = _calistir("git", "-c", "core.editor=true", "rebase", "--continue")
-    if not tamam:
-        # Çözemediysek yarım rebase'i temizle. Detached HEAD'de kalmak
-        # push'u da, sonraki job'ları da bozuyor.
-        log.warning("db_senkron: rebase çözülemedi, iptal ediliyor: %s", cikti[:200])
-        _calistir("git", "rebase", "--abort")
-    _calistir("git", "stash", "pop")
+def _birlestir_ve_gonder(mesaj: str, yollar: list[str]) -> bool:
+    """
+    Push reddedildi (araya başka iş girdi): uzaktakini İÇERİ AL, uzak dalın üstüne gönder.
+
+    ⚠️ ESKİ YOL `git stash` + `git rebase` + `git checkout --ours/--theirs` idi ve
+    veritabanı dosyasını diskte YENİDEN YARATIYORDU — `son_dakika.main`'in bağlantısı
+    açıkken. Açık bağlantı silinmiş dosyaya bakıyor, yazdıkları yeni dosyanın `-wal`'ına
+    düşüyordu (yol aynı, .gitignore'da, stash'e girmiyor); iki veritabanının sayfaları
+    karışıyordu. 4-7 Eki 2026: 14 "Hazırla" işi `file is not a database` ile düştü,
+    çoklu seçimde kalan haberler hazırlanmadı; denemede araya giren işin "yayınlandı"
+    işareti yerelde geri alındı. (Daha önce de 1d/1f: yarım kalan rebase repoyu kilitliyordu.)
+
+    YENİ YOL: dosyayı yalnızca SQLite değiştiriyor (uzak sürüm geçici dosyadan ATTACH ile
+    içeri alınıyor), commit geçici index'le uzak dalın üstüne kuruluyor, çalışma
+    klasörüne ve veritabanına git hiç yazmıyor. Yarım rebase, detached HEAD, stash yok.
+    `test_7_sozlesme.test_db_kaydi_canli_dosyaya_dokunmaz` dosyanın inode'unu ölçüyor.
+    """
+    with tempfile.TemporaryDirectory(prefix="db-birlestir-") as klasor:
+        k = Path(klasor)
+        taban: Path | None = k / "taban.db"
+        ok, _ = _git("fetch", "origin", DAL, saniye=90)
+        ok, ortak = _git("merge-base", "HEAD", f"origin/{DAL}")
+        if not (ok and _surumu_yaz(ortak, taban)):
+            taban = None        # sığ klonda ortak başlangıç bulunamazsa: ayarlarda uzak kazanır
+        for deneme in range(1, AZAMI_BIRLESTIRME + 1):
+            if deneme > 1:
+                _git("fetch", "origin", DAL, saniye=90)
+            ok, uzak_tak = _git("rev-parse", f"origin/{DAL}")
+            uzak = k / f"uzak-{deneme}.db"
+            if not (ok and _surumu_yaz(uzak_tak, uzak)):
+                log.warning("db_senkron: uzaktaki veritabanı okunamadı, push yapılmadı")
+                return False
+            if not _sqlite_db_birlestir(DB_GIT_YOLU, uzak, taban):
+                log.warning("db_senkron: birleştirilemedi — uzaktakini ezmemek için push YAPILMADI")
+                return False
+            _wal_bosalt()
+            if not veritabani_saglam_mi(DB_GIT_YOLU):
+                log.critical("db_senkron: birleştirme sonrası veritabanı sağlam değil, push engellendi")
+                return False
+            tak = _commit_kur(mesaj, yollar, uzak_tak, k / f"index-{deneme}")
+            if not tak:
+                return False
+            ok, cikti = _git("push", "origin", f"{tak}:refs/heads/{DAL}", saniye=120)
+            if ok:
+                _yereli_tasi(tak)
+                return True
+            log.warning("db_senkron: push yine reddedildi (%s/%s): %s", deneme, AZAMI_BIRLESTIRME, cikti[:160])
+            # Bir sonraki turda "ortak başlangıç" az önce içeri aldığımız uzak sürüm.
+            taban = uzak
+    return False
 
 
 def _wal_bosalt() -> None:
@@ -328,12 +432,9 @@ def _kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
 
     tamam, cikti = _push()
     if not tamam:
-        # Başka bir job araya girmiş olabilir — üstüne alıp tekrar itiyoruz.
-        _birlestir()
-        if not veritabani_saglam_mi("data/haber.db"):
-            log.critical("db_senkron: Rebase sonrası veritabanı bozuk! Push engellendi.")
-            return False
-        tamam, cikti = _push()
+        # Başka bir job araya girmiş olabilir — uzaktakini içeri alıp tekrar itiyoruz.
+        log.info("db_senkron: push reddedildi, uzaktaki sürümle birleştiriliyor: %s", cikti[:120])
+        tamam = _birlestir_ve_gonder(mesaj, yollar)
 
     if tamam:
         log.info("db_senkron: veritabanı push edildi")
@@ -348,14 +449,31 @@ def uzaktan_tazele() -> bool:
 
     Yayın job'ı turu bulamadığında çağrılıyor: turu hazırlayan job
     henüz push etmemiş olabilir ve bu job checkout'u ondan önce yapmış
-    olabilir. Yerel değişiklik varsa ezmemek için önce stash'liyoruz.
+    olabilir.
+
+    ⚠️ Eskiden `git stash` + `git checkout origin/main -- data/haber.db` yapıyordu:
+    çağıranın bağlantısı AÇIKKEN dosya diskte yeniden yaratılıyor, açık bağlantı eski
+    veriyi görmeye devam ediyordu (bkz. `_birlestir_ve_gonder`). Artık uzak sürüm
+    SQLite'ın yedekleme API'siyle dosyanın İÇİNE kopyalanıyor: dosya aynı, açık
+    bağlantı dahil herkes yeni veriyi görüyor. Davranış aynı: yerel sürüm uzaktakiyle
+    DEĞİŞTİRİLİYOR (job yeni başlamış, korunacak yerel değişiklik yok).
     """
-    _calistir("git", "stash", "push", "--", "data/haber.db")
-    tamam, cikti = _calistir("git", "fetch", "origin", "main", saniye=90)
+    tamam, cikti = _git("fetch", "origin", DAL, saniye=90)
     if not tamam:
         log.warning("db_senkron: fetch başarısız: %s", cikti[:200])
         return False
-    tamam, cikti = _calistir("git", "checkout", "origin/main", "--", "data/haber.db")
-    if not tamam:
-        log.warning("db_senkron: checkout başarısız: %s", cikti[:200])
-    return tamam
+    with tempfile.TemporaryDirectory(prefix="db-tazele-") as klasor:
+        uzak = Path(klasor) / "uzak.db"
+        if not _surumu_yaz(f"origin/{DAL}", uzak):
+            log.warning("db_senkron: uzaktaki veritabanı okunamadı")
+            return False
+        try:
+            with closing(sqlite3.connect(uzak)) as kaynak, \
+                    closing(sqlite3.connect(DB_GIT_YOLU, timeout=30)) as hedef:
+                hedef.execute("PRAGMA busy_timeout = 30000")
+                kaynak.backup(hedef)
+        except Exception as e:                              # noqa: BLE001
+            log.warning("db_senkron: uzaktaki veritabanı kopyalanamadı: %s", e)
+            return False
+    _wal_bosalt()
+    return veritabani_saglam_mi(DB_GIT_YOLU)
