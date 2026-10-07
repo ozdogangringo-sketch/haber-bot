@@ -57,3 +57,12 @@ crons = ["20 7,15 * * 1-5", "12 2,5-20,23 * * *", "*/10 * * * *"]
 [[kv_namespaces]]
 binding = "PLANLAR"
 id = "722dfcafca7a4903a85345386ec29ae6"
+
+# OzBorn Studio uygulama köprüsü (7 Eki 2026): son özet, cihazlar, eşleştirmeler, komut kaydı.
+# ⚠️ KV DEĞİL: ücretsiz planda hesap başına günde 1000 KV yazması var ve planlı yayının
+# çalar saati (PLANLAR) onu kullanıyor — uygulama özetleri kotayı yerse planlı yayınlar
+# SESSİZCE kaçar. Şemayı Worker kendisi kuruyor (CREATE … IF NOT EXISTS); migration yok.
+[[d1_databases]]
+binding = "KOPRU"
+database_name = "haber-bot-kopru"
+database_id = "7cf4f96a-c7ee-4264-9dbb-5e1da67c93fd"

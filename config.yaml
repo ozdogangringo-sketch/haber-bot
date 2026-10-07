@@ -1230,3 +1230,20 @@ seslendirme:
   tur_kipi: "basliklar"
   # Son slaytta; önce gerekçe sonra çağrı. "Beğenin" bilerek yok.
   kapanis_cagrisi: "Gündemi kaçırmak istemiyorsanız takipte kalın."
+
+# ----------------------------------------------------------------------
+# OzBorn Studio mobil uygulaması (7 Eki 2026)
+#
+# Bot veritabanını her kaydettiğinde açık onayların özetini bu Worker'a
+# bırakıyor (src/uygulama_koprusu.py); uygulama oradan okuyor ve komutları
+# Telegram düğmesiyle AYNI yoldan gönderiyor. Telegram KAPANMIYOR.
+#
+# ⚠️ Anahtar yok: Worker ile bot aynı TELEGRAM_BOT_TOKEN'ı bildiği için
+# ortak imza ondan türetiliyor. Adres gizli değil.
+# Kapatmak için `acik: false` — bot hiçbir şey kaybetmez.
+# ----------------------------------------------------------------------
+uygulama_koprusu:
+  acik: true
+  adres: "https://haber-bot-onay.ezanplus.workers.dev"
+  proje_id: "dailybrief"
+  proje_adi: "DailyBrief"

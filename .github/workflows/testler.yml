@@ -51,3 +51,13 @@ jobs:
           python tests/test_okunus.py
           python tests/test_seslendirme.py
           node --test tests/worker_sesli.test.mjs
+
+      # OzBorn Studio uygulama köprüsü (7 Eki 2026): bot imzası, Telegram onaylı
+      # eşleştirme, belirtecin bir kez verilmesi, komutların Telegram düğmesiyle
+      # aynı yoldan gitmesi. D1 yerine Node'un yerleşik SQLite'ı kullanılıyor —
+      # o modül Node 22.5+ ister; sürümü sabitliyoruz ki test SESSİZCE atlanmasın.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Uygulama köprüsü testleri (Worker)
+        run: node --test tests/worker_kopru.test.mjs

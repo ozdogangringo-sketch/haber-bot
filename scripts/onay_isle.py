@@ -46,7 +46,7 @@ from src import (                                  # noqa: E402
     instagram,
     make_image,
     secim,
-    slaytlar, telegram_bot, threads, twitter, upload_image, yonetim,
+    slaytlar, telegram_bot, threads, tur_icerigi, twitter, upload_image, yonetim,
 )
 from src import generate_text                      # noqa: E402
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -73,13 +73,9 @@ def turu_getir(con, mesaj_id: int) -> list:
     ⚠️ SIRALAMA: `slayt_sirasi` belirlenmişse (kullanıcı taşıdıysa) o sıra
     kullanılır; yoksa varsayılan puan ve tarih sırası geçerlidir.
     """
-    satirlar = list(con.execute(
-        "SELECT * FROM haberler WHERE telegram_message_id = ? "
-        "ORDER BY CASE WHEN COALESCE(slayt_sirasi, 0) > 0 THEN slayt_sirasi ELSE 999 END ASC, "
-        "COALESCE(daha_once_yayinlandi, 0) ASC, "
-        "onem_puani DESC, yayin_tarihi DESC",
-        (mesaj_id,),
-    ))
+    # Sıralama kuralı `tur_icerigi.haberleri_getir`'de; uygulama özeti de
+    # aynı fonksiyonu kullanıyor, slayt numaraları iki tarafta aynı kalıyor.
+    satirlar = tur_icerigi.haberleri_getir(con, mesaj_id)
     if not satirlar and con is not None:
         # Belki bu mesaj adaya/alt mesaja aittir (bağlı mesaj desteği)
         try:
@@ -97,27 +93,13 @@ def turu_getir(con, mesaj_id: int) -> list:
 
 
 def _detay_urlleri(ham) -> list[str]:
-    """
-    `detay_url` kolonunu listeye çevirir.
-
-    JSON listesi bekliyoruz ama eski kayıtlarda tek düz URL var —
-    ikisini de kabul ediyoruz ki geçmiş turlar bozulmasın.
-    """
-    if not ham:
-        return []
-    try:
-        cozulen = json.loads(ham)
-        return [u for u in cozulen if u] if isinstance(cozulen, list) else [ham]
-    except (ValueError, TypeError):
-        return [ham]
+    """`detay_url` kolonunu listeye çevirir — kural `tur_icerigi.detay_urlleri`'de."""
+    return tur_icerigi.detay_urlleri(ham)
 
 
 def _sonuclari_kur(haberler: list) -> list[dict]:
-    """Caption'ın atıf bloğu için katman bilgisini toparlar."""
-    return [
-        {"id": h["id"], "katman": h["gorsel_kaynagi"], "atif": h["gorsel_atif"] or ""}
-        for h in haberler
-    ]
+    """Caption'ın atıf bloğu için katman bilgisi — kural `tur_icerigi.katman_bilgisi`'de."""
+    return tur_icerigi.katman_bilgisi(haberler)
 
 
 def _yayin_ozeti(haberler: list) -> str:
@@ -301,32 +283,12 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     ses_sonucu: dict = {}
     ses_sonucu_yt: dict = {}
 
-    urller = [h["gorsel_url"] for h in haberler if h["gorsel_url"]]
-
-    # Ekonomi turu: 1. slayt Piyasa Isı Haritası, 2. slayt 30 Varlık Tablosudur
+    # Görsel listesi ve açıklama metni `tur_icerigi`'nden: OzBorn Studio
+    # uygulaması onay ekranında AYNI fonksiyonların çıktısını gösteriyor.
+    # Burada ayrı bir kopya kurulursa onaylanan ≠ yayınlanan olur.
+    # (Ekonomi turu: ısı haritası + tablo başa; son dakika: ayrıntı sayfaları sona.)
+    urller = tur_icerigi.yayin_gorselleri(con, haberler, mesaj_id)
     ilk_h_dict = dict(haberler[0]) if haberler else {}
-    if ilk_h_dict.get("tur") == "ekonomi":
-        tablo_satir = con.execute(
-            "SELECT deger FROM ayarlar WHERE anahtar = ?",
-            (f"piyasa_tablosu_{mesaj_id}",)
-        ).fetchone()
-        kart_satir = con.execute(
-            "SELECT deger FROM ayarlar WHERE anahtar = ?",
-            (f"piyasa_karti_{mesaj_id}",)
-        ).fetchone()
-
-        if tablo_satir and tablo_satir["deger"]:
-            urller.insert(0, tablo_satir["deger"])
-        if kart_satir and kart_satir["deger"]:
-            urller.insert(0, kart_satir["deger"])
-
-    # Son dakika turu TEK haberden birden çok slayt üretiyor: 1 haber +
-    # 1-4 ayrıntı sayfası (metin uzunsa sayfa ekleniyor). Bunlar ayrı
-    # kolonda JSON listesi olarak duruyor; buraya eklenmezse elde tek
-    # görsel kalıyor ve Instagram carousel'i reddediyor.
-    for h in haberler:
-        if h["son_dakika"]:
-            urller.extend(_detay_urlleri(h["detay_url"]))
 
     # İlerleme çubuğu hesaplaması (Telegram canlı progress bar)
     kanallar_sayisi = sum([
@@ -362,16 +324,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             f"Tur bozuk görünüyor — /tur ile yenisini kurabilirsin."
         )
 
-    # Caption belirleme
-    if ilk_h_dict.get("tur") == "ekonomi" and ilk_h_dict.get("ig_caption"):
-        metin = ilk_h_dict["ig_caption"]
-    elif haberler[0]["son_dakika"] or len(haberler) == 1:
-        metin = caption.son_dakika_caption(
-            haberler[0], _sonuclari_kur(haberler), ayarlar)
-    else:
-        metin = caption.caption_kur(
-            haberler, _sonuclari_kur(haberler), ayarlar=ayarlar)
-    metin = filtre.markdown_temizle(metin)
+    # Açıklama metni (markdown temizliği dahil) — bkz. tur_icerigi.yayin_metni
+    metin = tur_icerigi.yayin_metni(haberler, ayarlar)
 
     post_id = None
     baglanti = None
@@ -1459,13 +1413,20 @@ def ayar_degistir(con, ayarlar, komut: str, mesaj_id: int, basan) -> int:
     etiket = ayar.DEGISTIRILEBILIR[yol][0]
     gosterim = "AÇIK" if yeni is True else "KAPALI" if yeni is False else yeni
     try:
-        telegram_bot.paneli_tazele(
-            mesaj_id,
-            ayar.panel_metni(con, ayarlar)
-            + f"\n\nSon değişiklik: {etiket} → {gosterim}"
-            f"  ({basan or 'bilinmiyor'})",
-            ayar.panel_butonlari(con, ayarlar),
-        )
+        if mesaj_id:
+            telegram_bot.paneli_tazele(
+                mesaj_id,
+                ayar.panel_metni(con, ayarlar)
+                + f"\n\nSon değişiklik: {etiket} → {gosterim}"
+                f"  ({basan or 'bilinmiyor'})",
+                ayar.panel_butonlari(con, ayarlar),
+            )
+        else:
+            # OzBorn Studio uygulamasından: tazelenecek panel yok. Grup yine
+            # de görsün — gruba yazabilen herkes ayar değiştirebiliyor ve
+            # kimin neyi değiştirdiği görünür kalmalı.
+            telegram_bot.mesaj_gonder(
+                f"⚙️ Ayar değişti: {etiket} → {gosterim}  ({basan or 'bilinmiyor'})")
     except Exception as e:
         log.warning("panel tazelenemedi: %s", e)
 
@@ -4008,7 +3969,7 @@ def haber_ara(con, ayarlar, komut: str) -> int:
     return 0
 
 
-def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
+def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int, basan: str = "") -> int:
     """
     Telegram'da SEÇİLEN başlık önerilerini sırayla tam posta dönüştürür.
 
@@ -4046,14 +4007,20 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int) -> int:
                 if r:
                     basliklar[hid] = (r["baslik_orj"] or "")[:60]
 
+    def _bildir(metin: str) -> None:
+        # OzBorn Studio uygulamasından gelen seçimde öneri mesajı YOK
+        # (mesaj_id 0): sonuç gruba yeni mesaj olarak yazılıyor ki
+        # Telegram'dakiler de neyin hazırlandığını görsün.
+        if mesaj_id:
+            telegram_bot.sonucu_yaz(mesaj_id, metin)
+        else:
+            telegram_bot.mesaj_gonder(f"{metin}\n\n(📱 {basan})" if basan else metin)
+
     if not basliklar:
-        telegram_bot.sonucu_yaz(
-            mesaj_id, "⚠️ Seçilen haberler bulunamadı "
-                      "(veritabanı güncellenmiş olabilir).")
+        _bildir("⚠️ Seçilen haberler bulunamadı (veritabanı güncellenmiş olabilir).")
         return 1
 
-    telegram_bot.sonucu_yaz(
-        mesaj_id,
+    _bildir(
         f"⏳ {len(basliklar)} haber hazırlanıyor:\n"
         + "\n".join(f"  • {b}" for b in basliklar.values())
         + "\n\nHer biri ayrı onay mesajı olarak gelecek.")
@@ -4447,7 +4414,7 @@ def main() -> int:
     if komut.startswith("ara:"):
         return haber_ara(con, ayarlar, komut)
     if komut.startswith("hazirla:"):
-        return oneriyi_hazirla(con, ayarlar, komut, mesaj_id)
+        return oneriyi_hazirla(con, ayarlar, komut, mesaj_id, basan)
     if komut.startswith("incele:") or komut.startswith("incele "):
         return incele_islemi(con, ayarlar, komut, mesaj_id, basan)
     if komut == "oneri_gec":

@@ -5502,6 +5502,265 @@ def test_threads_ve_twitter_4_5_ve_paralel_yayin() -> None:
             "piyasa bülteninde 4:5 dönüşümü eksik")
 
 
+# ─────────────────────────────────────────────────────────────
+#  OZBORN STUDIO UYGULAMA KÖPRÜSÜ (7 Eki 2026)
+# ─────────────────────────────────────────────────────────────
+#
+# Uygulama Telegram'ın yanına bir arayüz olarak geldi; Telegram kapanmıyor.
+# Bot veritabanını her kaydettiğinde açık onayların özetini Worker'a
+# bırakıyor (src/uygulama_koprusu.py). Aşağıdaki denetimler bu kanalın üç
+# sözünü koruyor: (1) uygulamada onaylanan = yayınlanan, (2) köprü botu
+# asla durdurmaz, (3) özet sessizce gitmemezlik yapamaz.
+
+def _kopru_db() -> sqlite3.Connection:
+    """Gerçek şemayla bellekte veritabanı: bir açık son dakika, bir yayın, bir öneri."""
+    from src import db as _db
+
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(_db.SEMA)
+    mevcut = {s["name"] for s in con.execute("PRAGMA table_info(haberler)")}
+    for kolon, tanim in _db.EK_KOLONLAR.items():
+        if kolon not in mevcut:
+            con.execute(f"ALTER TABLE haberler ADD COLUMN {kolon} {tanim}")
+
+    def ekle(**alan) -> None:
+        kayit = dict(kaynak="AA", kategori="turkiye", agirlik=10,
+                     baslik_orj="Ham başlık", link=f"https://ornek/{alan['id']}",
+                     yayin_tarihi="2026-10-07T06:00:00+00:00", durum="yeni")
+        kayit.update(alan)
+        con.execute(f"INSERT INTO haberler ({', '.join(kayit)}) "
+                    f"VALUES ({', '.join('?' * len(kayit))})", tuple(kayit.values()))
+
+    ekle(id=1, durum="onay_bekliyor", son_dakika=1, telegram_message_id=500,
+         ig_baslik="Karadeniz'de tanker vuruldu: petrol açıkta yanıyor",
+         slayt_ozet="Tanker açıkta yanmaya devam ediyor.", ig_caption="Tanker yanıyor.",
+         ig_hashtag="#tanker #karadeniz", onem_puani=8,
+         gonderim_zamani="2026-10-07 06:52:39", gorsel_url="https://g/kapak.jpg",
+         detay_url='["https://g/d1.jpg", "https://g/d2.jpg"]',
+         makale_metni="Karadeniz'de tanker vuruldu. " * 20,
+         gorsel_kaynagi="og", gorsel_atif="")
+    ekle(id=2, durum="yayinlandi", son_dakika=1, telegram_message_id=400,
+         ig_baslik="Eski haber", gonderim_zamani="2026-10-06 10:00:00",
+         gorsel_url="https://g/eski.jpg", ig_post_id="1789", threads_post_id="55")
+    ekle(id=3, durum="yeni", oneri_gonderildi=1, onem_puani=7, baslik_orj="Öneri başlığı")
+    con.commit()
+    return con
+
+
+def test_uygulama_ozeti_saf_ve_dogru() -> None:
+    """
+    Uygulamanın gördüğü özet, veritabanının SAF ve DOĞRU yansıması mı?
+
+    ⚠️ SAFLIK NEDEN ŞART: Worker aynı özeti ikinci kez yazmıyor (D1 kotası)
+    ve uygulama göreli zamanı kendisi hesaplıyor. Özete "üretim anı" gibi
+    bir alan girerse her kayıt yeni yazma üretir ve "değişti mi" bilgisi
+    anlamsızlaşır.
+
+    ⚠️ METİN NEDEN AYNI OLMALI: 18 Ağu 2026'da Telegram'da onaylanan metin
+    ile yayınlanan metin ayrı fonksiyonlardan geliyordu ve son dakika postu
+    "Günün gündemi" biçiminde çıktı. Uygulama aynı hatayı tekrarlamasın:
+    onay ekranındaki metin `tur_icerigi.yayin_metni`nin çıktısı olmalı.
+    """
+    import json as _json
+
+    from src import tur_icerigi, uygulama_koprusu as uk
+
+    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    con = _kopru_db()
+    o1 = uk.ozet_kur(con, cfg)
+    o2 = uk.ozet_kur(con, cfg)
+    denetle(o1 == o2, "uygulama özeti saf (aynı veritabanı → aynı özet)",
+            "özette zamana bağlı bir alan var; Worker her kaydı yeni sanır")
+
+    onay = next((x for x in o1["onaylar"] if x["mesaj_id"] == 500), None)
+    denetle(onay is not None, "açık onay uygulama özetinde")
+    if onay:
+        denetle([s["url"] for s in onay["slaytlar"]]
+                == ["https://g/kapak.jpg", "https://g/d1.jpg", "https://g/d2.jpg"],
+                "son dakika ayrıntı sayfaları uygulamadaki slaytlarda",
+                f"slaytlar: {[s['url'] for s in onay['slaytlar']]}")
+        haberler = tur_icerigi.haberleri_getir(con, 500)
+        denetle(onay["metin"] == tur_icerigi.yayin_metni(haberler, cfg),
+                "uygulamada onaylanan metin = yayınlanacak metin")
+        denetle(onay["olusma"] == "2026-10-07T06:52:39Z",
+                "saat dilimsiz SQLite zamanı UTC sayılıyor", str(onay["olusma"]))
+        denetle(onay["son_gecerlilik"] == "2026-10-08T06:52:39Z",
+                "son dakika onay ömrü ortak sabitten (24 saat)", str(onay["son_gecerlilik"]))
+
+    yayin = next((y for y in o1["yayinlananlar"] if y["mesaj_id"] == 400), None)
+    denetle(yayin is not None and yayin["kanallar"] == {"ig": True, "threads": True},
+            "yayınlanan turun YALNIZCA gerçekten çıktığı kanallar",
+            str(yayin and yayin["kanallar"]))
+    denetle(any(x["id"] == 3 for x in o1["oneriler"]), "öneri uygulama özetinde")
+    denetle("ham_hata" not in _json.dumps(o1, ensure_ascii=False),
+            "ham hata metni uygulamaya taşınmıyor",
+            "istisna metni istek adresini, bazen jetonu taşıyabiliyor")
+
+
+def test_yayin_ve_uygulama_ayni_icerikten() -> None:
+    """
+    Yayın yolu (`onay_isle.yayinla`) ile uygulama özeti AYNI fonksiyonlardan mı besleniyor?
+
+    ⚠️ AST ile, metin aramasıyla DEĞİL: `yayinla`nın docstring'i ve
+    yorumları bu fonksiyon adlarını anıyor; düz metin araması kopya
+    geri gelse bile "temiz" derdi (bu projede üç kez yaşandı).
+    """
+    def _cagrilar(dosya: str, fonksiyon: str) -> set[tuple[str, str]]:
+        agac = ast.parse((KOK / dosya).read_text(encoding="utf-8"))
+        f = next((n for n in ast.walk(agac)
+                  if isinstance(n, ast.FunctionDef) and n.name == fonksiyon), None)
+        if f is None:
+            return set()
+        return {(n.func.value.id, n.func.attr) for n in ast.walk(f)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and isinstance(n.func.value, ast.Name)}
+
+    yayin = _cagrilar("scripts/onay_isle.py", "yayinla")
+    denetle(("tur_icerigi", "yayin_metni") in yayin, "yayinla metni tur_icerigi'nden alıyor")
+    denetle(("tur_icerigi", "yayin_gorselleri") in yayin, "yayinla görselleri tur_icerigi'nden alıyor")
+    denetle(not ({("caption", "son_dakika_caption"), ("caption", "caption_kur")} & yayin),
+            "yayinla kendi caption kopyasını kurmuyor",
+            "metin iki yerde kurulursa uygulamada onaylanan ≠ yayınlanan")
+
+    ozet = _cagrilar("src/uygulama_koprusu.py", "_onaylar")
+    denetle(("tur_icerigi", "yayin_metni") in ozet and ("tur_icerigi", "slaytlar") in ozet,
+            "uygulama özeti aynı tur_icerigi fonksiyonlarını kullanıyor")
+
+
+def test_uygulama_koprusu_botu_durdurmaz() -> None:
+    """
+    Köprü İKİNCİL kanal: patlasa da veritabanı kaydı yapılmalı, job düşmemeli.
+
+    ⚠️ SIRA ÖNEMLİ: önce kayıt (`_kaydet`), sonra köprü. Tersi olursa köprü
+    takıldığında veritabanı hiç push edilmez — 1c/1d'deki "tur kayboldu"
+    felaketinin yeni bir kapısı açılır.
+    """
+    import os as _os
+    import tempfile
+    from unittest import mock
+
+    import requests as _requests
+
+    from src import db_senkron, uygulama_koprusu as uk
+
+    # (a) Yapı: hemen_kaydet önce kaydediyor, sonra bildiriyor, kaydın sonucunu dönüyor
+    agac = ast.parse((KOK / "src/db_senkron.py").read_text(encoding="utf-8"))
+    f = next(n for n in agac.body if isinstance(n, ast.FunctionDef) and n.name == "hemen_kaydet")
+    sira = [n.func.id for n in ast.walk(f)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
+    denetle("_kaydet" in sira and "_uygulamaya_bildir" in sira
+            and sira.index("_kaydet") < sira.index("_uygulamaya_bildir"),
+            "hemen_kaydet önce kaydediyor, sonra uygulamaya bildiriyor", str(sira))
+    donus = [n for n in ast.walk(f) if isinstance(n, ast.Return)]
+    denetle(len(donus) == 1 and isinstance(donus[0].value, ast.Name)
+            and donus[0].value.id == "tamam",
+            "hemen_kaydet kaydın sonucunu dönüyor (köprünün değil)")
+
+    def _cagrilmamali(*a, **k):
+        raise AssertionError("ağa çıkılmamalıydı")
+
+    cfg = {"uygulama_koprusu": {"acik": True, "adres": "https://ornek.invalid"}}
+    with tempfile.TemporaryDirectory() as gecici:
+        yol = Path(gecici) / "haber.db"
+        kaynak = _kopru_db()
+        hedef = sqlite3.connect(yol)
+        kaynak.backup(hedef)
+        hedef.close()
+
+        # (b) Özet kurulurken KOD hatası: istisna dışarı sızmıyor
+        ortam = {"GITHUB_ACTIONS": "true", "TELEGRAM_BOT_TOKEN": "deneme"}
+        with mock.patch.dict(_os.environ, ortam), \
+             mock.patch.object(uk, "_config", return_value=cfg), \
+             mock.patch.object(uk, "ozet_kur", side_effect=RuntimeError("bozuk")), \
+             mock.patch.object(_requests, "post", side_effect=_cagrilmamali):
+            try:
+                sonuc = uk.ozet_gonder(yol)
+                denetle(sonuc is False, "özet kurulamazsa köprü False dönüyor")
+            except Exception as e:                        # noqa: BLE001
+                denetle(False, "köprü istisnayı dışarı sızdırmıyor", f"{type(e).__name__}: {e}")
+
+        # (c) Yerelde (GitHub Actions dışında) hiç ağa çıkmıyor
+        ortam = {k: v for k, v in _os.environ.items()
+                 if k not in ("GITHUB_ACTIONS", "UYGULAMA_KOPRUSU_ZORLA")}
+        ortam["TELEGRAM_BOT_TOKEN"] = "deneme"
+        # ⚠️ `side_effect` ile hata fırlatmak burada İŞE YARAMAZ: köprü her
+        # istisnayı kendisi yutuyor, ağa çıksa bile test "temiz" derdi.
+        # Çağrının YAPILIP YAPILMADIĞINA bakılıyor.
+        with mock.patch.dict(_os.environ, ortam, clear=True), \
+             mock.patch.object(uk, "_config", return_value=cfg), \
+             mock.patch.object(_requests, "post") as post:
+            sonuc = uk.ozet_gonder(yol)
+            denetle(sonuc is False and not post.called,
+                    "yerelde çalışan script uygulamaya özet göndermiyor",
+                    "geride kalmış yerel veritabanı uygulamayı yanıltırdı")
+
+    # (d) Modül hiç yüklenemese bile kayıt akışı devam ediyor
+    with mock.patch.dict(sys.modules, {"src.uygulama_koprusu": None}):
+        try:
+            db_senkron._uygulamaya_bildir()
+            denetle(True, "köprü modülü yüklenemese de kayıt akışı sürüyor")
+        except Exception as e:                            # noqa: BLE001
+            denetle(False, "köprü modülü yüklenemese de kayıt akışı sürüyor",
+                    f"{type(e).__name__}: {e}")
+
+
+def test_kaydet_adimlari_kopru_jetonunu_tasiyor() -> None:
+    """
+    Veritabanını kaydeden HER workflow adımı Telegram jetonunu taşıyor mu?
+
+    ⚠️ Köprü imzası jetondan türetiliyor. Jeton yoksa `ozet_gonder` "jeton
+    yok" deyip sessizce çıkıyor: job yeşil, uygulama o işin sonucunu HİÇ
+    görmüyor. Yokluk, başarısızlıktan daha sessizdir (4 Eyl 2026 dersi).
+    """
+    adimlar = []
+    for yol in sorted((KOK / ".github" / "workflows").glob("*.yml")):
+        veri = yaml.safe_load(yol.read_text(encoding="utf-8")) or {}
+        for is_ in (veri.get("jobs") or {}).values():
+            for adim in is_.get("steps") or []:
+                if "db_kaydet.py" in str(adim.get("run", "")):
+                    adimlar.append((yol.name, set((adim.get("env") or {}).keys())))
+    denetle(len(adimlar) >= 7, "kaydetme adımları bulundu", f"yalnızca {len(adimlar)}")
+    eksik = [ad for ad, env in adimlar
+             if not {"TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"} <= env]
+    denetle(not eksik, "her kaydetme adımı köprü için jeton ve sohbet kimliği taşıyor",
+            f"jetonsuz: {eksik}")
+
+
+def test_kopru_imzasi_iki_tarafta_ayni() -> None:
+    """
+    Bot (Python) ile Worker (JavaScript) köprü imzasını AYNI hesaplıyor mu?
+
+    ⚠️ İmza iki dilde iki ayrı kodla üretiliyor. Etiketin bir harfi ya da
+    kodlama (hex/base64) farklı olursa Worker her özeti "İmza geçersiz"
+    diye reddeder; bot bunu yalnızca WARNING olarak loglar ve uygulama
+    hiçbir şey görmez — job yeşil, köprü ölü. Bu yüzden Worker GERÇEKTEN
+    yüklenip kendi fonksiyonu çağrılıyor.
+    """
+    import shutil
+    import subprocess
+
+    from src import uygulama_koprusu as uk
+
+    if not shutil.which("node"):
+        return                                   # node yoksa atla
+    jeton = "123456:deneme-jetonu-ÇĞİ"
+    betik = (
+        "const fs=require('fs');"
+        "let k=fs.readFileSync(process.argv[1],'utf8').replace(/export default/,'const _wd =');"
+        "new Function(k+';return kopruImzasi(process.argv[2]);')()"
+        ".then((s)=>console.log(s));"
+    )
+    sonuc = subprocess.run(["node", "-e", betik, str(KOK / "worker/index.js"), jeton],
+                           capture_output=True, text=True, timeout=30)
+    worker_imzasi = (sonuc.stdout or "").strip()
+    denetle(sonuc.returncode == 0 and len(worker_imzasi) == 64,
+            "Worker köprü imzası hesaplanabildi", (sonuc.stderr or "")[:200])
+    denetle(worker_imzasi == uk.imza(jeton),
+            "bot ve Worker köprü imzasını aynı hesaplıyor",
+            f"python={uk.imza(jeton)[:16]}… worker={worker_imzasi[:16]}…")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -5592,6 +5851,11 @@ def main() -> int:
         test_bulten_haber_slayti_kategoriyi_dogruluyor,
         test_seo_copu_havuza_girmiyor,
         test_puanlanip_elenen_haber_slot_isgal_etmiyor,
+        test_uygulama_ozeti_saf_ve_dogru,
+        test_yayin_ve_uygulama_ayni_icerikten,
+        test_uygulama_koprusu_botu_durdurmaz,
+        test_kaydet_adimlari_kopru_jetonunu_tasiyor,
+        test_kopru_imzasi_iki_tarafta_ayni,
     ):
         try:
             test()

@@ -43,7 +43,11 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
                   "piyasa", "piyasa_ozet", "piyasa_yayinla", "piyasa_onizle", "ekonomi_yayinla",
                   "bulten", "sonpostlar", "son_postlar",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
-                  "tur_onayla", "tur_yeniden"];
+                  "tur_onayla", "tur_yeniden",
+                  // OzBorn Studio uygulamasının "Oluştur" ekranı (7 Eki 2026). Telegram'da
+                  // bunlar yazılı komut (/haftalik, /populer) ve beyaz listeyi atlayarak
+                  // gidiyordu; uygulamanın komut yolu beyaz listeyi zorunlu tutuyor.
+                  "haftalik", "populer"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
 const PARAMETRELI_EYLEM =
   /^(slayt_carpici|slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil|slayt_yukari|slayt_asagi|slayt_basa|sansur_kaldir|sansur_uygula|metin_uzat|metin_kisalt|cope_at_tekil):([1-9]|10)$/;
@@ -165,6 +169,8 @@ const LINK_EYLEM = /^link:.+$/;
 const VARLIK_EYLEM = /^(hisse|kripto):.+$/;
 const DOSYA_EYLEM = /^(dosya|kronoloji):.+$/;
 const INCELE = /^incele:\d{1,8}$/;
+// /haber <konu> karşılığı (uygulamadan da): havuzda arar, sonucu Telegram'a yazar.
+const ARA_EYLEM = /^ara:[^\n]{2,120}$/;
 
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 500) return false;
@@ -179,7 +185,7 @@ function eylemMi(veri) {
     || TUR_EYLEM.test(veri) || FOTO_EYLEM.test(veri) || GORSEL_SEC.test(veri)
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
     || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
-    || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri) || INCELE.test(veri)
+    || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri) || INCELE.test(veri) || ARA_EYLEM.test(veri)
     || KOTA_KAT.test(veri);
 }
 
@@ -497,22 +503,36 @@ const KOMUT_ADI = {
  * Yayın/iptal işlemlerinde butonları kaldırır; fotoğraf/metin düzenleme işlemlerinde
  * butonları tamamen yok etmek yerine "İşleniyor" ve "Menüyü Geri Getir" güvenliği sunar.
  */
+/** Turu BİTİREN komutlar: yayın/iptal sonrası menü geri getirilmez. */
+function sonlandiriciMi(komut) {
+  const kokKomut = komut.split(":")[0];
+  return ["yayinla", "iptal", "cope_at", "manuel_paket"].includes(kokKomut)
+    || kokKomut.startsWith("yayinla_sonra");
+}
+
+/**
+ * İşlem sürerken onay mesajında kalan düğmeler.
+ * Sonlandırıcı komutta yalnızca bilgi satırı (etiket yoksa hiç düğme);
+ * diğerlerinde "⏳ …" + "Menüyü Geri Getir" güvenliği.
+ * ⚠️ Telegram düğmesi ve OzBorn Studio uygulaması AYNI klavyeyi basıyor.
+ */
+function islemKlavyesi(komut, mesajId, etiket) {
+  if (sonlandiriciMi(komut)) {
+    return { inline_keyboard: etiket ? [[{ text: etiket, callback_data: "isleniyor" }]] : [] };
+  }
+  return {
+    inline_keyboard: [
+      [{ text: etiket, callback_data: "isleniyor" }],
+      [{ text: "↩️ Menüyü Geri Getir", callback_data: `kurtar:${mesajId}` }],
+    ],
+  };
+}
+
 async function islemeAlindiGoster(env, sohbetId, mesajId, mesajMetni, komut) {
   const kokKomut = komut.split(":")[0];
   const ad = KOMUT_ADI[kokKomut] || "İşleniyor";
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/editMessageText`;
-
-  const sonlandirici = ["yayinla", "iptal", "cope_at", "manuel_paket"].includes(kokKomut)
-    || kokKomut.startsWith("yayinla_sonra");
-
-  const klavye = sonlandirici
-    ? { inline_keyboard: [] }
-    : {
-        inline_keyboard: [
-          [{ text: `⏳ ${ad}…`, callback_data: "isleniyor" }],
-          [{ text: "↩️ Menüyü Geri Getir", callback_data: `kurtar:${mesajId}` }],
-        ],
-      };
+  const klavye = islemKlavyesi(komut, mesajId, sonlandiriciMi(komut) ? null : `⏳ ${ad}…`);
 
   await fetch(url, {
     method: "POST",
@@ -597,6 +617,61 @@ async function hamHataOku(env) {
   }
 }
 
+/**
+ * Yayın komutunun kanal seçimi geçerli mi? Hata metni ya da null döner.
+ * `kanallar` null: mesajda kanal düğmesi yok (eski menü) → sıfır denetimi atlanır.
+ * ⚠️ Telegram düğmesi ve OzBorn Studio uygulaması aynı kuralı buradan kullanıyor.
+ */
+function kanalDenetimi(komut, kanallar, sesKipi) {
+  const yayin = komut === "yayinla" || komut.startsWith("yayinla_sonra:");
+  // Sıfır kanal seçimi koruması (Senaryo A)
+  if (kanallar !== null && kanallar.length === 0 && yayin) {
+    return "⚠️ En az bir yayın kanalı seçmelisin!";
+  }
+  // Seslendirme yalnızca videoya uygulanır: video kanalı yoksa sesli yayın anlamsız
+  if (sesKipi && !(kanallar || []).some((k) => VIDEO_KANALLARI.includes(k))) {
+    return "🎙️ Sesli yayın için en az bir video kanalı seç (Reels, FB, YT, TT)";
+  }
+  return null;
+}
+
+/**
+ * ⚠️ ÇALAR SAATİ KUR / KALDIR. "2 saat sonra yayınla" seçildiğinde GitHub
+ * veritabanına `planlanan_yayin` yazıyor; ama o zamanın GELDİĞİNİ fark
+ * edecek olan taraf burası. KV'ye bir uyandırma kaydı bırakılıyor ve
+ * 10 dakikalık cron ona bakıyor.
+ *
+ * ⚠️ SIRA ÖNEMLİ: yalnızca dispatch BAŞARILIYSA alarm kuruluyor. Aksi
+ * hâlde veritabanında plan olmayan bir alarm kalır ve GitHub boş uyanır.
+ *
+ * ⚠️ TTL: plan süresi + 6 saat. Anahtar kendiliğinden temizleniyor, yani
+ * iptal edilen bir plan sonsuza kadar KV'de kalmıyor. Zaten bayat alarm
+ * zararsız — `planli_yayinlari_isle` DB'den doğruluyor ve 4 saatten geç
+ * planı iptal ediyor.
+ *
+ * KV yazılamazsa saatlik `son_dakika` yedek yol olarak planı yine de
+ * işler — yalnızca daha geç. Sessiz kalmak doğru.
+ */
+async function planAlariminiGuncelle(env, komut, hedefMesajId, iletildi) {
+  if (!iletildi || !env.PLANLAR) return;
+  const sonraEslesme = YAYINLA_SONRA.exec(komut);
+  if (sonraEslesme) {
+    const dakika = Number(sonraEslesme[1]);
+    const an = new Date(Date.now() + dakika * 60000).toISOString();
+    try {
+      await env.PLANLAR.put(`plan:${hedefMesajId}`, an,
+        { expirationTtl: dakika * 60 + 21600 });
+    } catch (e) { /* yedek yol: saatlik son_dakika */ }
+    return;
+  }
+  // Plan iptal edilirse alarmı da kaldır — yoksa GitHub boş uyanır.
+  if (komut === "plan_iptal") {
+    try {
+      await env.PLANLAR.delete(`plan:${hedefMesajId}`);
+    } catch (e) { /* bayat alarm zararsız */ }
+  }
+}
+
 async function githubaIlet(env, komut, mesajId, basanKisi, kanallar, metin) {
   const url = `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`;
   const cevap = await fetch(url, {
@@ -628,9 +703,456 @@ async function githubaIlet(env, komut, mesajId, basanKisi, kanallar, metin) {
   return cevap.status === 204;
 }
 
+// =====================================================================
+// OzBorn Studio uygulama köprüsü (7 Eki 2026)
+//
+// Telegram KAPANMIYOR. Uygulama, Telegram düğmesiyle AYNI yoldan konuşuyor:
+// komut buradan GitHub'a iletiliyor (`githubaIlet`), beyaz liste aynı
+// (`eylemMi`), kanal kuralı aynı (`kanalDenetimi`), çalar saat aynı
+// (`planAlariminiGuncelle`). Onay mesajının düğmeleri "📱 …" diye
+// işaretleniyor ki aynı tur Telegram'dan ikinci kez yayınlanamasın.
+// Sözleşme: ozborn-studio/docs/KOPRU-PROTOKOLU.md
+//
+// KİMLİK:
+//   bot → Worker : HMAC-SHA256(TELEGRAM_BOT_TOKEN, "ozborn-kopru-v1"). İki
+//                  taraf jetonu zaten biliyor; yeni sır YOK, jeton ağa çıkmıyor.
+//   uygulama     : cihaz belirteci. Telegram grubunda "✅ Onayla" ile verilir;
+//                  burada yalnızca SHA-256 özeti saklanır.
+//
+// ⚠️ DEPOLAMA D1 (`KOPRU`), KV DEĞİL. Ücretsiz planda hesap başına günde
+// 1000 KV yazması var ve planlı yayının çalar saati (`PLANLAR`) onu
+// kullanıyor. Uygulama özetleri o kotayı yerse planlı yayınlar SESSİZCE
+// kaçar. D1'in kotası ayrı (günde 100.000 yazma).
+// =====================================================================
+
+const KOPRU_PROTOKOL = 1;
+const KOPRU_ETIKET = "ozborn-kopru-v1";
+// Eşleştirme düğmeleri: "eslestir_onay:<32 hex>" — 46 bayt, 64 sınırının altında.
+const ESLESTIRME = /^eslestir_(onay|red):([0-9a-f]{32})$/;
+const ESLESTIRME_OMRU_SN = 600;
+const ESLESTIRME_SAATLIK_AZAMI = 5;
+const OZET_AZAMI_BAYT = 2000000;
+const KOPRU_KANALLARI = Object.keys(KANAL_KODLARI);
+
+const KOPRU_SEMASI = [
+  `CREATE TABLE IF NOT EXISTS ozet (
+     anahtar TEXT PRIMARY KEY, icerik TEXT NOT NULL,
+     ozet_hash TEXT NOT NULL, alinma TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS ic_ayar (anahtar TEXT PRIMARY KEY, deger TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS cihazlar (
+     id TEXT PRIMARY KEY, ad TEXT NOT NULL, belirtec_ozeti TEXT NOT NULL UNIQUE,
+     olusma TEXT NOT NULL, onaylayan TEXT, son_gorulme TEXT,
+     iptal INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS eslestirmeler (
+     id TEXT PRIMARY KEY, kod TEXT NOT NULL, cihaz_adi TEXT NOT NULL,
+     durum TEXT NOT NULL, olusma TEXT NOT NULL, son TEXT NOT NULL,
+     telegram_mesaj INTEGER, belirtec TEXT, cihaz_id TEXT, onaylayan TEXT)`,
+  `CREATE TABLE IF NOT EXISTS komutlar (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, cihaz_id TEXT NOT NULL,
+     komut TEXT NOT NULL, mesaj_id INTEGER, kanallar TEXT,
+     zaman TEXT NOT NULL, iletildi INTEGER NOT NULL)`,
+];
+// Şema bağlantı başına bir kez kuruluyor (CREATE … IF NOT EXISTS; mevcutsa yazma yok).
+const kopruSemasiKurulanlar = new WeakSet();
+
+async function kopruSemasiniKur(env) {
+  if (kopruSemasiKurulanlar.has(env.KOPRU)) return;
+  await env.KOPRU.batch(KOPRU_SEMASI.map((s) => env.KOPRU.prepare(s)));
+  kopruSemasiKurulanlar.add(env.KOPRU);
+}
+
+const simdiIso = (ms = Date.now()) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+const onaltilik = (tampon) => [...new Uint8Array(tampon)].map((b) => b.toString(16).padStart(2, "0")).join("");
+const htmlKacir = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function rastgeleOnaltilik(bayt) {
+  const d = new Uint8Array(bayt);
+  crypto.getRandomValues(d);
+  return onaltilik(d.buffer);
+}
+
+function rastgeleBelirtec() {
+  const d = new Uint8Array(32);
+  crypto.getRandomValues(d);
+  return btoa(String.fromCharCode(...d)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function rastgeleKod() {
+  const d = new Uint32Array(1);
+  crypto.getRandomValues(d);
+  return String(d[0] % 1000000).padStart(6, "0");
+}
+
+async function sha256Onaltilik(metin) {
+  return onaltilik(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(metin)));
+}
+
+/** Bot ↔ Worker ortak imzası. Python karşılığı: `uygulama_koprusu.imza`. */
+async function kopruImzasi(jeton) {
+  const anahtar = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(jeton), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return onaltilik(await crypto.subtle.sign("HMAC", anahtar, new TextEncoder().encode(KOPRU_ETIKET)));
+}
+
+/** Sabit zamanlı karşılaştırma: imza harf harf tahmin edilemesin. */
+function esitMi(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  let fark = 0;
+  for (let i = 0; i < a.length; i++) fark |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return fark === 0;
+}
+
+// Uygulama tarayıcıda da çalışıyor (önizleme); kimlik çerez değil başlıkta
+// taşındığı için "*" güvenli.
+const KOPRU_CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-headers": "authorization, content-type",
+  "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+  "access-control-max-age": "86400",
+};
+
+function kopruCevap(veri, durum = 200) {
+  return new Response(JSON.stringify(veri), {
+    status: durum,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...KOPRU_CORS },
+  });
+}
+
+const kopruHatasi = (durum, hata) => kopruCevap({ hata }, durum);
+
+function tasiyici(request) {
+  const h = request.headers.get("authorization") || "";
+  return h.startsWith("Bearer ") ? h.slice(7).trim() : "";
+}
+
+async function telegramCagir(env, yontem, govde) {
+  const cevap = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${yontem}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(govde),
+  });
+  try { return await cevap.json(); } catch (e) { return { ok: false }; }
+}
+
+async function icAyar(env, anahtar) {
+  const r = await env.KOPRU.prepare("SELECT deger FROM ic_ayar WHERE anahtar = ?").bind(anahtar).first();
+  return r ? r.deger : null;
+}
+
+async function cihaziDogrula(env, request) {
+  const belirtec = tasiyici(request);
+  if (belirtec.length < 20) return null;
+  const cihaz = await env.KOPRU.prepare(
+    "SELECT id, ad, son_gorulme FROM cihazlar WHERE belirtec_ozeti = ? AND iptal = 0",
+  ).bind(await sha256Onaltilik(belirtec)).first();
+  if (!cihaz) return null;
+  // "Son görülme" en fazla 10 dakikada bir yazılıyor; her istekte yazmak
+  // D1 yazma kotasını uygulama açık kaldıkça boşa harcardı.
+  if (!cihaz.son_gorulme || Date.now() - Date.parse(cihaz.son_gorulme) > 600000) {
+    await env.KOPRU.prepare("UPDATE cihazlar SET son_gorulme = ? WHERE id = ?").bind(simdiIso(), cihaz.id).run();
+  }
+  return cihaz;
+}
+
+// ---------------------------------------------------------------- bot → Worker
+async function ozetiAl(request, env) {
+  if (!env.TELEGRAM_BOT_TOKEN) return kopruHatasi(503, "Bot jetonu tanımlı değil");
+  if (!esitMi(tasiyici(request), await kopruImzasi(env.TELEGRAM_BOT_TOKEN))) {
+    return kopruHatasi(401, "İmza geçersiz");
+  }
+  const ham = await request.text();
+  if (ham.length > OZET_AZAMI_BAYT) return kopruHatasi(413, "Özet çok büyük");
+  let ozet;
+  try { ozet = JSON.parse(ham); } catch (e) { return kopruHatasi(400, "Bozuk JSON"); }
+  if (!ozet || ozet.protokol !== KOPRU_PROTOKOL) return kopruHatasi(400, "Desteklenmeyen protokol");
+
+  // Özet veritabanının saf fonksiyonu: aynı içerik aynı hash. Aynıysa
+  // tekrar yazılmıyor; yalnızca "bot hâlâ konuşuyor" zamanı güncelleniyor.
+  const hash = await sha256Onaltilik(ham);
+  const onceki = await env.KOPRU.prepare("SELECT ozet_hash FROM ozet WHERE anahtar = 'son'").first();
+  const degisti = !onceki || onceki.ozet_hash !== hash;
+  const yazilar = [
+    env.KOPRU.prepare("INSERT INTO ic_ayar (anahtar, deger) VALUES ('son_temas', ?) "
+      + "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger").bind(simdiIso()),
+  ];
+  if (degisti) {
+    yazilar.push(env.KOPRU.prepare(
+      "INSERT INTO ozet (anahtar, icerik, ozet_hash, alinma) VALUES ('son', ?, ?, ?) "
+      + "ON CONFLICT(anahtar) DO UPDATE SET icerik = excluded.icerik, "
+      + "ozet_hash = excluded.ozet_hash, alinma = excluded.alinma",
+    ).bind(ham, hash, simdiIso()));
+  }
+  // Eşleştirme isteğini ve "uygulamadan işlendi" işaretini hangi gruba
+  // yazacağımızı botun kendisi söylüyor (supergroup geçişinde de güncel).
+  const sohbet = String((ozet._ic && ozet._ic.telegram_sohbet) || "").trim();
+  if (/^-?\d{5,20}$/.test(sohbet)) {
+    yazilar.push(env.KOPRU.prepare("INSERT INTO ic_ayar (anahtar, deger) VALUES ('telegram_sohbet', ?) "
+      + "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger").bind(sohbet));
+  }
+  await env.KOPRU.batch(yazilar);
+  return kopruCevap({ ok: true, degisti });
+}
+
+// ---------------------------------------------------------------- herkese açık
+async function bilgiVer(env) {
+  const satir = await env.KOPRU.prepare("SELECT icerik FROM ozet WHERE anahtar = 'son'").first();
+  let proje = null;
+  if (satir) {
+    try { proje = JSON.parse(satir.icerik).proje || null; } catch (e) { proje = null; }
+  }
+  return kopruCevap({
+    protokol: KOPRU_PROTOKOL,
+    proje,
+    eslestirme: "telegram",
+    son_temas: await icAyar(env, "son_temas"),
+  });
+}
+
+async function eslestirmeBaslat(request, env) {
+  let govde = {};
+  try { govde = await request.json(); } catch (e) { govde = {}; }
+  const cihazAdi = String(govde.cihaz || "").replace(/[<>&"]/g, "").trim().slice(0, 40) || "Bilinmeyen cihaz";
+
+  const sohbet = await icAyar(env, "telegram_sohbet");
+  if (!sohbet) {
+    return kopruHatasi(503, "Bot bu köprüye henüz özet göndermedi. Birkaç dakika sonra tekrar dene.");
+  }
+  await env.KOPRU.prepare("DELETE FROM eslestirmeler WHERE olusma < ?").bind(simdiIso(Date.now() - 86400000)).run();
+  const son1saat = await env.KOPRU.prepare("SELECT COUNT(*) AS n FROM eslestirmeler WHERE olusma > ?")
+    .bind(simdiIso(Date.now() - 3600000)).first();
+  if (son1saat && son1saat.n >= ESLESTIRME_SAATLIK_AZAMI) {
+    return kopruHatasi(429, "Çok fazla bağlantı isteği açıldı. Bir saat sonra tekrar dene.");
+  }
+
+  const id = rastgeleOnaltilik(16);
+  const kod = rastgeleKod();
+  const gosterim = `${kod.slice(0, 3)} ${kod.slice(3)}`;
+  const son = simdiIso(Date.now() + ESLESTIRME_OMRU_SN * 1000);
+  const tg = await telegramCagir(env, "sendMessage", {
+    chat_id: sohbet,
+    parse_mode: "HTML",
+    text: "📱 <b>OzBorn Studio bağlantı isteği</b>\n\n"
+      + `Cihaz: <b>${htmlKacir(cihazAdi)}</b>\nKod: <code>${gosterim}</code>\n\n`
+      + "Bu kodu uygulamanın ekranında görüyorsan <b>Onayla</b>. Görmüyorsan ya da isteği "
+      + "sen başlatmadıysan dokunma; 10 dakika sonra kendiliğinden düşer.",
+    reply_markup: { inline_keyboard: [[
+      { text: "✅ Onayla", callback_data: `eslestir_onay:${id}` },
+      { text: "❌ Reddet", callback_data: `eslestir_red:${id}` },
+    ]] },
+  });
+  if (!tg || !tg.ok) return kopruHatasi(502, "Telegram'a onay mesajı gönderilemedi");
+
+  await env.KOPRU.prepare(
+    "INSERT INTO eslestirmeler (id, kod, cihaz_adi, durum, olusma, son, telegram_mesaj) "
+    + "VALUES (?, ?, ?, 'bekliyor', ?, ?, ?)",
+  ).bind(id, kod, cihazAdi, simdiIso(), son, (tg.result && tg.result.message_id) || null).run();
+  return kopruCevap({ istek: id, kod: gosterim, gecerlilik: son });
+}
+
+async function eslestirmeDurumu(env, id) {
+  const r = await env.KOPRU.prepare("SELECT durum, son, belirtec, cihaz_id FROM eslestirmeler WHERE id = ?")
+    .bind(id).first();
+  if (!r) return kopruHatasi(404, "Bağlantı isteği bulunamadı");
+  if (r.durum === "bekliyor" && Date.parse(r.son) < Date.now()) return kopruCevap({ durum: "suresi_doldu" });
+  if (r.durum === "onaylandi" && r.belirtec) {
+    // Belirteç BİR KEZ veriliyor: alındıktan sonra burada iz kalmıyor.
+    await env.KOPRU.prepare("UPDATE eslestirmeler SET belirtec = NULL WHERE id = ?").bind(id).run();
+    return kopruCevap({ durum: "onaylandi", belirtec: r.belirtec, cihaz_id: r.cihaz_id });
+  }
+  return kopruCevap({ durum: r.durum === "onaylandi" ? "teslim_edildi" : r.durum });
+}
+
+/** Telegram grubundaki "✅ Onayla / ❌ Reddet" düğmesi. Worker anında karara bağlıyor. */
+async function eslestirmeKarari(env, cb, onay, id) {
+  if (!env.KOPRU) {
+    await butonuDurdur(env, cb.id, "Köprü hazır değil");
+    return;
+  }
+  await kopruSemasiniKur(env);
+  const sohbetId = cb.message ? cb.message.chat.id : null;
+  const mesajId = cb.message ? cb.message.message_id : null;
+  const kim = cb.from ? (cb.from.first_name || cb.from.username || "") : "";
+  const yaz = (metin) => telegramCagir(env, "editMessageText", {
+    chat_id: sohbetId, message_id: mesajId, text: metin, parse_mode: "HTML",
+    reply_markup: { inline_keyboard: [] },
+  });
+
+  const r = await env.KOPRU.prepare("SELECT durum, son, cihaz_adi FROM eslestirmeler WHERE id = ?").bind(id).first();
+  if (!r) {
+    await yaz("⚠️ Bu bağlantı isteği artık yok.");
+    await butonuDurdur(env, cb.id, "");
+    return;
+  }
+  if (r.durum !== "bekliyor") {
+    await butonuDurdur(env, cb.id, "Bu istek zaten karara bağlanmış");
+    return;
+  }
+  if (Date.parse(r.son) < Date.now()) {
+    await env.KOPRU.prepare("UPDATE eslestirmeler SET durum = 'suresi_doldu' WHERE id = ?").bind(id).run();
+    await yaz("⌛️ Bağlantı isteğinin süresi doldu.");
+    await butonuDurdur(env, cb.id, "Süresi dolmuş");
+    return;
+  }
+  if (!onay) {
+    await env.KOPRU.prepare("UPDATE eslestirmeler SET durum = 'reddedildi', onaylayan = ? WHERE id = ?")
+      .bind(kim, id).run();
+    await yaz(`❌ <b>${htmlKacir(r.cihaz_adi)}</b> bağlantı isteği reddedildi (${htmlKacir(kim)}).`);
+    await butonuDurdur(env, cb.id, "Reddedildi");
+    return;
+  }
+  const belirtec = rastgeleBelirtec();
+  const cihazId = rastgeleOnaltilik(12);
+  await env.KOPRU.batch([
+    env.KOPRU.prepare("INSERT INTO cihazlar (id, ad, belirtec_ozeti, olusma, onaylayan) VALUES (?, ?, ?, ?, ?)")
+      .bind(cihazId, r.cihaz_adi, await sha256Onaltilik(belirtec), simdiIso(), kim),
+    env.KOPRU.prepare("UPDATE eslestirmeler SET durum = 'onaylandi', belirtec = ?, cihaz_id = ?, onaylayan = ? "
+      + "WHERE id = ? AND durum = 'bekliyor'").bind(belirtec, cihazId, kim, id),
+  ]);
+  await yaz(`✅ <b>${htmlKacir(r.cihaz_adi)}</b> bağlandı (onaylayan: ${htmlKacir(kim)}).\n`
+    + "Bağlantıyı uygulamanın proje ayarlarından istediğin an kaldırabilirsin.");
+  await butonuDurdur(env, cb.id, "Bağlandı");
+}
+
+// ---------------------------------------------------------------- cihaz kimlikli
+async function durumVer(env) {
+  const satir = await env.KOPRU.prepare("SELECT icerik, alinma FROM ozet WHERE anahtar = 'son'").first();
+  const komutlar = await env.KOPRU.prepare(
+    "SELECT k.komut, k.mesaj_id, k.zaman, k.iletildi, c.ad AS cihaz FROM komutlar k "
+    + "LEFT JOIN cihazlar c ON c.id = k.cihaz_id WHERE k.zaman > ? ORDER BY k.id DESC LIMIT 30",
+  ).bind(simdiIso(Date.now() - 6 * 3600000)).all();
+  let ozet = null;
+  if (satir) {
+    ozet = JSON.parse(satir.icerik);
+    delete ozet._ic;      // iç alan (Telegram sohbet kimliği) uygulamaya verilmiyor
+  }
+  return kopruCevap({
+    protokol: KOPRU_PROTOKOL,
+    ozet,
+    alinma: satir ? satir.alinma : null,
+    son_temas: await icAyar(env, "son_temas"),
+    komutlar: komutlar.results || [],
+    sunucu_zamani: simdiIso(),
+  });
+}
+
+async function komutAl(request, env, cihaz) {
+  let g;
+  try { g = await request.json(); } catch (e) { return kopruHatasi(400, "Bozuk istek"); }
+  const komut = String((g && g.komut) || "").trim();
+  if (!eylemMi(komut)) return kopruHatasi(400, "Tanınmayan komut");
+
+  const mesajId = g.mesaj_id == null ? null : Number(g.mesaj_id);
+  if (mesajId !== null && !(Number.isInteger(mesajId) && mesajId > 0 && mesajId < 1e12)) {
+    return kopruHatasi(400, "Geçersiz mesaj kimliği");
+  }
+  const ses = g.ses == null ? null : String(g.ses);
+  if (ses !== null && ses !== "muzikli" && ses !== "muziksiz") return kopruHatasi(400, "Geçersiz ses kipi");
+
+  let kanallar = null;
+  if (g.kanallar != null) {
+    if (!Array.isArray(g.kanallar) || g.kanallar.some((k) => !KOPRU_KANALLARI.includes(k))) {
+      return kopruHatasi(400, "Geçersiz kanal");
+    }
+    kanallar = [...new Set(g.kanallar)];
+  }
+  const yayinKomutu = komut === "yayinla" || YAYINLA_SONRA.test(komut);
+  if (ses && !yayinKomutu) return kopruHatasi(400, "Ses kipi yalnızca yayın komutunda kullanılır");
+  if (yayinKomutu) {
+    // Uygulamada kanal listesi HER ZAMAN açıkça gelir; gelmediyse "hiç seçilmedi" sayılır.
+    const hata = kanalDenetimi(komut, kanallar || [], ses);
+    if (hata) return kopruHatasi(400, hata);
+    // Telegram'da bu ikilileri düğmeler dışlıyor; uygulamadan da karışık gelmesin.
+    if (kanallar.includes("ig") && kanallar.includes("reels")) {
+      return kopruHatasi(400, "Instagram ve Reels birlikte seçilemez");
+    }
+    if (kanallar.includes("tiktok") && kanallar.includes("tiktok_video")) {
+      return kopruHatasi(400, "TikTok ve TikTok video birlikte seçilemez");
+    }
+  }
+
+  // "kaldir:144" — tur kimliği komutun içinde (Telegram yolundakiyle aynı).
+  let gonderilecek = komut;
+  let hedef = mesajId;
+  const kaldirEslesme = KALDIR.exec(komut);
+  if (kaldirEslesme) {
+    gonderilecek = "kaldir";
+    hedef = Number(kaldirEslesme[1]);
+  }
+  const kanallarStr = (kanallar ? kanallar.join(",") : "") + (ses ? `,ses_${ses}` : "");
+  const iletildi = await githubaIlet(env, gonderilecek, hedef, `📱 ${cihaz.ad}`, kanallarStr);
+  await planAlariminiGuncelle(env, komut, hedef, iletildi);
+  await env.KOPRU.prepare(
+    "INSERT INTO komutlar (cihaz_id, komut, mesaj_id, kanallar, zaman, iletildi) VALUES (?, ?, ?, ?, ?, ?)",
+  ).bind(cihaz.id, komut, hedef, kanallarStr || null, simdiIso(), iletildi ? 1 : 0).run();
+  if (!iletildi) return kopruHatasi(502, "Komut GitHub'a iletilemedi, tekrar dene");
+
+  // Telegram'daki onay mesajını işaretle: aynı tur oradan ikinci kez
+  // yayınlanamasın, gruptakiler neyin uygulamadan yapıldığını görsün.
+  // İşaret konamazsa komut YİNE geçerli (zaten GitHub'a gitti).
+  if (hedef && !kaldirEslesme) {
+    const sohbet = await icAyar(env, "telegram_sohbet");
+    if (sohbet) {
+      const sonra = YAYINLA_SONRA.exec(komut);
+      const ad = sonra ? `${sonra[1]} dk sonra yayınlanacak` : (KOMUT_ADI[komut.split(":")[0]] || "İşleniyor");
+      try {
+        await menuyuDegistir(env, sohbet, hedef, islemKlavyesi(komut, hedef, `📱 ${ad}… (${cihaz.ad})`));
+      } catch (e) { /* işaret ikincil */ }
+    }
+  }
+  return kopruCevap({ ok: true });
+}
+
+async function cihazlariVer(env, cihaz) {
+  const r = await env.KOPRU.prepare(
+    "SELECT id, ad, olusma, onaylayan, son_gorulme FROM cihazlar WHERE iptal = 0 ORDER BY olusma DESC",
+  ).all();
+  return kopruCevap({ cihazlar: (r.results || []).map((c) => ({ ...c, bu_cihaz: c.id === cihaz.id })) });
+}
+
+async function cihaziKaldir(env, id) {
+  const r = await env.KOPRU.prepare("UPDATE cihazlar SET iptal = 1 WHERE id = ? AND iptal = 0").bind(id).run();
+  return kopruCevap({ ok: ((r.meta && r.meta.changes) || 0) > 0 });
+}
+
+/** /api/ altındaki bütün istekler. Telegram webhook'undan AYRI, kendi kimlik doğrulamasıyla. */
+async function kopruIstegi(request, env, url) {
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: KOPRU_CORS });
+  if (!env.KOPRU) return kopruHatasi(503, "Köprü veritabanı bağlı değil");
+  try {
+    await kopruSemasiniKur(env);
+    const yol = url.pathname.replace(/\/+$/, "");
+    const y = request.method;
+
+    if (y === "POST" && yol === "/api/kopru/ozet") return await ozetiAl(request, env);
+    if (y === "GET" && yol === "/api/v1/bilgi") return await bilgiVer(env);
+    if (y === "POST" && yol === "/api/v1/eslestir") return await eslestirmeBaslat(request, env);
+    const istek = /^\/api\/v1\/eslestir\/([0-9a-f]{32})$/.exec(yol);
+    if (y === "GET" && istek) return await eslestirmeDurumu(env, istek[1]);
+
+    const cihaz = await cihaziDogrula(env, request);
+    if (!cihaz) return kopruHatasi(401, "Bu cihaz bağlı değil ya da bağlantısı kaldırılmış");
+    if (y === "GET" && yol === "/api/v1/durum") return await durumVer(env);
+    if (y === "POST" && yol === "/api/v1/komut") return await komutAl(request, env, cihaz);
+    if (y === "GET" && yol === "/api/v1/cihazlar") return await cihazlariVer(env, cihaz);
+    const silinecek = /^\/api\/v1\/cihazlar\/([0-9a-f]{24})$/.exec(yol);
+    if (y === "DELETE" && silinecek) return await cihaziKaldir(env, silinecek[1]);
+    return kopruHatasi(404, "Böyle bir uç nokta yok");
+  } catch (e) {
+    console.error("köprü hatası", e && e.stack ? e.stack : e);
+    return kopruHatasi(500, "Köprüde beklenmeyen bir hata oldu");
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    // OzBorn Studio uygulama köprüsü. Telegram webhook'undan ÖNCE ve AYRI:
+    // bu yollar kendi kimlik doğrulamasını yapıyor (cihaz belirteci / bot
+    // imzası), Telegram'ın secret_token denetimine girmiyor.
+    if (url.pathname.startsWith("/api/")) {
+      return kopruIstegi(request, env, url);
+    }
     if (url.pathname === "/tiktok-callback" || url.pathname === "/callback") {
       const code = url.searchParams.get("code") || "";
       const error = url.searchParams.get("error") || "";
@@ -1087,6 +1609,13 @@ export default {
       return new Response("ok");
     }
 
+    // --- OzBorn Studio eşleştirme kararı: Worker anında hallediyor ---
+    const eslestirme = ESLESTIRME.exec(komut);
+    if (eslestirme) {
+      await eslestirmeKarari(env, cb, eslestirme[1] === "onay", eslestirme[2]);
+      return new Response("ok");
+    }
+
     // --- Kurtar: Worker menüyü ve butonları anında geri yükler ---
     if (KURTAR.test(komut)) {
       const mid = Number(komut.split(":")[1]);
@@ -1372,14 +1901,9 @@ export default {
     }
 
     const seciliKanallar = seciliKanallariCikar(cb.message?.reply_markup?.inline_keyboard);
-    // Sıfır kanal seçimi koruması (Senaryo A)
-    if (seciliKanallar !== null && seciliKanallar.length === 0 && (komut === "yayinla" || komut.startsWith("yayinla_sonra:"))) {
-      await butonuDurdur(env, cb.id, "⚠️ En az bir yayın kanalı seçmelisin!");
-      return new Response("ok");
-    }
-    // Seslendirme yalnızca videoya uygulanır: video kanalı yoksa sesli yayın anlamsız
-    if (sesKipi && !(seciliKanallar || []).some((k) => VIDEO_KANALLARI.includes(k))) {
-      await butonuDurdur(env, cb.id, "🎙️ Sesli yayın için en az bir video kanalı seç (Reels, FB, YT, TT)");
+    const kanalHatasi = kanalDenetimi(komut, seciliKanallar, sesKipi);
+    if (kanalHatasi) {
+      await butonuDurdur(env, cb.id, kanalHatasi);
       return new Response("ok");
     }
 
@@ -1400,39 +1924,8 @@ export default {
     const kanallarStr = (seciliKanallar ? seciliKanallar.join(",") : "") + (sesKipi ? `,ses_${sesKipi}` : "");
     const iletildi = await githubaIlet(env, gonderilecek, hedefMesajId, basan, kanallarStr);
 
-    // ⚠️ ÇALAR SAATİ KUR. "2 saat sonra yayınla" seçildiğinde GitHub
-    // veritabanına `planlanan_yayin` yazıyor; ama o zamanın GELDİĞİNİ
-    // fark edecek olan taraf burası. KV'ye bir uyandırma kaydı
-    // bırakılıyor ve 10 dakikalık cron ona bakıyor.
-    //
-    // ⚠️ SIRA ÖNEMLİ: yalnızca dispatch BAŞARILIYSA alarm kuruluyor.
-    // Aksi hâlde veritabanında plan olmayan bir alarm kalır ve
-    // GitHub boş yere uyanır.
-    //
-    // ⚠️ TTL: plan süresi + 6 saat. Anahtar kendiliğinden temizleniyor,
-    // yani iptal edilen bir plan sonsuza kadar KV'de kalmıyor. Zaten
-    // bayat alarm zararsız — `planli_yayinlari_isle` DB'den doğruluyor
-    // ve 4 saatten geç planı iptal ediyor.
-    const sonraEslesme = YAYINLA_SONRA.exec(komut);
-    if (iletildi && sonraEslesme && env.PLANLAR) {
-      const dakika = Number(sonraEslesme[1]);
-      const an = new Date(Date.now() + dakika * 60000).toISOString();
-      try {
-        await env.PLANLAR.put(`plan:${hedefMesajId}`, an,
-          { expirationTtl: dakika * 60 + 21600 });
-      } catch (e) {
-        // KV yazılamazsa saatlik `son_dakika` yedek yol olarak planı
-        // yine de işler — yalnızca daha geç. Sessiz kalmak doğru:
-        // kullanıcıya "yayın planlandı" denmesi gereken an burası değil.
-      }
-    }
-
-    // Plan iptal edilirse alarmı da kaldır — yoksa GitHub boş uyanır.
-    if (iletildi && komut === "plan_iptal" && env.PLANLAR) {
-      try {
-        await env.PLANLAR.delete(`plan:${hedefMesajId}`);
-      } catch (e) { /* bayat alarm zararsız */ }
-    }
+    // Çalar saat (planlı yayın) — kural ve gerekçe `planAlariminiGuncelle`de.
+    await planAlariminiGuncelle(env, komut, hedefMesajId, iletildi);
 
     if (iletildi) {
       // Önce görsel geri bildirim, sonra buton halkasını durdur.

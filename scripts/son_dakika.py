@@ -41,7 +41,7 @@ import yaml                                       # noqa: E402
 from src import (                                  # noqa: E402
     aday, ayar, caption, db, db_senkron, hata_bildir, dogrula, facebook, fetch_news, instagram,
     make_image, otomatik_onay, threads,
-    secim, slaytlar, telegram_bot, upload_image, yonetim,
+    secim, slaytlar, telegram_bot, tur_icerigi, upload_image, yonetim,
 )
 from src import generate_text                      # noqa: E402
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -134,7 +134,7 @@ def omru_bitti_mi(gonderim: str, ayarlar: dict) -> bool:
         return False
 
     simdi = datetime.now(timezone.utc)
-    return simdi - t > timedelta(hours=24)
+    return simdi - t > tur_icerigi.SON_DAKIKA_ONAY_OMRU
 
 
 def _bugun_anahtari() -> str:

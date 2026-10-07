@@ -80,6 +80,12 @@ MESAJSIZ_KOMUTLAR: set[str] = {
     "piyasa_yayinla",
     "ekonomi_yayinla",
     "piyasa_onizle",
+
+    # OzBorn Studio uygulamasından gelenler (7 Eki 2026). Telegram'da bu
+    # ikisi bir mesaja bağlı (öneri listesi / ayar paneli); uygulamada o
+    # mesaj yok. İşleyiciler mesaj yoksa gruba YENİ mesaj yazıyor.
+    "hazirla",
+    "ayarsec",
 }
 
 # Telegram resmi açılır menüsünde (setMyCommands) listelenen komutlar

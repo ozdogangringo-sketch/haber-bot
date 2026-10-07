@@ -85,4 +85,10 @@ jobs:
 
       - name: Veritabanını kaydet
         if: always()
+        # OzBorn Studio uygulamasına özet bırakılıyor (src/uygulama_koprusu.py).
+        # Yeni sır YOK: imza Telegram jetonundan türetiliyor; sohbet kimliği
+        # eşleştirme isteğinin hangi gruba yazılacağını söylüyor.
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python scripts/db_kaydet.py "Piyasa bülteni otomatik yayınlandı"

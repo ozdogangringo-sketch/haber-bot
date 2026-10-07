@@ -217,6 +217,17 @@ def _istek(metot: str, **parametreler) -> dict:
 # Slayt sayısı callback_data'ya gömülü ("slayt_menu:10"): Worker'ın turda
 # kaç slayt olduğunu öğrenebileceği başka bir yol yok.
 
+# Onay mesajı açıldığında hangi kanalların SEÇİLİ geldiği. Reels IG ile,
+# TT Video TT ile birlikte seçilemediği için ikisi kapalı başlıyor.
+# ⚠️ OzBorn Studio uygulaması da bu sözlüğü okuyor (uygulama_koprusu):
+# Telegram'da ve uygulamada aynı varsayılan görünsün diye tek yerde.
+VARSAYILAN_KANAL_SECIMI: dict[str, bool] = {
+    "ig": True, "reels": False, "story": True, "threads": True,
+    "facebook": True, "twitter": True, "youtube": True, "tiktok": True,
+    "tiktok_video": False,
+}
+
+
 def kanal_butonlari(kanallar: dict | None = None) -> list[list[dict]]:
     """
     Yayın kanallarını açıp kapamak için 2 satırlı kompakt toggle butonları üretir.
@@ -224,11 +235,7 @@ def kanal_butonlari(kanallar: dict | None = None) -> list[list[dict]]:
     Satır 2: [✅ FB] [✅ X] [✅ YT] [✅ TT] [⬜ TT Video]
     """
     if kanallar is None:
-        kanallar = {
-            "ig": True, "reels": False, "story": True, "threads": True,
-            "facebook": True, "twitter": True, "youtube": True, "tiktok": True,
-            "tiktok_video": False,
-        }
+        kanallar = dict(VARSAYILAN_KANAL_SECIMI)
 
     def _simge(k):
         varsayilan_kapali = k in ("reels", "tiktok_video")

@@ -141,6 +141,12 @@ jobs:
         # ertesi gün tekrar yayınlanır.
         # `always()`: komut patlasa bile o ana kadarki durum kaydedilmeli.
         if: always()
+        # OzBorn Studio uygulamasına özet bırakılıyor (src/uygulama_koprusu.py).
+        # Yeni sır YOK: imza Telegram jetonundan türetiliyor; sohbet kimliği
+        # eşleştirme isteğinin hangi gruba yazılacağını söylüyor.
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           # ⚠️ ÇIPLAK `git rebase` KULLANMA — `data/haber.db` ikili dosya,
           # iki job aynı anda yazınca çakışıyor ve rebase YARIM KALIYOR.

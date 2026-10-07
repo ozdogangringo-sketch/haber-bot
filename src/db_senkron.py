@@ -269,7 +269,33 @@ def hemen_kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
     Yerelde de çalışır ama asıl yeri GitHub Actions. Başarısız olursa
     False dönüyor ve LOGA yazıyor — turu düşürmüyoruz, workflow'un
     sonundaki commit adımı yedek olarak duruyor.
+
+    Kayıttan sonra OzBorn Studio uygulamasına güncel özet bırakılıyor
+    (`uygulama_koprusu`). Veritabanını değiştiren her akış buradan geçtiği
+    için uygulama tek kancayla hepsini görüyor.
     """
+    tamam = _kaydet(mesaj, ek_yollar)
+    _uygulamaya_bildir()
+    return tamam
+
+
+def _uygulamaya_bildir() -> None:
+    """
+    Uygulama köprüsü İKİNCİL kanal: patlarsa yalnızca loglanır.
+
+    ⚠️ İçe aktarma da korumanın İÇİNDE. Modülde bir sözdizimi hatası
+    olsa bile veritabanı kaydı (yukarıda, ondan ÖNCE) çoktan yapılmış
+    olur ve job düşmez.
+    """
+    try:
+        from . import uygulama_koprusu
+        uygulama_koprusu.ozet_gonder()
+    except Exception:                                       # noqa: BLE001
+        log.warning("db_senkron: uygulama köprüsü çağrılamadı", exc_info=True)
+
+
+def _kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
+    """`hemen_kaydet`'in asıl işi: sağlamlık denetimi, commit, push, çakışma çözümü."""
     # ⚠️ BOZUK VERİTABANINI ASLA COMMIT ETME VE PUSH'LAMA!
     if not veritabani_saglam_mi("data/haber.db"):
         log.critical("db_senkron: 'data/haber.db' sağlamlık denetimini geçemedi! Commit ve push İPTAL EDİLDİ.")
