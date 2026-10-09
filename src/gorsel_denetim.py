@@ -34,6 +34,7 @@ import io
 import json
 import logging
 import os
+import time
 
 import requests
 from PIL import Image
@@ -181,6 +182,10 @@ def gorseli_denetle(foto: Image.Image, baslik: str, konu: str = "",
                 return None
         if cevap.status_code == 429:
             log.info("görsel denetimi kota doldu, sonraki anahtar deneniyor")
+            continue
+        if cevap.status_code in (500, 502, 503, 504):
+            log.warning("görsel denetimi geçici sunucu hatası (HTTP %s), sonraki anahtar deneniyor", cevap.status_code)
+            time.sleep(1)
             continue
         log.warning("görsel denetimi HTTP %s: %s",
                     cevap.status_code, cevap.text[:160])

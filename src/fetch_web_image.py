@@ -33,15 +33,37 @@ ISTENMEYEN_TERIMLER = (
     "logo", "icon", "cartoon", "vector", "drawing", "caricature",
     "chart", "graph", "diagram", "map", "flag", "symbol", "avatar",
     "thumbnail", "poster", "banner", "sticker", "form", "tablo",
-    "belge", "ilan", "dilekce", "resmigazete", "document"
+    "belge", "ilan", "dilekce", "resmigazete", "document",
+    # Mutfak ve yemek terimleri (alakasız trend görsellerini eler)
+    "recipe", "tripe", "tarif", "yemek tarifi", "how to cook", "kinds of tripe",
+    "cuts of meat"
 )
 
-# Filigran basan ücretli stok siteleri ve taranmış ilan formları
+# Başlıktan ayıklanacak anlamsız bağlaç, edat ve dolgu kelimeleri
+STOPWORDS = {
+    "ve", "ile", "icin", "için", "bu", "su", "şu", "o", "bir", "de", "da", "te", "ta",
+    "den", "dan", "ten", "tan", "ye", "ya", "e", "a", "ne", "mi", "mu", "mü", "mı",
+    "gibi", "kadar", "sonra", "once", "önce", "yeni", "son", "dakika", "flas", "flaş",
+    "haber", "haberi", "haberleri", "gorusme", "aciklama", "duyuru", "belli", "oldu",
+    "gelisme", "gelişme", "var", "yok", "iste", "işte", "cok", "çok", "en", "daha",
+    "gore", "göre", "karsi", "karşı", "bomba", "sok", "şok", "iddiasi", "iddiası",
+    "mesaji", "mesajı", "tepkisi", "aciklamasi", "açıklaması", "karari", "kararı",
+    "fotograf", "fotoğraf", "resim", "video", "goruntu", "görüntü", "fotograflari"
+}
+
+# Filigran basan ücretli stok siteleri, taranmış ilan formları ve alakasız yemek blogları
 YASAKLI_STOK_SITELERI = (
     "vecteezy", "shutterstock", "gettyimages", "alamy", "dreamstime",
     "istockphoto", "depositphotos", "123rf", "stockphoto", "freepik",
     "watermark", "pond5", "canva", "ilan.memurlar.net", "kamuilan",
-    "ilan.gov.tr", "advert/documents"
+    "ilan.gov.tr", "advert/documents",
+    # Yemek, tarif ve alakasız mutfak blogları (arama motoru trend sızıntılarını engeller)
+    "recipes.net", "thespruceeats.com", "chowhound.com", "cookingchew.com",
+    "perfectketo.com", "bakeitwithlove.com", "mashed.com", "allrecipes.com",
+    "foodnetwork.com", "tasteofhome.com", "epicurious.com", "delish.com",
+    "heritagemama.com", "carnivorestyle.com", "simplyrecipes.com",
+    "seriouseats.com", "food52.com", "bonappetit.com", "yemek.com",
+    "nefisyemektarifleri.com", "lezzet.com.tr"
 )
 
 
@@ -65,7 +87,7 @@ def _ddg_gorsel_ara(sorgu: str) -> list[dict[str, Any]]:
 
         r = s.get(
             "https://duckduckgo.com/i.js",
-            params={"l": "us-en", "o": "json", "q": sorgu, "vqd": vqd, "f": ",,,", "p": "1"},
+            params={"l": "wt-wt", "o": "json", "q": sorgu, "vqd": vqd, "f": ",,,", "p": "1"},
             headers=HEADERS,
             timeout=10,
         )
@@ -142,6 +164,13 @@ def fotograf_ara(
     tum_adaylar = []
     gorulen_urller = set()
 
+    # Sorgulardaki anlamlı anahtar kelimeleri topla (bağlamsal alaka denetimi)
+    sorgu_kelimeleri = set()
+    for s in sorgular:
+        for k in re.sub(r'[\'\"«»“”‘’:,!?()\[\]\-_/\\.]', ' ', s.lower()).split():
+            if len(k) >= 3 and k not in STOPWORDS:
+                sorgu_kelimeleri.add(k)
+
     for sorgu in sorgular:
         if not sorgu or not str(sorgu).strip():
             continue
@@ -169,6 +198,10 @@ def fotograf_ara(
 
             baslik = (item.get("title") or "").lower()
             if any(yasak in baslik for yasak in ISTENMEYEN_TERIMLER):
+                continue
+
+            # Aday başlığında sorguyla en az 1 anlamlı kelime örtüşmeli (alakasız yabancı trend/yemekleri eler)
+            if sorgu_kelimeleri and not any(sk in baslik for sk in sorgu_kelimeleri):
                 continue
 
             gorulen_urller.add(img_url)
@@ -252,17 +285,6 @@ def atif_metni(kayit: dict[str, Any] | None) -> str:
     return f"Foto: {alan}"
 
 
-# Başlıktan ayıklanacak anlamsız bağlaç, edat ve dolgu kelimeleri
-STOPWORDS = {
-    "ve", "ile", "icin", "için", "bu", "su", "şu", "o", "bir", "de", "da", "te", "ta",
-    "den", "dan", "ten", "tan", "ye", "ya", "e", "a", "ne", "mi", "mu", "mü", "mı",
-    "gibi", "kadar", "sonra", "once", "önce", "yeni", "son", "dakika", "flas", "flaş",
-    "haber", "haberi", "haberleri", "gorusme", "aciklama", "duyuru", "belli", "oldu",
-    "gelisme", "gelişme", "var", "yok", "iste", "işte", "cok", "çok", "en", "daha",
-    "gore", "göre", "karsi", "karşı", "bomba", "sok", "şok", "iddiasi", "iddiası",
-    "mesaji", "mesajı", "tepkisi", "aciklamasi", "açıklaması", "karari", "kararı",
-    "fotograf", "fotoğraf", "resim", "video", "goruntu", "görüntü", "fotograflari"
-}
 
 CLEAN_PREFIX_RE = re.compile(
     r"^(?:son dakika|flaş gelişme|flaş|canlı|sıcak gelişme|bomba iddia|resmen açıklandı|duyuruldu|dikkat|şok|özel haber)\s*[:!,-]?\s*",

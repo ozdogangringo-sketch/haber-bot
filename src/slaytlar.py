@@ -316,33 +316,134 @@ def kardes_linkler(con, haber, azami: int = KARDES_AZAMI) -> list[str]:
     return linkler
 
 
+def canli_kardes_linkler(baslik: str, haric_link: str = "", azami: int = 5) -> list[str]:
+    """
+    Aynı haberin diğer Türk haber sitelerindeki sayfalarını DuckDuckGo / web üzerinden canlı arar.
+    Havuzda henüz kardeş haber bulunamadığında veya alternatif istendiğinde kullanılır.
+    """
+    if not baslik:
+        return []
+    q = re.sub(r'[\'\"«»“”‘’:,!?()\[\]\-_/\\.]', ' ', baslik)
+    kelimeler = [k for k in q.split() if len(k) > 2]
+    if not kelimeler:
+        return []
+    sorgu = " ".join(kelimeler[:6])
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+    }
+    bulunanlar: list[str] = []
+    try:
+        r = requests.post("https://html.duckduckgo.com/html/", data={"q": sorgu}, headers=headers, timeout=8)
+        if r.status_code == 200:
+            from bs4 import BeautifulSoup
+            corba = BeautifulSoup(r.text, "html.parser")
+            for a in corba.select(".result__title a"):
+                href = (a.get("href") or "").strip()
+                m = re.search(r"uddg=([^&]+)", href)
+                if m:
+                    import urllib.parse
+                    href = urllib.parse.unquote(m.group(1))
+                if not href.startswith("http") or href == haric_link or href in bulunanlar:
+                    continue
+                if any(domain in href.lower() for domain in [
+                    "trthaber.com", "aa.com.tr", "hurriyet.com.tr", "sozcu.com.tr", "haberturk.com",
+                    "ntv.com.tr", "milliyet.com.tr", "cumhuriyet.com.tr", "turkiyegazetesi.com.tr",
+                    "ekonomim.com", "birgun.net", "ekoturk.com", "takvim.com.tr", "dunya.com",
+                    "sabah.com.tr", "cnnturk.com", "t24.com.tr", "gazeteduvar.com.tr", "bbc.com/turkce",
+                    "haberler.com", "ensonhaber.com", "medyafaresi.com", "yenicaggazetesi.com.tr"
+                ]):
+                    bulunanlar.append(href)
+                    if len(bulunanlar) >= azami:
+                        break
+    except Exception as e:
+        log.debug("canlı kardeş haber arama hatası: %s", e)
+    return bulunanlar
+
+
+def kardes_haber_linkleri_topla(haber, con=None, haric_orijinal: bool = True) -> list[str]:
+    """
+    Haber için DB ve webdeki tüm kardeş haber linklerini tek liste halinde toplar.
+    `haric_orijinal=True` ise haberin kendi orijinal linki hariç tutulur (farklı kaynak istendiğinde).
+    """
+    haric = _alan(haber, "link") or ""
+    adaylar: list[str] = []
+    # 1. Yerel veritabanındaki kardeşler (aynı olayı geçen diğer RSS kayıtları)
+    if con is not None:
+        for l in kardes_linkler(con, haber):
+            if haric_orijinal and l == haric:
+                continue
+            if l not in adaylar:
+                adaylar.append(l)
+    # 2. Canlı web aramasıyla bulunan diğer Türk haber siteleri
+    baslik = _alan(haber, "baslik_orj") or _alan(haber, "ig_baslik") or ""
+    for l in canli_kardes_linkler(baslik, haric_link=haric if haric_orijinal else ""):
+        if haric_orijinal and l == haric:
+            continue
+        if l not in adaylar:
+            adaylar.append(l)
+    return adaylar
+
+
+def _kaynak_adi(con, link: str) -> str:
+    """Kardeş görselin geldiği yayın kuruluşu — atıf için."""
+    if con:
+        try:
+            r = con.execute("SELECT kaynak FROM haberler WHERE link = ?",
+                            (link,)).fetchone()
+            if r:
+                return make_image.kaynak_gosterim_adi(r[0], None)
+        except Exception:                             # noqa: BLE001
+            pass
+    # Link alan adından prestijli yayın kuruluşu adını türet
+    m = re.search(r"https?://(?:www\.)?([^/:]+)", link or "")
+    if m:
+        alan = m.group(1).lower()
+        alan_haritasi = {
+            "trthaber.com": "TRT Haber",
+            "aa.com.tr": "Anadolu Ajansı",
+            "hurriyet.com.tr": "Hürriyet",
+            "sozcu.com.tr": "Sözcü",
+            "haberturk.com": "Habertürk",
+            "ntv.com.tr": "NTV",
+            "milliyet.com.tr": "Milliyet",
+            "cumhuriyet.com.tr": "Cumhuriyet",
+            "turkiyegazetesi.com.tr": "Türkiye Gazetesi",
+            "ekonomim.com": "Ekonomim",
+            "birgun.net": "BirGün",
+            "ekoturk.com": "Ekotürk",
+            "takvim.com.tr": "Takvim",
+            "dunya.com": "Dünya Gazetesi",
+            "sabah.com.tr": "Sabah",
+            "cnnturk.com": "CNN Türk",
+            "t24.com.tr": "T24",
+            "gazeteduvar.com.tr": "Gazete Duvar",
+            "bbc.com": "BBC Türkçe",
+            "medyafaresi.com": "Medya Faresi",
+            "yenicaggazetesi.com.tr": "Yeniçağ",
+            "haberler.com": "Haberler.com",
+            "ensonhaber.com": "Ensonhaber",
+        }
+        for d, ad in alan_haritasi.items():
+            if d in alan:
+                return ad
+        return alan
+    return "haber kaynağı"
+
+
 def _haber_gorseli_alternatifi(haber, g, con, sira: int, ayarlar: dict | None = None):
     """
     "Başka fotoğraf" için SIRADAKİ haber görseli.
-
-    ⚠️ NEDEN GEREKTİ (4 Eyl 2026): kullanıcı Galatasaray-Başakşehir
-    maçında düşük çözünürlüklü ama DOĞRU fotoğrafı görüp "başka
-    fotoğraf"a bastı; 2. denemede 2008 tarihli bir stadyum tifosu,
-    3. denemede **bambaşka bir kulübün** (Arjantin) fotoğrafı geldi.
-
-    Kök sebep: `atlanacak > 0` olduğunda og:image katmanı ATLANIYORDU
-    ve onunla birlikte **kardeş görsel havuzu** da atlanıyordu. Oysa
-    havuz tam bu iş için kurulmuştu: aynı olayı işleyen diğer
-    kaynakların fotoğrafları. Kullanıcı "bu yanlış" demiyor, "bu
-    kalitesiz" diyor — en iyi kaynağı terk etmek yanlış cevap.
-
-    Sıra: og:image → kardeş 1 → kardeş 2 → … tükenince Commons/Pexels.
-
-    ⚠️ Burada ÇÖZÜNÜRLÜĞE göre değil SIRAYA göre seçiliyor. `atlanacak=0`
-    yolundaki "en büyüğü al" davranışı değişmedi; alternatif isteyen
-    kullanıcıya her basışta FARKLI bir fotoğraf lazım, en büyüğü değil.
+    Kardeş havuzundaki (DB + canlı web) alternatif haber kaynaklarının og:image'larını sırayla dener.
     """
-    adaylar = [haber["link"]] + list(kardes_linkler(con, haber))
-    if sira >= len(adaylar):
-        log.info("haber görseli alternatifi tükendi (%d aday, %d. isteniyor)",
-                 len(adaylar), sira)
+    kardesler = kardes_haber_linkleri_topla(haber, con=con, haric_orijinal=True)
+    if not kardesler:
+        log.info("kardeş haber alternatifi bulunamadı (#%s)", _alan(haber, "id"))
         return None, None
-    link = adaylar[sira]
+    secilen_idx = sira % len(kardesler)
+    link = kardesler[secilen_idx]
     try:
         url = fetch_article.og_gorseli_cek(link)
         if not url:
@@ -350,31 +451,18 @@ def _haber_gorseli_alternatifi(haber, g, con, sira: int, ayarlar: dict | None = 
         foto = _gorseli_indir(url, g)
         if foto is None:
             return None, None
-        # Kardeş görseli Vision denetiminden geçir (farklı kaynaktan geldiği için)
-        if ayarlar is not None and link != haber.get("link"):
-            uygun, sebep = _vision_onayi(foto, haber, ayarlar)
+        if ayarlar is not None:
+            uygun, sebep = _vision_onayi(foto, haber, ayarlar, kaynak="kardes")
             if not uygun:
                 log.info("alternatif kardeş görseli Vision onayından geçemedi (%s)", sebep)
                 return None, None
         kaynak = _kaynak_adi(con, link)
-        log.info("haber görseli alternatifi #%d: %dx%d (%s)",
-                 sira, foto.width, foto.height, kaynak)
+        log.info("haber görseli alternatifi #%d: %dx%d (%s - %s)",
+                 sira, foto.width, foto.height, kaynak, link)
         return foto, kaynak
     except Exception as e:                            # noqa: BLE001
         log.warning("alternatif haber görseli alınamadı: %s", e)
         return None, None
-
-
-def _kaynak_adi(con, link: str) -> str:
-    """Kardeş görselin geldiği yayın kuruluşu — atıf için."""
-    try:
-        r = con.execute("SELECT kaynak FROM haberler WHERE link = ?",
-                        (link,)).fetchone()
-        if r:
-            return make_image.kaynak_gosterim_adi(r[0], None)
-    except Exception:                                 # noqa: BLE001
-        pass
-    return "haber kaynağı"
 
 
 def _en_iyi_haber_gorseli(haber, g: dict, con=None, ayarlar: dict | None = None):
@@ -464,18 +552,15 @@ VISION_DENETLENEN = ("commons", "commons_split", "web_haber")
 VISION_AZAMI_DENEME = 2
 
 
-def _vision_onayi(foto, haber, ayarlar: dict) -> tuple[bool, str]:
+def _vision_onayi(foto, haber, ayarlar: dict, kaynak: str = "") -> tuple[bool, str]:
     """
     Fotoğrafın içine bakıp habere uygun olup olmadığını sorar.
 
     Döner: (kullanılabilir_mi, sebep).
 
-    ⚠️ DENETİM YAPILAMAZSA KABUL EDİLİR. Kota dolmuş, ağ patlamış ya da
-    anahtar yoksa fotoğraf kullanılır. Gerekçe: denetim bir EK güvence,
-    ön şart değil; soramadık diye postu görselsiz bırakmak, denetimden
-    geçmemiş bir fotoğraf basmaktan kötü. (`otomatik_onay`daki "şüphede
-    reddet" kuralının tersi — orada insan onayı olmadan YAYIN yapılıyor,
-    burada yalnızca fotoğraf seçiliyor ve zaten insan onayına gidiyor.)
+    ⚠️ Güvenlik: Haberin kendi og:image'ı denetlenemezse (sonuc is None) kabul edilir.
+    ANCAK internet/web aramasından gelen dış kaynak adayları denetlenemezse KESİNLİKLE
+    onaylanmaz (fail-closed) — API 503 verdiğinde alakasız görsellerin sızması bu şekilde önlenir.
     """
     g = ayarlar.get("gorsel", {}) or {}
     if not g.get("vision_denetim"):
@@ -490,16 +575,28 @@ def _vision_onayi(foto, haber, ayarlar: dict) -> tuple[bool, str]:
             ayarlar=ayarlar,
         )
     except Exception as e:                            # noqa: BLE001
-        log.warning("görsel denetimi patladı, fotoğraf kabul ediliyor: %s", e)
+        log.warning("görsel denetimi patladı: %s", e)
+        if kaynak in ("web_haber", "duckduckgo", "web", "internet"):
+            return False, f"güvenlik denetimi yapılamadı ({e})"
         return True, ""
 
     if sonuc is None:
-        return True, ""                               # soramadık -> kabul
+        if kaynak in ("web_haber", "duckduckgo", "web", "internet"):
+            return False, "güvenlik denetimi yanıt vermedi (API yoğunluğu), web görseli reddedildi"
+        return True, ""                               # haberin kendi og:image'ı için soramadık -> kabul
 
     if not sonuc.get("konuyu_gosteriyor_mu", True):
         return False, "konuyu göstermiyor: " + (sonuc.get("sebep") or "")[:90]
+
     if not sonuc.get("baglam_uyuyor_mu", True):
-        return False, "güncel bağlama uymuyor: " + (sonuc.get("sebep") or "")[:90]
+        # Kardeş haberlerde spor dışındaki haberlerde (siyaset/ekonomi) unvan/görev nüansları yüzünden
+        # gerçek basın fotoğrafı elenmesin; spor branşında forma kontrolü geçerli kalsın.
+        kategori = (_alan(haber, "kategori") or "").lower()
+        if kaynak in ("kardes", "kardes_haber", "haber") and kategori != "spor":
+            log.info("kardeş haber: bağlam uyarısı es geçildi (konu doğrulanmış): %s", sonuc.get("sebep"))
+        else:
+            return False, "güncel bağlama uymuyor: " + (sonuc.get("sebep") or "")[:90]
+
     return True, ""
 
 
@@ -586,13 +683,38 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     # artık başlığı da kullanıyor — spesifik sonuçlar için başlık
     # öncelikli sorgu ile araştırıyor.
     if gorsel_modu == "gercek":
+        # 1. Öncelik: Aynı olayı geçen kardeş haber kaynakları (Havuz DB + Canlı Web Arama)
+        kardesler = kardes_haber_linkleri_topla(haber, con=con, haric_orijinal=True)
+        if kardesler:
+            secilen_link = kardesler[atlanacak % len(kardesler)]
+            try:
+                url = fetch_article.og_gorseli_cek(secilen_link)
+                if url:
+                    foto = _gorseli_indir(url, g)
+                    if foto is not None:
+                        uygun, sebep = _vision_onayi(foto, haber, ayarlar, kaynak="kardes")
+                        if uygun:
+                            kaynak_ad = _kaynak_adi(con, secilen_link)
+                            log.info("arka plan: gerçek mod — kardeş haber görseli (%s, %dx%d - %s)",
+                                     kaynak_ad, foto.width, foto.height, secilen_link)
+                            return (
+                                make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                                "haber",
+                                f"Foto: {kaynak_ad}",
+                            )
+                        else:
+                            log.info("kardeş görseli Vision onayından geçemedi (%s), sıradaki kaynağa geçiliyor", sebep)
+            except Exception as e:                    # noqa: BLE001
+                log.warning("gerçek mod kardeş haber görseli hatası: %s", e)
+
+        # 2. Öncelik: Kardeş haberlerden bulunamazsa filtrelenmiş web editoryal araması
         try:
             web_sonuc = fetch_web_image.haber_icin_fotograf(
                 haber, atlanacak=atlanacak)
             if web_sonuc:
                 foto, web_kayit = web_sonuc
                 atif = fetch_web_image.atif_metni(web_kayit)
-                uygun, sebep = _vision_onayi(foto, haber, ayarlar)
+                uygun, sebep = _vision_onayi(foto, haber, ayarlar, kaynak="web_haber")
                 if not uygun:
                     log.info("gerçek mod: web görseli Vision denetiminden geçemedi (%s), "
                              "kardeş/Commons'a devam ediliyor", sebep)
@@ -771,7 +893,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                 atif = fetch_web_image.atif_metni(web_kayit)
                 # Atıf üretilemiyorsa BASMIYORUZ. Kaynağı bilinmeyen bir
                 # fotoğrafı yayınlamak, hiç fotoğraf koymamaktan kötü.
-                uygun, sebep = _vision_onayi(foto, haber, ayarlar)
+                uygun, sebep = _vision_onayi(foto, haber, ayarlar, kaynak="web_haber")
                 if not uygun:
                     log.info("internet görseli Vision denetiminden geçemedi (%s)",
                              sebep)
