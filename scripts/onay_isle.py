@@ -4729,14 +4729,14 @@ def main() -> int:
     if not haberler:
         import time
         log.warning("tur bulunamadı, veritabanı senkronizasyonu bekleniyor (mesaj_id=%s)…", mesaj_id)
-        for deneme in range(1, 8):
+        for deneme in range(1, 21):
             time.sleep(3.5)
             if db_senkron.uzaktan_tazele():
                 con.close()
                 con = db.baglan()
                 haberler = turu_getir(con, mesaj_id)
                 if haberler:
-                    log.info("tur güncel veritabanında bulundu (deneme %s/7)", deneme)
+                    log.info("tur güncel veritabanında bulundu (deneme %s/20)", deneme)
                     break
 
     if not haberler:
