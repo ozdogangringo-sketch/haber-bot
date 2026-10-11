@@ -67,6 +67,7 @@ jobs:
 
       - name: Komutu uygula
         env:
+          GH_TOKEN: ${{ secrets.REPO_PAT }}
           KOMUT: ${{ github.event.client_payload.komut }}
           MESAJ_ID: ${{ github.event.client_payload.mesaj_id }}
           BASAN: ${{ github.event.client_payload.basan }}

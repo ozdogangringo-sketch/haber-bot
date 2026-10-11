@@ -130,7 +130,6 @@ def _sqlite_db_birlestir(yerel_db_yolu: str | Path, uzak_db_yolu: str | Path,
     try:
         with closing(sqlite3.connect(yerel_db_yolu, timeout=30)) as con:
             con.execute("PRAGMA busy_timeout = 30000")
-            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             con.execute("ATTACH DATABASE ? AS remote_db", (str(uzak_db_yolu),))
             kol = _ortak_kolonlar(con, "haberler")
             # 1. Uzakta olup yerelde hiç olmayan haberleri ekle
@@ -313,8 +312,10 @@ def _birlestir_ve_gonder(mesaj: str, yollar: list[str]) -> bool:
                 log.warning("db_senkron: uzaktaki veritabanı okunamadı, push yapılmadı")
                 return False
             if not _sqlite_db_birlestir(DB_GIT_YOLU, uzak, taban):
-                log.warning("db_senkron: birleştirilemedi — uzaktakini ezmemek için push YAPILMADI")
-                return False
+                log.warning("db_senkron: birleştirilemedi (%s/%s), tekrar deneniyor", deneme, AZAMI_BIRLESTIRME)
+                import time
+                time.sleep(0.5)
+                continue
             _wal_bosalt()
             if not veritabani_saglam_mi(DB_GIT_YOLU):
                 log.critical("db_senkron: birleştirme sonrası veritabanı sağlam değil, push engellendi")
@@ -425,10 +426,15 @@ def _kaydet(mesaj: str, ek_yollar: list[str] | None = None) -> bool:
     tamam, cikti = _calistir("git", "commit", "-m", mesaj)
     if not tamam:
         if _degisiklik_yok(cikti):
-            log.info("db_senkron: değişiklik yok, commit ve push atlandı")
-            return True
-        log.warning("db_senkron: commit başarısız: %s", cikti[:200])
-        return False
+            ok_y, yerel_tak = _calistir("git", "rev-parse", "HEAD")
+            ok_u, uzak_tak = _calistir("git", "rev-parse", f"origin/{DAL}")
+            if ok_y and ok_u and yerel_tak == uzak_tak:
+                log.info("db_senkron: değişiklik yok ve yerel güncel, commit ve push atlandı")
+                return True
+            log.info("db_senkron: commit edilecek yeni değişiklik yok ama itilmemiş yerel commit var, push deneniyor")
+        else:
+            log.warning("db_senkron: commit başarısız: %s", cikti[:200])
+            return False
 
     tamam, cikti = _push()
     if not tamam:

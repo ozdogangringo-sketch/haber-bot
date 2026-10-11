@@ -162,6 +162,7 @@ def bugunku_sayi(con) -> int:
 
 def sayaci_artir(con) -> None:
     db.ayar_yaz(con, _bugun_anahtari(), bugunku_sayi(con) + 1)
+    con.commit()
 
 
 # Planlanan saatin ne kadar üstüne çıkılırsa yayın vazgeçilir.
@@ -889,6 +890,10 @@ def gece_otomatik_yayinla(con, ayarlar, aday, taze, urller,
             [[{"text": "🗑 Bu yayını kaldır",
                "callback_data": f"kaldir:{bildirim_id}"}]],
         )
+        try:
+            con.close()
+        except Exception:
+            pass
         # Onay dallarında olduğu gibi burada da hemen push:
         # "kaldır" düğmesi GitHub'daki veritabanına bakıyor ve
         # workflow'un son adımını beklemek gereksiz risk.
@@ -947,8 +952,12 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
         (mesaj_id, urller[0], json.dumps(urller[1:]),
          story_url, aday["id"]),
     )
-    con.commit()
     sayaci_artir(con)
+    con.commit()
+    try:
+        con.close()
+    except Exception:
+        pass
 
     # Onay butonu GitHub'daki veritabanına bakıyor. Workflow'un
     # sonundaki commit adımını beklersek kullanıcı o aralıkta
