@@ -4779,9 +4779,14 @@ def main() -> int:
                 "Gönderi kapanmış, atlanmış ya da yayınlanmış olabilir." + ek,
             )
         else:
+            telegram_bot.sonucu_yaz(
+                mesaj_id,
+                "⚠️ <b>Bu gönderi veritabanında bulunamadı.</b>\n"
+                "Kayıt süresi dolmuş veya işlem tamamlanamamış olabilir." + ek,
+            )
             telegram_bot.mesaj_gonder(
-                "⚠️ <b>Gönderi veritabanına henüz yansımadı veya tur bulunamadı.</b>\n"
-                "Lütfen birkaç saniye bekleyip butona tekrar dokunun." + ek,
+                "⚠️ <b>Gönderi veritabanında bulunamadı veya tur kapandı.</b>\n"
+                "Yeni bir tur başlatmak veya haber seçmek için /tur yazabilirsin." + ek,
                 html=True,
             )
         # Sistem hatası olmadığı için job BAŞARILI sayılıyor.
