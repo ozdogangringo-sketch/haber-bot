@@ -291,8 +291,8 @@ function anaMenu(adet, kanallar) {
   return {
     inline_keyboard: [
       ...kanalButonlariSatirlari(kanallar ? kanallariCoz(kStr) : null),
-      [{ text: "✅ Yayınla", callback_data: yayinCb },
-       { text: "🎙️ Sesli Yayınla", callback_data: sesCb }],
+      [{ text: "✅ Yayınla", callback_data: yayinCb, style: "success" },
+       { text: "🎙️ Sesli Yayınla", callback_data: sesCb, style: "primary" }],
       [{ text: "📲 Manuel Paylaşım Paketi", callback_data: "manuel_paket" }],
       [{ text: "🔄 Başka Fotoğraf Bul", callback_data: fotoCb },
        { text: "✍️ Metinleri Yenile", callback_data: metinCb }],
@@ -300,7 +300,7 @@ function anaMenu(adet, kanallar) {
       [{ text: "⏰ 1 saat ertele", callback_data: "ertele" }],
       [{ text: "📋 Tekil atma, 10'lu tura bırak", callback_data: "tura_birak" }],
       [{ text: "❌ Bu turu atla (Havuza döner)", callback_data: "iptal" },
-       { text: "🗑️ Çöpe At (Havuza dönmesin)", callback_data: "cope_at" }],
+       { text: "🗑️ Çöpe At (Havuza dönmesin)", callback_data: "cope_at", style: "danger" }],
     ],
   };
 }
@@ -334,6 +334,27 @@ function metinMenusu(adet, kanallar) {
     ],
   };
 }
+
+// ---------------------------------------------------------------------
+// Ekranın en altında sabit duran 4 kutucuklu kalıcı hızlı erişim klavyesi (ReplyKeyboardMarkup).
+// is_persistent: true: Kullanıcı klavyeyi kapatsa bile altta sabit kalır.
+// resize_keyboard: true: Butonları kompakt ve zarif hap boyutunda tutar.
+// ---------------------------------------------------------------------
+const KALICI_ALT_MENU = {
+  keyboard: [
+    [
+      { text: "🚀 Canlı Bülteni Yayınla" },
+      { text: "📰 Taze 5 Haber" },
+    ],
+    [
+      { text: "📊 Canlı Piyasa" },
+      { text: "⚙️ Yönetim Paneli" },
+    ],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+  input_field_placeholder: "Bir komut seçin veya haber linki yapıştırın...",
+};
 
 // ⚠️ src/telegram_bot.py -> yayin_zamani_menusu() ile BİREBİR AYNI olmalı.
 function yayinZamaniMenusu(adet, kanallar) {
@@ -547,9 +568,8 @@ async function islemeAlindiGoster(env, sohbetId, mesajId, mesajMetni, komut) {
   });
 }
 
-/** Düz mesaj gönderir (yazılı komutlara anında cevap için). */
-/** Düz mesaj gönderir (yazılı komutlara anında cevap için). */
-async function mesajGonder(env, sohbetId, metin, parseMode = null) {
+/** Düz veya kalıcı menülü mesaj gönderir (yazılı komutlara anında cevap için). */
+async function mesajGonder(env, sohbetId, metin, parseMode = null, replyMarkup = null) {
   if (!sohbetId) return;
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
   const body = {
@@ -558,6 +578,7 @@ async function mesajGonder(env, sohbetId, metin, parseMode = null) {
     disable_web_page_preview: true,
   };
   if (parseMode) body.parse_mode = parseMode;
+  if (replyMarkup) body.reply_markup = replyMarkup;
   await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1218,7 +1239,54 @@ export default {
             }
         }
 
+        const tamMetin = msj.text.trim();
+
+        // --- Kalıcı Alt Hızlı Menü Butonları (ReplyKeyboardMarkup) ---
+        if (tamMetin === "🚀 Canlı Bülteni Yayınla" || tamMetin === "🚀 Canlı Bülteni Şimdi Yayınla") {
+            const iletildi = await githubaIlet(env, "piyasa_yayinla", null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? "🚀 <b>Canlı Piyasa Bülteni Hazırlanıyor ve Yayınlanıyor…</b>\n1080x1920 infografikler tüm platformlara paylaşılacak."
+                    : "⚠️ Komut iletilemedi, tekrar dene.", "HTML");
+            return new Response("ok");
+        }
+        if (tamMetin === "📰 Taze 5 Haber") {
+            const iletildi = await githubaIlet(env, "sondakika", null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? "⚡️ <b>Son dakika sıcak haber taraması başlatılıyor…</b>"
+                    : "⚠️ Komut iletilemedi, tekrar dene.", "HTML");
+            return new Response("ok");
+        }
+        if (tamMetin === "📊 Canlı Piyasa") {
+            const iletildi = await githubaIlet(env, "piyasa", null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? "📈 <b>Canlı piyasa ve borsa verileri çekiliyor…</b>"
+                    : "⚠️ Komut iletilemedi, tekrar dene.", "HTML");
+            return new Response("ok");
+        }
+        if (tamMetin === "⚙️ Yönetim Paneli") {
+            const iletildi = await githubaIlet(env, "yonetim", null, msj.from ? msj.from.first_name || "" : "");
+            await mesajGonder(env, sohbet,
+                iletildi
+                    ? "⏳ <b>Yönetim paneli getiriliyor…</b>"
+                    : "⚠️ Komut iletilemedi, tekrar dene.", "HTML");
+            return new Response("ok");
+        }
+
         const komutMetni = msj.text.trim().split(/[\s@]/)[0].toLowerCase();
+
+        // /altmenu & /klavye — Kalıcı hızlı erişim kutucuklarını ekrana getirir
+        if (komutMetni === "/altmenu" || komutMetni === "/klavye") {
+            await mesajGonder(env, sohbet,
+                "🎛️ <b>Daily Brief Hızlı Erişim Menüsü Aktif</b>\n\n" +
+                "Ekranın altındaki kutucukları kullanarak turları, piyasa bültenini ve " +
+                "bot yönetimini tek dokunuşla çalıştırabilirsin.",
+                "HTML",
+                KALICI_ALT_MENU);
+            return new Response("ok");
+        }
 
         // /guncelle — RSS'i hemen tarar. Kullanıcı duyduğu bir haberi
         // arayıp bulamadığında kontrolün çalışmasını beklemek zorunda
@@ -1283,7 +1351,8 @@ export default {
                 "❓ /yardim — Bu rehber\n\n" +
                 "<i>⚠️ Makro kartlarında oranı SEN yazıyorsun; bot rakam " +
                 "uydurmaz. Örn: /faiz 47.5 TCMB politika faizini sabit tuttu</i>",
-                "HTML");
+                "HTML",
+                KALICI_ALT_MENU);
             return new Response("ok");
         }
 
@@ -1449,6 +1518,7 @@ export default {
                 "Aşağıdaki interaktif panelden turları başlatabilir, son dakika taraması yapabilir veya sistemi yönetebilirsin:",
                 menuButonlar, "HTML"
             );
+            await mesajGonder(env, sohbet, "🎛️ Alt hızlı menü kutucukları da hazırlandı 👇", "HTML", KALICI_ALT_MENU);
             return new Response("ok");
         }
 

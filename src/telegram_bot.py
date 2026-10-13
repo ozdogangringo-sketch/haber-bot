@@ -262,8 +262,8 @@ def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
     """Onay mesajının ilk buton seti."""
     return {"inline_keyboard": [
         *kanal_butonlari(kanallar),
-        [{"text": "✅ Yayınla", "callback_data": f"yayin_menu:{adet}"},
-         {"text": "🎙️ Sesli Yayınla", "callback_data": f"ses_menu:{adet}"}],
+        [{"text": "✅ Yayınla", "callback_data": f"yayin_menu:{adet}", "style": "success"},
+         {"text": "🎙️ Sesli Yayınla", "callback_data": f"ses_menu:{adet}", "style": "primary"}],
         [{"text": "📲 Manuel Paylaşım Paketi", "callback_data": "manuel_paket"}],
         [{"text": "🔄 Başka Fotoğraf Bul", "callback_data": f"foto_menu:{adet}"},
          {"text": "✍️ Metinleri Yenile", "callback_data": f"metin_menu:{adet}"}],
@@ -278,7 +278,7 @@ def ana_menu(adet: int, kanallar: dict | None = None) -> dict:
         [{"text": "📋 Tekil atma, 10'lu tura bırak",
           "callback_data": "tura_birak"}],
         [{"text": "❌ Bu turu atla (Havuza döner)", "callback_data": "iptal"},
-         {"text": "🗑️ Çöpe At (Havuza dönmesin)", "callback_data": "cope_at"}],
+         {"text": "🗑️ Çöpe At (Havuza dönmesin)", "callback_data": "cope_at", "style": "danger"}],
     ]}
 
 
@@ -843,8 +843,8 @@ def onay_iste(caption: str, slayt_adedi: int, uyari: str = "",
 
     temiz_caption = html_lib.escape(caption.strip())
     parcalar.append(
-        "📝 <b>Açıklama Metni (Kopyalamak için dokunun):</b>\n"
-        f"<pre>{temiz_caption}</pre>"
+        "📝 <b>Açıklama Metni (Genişletmek / kopyalamak için dokunun):</b>\n"
+        f"<blockquote expandable>{temiz_caption}</blockquote>"
     )
 
     metin = "\n\n".join(parcalar)
@@ -1273,8 +1273,6 @@ def oneri_gonder(adaylar: list[dict], azami: int = 5,
 
         spot = _spot_temizle(a.get("ozet") or "")
         baslik_ham = a.get("baslik") or ""
-        if spot and spot.lower() not in baslik_ham.lower() and baslik_ham.lower() not in spot.lower():
-            satirlar.append(f"     💬 <i>{_kacir(spot)}</i>")
 
         # ⚠️ SİNYAL ROZETLERİ (18 Eyl 2026). Kullanıcı sordu: "Tera
         # Holding ve Katılımevim haberleri neden hiç önerilmedi, yoksa
@@ -1283,10 +1281,6 @@ def oneri_gonder(adaylar: list[dict], azami: int = 5,
         # puanı `[5]` görünüyordu ve başlık ("Tera Portföy'ün iki fonu
         # temerrüde düştü, 6 fonunda ise para 10'uncu iş günü
         # ödenecek") yoğun bir finans cümlesiydi.
-        #
-        # Yani kusur SEÇİMDE değil SUNUMDAYDI: mesaj "buna neden
-        # bakmalıyım" sorusunu cevaplamıyordu. İki sinyal zaten
-        # hesaplanıyor ama gösterilmiyordu.
         rozetler = []
         mut = a.get("mutabakat") or 0
         if mut >= 3:
@@ -1295,9 +1289,12 @@ def oneri_gonder(adaylar: list[dict], azami: int = 5,
         if pay >= 8:
             rozetler.append("💾 paylaşımlık")
         rozet_str = ("  " + " · ".join(rozetler)) if rozetler else ""
+
+        spot_str = f"💬 <i>{_kacir(spot)}</i>\n" if (spot and spot.lower() not in baslik_ham.lower() and baslik_ham.lower() not in spot.lower()) else ""
         satirlar.append(
-            f"     <i>{_kacir(a.get('kaynak', ''))} · {_kacir(a.get('kategori', ''))}</i>"
-            f"{rozet_str} · <code>/incele_{a['id']}</code>"
+            f"<blockquote expandable>{spot_str}"
+            f"📌 <i>{_kacir(a.get('kaynak', ''))} · {_kacir(a.get('kategori', ''))}</i>"
+            f"{rozet_str} · <code>/incele_{a['id']}</code></blockquote>"
         )
         satirlar.append("")
         secim_butonlari.append({"text": r_simge,
@@ -1444,4 +1441,59 @@ def komut_menusu_kaydet() -> bool:
 
     log.info("Telegram komut menüsü %d/%d kapsama yazıldı.",
              basarili, len(kapsamlar))
+    # Sol alttaki menü butonunu (ChatMenuButton) resmi komut listesine bağla
+    chat_menu_butonu_kaydet()
     return basarili == len(kapsamlar)
+
+
+def chat_menu_butonu_kaydet() -> bool:
+    """Sol alttaki menü düğmesini (ChatMenuButton) resmi komut listesine bağlar."""
+    try:
+        url = TABAN.format(jeton=_jeton(), metot="setChatMenuButton")
+        r = requests.post(url, json={"menu_button": {"type": "commands"}}, timeout=10)
+        res = r.json() if r.content else {}
+        log.info("setChatMenuButton sonucu: %s", res)
+        return bool(res.get("ok"))
+    except Exception as e:
+        log.warning("setChatMenuButton hatası: %s", e)
+        return False
+
+
+def kalici_alt_menu() -> dict:
+    """
+    Ekranın en altında sabit duran 4 kutucuklu kalıcı hızlı erişim klavyesi (ReplyKeyboardMarkup).
+    is_persistent=True: Kullanıcı klavyeyi kapatsa bile altta sabit kalır.
+    resize_keyboard=True: Butonları kompakt ve zarif hap boyutunda tutar.
+    """
+    return {
+        "keyboard": [
+            [
+                {"text": "🚀 Canlı Bülteni Yayınla"},
+                {"text": "📰 Taze 5 Haber"},
+            ],
+            [
+                {"text": "📊 Canlı Piyasa"},
+                {"text": "⚙️ Yönetim Paneli"},
+            ],
+        ],
+        "resize_keyboard": True,
+        "is_persistent": True,
+        "input_field_placeholder": "Bir komut seçin veya haber linki yapıştırın...",
+    }
+
+
+def kalici_alt_menu_gonder(sohbet_id: str | None = None) -> int:
+    """Sohbetteki en alt alana kalıcı 4 kutucuklu hızlı erişim menüsünü kurar."""
+    chat_id = sohbet_id or _sohbet_id()
+    sonuc = _istek(
+        "sendMessage",
+        chat_id=chat_id,
+        text=(
+            "🎛️ <b>Daily Brief Hızlı Erişim Menüsü Aktif</b>\n\n"
+            "Ekranın altındaki kutucukları kullanarak turları, piyasa bültenini ve "
+            "bot yönetimini tek dokunuşla çalıştırabilirsin."
+        ),
+        parse_mode="HTML",
+        reply_markup=kalici_alt_menu(),
+    )
+    return sonuc.get("message_id", 0)

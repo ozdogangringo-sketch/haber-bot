@@ -4186,7 +4186,7 @@ def incele_islemi(con, ayarlar: dict, komut: str, mesaj_id: int = 0, basan: str 
         satirlar.append(f"💡 <b>Puanlama Gerekçesi:</b> <i>{gerekce}</i>")
 
     if icerik_temiz:
-        satirlar.extend(["", "📝 <b>Haber İçeriği / Giriş:</b>", f"<i>{icerik_temiz}</i>"])
+        satirlar.extend(["", "📝 <b>Haber İçeriği / Giriş:</b>", f"<blockquote expandable>{icerik_temiz}</blockquote>"])
 
     if link and link.startswith("http"):
         satirlar.extend(["", f"🔗 <a href=\"{link}\">Orijinal Haberi Kaynağında Oku</a>"])
