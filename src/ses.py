@@ -70,42 +70,123 @@ def ses_suresi_ogren(ses_yolu: Optional[Path | str]) -> float:
         return 0.0
 
 
-def metin_seslendir(metin: str, ayarlar: Optional[Dict[str, Any]] = None,
-                    cikti_yolu: Optional[Path] = None) -> Optional[Path]:
-    """Metni ElevenLabs ile seslendirir; anahtar yoksa ya da kota bittiyse None."""
-    anahtar = os.getenv("ELEVENLABS_API_KEY", "").strip()
-    if not anahtar:
-        log.warning("ELEVENLABS_API_KEY yok, seslendirme atlanıyor.")
+DEFAULT_FISH_VOICE_ID = "a6d624c6b8de45d2b89eb0da9a691872"  # Mazlum Kiper sesi (tok, vakur Türkçe haber anlatıcısı)
+
+
+def fish_audio_seslendir(
+    metin: str,
+    ayarlar: Optional[Dict[str, Any]] = None,
+    cikti_yolu: Optional[Path] = None,
+) -> Optional[Path]:
+    """Metni Fish Audio S2.1 ile seslendirir (ElevenLabs yedeği / fallback)."""
+    fish_key = os.getenv("FISH_AUDIO_API_KEY", "").strip()
+    if not fish_key:
         return None
+
+    fish_voice_id = (
+        _ayar(ayarlar, "fish_voice_id")
+        or os.getenv("FISH_AUDIO_VOICE_ID", "").strip()
+        or DEFAULT_FISH_VOICE_ID
+    )
+
+    cikti_yolu = Path(cikti_yolu or CIKTI / f"ses_fish_{os.getpid()}_{int(time.time() * 1000)}.mp3")
+    cikti_yolu.parent.mkdir(parents=True, exist_ok=True)
+
+    hiz = float(_ayar(ayarlar, "ayarlar.speed", 1.15))
+    headers = {
+        "Authorization": f"Bearer {fish_key}",
+        "Content-Type": "application/json",
+        "model": "s2.1-pro-free",
+    }
+    payload = {
+        "text": metin,
+        "reference_id": fish_voice_id,
+        "format": "mp3",
+        "prosody": {"speed": hiz},
+    }
+
+    for deneme in range(1, 3):
+        try:
+            log.info("Fish Audio TTS çağrılıyor (deneme %d/2, ses_id: %s)...", deneme, fish_voice_id)
+            r = requests.post("https://api.fish.audio/v1/tts", headers=headers, json=payload, timeout=45)
+            if r.status_code == 200 and len(r.content) > 500:
+                cikti_yolu.write_bytes(r.content)
+                log.info("Fish Audio seslendirme başarılı: %s (boyut: %d bayt)", cikti_yolu.name, len(r.content))
+                return cikti_yolu
+            log.warning("Fish Audio TTS hatası (deneme %d/2) [%s]: %s", deneme, r.status_code, r.text[:120])
+        except Exception as e:
+            log.warning("Fish Audio TTS isteği başarısız (deneme %d/2): %s", deneme, e)
+        if deneme < 2:
+            time.sleep(2)
+
+    return None
+
+
+SON_KULLANILAN_MOTOR: str = "ElevenLabs"
+
+
+def son_kullanilan_motor() -> str:
+    """Son başarılı seslendirmede kullanılan TTS motorunu döner ('ElevenLabs' veya 'Fish Audio')."""
+    return SON_KULLANILAN_MOTOR
+
+
+def metin_seslendir(
+    metin: str,
+    ayarlar: Optional[Dict[str, Any]] = None,
+    cikti_yolu: Optional[Path] = None,
+) -> Optional[Path]:
+    """
+    Metni öncelikle ElevenLabs ile seslendirir; kota/yetki hatası durumunda
+    otomatik olarak Fish Audio S2.1 (Mazlum Kiper sesi) fallback motoruna geçer.
+    """
+    global SON_KULLANILAN_MOTOR
     # Okunuş, sonra tek harfin tırnağı ("A Milli Takım": düz "A" çok hızlı okunuyordu — ölçüldü)
     temiz = okunus.tek_harfleri_belirginlestir(okunus.okunusa_cevir(metin or ""))
     if not temiz:
         return None
-    sesler = [s for s in dict.fromkeys([_ayar(ayarlar, "ses_id"), _ayar(ayarlar, "yedek_ses_id"), YEDEK_SES_ID, "r3deco0KTo6o0Kb5inro"]) if s]
-    cikti_yolu = Path(cikti_yolu or CIKTI / f"ses_{os.getpid()}_{int(time.time() * 1000)}.mp3")
-    cikti_yolu.parent.mkdir(parents=True, exist_ok=True)
-    basliklar = {"xi-api-key": anahtar, "Content-Type": "application/json"}
-    govde = {"text": temiz, "model_id": _ayar(ayarlar, "model", "eleven_multilingual_v2"),
-             "voice_settings": dict(_ayar(ayarlar, "ayarlar", {}) or {}), "language_code": "tr"}
-    for ses_id in sesler:
-        for deneme in range(1, 4):
-            try:
-                r = requests.post(f"https://api.elevenlabs.io/v1/text-to-speech/{ses_id}",
-                                  headers=basliklar, json=govde, timeout=45)
-                if r.status_code == 200 and len(r.content) > 500:
-                    cikti_yolu.write_bytes(r.content)
-                    log.info("ElevenLabs seslendirme başarılı: %s (ses_id: %s, boyut: %d bayt)", cikti_yolu.name, ses_id, len(r.content))
-                    return cikti_yolu
-                log.warning("ElevenLabs hatası (deneme %d/3) [%s]: %s", deneme, r.status_code, r.text[:120])
-                if r.status_code in (401, 402) or (r.status_code == 400 and "invalid_api_key" in r.text):
-                    log.error("ElevenLabs kimlik/kota hatası: API anahtarını veya kotayı kontrol edin.")
-                    return None  # yetki/kota: başka ses denemek de aynı hatayı alır
-                if r.status_code in (400, 404) and "voice" in r.text.lower():
-                    break  # ses kütüphaneden kalkmış: yedek sese geç
-            except Exception as e:
-                log.warning("ElevenLabs isteği başarısız (deneme %d/3): %s", deneme, e)
-            if deneme < 3:
-                time.sleep(1.5 * deneme)
+
+    anahtar = os.getenv("ELEVENLABS_API_KEY", "").strip()
+
+    if anahtar:
+        sesler = [s for s in dict.fromkeys([_ayar(ayarlar, "ses_id"), _ayar(ayarlar, "yedek_ses_id"), YEDEK_SES_ID, "r3deco0KTo6o0Kb5inro"]) if s]
+        el_cikti = Path(cikti_yolu or CIKTI / f"ses_{os.getpid()}_{int(time.time() * 1000)}.mp3")
+        el_cikti.parent.mkdir(parents=True, exist_ok=True)
+        basliklar = {"xi-api-key": anahtar, "Content-Type": "application/json"}
+        govde = {"text": temiz, "model_id": _ayar(ayarlar, "model", "eleven_multilingual_v2"),
+                 "voice_settings": dict(_ayar(ayarlar, "ayarlar", {}) or {}), "language_code": "tr"}
+        for ses_id in sesler:
+            kota_bitti = False
+            for deneme in range(1, 4):
+                try:
+                    r = requests.post(f"https://api.elevenlabs.io/v1/text-to-speech/{ses_id}",
+                                      headers=basliklar, json=govde, timeout=45)
+                    if r.status_code == 200 and len(r.content) > 500:
+                        el_cikti.write_bytes(r.content)
+                        log.info("ElevenLabs seslendirme başarılı: %s (ses_id: %s, boyut: %d bayt)", el_cikti.name, ses_id, len(r.content))
+                        SON_KULLANILAN_MOTOR = "ElevenLabs"
+                        return el_cikti
+                    log.warning("ElevenLabs hatası (deneme %d/3) [%s]: %s", deneme, r.status_code, r.text[:120])
+                    if r.status_code in (401, 402) or (r.status_code == 400 and "invalid_api_key" in r.text):
+                        log.warning("ElevenLabs kimlik/kota hatası (%s): Fish Audio fallback deneniyor.", r.status_code)
+                        kota_bitti = True
+                        break  # yetki/kota: başka ElevenLabs sesi denemek yerine doğrudan Fish Audio'ya geç
+                    if r.status_code in (400, 404) and "voice" in r.text.lower():
+                        break  # ses kütüphaneden kalkmış: yedek sese geç
+                except Exception as e:
+                    log.warning("ElevenLabs isteği başarısız (deneme %d/3): %s", deneme, e)
+                if deneme < 3:
+                    time.sleep(1.5 * deneme)
+            if kota_bitti:
+                break
+    else:
+        log.info("ELEVENLABS_API_KEY yok, doğrudan Fish Audio deneniyor.")
+
+    # 2. Aşama: Fish Audio Fallback Motoru
+    fish_yol = fish_audio_seslendir(temiz, ayarlar, cikti_yolu=cikti_yolu)
+    if fish_yol:
+        SON_KULLANILAN_MOTOR = "Fish Audio"
+        return fish_yol
+
     return None
 
 
@@ -248,6 +329,8 @@ def anlatimli_video_uret(dikey_gorseller: List[Path | str], haberler: List[Any],
         cagri = _onbellekli_seslendir(kapanis_cagrisi(ayarlar), ayarlar)
     if sonuc is not None:
         sonuc["anlatim"] = any(sesler)
+        if any(sesler):
+            sonuc["motor"] = son_kullanilan_motor()
 
     sureler = list(video.slayt_surelerini_hesapla(n, haberler=haberler))
     sure_ses = [ses_suresi_ogren(s) if s else 0.0 for s in sesler]

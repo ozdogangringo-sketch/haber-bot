@@ -100,7 +100,7 @@ class TestSesSecimi(unittest.TestCase):
         self.assertEqual(post.call_args.kwargs["json"]["voice_settings"], AYARLAR["seslendirme"]["ayarlar"])
         self.assertEqual(post.call_args.kwargs["json"]["text"], "Hazreti Ali beş binde bir ölçekli planı açıkladı.")
 
-    @patch.dict("os.environ", {"ELEVENLABS_API_KEY": "sahte"})
+    @patch.dict("os.environ", {"ELEVENLABS_API_KEY": "sahte", "FISH_AUDIO_API_KEY": ""})
     @patch("src.ses.time.sleep")
     @patch("src.ses.requests.post")
     def test_ses_kalkinca_yedege_kota_bitince_hemen_vazgecer(self, post, _):
@@ -112,9 +112,23 @@ class TestSesSecimi(unittest.TestCase):
         self.assertIsNone(ses.metin_seslendir("Deneme.", AYARLAR, self.cikti))
         self.assertEqual(post.call_count, 1)
 
-    @patch.dict("os.environ", {"ELEVENLABS_API_KEY": ""})
+    @patch.dict("os.environ", {"ELEVENLABS_API_KEY": "", "FISH_AUDIO_API_KEY": ""})
     def test_anahtar_yoksa_sessiz(self):
         self.assertIsNone(ses.metin_seslendir("Deneme.", AYARLAR, self.cikti))
+
+    @patch.dict("os.environ", {"ELEVENLABS_API_KEY": "sahte", "FISH_AUDIO_API_KEY": "fake_fish"})
+    @patch("src.ses.time.sleep")
+    @patch("src.ses.requests.post")
+    def test_elevenlabs_kota_bitince_fish_audio_devreye_girer(self, post, _):
+        # 1. çağrı ElevenLabs 401/402, 2. çağrı Fish Audio 200
+        post.side_effect = [
+            self._yanit(401, b"", "payment_required"),
+            self._yanit(200, b"f" * 600, ""),
+        ]
+        sonuc = ses.metin_seslendir("Deneme metni.", AYARLAR, self.cikti)
+        self.assertEqual(sonuc, self.cikti)
+        self.assertEqual(ses.son_kullanilan_motor(), "Fish Audio")
+        self.assertIn("api.fish.audio", post.call_args_list[1][0][0])
 
 
 class TestKaristirma(unittest.TestCase):

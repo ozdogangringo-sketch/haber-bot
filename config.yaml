@@ -1214,6 +1214,7 @@ sosyal:
 seslendirme:
   ses_id: "KediIz7pebzt5TaDHiiZ"        # Alex — derin, epik, güçlü bariton anlatıcı (haber/belgesel tonu)
   yedek_ses_id: "J17lijyP1BHYcM7ld0Rg"  # Adam — tok Türkçe İstanbul spikeri (1. yedek ses)
+  fish_voice_id: "a6d624c6b8de45d2b89eb0da9a691872"  # Mazlum Kiper — tok Türkçe spiker (Fish Audio S2.1 yedek motoru)
   model: "eleven_multilingual_v2"
   ayarlar:                              # Derin, net ve akıcı haber spikeri ayarı (Alex)
     stability: 0.55

@@ -389,9 +389,10 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                 else:
                     sesli_video_yolu = anlatimli
                 kip = "fon müzikli" if ses_modu == "muzikli" else "fon müziksiz"
+                motor_ad = ses_sonucu.get("motor", "ElevenLabs")
                 # ⚠️ Kanal notlarına karışmaz: "⚠️" orada kanalı başarısız sayar
-                ses_notu = (f"\n🎙️ Seslendirme eklendi ({kip})" if ses_sonucu.get("anlatim")
-                            else "\n🔇 Seslendirme üretilemedi (ElevenLabs anahtarı/kotası) — videolar seslendirmesiz çıktı")
+                ses_notu = (f"\n🎙️ Seslendirme eklendi ({motor_ad}, {kip})" if ses_sonucu.get("anlatim")
+                            else "\n🔇 Seslendirme üretilemedi (TTS anahtarı/kotası) — videolar seslendirmesiz çıktı")
             elif dikey_gorseller:
                 # Düz "✅ Yayınla": Instagram Reels/TikTok sessiz video
                 sessiz_video_yolu = video.slaytlardan_reels_uret(
@@ -402,7 +403,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                     haberler=haberler,
                 )
                 paylasilan_video_yolu = sessiz_video_yolu
-                # YouTube Shorts ve Facebook Reels: Her türlü ElevenLabs sesli ve fon müzikli!
+                # YouTube Shorts ve Facebook Reels: Her türlü sesli ve fon müzikli!
                 try:
                     from src import ses
                     ses_sonucu_yt.clear()
@@ -411,7 +412,8 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                     if sesli and sesli.exists():
                         sesli_video_yolu = sesli
                         if ses_sonucu_yt.get("anlatim"):
-                            ses_notu = "\n🎙️ YouTube Shorts & FB Reels: ElevenLabs sesli + fon müzikli"
+                            motor_yt = ses_sonucu_yt.get("motor", "ElevenLabs")
+                            ses_notu = f"\n🎙️ YouTube Shorts & FB Reels: {motor_yt} sesli + fon müzikli"
                 except Exception as e_ses:
                     log.warning("YouTube/FB için sesli video üretilemedi: %s", e_ses)
                 if not sesli_video_yolu and sessiz_video_yolu:
