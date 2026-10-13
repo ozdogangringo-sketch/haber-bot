@@ -845,7 +845,11 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
             if tw_gonderi_id:
                 _bildir("twitter", "✅ Yayında", increment=True)
             else:
-                _bildir("twitter", "❌ Hata", increment=True)
+                hata_ozeti = twitter.son_hata_mesaji()
+                with _lock:
+                    tw_notu = f"\n⚠️ X'e (Twitter) gitmedi: {hata_ozeti}"
+                etiket = "❌ Kredi Bitti" if "Kredi Bitti" in hata_ozeti else "❌ Hata"
+                _bildir("twitter", etiket, increment=True)
         except Exception as e:
             log.warning("Twitter paylaşılamadı: %s", e)
             with _lock:
@@ -1224,7 +1228,8 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
                 if tw_url:
                     canli_linkler.append([{"text": "🐦 X'te Gör", "url": tw_url}])
             else:
-                sonuclar.append("⚠️ <b>X (Twitter):</b> Yayınlanamadı (API hatası).")
+                hata_ozeti = twitter.son_hata_mesaji()
+                sonuclar.append(f"⚠️ <b>X (Twitter):</b> Yayınlanamadı ({hata_ozeti}).")
         except Exception as e:
             log.exception("Twitter telafi hatası: %s", e)
             sonuclar.append(f"⚠️ <b>X (Twitter):</b> Başarısız ({type(e).__name__}: {str(e)[:80]})")

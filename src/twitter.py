@@ -41,6 +41,13 @@ MEDIA_UPLOAD_URL = "https://upload.twitter.com/1.1/media/upload.json"
 TWEET_API_URL = "https://api.twitter.com/2/tweets"
 USER_ME_URL = "https://api.twitter.com/2/users/me"
 
+SON_HATA: str | None = None
+
+
+def son_hata_mesaji() -> str:
+    """Son Twitter API çağrısının hata özetini döner."""
+    return SON_HATA or "Bilinmeyen Hata"
+
 
 def _anahtarlari_al() -> dict[str, str] | None:
     """Twitter / X API anahtarlarını ortamdan okur. Eksik varsa None döner."""
@@ -193,9 +200,12 @@ def medya_yukle(gorsel_yolu_veya_url: str | Path) -> str | None:
             media_id = veri.get("media_id_string")
             log.info("Twitter görsel yüklendi: %s", media_id)
             return media_id
+        global SON_HATA
+        SON_HATA = f"Görsel Yükleme Hatası (HTTP {r.status_code})"
         log.error("Twitter medya yükleme hatası %s: %s", r.status_code, r.text[:200])
         return None
     except Exception as e:
+        SON_HATA = f"Görsel Yükleme İsteği Başarısız ({type(e).__name__})"
         log.exception("Twitter medya yükleme isteği başarısız: %s", e)
         return None
 
@@ -208,8 +218,12 @@ def tweet_olustur(
     """
     Twitter API v2 üzerinden yeni bir tweet veya yanıt tweeti oluşturur.
     """
+    global SON_HATA
+    SON_HATA = None
+
     anahtarlar = _anahtarlari_al()
     if not anahtarlar:
+        SON_HATA = "Twitter API anahtarları eksik"
         return None
 
     auth_header = _oauth1_header("POST", TWEET_API_URL, anahtarlar)
@@ -236,10 +250,25 @@ def tweet_olustur(
             veri = r.json()
             tweet_data = veri.get("data", {})
             log.info("Tweet paylaşıldı: %s", tweet_data.get("id"))
+            SON_HATA = None
             return tweet_data
+
+        hata_metni = r.text
+        if r.status_code == 402 or "credits depleted" in hata_metni.lower():
+            SON_HATA = "Kredi Bitti (HTTP 402: credits depleted - X Developer Portal bakiye gerekli)"
+        elif r.status_code == 429:
+            SON_HATA = "İstek Sınırı Aşıldı (HTTP 429: Rate Limit)"
+        elif r.status_code == 401:
+            SON_HATA = "Yetkilendirme Hatası (HTTP 401: Unauthorized)"
+        elif r.status_code == 403:
+            SON_HATA = "Erişim Reddedildi (HTTP 403: Forbidden)"
+        else:
+            SON_HATA = f"HTTP {r.status_code}: {hata_metni[:100]}"
+
         log.error("Tweet oluşturma hatası %s: %s", r.status_code, r.text[:300])
         return None
     except Exception as e:
+        SON_HATA = f"İstek Hatası ({type(e).__name__}): {e}"
         log.exception("Tweet oluşturma isteği başarısız: %s", e)
         return None
 

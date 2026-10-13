@@ -114,6 +114,13 @@ KATALOG = [
         "eylem": "yok",
     },
     {
+        "desen": r"credits depleted|Tweet oluşturma hatası 402|api\.x\.com.*402|Payment Required",
+        "ne_oldu": "X (Twitter) API kredi bakiyesi tükendi (HTTP 402).",
+        "neden": "X API v2 kullanım ücreti modeli nedeniyle hesap bakiyesi bitti. Görseller ve anahtarlar sorunsuz doğrulandı, ancak tweet göndermek için developer.x.com üzerinden kredi yüklenmesi gerekiyor.",
+        "ne_yapilir": "developer.x.com adresinden X hesabına bakiye/kredi tanımladıktan sonra tekrar yayınlanabilir.",
+        "eylem": "yok",
+    },
+    {
         "desen": r"cannot unpack non-iterable|unpack.*bool",
         "ne_oldu": "Bir fonksiyon beklenenden farklı türde değer döndürdü.",
         "neden": "Kod düzenlemesinde bir fonksiyonun dönüş değeri bozulmuş.",
