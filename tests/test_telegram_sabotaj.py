@@ -533,7 +533,7 @@ def test_sabotaj_33_video_render_hatasi_yakalama():
 
 
 def test_sabotaj_34_foto_degistir_sadece_kapak_yukler():
-    """Fotoğraf değiştirmede 4x hızlandırma: ImgBB'ye sadece kapak slaytı yüklenir."""
+    """Fotoğraf değiştirmede kapak ile birlikte yeni ambiyanslı detay slaytları da eksiksiz yüklenir."""
     con = MagicMock()
     ayarlar = {"gorsel": {"gorsel_aday_adedi": 2}}
     haber = {
@@ -542,14 +542,14 @@ def test_sabotaj_34_foto_degistir_sadece_kapak_yukler():
         "baslik_orj": "Test",
         "son_dakika": 1,
         "gorsel_deneme": 1,
-        "detay_url": json.dumps(["http://img.com/detay1.jpg", "http://img.com/detay2.jpg"]),
+        "detay_url": json.dumps(["http://img.com/eski_detay1.jpg", "http://img.com/eski_detay2.jpg"]),
     }
 
     yuklenen_dosyalar = []
 
     def sahte_yukle(yollar, ayarlar):
         yuklenen_dosyalar.extend(yollar)
-        return [{"url": "http://img.com/yeni_kapak.jpg"}]
+        return [{"url": f"http://img.com/{str(y).split('/')[-1]}"} for y in yollar]
 
     sahte_slaytlar = [
         {"yol": "/tmp/slayt1.jpg", "katman": "duckduckgo", "atif": "Reuters"},
@@ -563,9 +563,10 @@ def test_sabotaj_34_foto_degistir_sadece_kapak_yukler():
          patch("scripts.onay_isle._gorsel_adayini_uygula", return_value=0):
         sonuc = onay_isle.foto_degistir_islemi(con, ayarlar, [haber], mesaj_id=100, mod="gercek")
         assert sonuc == 0
-        assert len(yuklenen_dosyalar) == 2  # 2 aday x 1 kapak = 2 dosya (12 değil!)
-        assert all("slayt1.jpg" in y for y in yuklenen_dosyalar)
-    print("  ✓ Sabotaj 34: 4x hızlandırma — sadece kapak yüklendi, detaylar korundu")
+        # 2 aday x 2 slayt (1 kapak + 1 detay) = 4 dosya yüklenmeli (detay sayfaları bayat kalmamalı)
+        assert len(yuklenen_dosyalar) == 4
+        assert any("slayt2.jpg" in str(y) for y in yuklenen_dosyalar)
+    print("  ✓ Sabotaj 34: foto_degistir kapak ve detay slaytlarını birlikte günceller")
 
 
 def test_sabotaj_35_foto_degistir_aday_bulunamadi_guvenli_cikis():

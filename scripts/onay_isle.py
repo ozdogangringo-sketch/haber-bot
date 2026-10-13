@@ -2357,7 +2357,6 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
             html=True,
         )
 
-        mevcut_detaylar = _detay_urlleri(h.get("detay_url"))
         adaylar = []
         for ek in range(adet):
             if bilgi_id:
@@ -2378,20 +2377,13 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
                 if mod == "gercek" and sonuclar[0].get("katman") not in ("haber", "web_haber", "duckduckgo", "web"):
                     log.info("gerçek mod: '%s' katmanı elendi, sadece gerçek haber/basın karesi kabul edilir", sonuclar[0].get("katman"))
                     continue
-                # HIZLANDIRMA (12 yükleme -> 3 yükleme):
-                # Aday seçiminde Telegram'a sadece kapak fotoğrafı (slayt 1) gönderilir.
-                # Değişmeyen detay sayfalarını her aday için ImgBB'ye baştan yükleyip
-                # dakikalarca bekletmek yerine yalnızca kapak yüklenir ve mevcut detay URL'leri eklenir.
-                if not mevcut_detaylar and len(sonuclar) > 1:
-                    yuklemeler = upload_image.hepsini_yukle(
-                        [s["yol"] for s in sonuclar], ayarlar)
-                    urller = [y["url"] for y in yuklemeler]
-                else:
-                    kapak_yukleme = upload_image.hepsini_yukle(
-                        [sonuclar[0]["yol"]], ayarlar)
-                    if not kapak_yukleme:
-                        continue
-                    urller = [kapak_yukleme[0]["url"]] + (mevcut_detaylar or [])
+                # Detay sayfaları yeni görselin ambiyans/zemin rengiyle baştan çizilir;
+                # bu nedenle her adayın hem kapağı hem detay sayfaları eksiksiz yüklenir.
+                yuklemeler = upload_image.hepsini_yukle(
+                    [s["yol"] for s in sonuclar], ayarlar)
+                if not yuklemeler:
+                    continue
+                urller = [y["url"] for y in yuklemeler]
             except Exception as e:                    # noqa: BLE001
                 log.warning("alternatif #%d üretilemedi: %s", deneme + ek, e)
                 continue
@@ -2492,13 +2484,16 @@ def slayt_islemi(con, ayarlar, haberler, komut, sira, mesaj_id) -> int:
 
     if son_dakika_turu:
         haber = haberler[0]
-        if komut in ("slayt_foto", "slayt_ai") and sira > 1:
-            # Ayrıntı sayfalarında fotoğraf yok, sade zemin var.
-            telegram_bot.mesaj_gonder(
-                f"ℹ️ {sira}. slayt ayrıntı sayfası — orada fotoğraf yok, "
-                f"sade zemin kullanılıyor. Fotoğrafı 1. slaytta değiştirebilirsin."
-            )
-            return 0
+        if komut in ("slayt_foto", "slayt_ai"):
+            if sira > 1:
+                # Ayrıntı sayfalarında fotoğraf yok, sade zemin var.
+                telegram_bot.mesaj_gonder(
+                    f"ℹ️ {sira}. slayt ayrıntı sayfası — orada fotoğraf yok, "
+                    f"sade zemin kullanılıyor. Fotoğrafı 1. slaytta değiştirebilirsin."
+                )
+                return 0
+            mod = "ai" if komut == "slayt_ai" else "gercek"
+            return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, mod=mod)
     elif not 1 <= sira <= len(haberler):
         telegram_bot.mesaj_gonder(
             f"⚠️ {sira}. slayt yok (turda {len(haberler)} slayt var)."
@@ -3110,23 +3105,36 @@ def metin_duzenle(con, ayarlar: dict, haberler: list, mesaj_id: int, gelen_metin
     # Durum 2: Görsel Onayı Aşaması (Slayt üretilmiş durumda)
     # Slaytı yeni başlıkla yeniden çiziyoruz
     taze = con.execute("SELECT * FROM haberler WHERE id = ?", (haber["id"],)).fetchone()
-    yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar, con=con)
-    yukleme = upload_image.gorsel_yukle(yol, ayarlar)
-    story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
-    story_url = yukleme["url"]
-    if story_yol.exists():
-        try:
-            story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
-            story_url = story_yukleme.get("url") or story_url
-        except Exception as e:
-            log.warning("Story görseli yüklenemedi: %s", e)
+    son_dakika_tekil = len(haberler) == 1 and (bool(haber.get("son_dakika")) or haber.get("tur") != "ekonomi")
+    if son_dakika_tekil:
+        sonuclar = slaytlar.son_dakika_uret(taze, ayarlar, con=con)
+        yuklemeler = upload_image.hepsini_yukle([s["yol"] for s in sonuclar], ayarlar)
+        urller = [y["url"] for y in yuklemeler]
+        con.execute(
+            "UPDATE haberler SET gorsel_url = ?, story_url = ?, detay_url = ?, "
+            "gorsel_yolu = ?, gorsel_kaynagi = ?, gorsel_atif = ? WHERE id = ?",
+            (urller[0], urller[0], json.dumps(urller[1:]),
+             str(sonuclar[0]["yol"]), sonuclar[0].get("katman"), sonuclar[0].get("atif"), haber["id"]),
+        )
+        con.commit()
+    else:
+        yol, katman, atif = slaytlar.slayt_uret(taze, ayarlar, con=con)
+        yukleme = upload_image.gorsel_yukle(yol, ayarlar)
+        story_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
+        story_url = yukleme["url"]
+        if story_yol.exists():
+            try:
+                story_yukleme = upload_image.gorsel_yukle(story_yol, ayarlar)
+                story_url = story_yukleme.get("url") or story_url
+            except Exception as e:
+                log.warning("Story görseli yüklenemedi: %s", e)
 
-    con.execute(
-        "UPDATE haberler SET gorsel_url = ?, story_url = ?, gorsel_yolu = ?, "
-        "gorsel_kaynagi = ?, gorsel_atif = ? WHERE id = ?",
-        (yukleme["url"], story_url, str(yol), katman, atif, haber["id"]),
-    )
-    con.commit()
+        con.execute(
+            "UPDATE haberler SET gorsel_url = ?, story_url = ?, gorsel_yolu = ?, "
+            "gorsel_kaynagi = ?, gorsel_atif = ? WHERE id = ?",
+            (yukleme["url"], story_url, str(yol), katman, atif, haber["id"]),
+        )
+        con.commit()
 
     # Caption'ı güncelle
     guncel_haberler = turu_getir(con, mesaj_id)
