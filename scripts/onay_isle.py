@@ -4059,7 +4059,7 @@ def oneriyi_hazirla(con, ayarlar, komut: str, mesaj_id: int, basan: str = "") ->
         except Exception:
             pass
         try:
-            sonuc = son_dakika.main(zorla_haber_id=hid)
+            sonuc = son_dakika.main(zorla_haber_id=hid, durum_id=mesaj_id if toplam == 1 else None)
         except Exception as e:                        # noqa: BLE001
             log.exception("haber %s hazırlanamadı", hid)
             sonuc = 1
@@ -4241,6 +4241,7 @@ def main() -> int:
 
     komut = os.getenv("KOMUT", "").strip()
     mesaj_id = int(os.getenv("MESAJ_ID", "0") or 0)
+    durum_mesaj_id = int(os.getenv("DURUM_MESAJ_ID", "0") or 0)
     basan = os.getenv("BASAN", "").strip()
     kanallar = os.getenv("KANALLAR", "").strip()
     metin = os.getenv("METIN", "").strip()
@@ -4375,7 +4376,7 @@ def main() -> int:
         return 0
 
     if komut in ("yonetim", "yonetim_panel"):
-        return yonetim_paneli_goster(con, ayarlar, mesaj_id)
+        return yonetim_paneli_goster(con, ayarlar, durum_mesaj_id or mesaj_id)
     if komut.startswith("duraklat:"):
         saat = int(komut.split(":")[1])
         return yonetim_duraklat_uygula(con, ayarlar, saat, mesaj_id, basan)
@@ -4465,8 +4466,10 @@ def main() -> int:
 
     if komut in ("hata:sondakika_tekrar", "sondakika", "son_dakika"):
         from scripts import son_dakika
-        telegram_bot.mesaj_gonder("🔍 Son dakika ve güncel haber havuzu taranıyor, öneriler hazırlanıyor…")
-        return son_dakika.main(elle=True)
+        hedef_durum_id = durum_mesaj_id or (mesaj_id if not turu_getir(con, mesaj_id) else None)
+        if not hedef_durum_id:
+            telegram_bot.mesaj_gonder("🔍 Son dakika ve güncel haber havuzu taranıyor, öneriler hazırlanıyor…")
+        return son_dakika.main(elle=True, durum_id=hedef_durum_id)
 
     if komut in ("populer", "popüler"):
         from scripts import son_dakika
@@ -4524,6 +4527,9 @@ def main() -> int:
     # var olmayan script'i çalıştırıp job'ı kırmızıya düşürüyordu.
     # Kullanıcı kararı: /ekonomi piyasa bültenine bağlansın.
     if komut in ("piyasa", "piyasa_ozet", "ekonomi", "ekonomi_hazirla"):
+        hedef_durum_id = durum_mesaj_id or (mesaj_id if not turu_getir(con, mesaj_id) else None)
+        if hedef_durum_id:
+            telegram_bot.durum_guncelle(hedef_durum_id, "Canlı Piyasa", 1, 2, "BİST, döviz, altın ve emtia fiyatları sorgulanıyor…")
         from src import piyasa
         pv = piyasa.piyasa_verileri_getir()
         satirlar = ["📈 <b>CANLI PİYASA & BORSA ÖZETİ</b>\n"]
@@ -4559,21 +4565,33 @@ def main() -> int:
             [{"text": "🚀 Canlı Bülteni Şimdi Yayınla", "callback_data": "piyasa_yayinla"}],
             [{"text": "🖼️ 1080x1920 Slaytları Önizle", "callback_data": "piyasa_onizle"}],
         ]
-        telegram_bot.mesaj_gonder("\n".join(satirlar), html=True, butonlar=butonlar)
+        if hedef_durum_id:
+            telegram_bot.paneli_tazele(hedef_durum_id, "\n".join(satirlar), butonlar)
+        else:
+            telegram_bot.mesaj_gonder("\n".join(satirlar), html=True, butonlar=butonlar)
         return 0
 
     if komut in ("piyasa_yayinla", "ekonomi_yayinla"):
-        telegram_bot.mesaj_gonder("⏳ <b>Canlı Piyasa Bülteni Hazırlanıyor ve Yayınlanıyor...</b>\n<i>Tüm platformlara (Instagram, Story, Facebook, Threads, X) 1080x1920 infografikler paylaşılıyor.</i>", html=True)
+        hedef_durum_id = durum_mesaj_id or (mesaj_id if not turu_getir(con, mesaj_id) else None)
+        if not hedef_durum_id:
+            telegram_bot.mesaj_gonder("⏳ <b>Canlı Piyasa Bülteni Hazırlanıyor ve Yayınlanıyor...</b>\n<i>Tüm platformlara (Instagram, Story, Facebook, Threads, X) 1080x1920 infografikler paylaşılıyor.</i>", html=True)
+        else:
+            telegram_bot.durum_guncelle(hedef_durum_id, "Canlı Piyasa Bülteni", 1, 4, "Canlı BİST ve makro veriler çekiliyor…")
         try:
             from scripts import piyasa_otomatik
             import sys
             eski_argv = sys.argv
             sys.argv = ["piyasa_otomatik.py", "--zorla"]
+            if hedef_durum_id:
+                sys.argv.extend(["--durum-id", str(hedef_durum_id)])
             piyasa_otomatik.main()
             sys.argv = eski_argv
         except Exception as e:
             log.exception("piyasa bülteni yayınlama hatası: %s", e)
-            telegram_bot.mesaj_gonder(f"⚠️ <b>Piyasa bülteni yayın hatası:</b> <code>{e}</code>", html=True)
+            if hedef_durum_id:
+                telegram_bot.paneli_tazele(hedef_durum_id, f"⚠️ <b>Piyasa bülteni yayın hatası:</b> <code>{e}</code>", [])
+            else:
+                telegram_bot.mesaj_gonder(f"⚠️ <b>Piyasa bülteni yayın hatası:</b> <code>{e}</code>", html=True)
         return 0
 
     if komut == "piyasa_onizle":

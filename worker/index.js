@@ -570,7 +570,7 @@ async function islemeAlindiGoster(env, sohbetId, mesajId, mesajMetni, komut) {
 
 /** Düz veya kalıcı menülü mesaj gönderir (yazılı komutlara anında cevap için). */
 async function mesajGonder(env, sohbetId, metin, parseMode = null, replyMarkup = null) {
-  if (!sohbetId) return;
+  if (!sohbetId) return null;
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
   const body = {
     chat_id: sohbetId,
@@ -579,11 +579,17 @@ async function mesajGonder(env, sohbetId, metin, parseMode = null, replyMarkup =
   };
   if (parseMode) body.parse_mode = parseMode;
   if (replyMarkup) body.reply_markup = replyMarkup;
-  await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const veri = await res.json();
+    return (veri && veri.ok && veri.result) ? veri.result.message_id : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 /** Butonlu mesaj gönderir (İnteraktif kontrol merkezi vb. için). */
@@ -693,7 +699,7 @@ async function planAlariminiGuncelle(env, komut, hedefMesajId, iletildi) {
   }
 }
 
-async function githubaIlet(env, komut, mesajId, basanKisi, kanallar, metin) {
+async function githubaIlet(env, komut, mesajId, basanKisi, kanallar, metin, durumMesajId = null) {
   const url = `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`;
   const cevap = await fetch(url, {
     method: "POST",
@@ -713,6 +719,7 @@ async function githubaIlet(env, komut, mesajId, basanKisi, kanallar, metin) {
       client_payload: {
         komut,
         mesaj_id: mesajId,
+        durum_mesaj_id: durumMesajId,
         basan: basanKisi,
         metinsiz: komut === "hata:tur_metinsiz",
         kanallar: kanallar || "",
@@ -1223,59 +1230,49 @@ export default {
     if (msj && typeof msj.text === "string") {
         const sohbet = msj.chat ? msj.chat.id : null;
 
-        // --- Yanıtlanan Mesajlar (Reply): Doğrudan başlık/metin düzenleme ---
-        if (msj.reply_to_message) {
-            const replyId = msj.reply_to_message.message_id;
-            const replyMetin = msj.text.trim();
-            const basan = msj.from ? msj.from.first_name || "" : "";
-
-            if (!replyMetin.startsWith("/")) {
-                const iletildi = await githubaIlet(env, "metin_duzenle", replyId, basan, "", replyMetin);
-                await mesajGonder(env, sohbet,
-                    iletildi
-                        ? "✍️ Yeni metin işleniyor, başlık ve slayt güncelleniyor…"
-                        : "⚠️ İstek GitHub'a iletilemedi.");
-                return new Response("ok");
-            }
-        }
-
         const tamMetin = msj.text.trim();
+        const komutMetni = tamMetin.split(/[\s@]/)[0].toLowerCase();
 
-        // --- Kalıcı Alt Hızlı Menü Butonları (ReplyKeyboardMarkup) ---
+        // --- 1. Kalıcı Alt Hızlı Menü Butonları (ReplyKeyboardMarkup) ---
+        // (Reply mesajı olsa dahi alt menü butonları ASLA metin_duzenle sanılmamalıdır)
         if (tamMetin === "🚀 Canlı Bülteni Yayınla" || tamMetin === "🚀 Canlı Bülteni Şimdi Yayınla") {
-            const iletildi = await githubaIlet(env, "piyasa_yayinla", null, msj.from ? msj.from.first_name || "" : "");
-            await mesajGonder(env, sohbet,
-                iletildi
-                    ? "🚀 <b>Canlı Piyasa Bülteni Hazırlanıyor ve Yayınlanıyor…</b>\n1080x1920 infografikler tüm platformlara paylaşılacak."
-                    : "⚠️ Komut iletilemedi, tekrar dene.", "HTML");
+            const durumId = await mesajGonder(env, sohbet,
+                "🚀 <b>Canlı Piyasa Bülteni Hazırlanıyor…</b>\n<code>[▰▱▱▱] %25 (1/4)</code>\n<i>BİST & canlı piyasa verileri toplanıyor…</i>", "HTML");
+            await githubaIlet(env, "piyasa_yayinla", null, msj.from ? msj.from.first_name || "" : "", "", "", durumId);
             return new Response("ok");
         }
         if (tamMetin === "📰 Taze 5 Haber") {
-            const iletildi = await githubaIlet(env, "sondakika", null, msj.from ? msj.from.first_name || "" : "");
-            await mesajGonder(env, sohbet,
-                iletildi
-                    ? "⚡️ <b>Son dakika sıcak haber taraması başlatılıyor…</b>"
-                    : "⚠️ Komut iletilemedi, tekrar dene.", "HTML");
+            const durumId = await mesajGonder(env, sohbet,
+                "⚡️ <b>Taze Haber Taraması Başlatıldı…</b>\n<code>[▰▱▱▱] %25 (1/4)</code>\n<i>RSS kaynakları (AA, TRT, Bloomberg, Reuters) taranıyor…</i>", "HTML");
+            await githubaIlet(env, "sondakika", null, msj.from ? msj.from.first_name || "" : "", "", "", durumId);
             return new Response("ok");
         }
         if (tamMetin === "📊 Canlı Piyasa") {
-            const iletildi = await githubaIlet(env, "piyasa", null, msj.from ? msj.from.first_name || "" : "");
-            await mesajGonder(env, sohbet,
-                iletildi
-                    ? "📈 <b>Canlı piyasa ve borsa verileri çekiliyor…</b>"
-                    : "⚠️ Komut iletilemedi, tekrar dene.", "HTML");
+            const durumId = await mesajGonder(env, sohbet,
+                "📈 <b>Canlı Piyasa Verileri Çekiliyor…</b>\n<code>[▰▱] %50 (1/2)</code>\n<i>Borsa, döviz, altın ve emtia fiyatları sorgulanıyor…</i>", "HTML");
+            await githubaIlet(env, "piyasa", null, msj.from ? msj.from.first_name || "" : "", "", "", durumId);
             return new Response("ok");
         }
         if (tamMetin === "⚙️ Yönetim Paneli") {
-            const iletildi = await githubaIlet(env, "yonetim", null, msj.from ? msj.from.first_name || "" : "");
-            await mesajGonder(env, sohbet,
-                iletildi
-                    ? "⏳ <b>Yönetim paneli getiriliyor…</b>"
-                    : "⚠️ Komut iletilemedi, tekrar dene.", "HTML");
+            const durumId = await mesajGonder(env, sohbet,
+                "⏳ <b>Yönetim Paneli Getiriliyor…</b>\n<i>Sistem ve servis kontrolleri sorgulanıyor…</i>", "HTML");
+            await githubaIlet(env, "yonetim", null, msj.from ? msj.from.first_name || "" : "", "", "", durumId);
             return new Response("ok");
         }
 
-        const komutMetni = msj.text.trim().split(/[\s@]/)[0].toLowerCase();
+        // --- 2. Yanıtlanan Mesajlar (Reply): Doğrudan başlık/metin düzenleme ---
+        const ALT_BUTON_METINLERI = [
+            "🚀 Canlı Bülteni Yayınla", "🚀 Canlı Bülteni Şimdi Yayınla",
+            "📰 Taze 5 Haber", "📊 Canlı Piyasa", "⚙️ Yönetim Paneli",
+        ];
+        if (msj.reply_to_message && !tamMetin.startsWith("/") && !ALT_BUTON_METINLERI.includes(tamMetin)) {
+            const replyId = msj.reply_to_message.message_id;
+            const basan = msj.from ? msj.from.first_name || "" : "";
+            const durumId = await mesajGonder(env, sohbet,
+                "✍️ <b>Yeni Metin İşleniyor…</b>\n<code>[▰▰▱▱] %50</code>\n<i>Başlık ve slayt görseli güncelleniyor…</i>", "HTML");
+            await githubaIlet(env, "metin_duzenle", replyId, basan, "", tamMetin, durumId);
+            return new Response("ok");
+        }
 
         // /altmenu & /klavye — Kalıcı hızlı erişim kutucuklarını ekrana getirir
         if (komutMetni === "/altmenu" || komutMetni === "/klavye") {

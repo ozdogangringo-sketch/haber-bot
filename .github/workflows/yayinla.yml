@@ -70,6 +70,7 @@ jobs:
           GH_TOKEN: ${{ secrets.REPO_PAT }}
           KOMUT: ${{ github.event.client_payload.komut }}
           MESAJ_ID: ${{ github.event.client_payload.mesaj_id }}
+          DURUM_MESAJ_ID: ${{ github.event.client_payload.durum_mesaj_id }}
           BASAN: ${{ github.event.client_payload.basan }}
           KANALLAR: ${{ github.event.client_payload.kanallar }}
           METIN: ${{ github.event.client_payload.metin }}

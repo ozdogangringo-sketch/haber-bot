@@ -124,7 +124,14 @@ def main() -> int:
                         help="Yayın modu: acilis, kapanis veya saate göre oto")
     parser.add_argument("--kuru", action="store_true", help="Kuru çalışma (API'lere paylaşım yapmaz)")
     parser.add_argument("--zorla", action="store_true", help="Mükerrer kilidini atla, zorla yayınla")
+    parser.add_argument("--durum-id", type=int, default=None, help="Telegram canlı ilerleme mesaj ID'si")
     args = parser.parse_args()
+
+    durum_id = args.durum_id
+    if durum_id is None:
+        durum_env = os.getenv("DURUM_MESAJ_ID", "").strip()
+        if durum_env.isdigit() and int(durum_env) > 0:
+            durum_id = int(durum_env)
 
     ayarlar_yolu = KOK / "config.yaml"
     with open(ayarlar_yolu, encoding="utf-8") as f:
@@ -245,6 +252,9 @@ def main() -> int:
         con.close()
         return 0
 
+    if durum_id:
+        telegram_bot.durum_guncelle(durum_id, "Canlı Piyasa Bülteni", 2, 4, "1080x1920 Isı haritası ve Piyasa Karnesi çiziliyor…")
+
     kart_yolu = piyasa_kart.piyasa_karti_uret_9_16(sektor_verileri, mod=mod)
     # ⚠️ SAYFA 1 DENETİMİ: canlı veri alınamayan varlık varsa bülten
     # yayınlanmıyor. `piyasa_verileri_getir` eksik varlığı varsayılanla
@@ -284,6 +294,9 @@ def main() -> int:
         con.close()
         return 0
     tablo_yolu = piyasa_tablo.piyasa_tablosu_uret_9_16(canli_fiyatlar, mod=mod)
+
+    if durum_id:
+        telegram_bot.durum_guncelle(durum_id, "Canlı Piyasa Bülteni", 3, 4, "Slaytlar CDN ve Cloudflare R2'ye yükleniyor…")
 
     kart_yukleme = upload_image.gorsel_yukle(kart_yolu, ayarlar)
     tablo_yukleme = upload_image.gorsel_yukle(tablo_yolu, ayarlar)
@@ -465,10 +478,16 @@ def main() -> int:
                 sonuclar.append(f"⚠️ X hatası: {type(e).__name__}")
 
     # Paralel Dağıtım
+    if durum_id:
+        telegram_bot.durum_guncelle(durum_id, "Canlı Piyasa Bülteni", 4, 4, "Sosyal platformlara (Instagram, Story, Facebook, Threads, X) dağıtılıyor…")
+
     gorevler = [_is_ig, _is_fb, _is_th, _is_tw]
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(gorevler)) as executor:
         futures = [executor.submit(fn) for fn in gorevler]
         concurrent.futures.wait(futures)
+
+    if durum_id:
+        telegram_bot.durum_guncelle(durum_id, "Canlı Piyasa Bülteni", 4, 4, "Bülten tüm platformlarda paylaşıldı.")
 
     # 8. Telegram Grubuna Canlı Bilgi Mesajı İlet
     import html as html_lib

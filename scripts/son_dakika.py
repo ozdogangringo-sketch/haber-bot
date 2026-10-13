@@ -333,7 +333,8 @@ def oneri_esigi(ayarlar: dict, kategori: str | None) -> int:
 
 
 def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
-                     elle_tetiklendi: bool = False) -> int:
+                     elle_tetiklendi: bool = False,
+                     durum_id: int | None = None) -> int:
     """
     Taze başlıkları ucuz yoldan puanlayıp Telegram'a ÖNERİ gönderir.
 
@@ -422,6 +423,8 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
 
     if not havuz:
         log.info("önerilecek taze haber yok")
+        if durum_id:
+            telegram_bot.durum_guncelle(durum_id, "Taze Haber Taraması", 4, 4, "Tarama tamamlandı (havuzda yeni haber yok).")
         if elle_tetiklendi and not kuru:
             telegram_bot.mesaj_gonder(
                 f"⏳ <b>Son {tazelik} saatte paylaşılmaya değer taze haber yok.</b>\n\n"
@@ -462,6 +465,8 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
                          else 0)
                for h in ham if h["onem_puani"] is not None}
     if puansiz:
+        if durum_id:
+            telegram_bot.durum_guncelle(durum_id, "Taze Haber Taraması", 2, 4, f"{len(puansiz)} haber başlığı yapay zeka ile puanlanıyor…")
         yeni_puanlar = generate_text.basliklari_puanla(puansiz, ayarlar)
         if not yeni_puanlar and not puanlar:
             log.warning("başlıklar puanlanamadı, öneri gönderilmedi")
@@ -539,6 +544,9 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
     sira = {hid: i for i, hid in enumerate(idler)}
     puanli_ham.sort(key=lambda h: sira.get(h["id"], 999))
 
+    if durum_id:
+        telegram_bot.durum_guncelle(durum_id, "Taze Haber Taraması", 3, 4, "Editoryal filtreler ve paylaşım potansiyeli hesaplanıyor…")
+
     baglam = aday.Baglam.kur(aday.ONERI, ayarlar, con)
     uygunlar = aday.sec(puanli_ham, baglam)
 
@@ -585,6 +593,8 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
 
     if not adaylar:
         log.info("puanlanan %d başlığın hiçbiri eşiği geçmedi", len(puanlar))
+        if durum_id:
+            telegram_bot.durum_guncelle(durum_id, "Taze Haber Taraması", 4, 4, "Tarama tamamlandı (editoryal eşiği geçen yeni haber yok).")
         if elle_tetiklendi and not kuru:
             telegram_bot.mesaj_gonder(
                 f"🔍 <b>Son Dakika Taraması Tamamlandı</b>\n\n"
@@ -599,6 +609,9 @@ def onerileri_gonder(con, ayarlar: dict, kuru: bool = False,
         for a in adaylar[:5]:
             print(f"  [{a['puan']}] {a['kategori']:9} {a['baslik'][:60]}")
         return len(adaylar[:5])
+
+    if durum_id:
+        telegram_bot.durum_guncelle(durum_id, "Taze Haber Taraması", 4, 4, f"En güncel {min(5, len(adaylar))} haber önerisi hazırlandı.")
 
     telegram_bot.oneri_gonder(adaylar)
     # Gönderilenleri işaretle: aynı başlık her kontrolde tekrar gelmesin
@@ -969,7 +982,7 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
     return 0
 
 def main(zorla_haber_id: int | None = None, elle: bool = False,
-         populer: bool = False) -> int:
+         populer: bool = False, durum_id: int | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-7s %(name)s: %(message)s",
@@ -981,6 +994,15 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
     elle = elle or ("--elle" in sys.argv)
     if zorla_haber_id is None and "--haber-id" in sys.argv:
         zorla_haber_id = int(sys.argv[sys.argv.index("--haber-id") + 1])
+    if durum_id is None:
+        durum_env = os.getenv("DURUM_MESAJ_ID", "").strip()
+        if durum_env.isdigit() and int(durum_env) > 0:
+            durum_id = int(durum_env)
+        elif "--durum-id" in sys.argv:
+            try:
+                durum_id = int(sys.argv[sys.argv.index("--durum-id") + 1])
+            except (ValueError, IndexError):
+                durum_id = None
     ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
     db.kur()
     con = db.baglan()
@@ -1154,6 +1176,8 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
                             log.error("Piyasa kapanış bülteni telafi yayını hatası: %s", e)
 
         # --- 4) Taze haber çek, sonra aday ara ---
+        if not zorla_haber_id and durum_id:
+            telegram_bot.durum_guncelle(durum_id, "Taze Haber Taraması", 1, 4, "RSS kaynakları (AA, TRT, Bloomberg, Reuters) taranıyor…")
         # Yalnızca yüksek ağırlıklı gündem kaynakları — Actions kotası
         # için (bkz. fetch_news.haberleri_cek). Akşam turu hepsini tarıyor.
         rapor = fetch_news.haberleri_cek(
@@ -1166,10 +1190,14 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
             # Kullanıcı Telegram'da bir ÖNERİYİ seçti. Eşik/tazelik
             # denetimleri burada uygulanmıyor — insan zaten bakıp
             # seçti, makinenin ikinci kez elemesi anlamsız olurdu.
+            if durum_id:
+                telegram_bot.durum_guncelle(durum_id, "Haber Hazırlanıyor", 1, 4, "Metin ve editoryal analiz üretiliyor…")
             aday = con.execute("SELECT * FROM haberler WHERE id = ?",
                                (zorla_haber_id,)).fetchone()
             if aday is None:
                 log.error("haber bulunamadı: %s", zorla_haber_id)
+                if durum_id:
+                    telegram_bot.durum_guncelle(durum_id, "Haber Hazırlanıyor", 1, 4, f"Hata: #{zorla_haber_id} haber bulunamadı.")
                 return 1
             if not aday["ig_baslik"]:
                 log.info("seçilen haberin metni üretiliyor: %s",
@@ -1179,6 +1207,8 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
                                    (zorla_haber_id,)).fetchone()
             if not aday or not aday["ig_baslik"]:
                 log.error("metin üretilemedi, tur kurulamadı")
+                if durum_id:
+                    telegram_bot.durum_guncelle(durum_id, "Haber Hazırlanıyor", 1, 4, "Yapay zeka metin üretemedi.")
                 telegram_bot.hata_bildir(
                     "Seçilen haber hazırlanamadı",
                     "Gemini metni üretemedi (kota ya da güvenlik filtresi "
@@ -1186,7 +1216,7 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
                 return 1
         elif acik_tur_var:
             # Otomatik periyodik kontrolde açık tur varsa yeni tur kurulmaz ama öneri gönderilebilir.
-            onerileri_gonder(con, ayarlar, kuru=kuru, elle_tetiklendi=elle)
+            onerileri_gonder(con, ayarlar, kuru=kuru, elle_tetiklendi=elle, durum_id=durum_id)
             return 0
         else:
             # Metni ZATEN hazır bir aday var mı? (daha önce seçilmiş
@@ -1202,7 +1232,7 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
             #
             # Şimdi başlıklar toplu ve ucuz biçimde puanlanıp kullanıcıya
             # öneriliyor; tam metin yalnızca seçilen haber için üretiliyor.
-            sonuc = onerileri_gonder(con, ayarlar, kuru=kuru, elle_tetiklendi=elle)
+            sonuc = onerileri_gonder(con, ayarlar, kuru=kuru, elle_tetiklendi=elle, durum_id=durum_id)
             if sonuc == METIN_URETILDI:
                 # Yüksek puanlı bir habere metin üretildi; artık
                 # otomatik yayın akışına girebilir.
@@ -1216,12 +1246,16 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
         katman_raporu: list[str] = []
 
         # --- 5) İki slaytı üret ---
+        if durum_id:
+            telegram_bot.durum_guncelle(durum_id, "Haber Hazırlanıyor", 2, 4, "1080x1920 infografik slaytlar çiziliyor…")
         sonuclar = slaytlar.son_dakika_uret(aday, ayarlar, con)
         taze = con.execute("SELECT * FROM haberler WHERE id = ?",
                            (aday["id"],)).fetchone()
         taze = dict(taze) if taze else {}
 
         # %100 SAF NATIVE 9:16 (1080x1920) slaytların tümünü yükle (Kapak + Detay 1 + Detay 2)
+        if durum_id:
+            telegram_bot.durum_guncelle(durum_id, "Haber Hazırlanıyor", 3, 4, "Slaytlar CDN ve Cloudflare R2'ye yükleniyor…")
         yuklemeler = upload_image.hepsini_yukle(
             [s["yol"] for s in sonuclar], ayarlar
         )
@@ -1250,10 +1284,13 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
 
 
         yerel_yollar = [s["yol"] for s in sonuclar] if sonuclar else None
-        return onaya_sun(con, ayarlar, aday, taze, urller,
-                        story_url, metin, uyari, katman_raporu,
-                        story_detay_urller=story_detay_urller,
-                        yerel_yollar=yerel_yollar)
+        sonuc_onay = onaya_sun(con, ayarlar, aday, taze, urller,
+                              story_url, metin, uyari, katman_raporu,
+                              story_detay_urller=story_detay_urller,
+                              yerel_yollar=yerel_yollar)
+        if durum_id:
+            telegram_bot.durum_guncelle(durum_id, "Haber Hazırlandı", 4, 4, "Onay kartı ve önizleme slaytları sunuldu.")
+        return sonuc_onay
 
     except Exception as e:
         log.exception("son dakika turu hazırlanamadı")

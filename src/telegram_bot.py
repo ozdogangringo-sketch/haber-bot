@@ -951,11 +951,14 @@ def sonucu_yaz(message_id: int, metin: str, bildir: bool = False,
     Düzenleme yine de yapılıyor — butonları kaldırmanın başka yolu yok.
     """
     ek = {"parse_mode": "HTML"} if html else {}
-    _istek("editMessageText", chat_id=_sohbet_id(), message_id=message_id,
-           text=metin[:4096],
-           reply_markup=butonlar or {"inline_keyboard": []},
-           disable_web_page_preview=True,
-           **ek)
+    try:
+        _istek("editMessageText", chat_id=_sohbet_id(), message_id=message_id,
+               text=metin[:4096],
+               reply_markup=butonlar or {"inline_keyboard": []},
+               disable_web_page_preview=True,
+               **ek)
+    except Exception as e:
+        log.warning("sonucu_yaz düzenleme hatası (mesaj_id=%s): %s", message_id, e)
 
     if bildir:
         # Bildirim gönderilemese bile yayın başarılı; sonucu düşürmeyelim.
