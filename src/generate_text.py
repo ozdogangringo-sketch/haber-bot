@@ -862,7 +862,10 @@ def tek_haber_uret(haber, ayarlar: dict, mod: str = "normal") -> tuple[dict, str
 
     # Önce makalenin gövdesini çekmeyi dene
     govde = makale_metni_cek(haber["link"], haber["baslik_orj"])
-    if mod == "kaynak_arastir" or not govde or len(govde) < 150:
+    if not govde and haber.get("makale_metni"):
+        # Veritabanından veya kardeş kaynaklardan derlenmiş gövdeyi kullan
+        govde = haber["makale_metni"]
+    if mod in ("kaynak_arastir", "detaylandir") or not govde or len(govde) < 150:
         ek_baglam = olay_baglami_cek(haber["baslik_orj"])
         if ek_baglam:
             govde = f"{govde or ''}\n\n[GÜNCEL BASIN DETAYLARI & ÇOKLU KAYNAK BAĞLAMI]:\n{ek_baglam}"

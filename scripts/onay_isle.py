@@ -2153,10 +2153,10 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id, mod: str = "normal") -> int:
     )
     con.commit()
 
-    if mod == "kaynak_arastir" and con is not None:
+    if mod in ("kaynak_arastir", "detaylandir") and con is not None:
         for h in haberler:
             try:
-                kardesler = slaytlar.kardes_linkler(con, h, azami=3)
+                kardesler = slaytlar.kardes_linkler(con, h, azami=5)
                 ek_metinler = []
                 for k_link in kardesler:
                     row = con.execute(
@@ -2165,8 +2165,17 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id, mod: str = "normal") -> int:
                     ).fetchone()
                     if row:
                         m = row["makale_metni"] or row["ozet_orj"]
-                        if m:
-                            ek_metinler.append(m[:2000])
+                        if m and len(m) > 100:
+                            ek_metinler.append(m[:3000])
+                if not ek_metinler:
+                    for k_link in kardesler[:2]:
+                        try:
+                            from src import fetch_article
+                            scraped = fetch_article.makale_metni_cek(k_link, h.get("baslik_orj", ""))
+                            if scraped and len(scraped) > 100:
+                                ek_metinler.append(scraped[:3000])
+                        except Exception:
+                            pass
                 if ek_metinler:
                     h_dict = dict(h)
                     mevcut = h_dict.get("makale_metni") or h_dict.get("ozet_orj") or ""
@@ -2180,8 +2189,10 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id, mod: str = "normal") -> int:
                         (yeni_govde[:15000], h["id"]),
                     )
                     con.commit()
+                    if isinstance(h, dict):
+                        h["makale_metni"] = yeni_govde[:15000]
             except Exception as e:                    # noqa: BLE001
-                log.warning("kaynak araştırma zenginleştirme hatası: %s", e)
+                log.warning("kaynak araştırma / detaylandırma zenginleştirme hatası: %s", e)
 
     metinleri_uret(ayarlar=ayarlar, haberler=haberler, mod=mod)
 

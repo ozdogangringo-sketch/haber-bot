@@ -520,6 +520,13 @@ def _sayfayi_getir(link: str, zaman_asimi: int = 20,
             cevap = requests.get(link, headers=BASLIKLAR, timeout=zaman_asimi)
             cevap.raise_for_status()
             return cevap
+        except requests.exceptions.SSLError:
+            try:
+                cevap = requests.get(link, headers=BASLIKLAR, timeout=zaman_asimi, verify=False)
+                cevap.raise_for_status()
+                return cevap
+            except Exception as e:
+                son_hata = e
         except requests.HTTPError as e:
             kod = getattr(e.response, "status_code", 0)
             if kod in KALICI_HTTP:

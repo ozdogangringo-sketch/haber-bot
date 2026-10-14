@@ -441,8 +441,11 @@ def _haber_gorseli_alternatifi(haber, g, con, sira: int, ayarlar: dict | None = 
     kardesler = kardes_haber_linkleri_topla(haber, con=con, haric_orijinal=True)
     if not kardesler:
         log.info("kardeş haber alternatifi bulunamadı (#%s)", _alan(haber, "id"))
+    secilen_idx = sira - 1 if sira > 0 else 0
+    if secilen_idx >= len(kardesler):
+        log.info("kardeş haber alternatifleri tükendi (sıra=%s, toplam=%s) (#%s)",
+                 sira, len(kardesler), _alan(haber, "id"))
         return None, None
-    secilen_idx = sira % len(kardesler)
     link = kardesler[secilen_idx]
     try:
         url = fetch_article.og_gorseli_cek(link)
@@ -685,8 +688,8 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     if gorsel_modu == "gercek":
         # 1. Öncelik: Aynı olayı geçen kardeş haber kaynakları (Havuz DB + Canlı Web Arama)
         kardesler = kardes_haber_linkleri_topla(haber, con=con, haric_orijinal=True)
-        if kardesler:
-            secilen_link = kardesler[atlanacak % len(kardesler)]
+        if kardesler and atlanacak < len(kardesler):
+            secilen_link = kardesler[atlanacak]
             try:
                 url = fetch_article.og_gorseli_cek(secilen_link)
                 if url:
@@ -707,10 +710,11 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
             except Exception as e:                    # noqa: BLE001
                 log.warning("gerçek mod kardeş haber görseli hatası: %s", e)
 
-        # 2. Öncelik: Kardeş haberlerden bulunamazsa filtrelenmiş web editoryal araması
+        # 2. Öncelik: Kardeş haberlerden bulunamazsa veya kardeşler tükendiyse filtrelenmiş web editoryal araması
+        web_offset = max(0, atlanacak - len(kardesler)) if kardesler else atlanacak
         try:
             web_sonuc = fetch_web_image.haber_icin_fotograf(
-                haber, atlanacak=atlanacak)
+                haber, atlanacak=web_offset)
             if web_sonuc:
                 foto, web_kayit = web_sonuc
                 atif = fetch_web_image.atif_metni(web_kayit)
