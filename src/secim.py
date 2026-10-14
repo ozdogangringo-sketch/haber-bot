@@ -272,6 +272,12 @@ ETKISIZ_OZEL_ISIMLER = {
     # İdari ve kurumsal ekler
     "federasyonu", "belediyesi", "valiliği", "müdürlüğü", "kulübü", "derneği",
     "komisyonu", "heyeti", "kurulu",
+    # ⚠️ GENEL COĞRAFİ VE ŞEHİR ADLARI (14 Eki 2026).
+    # "İstanbul", "Ankara" gibi büyükşehir adları tekil bir olayı temsil etmez.
+    # Dün İstanbul'da bir fırtına haberi çıktı diye bugün İstanbul'daki metro seferi
+    # veya üniversite haberi "aynı konu yayınlandı" denilerek elenmemelidir.
+    "istanbul", "i̇stanbul", "ankara", "izmir", "bursa", "antalya",
+    "türkiye", "turkiye", "abd", "rusya", "çin", "almanya", "fransa", "ingiltere",
 }
 
 

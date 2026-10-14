@@ -352,7 +352,7 @@ const KALICI_ALT_MENU = {
     ],
   ],
   resize_keyboard: true,
-  is_persistent: true,
+  is_persistent: false,
   input_field_placeholder: "Bir komut seçin veya haber linki yapıştırın...",
 };
 
@@ -477,18 +477,48 @@ function duraklatmaSecenekleriMenusu() {
   };
 }
 
+function yonetimMenusu(duraklatildi = false, kalanSure = "") {
+  const duraklatButonu = duraklatildi
+    ? { text: `▶️ Devam Ettir (${kalanSure})`, callback_data: "devam_et" }
+    : { text: "⏸️ Botu Duraklat", callback_data: "duraklat_menu" };
+  return {
+    inline_keyboard: [
+      [
+        { text: "🔄 Gündem Turu Hazırla", callback_data: "tur_hazirla" },
+        { text: "📈 Ekonomi Turu Hazırla", callback_data: "ekonomi_hazirla" },
+      ],
+      [
+        duraklatButonu,
+        { text: "📊 Kota & Durum", callback_data: "kota_raporu" },
+      ],
+      [
+        { text: "🧪 API Sağlık Testi", callback_data: "saglik_testi" },
+        { text: "🧹 Askıdaki Turları Temizle", callback_data: "tur_temizle" },
+      ],
+    ],
+  };
+}
+
 /** Mesajın butonlarını değiştirir (metne dokunmaz). */
 async function menuyuDegistir(env, sohbetId, mesajId, menu) {
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup`;
-  await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      chat_id: sohbetId,
-      message_id: mesajId,
-      reply_markup: menu,
-    }),
-  });
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: sohbetId,
+        message_id: mesajId,
+        reply_markup: menu,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.warn(`menuyuDegistir başarısız (${res.status}): ${err}`);
+    }
+  } catch (e) {
+    console.error(`menuyuDegistir hata: ${e}`);
+  }
 }
 
 // Komut adlarının insan diline çevrisi — "işleniyor" satırında görünüyor.
@@ -1734,6 +1764,13 @@ export default {
     // --- Duraklatma alt menüsü: Worker anında açıyor ---
     if (komut === "duraklat_menu") {
       await menuyuDegistir(env, sohbetId, mesajId, duraklatmaSecenekleriMenusu());
+      await butonuDurdur(env, cb.id, "");
+      return new Response("ok");
+    }
+
+    // --- Yönetim paneline anında geri dön: Worker anında açıyor, Actions dakikası harcanmaz ---
+    if (komut === "yonetim_panel") {
+      await menuyuDegistir(env, sohbetId, mesajId, yonetimMenusu());
       await butonuDurdur(env, cb.id, "");
       return new Response("ok");
     }

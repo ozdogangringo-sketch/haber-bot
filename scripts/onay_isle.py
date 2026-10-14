@@ -4201,6 +4201,7 @@ def incele_islemi(con, ayarlar: dict, komut: str, mesaj_id: int = 0, basan: str 
 
     menu = [
         [{"text": f"⚡ #{haber_id} Numaralı Haberi Hazırla", "callback_data": f"hazirla:{haber_id}"}],
+        [{"text": "← Öneri Listesine Dön", "callback_data": "sondakika"}],
     ]
     telegram_bot.mesaj_gonder("\n".join(satirlar), butonlar=menu, html=True)
     return 0
