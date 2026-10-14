@@ -1030,6 +1030,38 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
             con.close()
             return 0
 
+    # ⚠️ MÜKERRER TETİKLEME KORUMASI (Cloudflare Edge veya Actions tekrarı engeli)
+    # Elle tetikleme (--elle, /tur, /sondakika), tekil post seçimi (zorla_haber_id),
+    # popüler modu (--populer), planlı yayın modu (--sadece-planli) veya durum takipli
+    # işlemler (durum_id) haricindeki otomatik saatlik cron taramaları son 15 dakika içinde
+    # zaten çalıştıysa mükerrer tetikleme atlanır.
+    if not zorla_haber_id and not elle and not populer and "--sadece-planli" not in sys.argv and not durum_id and not kuru:
+        satir = con.execute(
+            "SELECT deger FROM ayarlar WHERE anahtar = 'son_dakika_calisma_zamani'"
+        ).fetchone()
+        if satir and satir["deger"]:
+            try:
+                son_dt = datetime.fromisoformat(satir["deger"])
+                if son_dt.tzinfo is None:
+                    son_dt = son_dt.replace(tzinfo=timezone.utc)
+                fark_dk = (datetime.now(timezone.utc) - son_dt).total_seconds() / 60.0
+                if fark_dk < 15.0:
+                    log.info(
+                        "Son dakika kontrolü %.1f dakika önce zaten çalıştı — mükerrer tetikleme atlanıyor.",
+                        fark_dk,
+                    )
+                    con.close()
+                    return 0
+            except Exception as e:
+                log.warning("son_dakika_calisma_zamani okuma hatası: %s", e)
+
+        con.execute(
+            "INSERT INTO ayarlar (anahtar, deger) VALUES ('son_dakika_calisma_zamani', ?) "
+            "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+            (datetime.now(timezone.utc).isoformat(),),
+        )
+        con.commit()
+
     try:
         # --- 0) Kota/ağ hatası almış haberleri havuza geri al ---
         # Gemini 429 verdiğinde haber 'hata' durumunda kalıyor ve bir

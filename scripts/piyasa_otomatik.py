@@ -194,7 +194,7 @@ def main() -> int:
             con.close()
             return 0
 
-    # 3. Mükerrer Bülten Kilidi (Günde 1 kez açılış, 1 kez kapanış)
+    # 3. Mükerrer Bülten Kilidi (Günde 1 kez açılış, 1 kez kapanış & 30 dk çalışma cooldown'ı)
     anahtar_bulten = f"piyasa_bulteni_{mod}_{bugun_str}"
     zaten_var = con.execute(
         "SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_bulten,)
@@ -204,6 +204,34 @@ def main() -> int:
                  mod.upper(), bugun_str)
         con.close()
         return 0
+
+    anahtar_son_calisma = f"piyasa_bulteni_son_calisma_{mod}"
+    satir_calisma = con.execute(
+        "SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_son_calisma,)
+    ).fetchone()
+    if satir_calisma and satir_calisma["deger"] and not args.kuru and not args.zorla and not durum_id:
+        try:
+            son_dt = datetime.fromisoformat(satir_calisma["deger"])
+            if son_dt.tzinfo is None:
+                son_dt = son_dt.replace(tzinfo=timezone.utc)
+            fark_dk = (datetime.now(timezone.utc) - son_dt).total_seconds() / 60.0
+            if fark_dk < 30.0:
+                log.info(
+                    "Piyasa %s bülteni %.1f dakika önce zaten çalıştırıldı — mükerrer bülten atlanıyor.",
+                    mod.upper(), fark_dk,
+                )
+                con.close()
+                return 0
+        except Exception as e:
+            log.warning("piyasa bulteni son calisma kontrol hatasi: %s", e)
+
+    if not args.kuru:
+        con.execute(
+            "INSERT INTO ayarlar (anahtar, deger) VALUES (?, ?) "
+            "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+            (anahtar_son_calisma, datetime.now(timezone.utc).isoformat()),
+        )
+        con.commit()
 
     log.info("--- PİYASA BÜLTENİ OTOMATİK YAYIN (%s) BAŞLATILDI ---", mod.upper())
 

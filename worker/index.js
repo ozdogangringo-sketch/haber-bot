@@ -699,6 +699,31 @@ async function planAlariminiGuncelle(env, komut, hedefMesajId, iletildi) {
   }
 }
 
+/**
+ * Mükerrer cron tetikleme engeli (Cloudflare at-least-once cron kilidi).
+ *
+ * Cloudflare Worker Cron Trigger'ları distributed edge ağı gereği aynı cron anında
+ * birden fazla veri merkezinden (colo) aynı anda veya 20-40 saniye arayla
+ * at-least-once çalışabilir. KV namespace (env.PLANLAR) üzerinden ttlSaniye süresince
+ * kilit tutarak mükerrer GitHub Actions tetiklemelerini Cloudflare seviyesinde engeller.
+ */
+async function cronKilitAl(env, kilitAdi, ttlSaniye = 900) {
+  if (!env || !env.PLANLAR) return true;
+  const kilitKey = `cron_lock:${kilitAdi}`;
+  try {
+    const mevcut = await env.PLANLAR.get(kilitKey);
+    if (mevcut) {
+      console.log(`Mükerrer cron tetikleme engellendi: ${kilitKey}`);
+      return false;
+    }
+    await env.PLANLAR.put(kilitKey, "1", { expirationTtl: ttlSaniye });
+    return true;
+  } catch (e) {
+    console.warn(`Cron kilit kontrolünde hata: ${e}`);
+    return true;
+  }
+}
+
 async function githubaIlet(env, komut, mesajId, basanKisi, kanallar, metin, durumMesajId = null) {
   const url = `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`;
   const cevap = await fetch(url, {
@@ -2051,6 +2076,7 @@ export default {
         return;
       }
       if (!zamaniGelen) return;
+      if (!(await cronKilitAl(env, "planli_yayin", 300))) return;
       await fetch(url, {
         method: "POST",
         headers: {
@@ -2085,6 +2111,7 @@ export default {
     if (event.cron === "20 7,15 * * 1-5") {
       const saatUTC = new Date(event.scheduledTime ?? Date.now()).getUTCHours();
       const mod = saatUTC < 12 ? "acilis" : "kapanis";
+      if (!(await cronKilitAl(env, `piyasa_${mod}`, 1800))) return;
       await fetch(url, {
         method: "POST",
         headers: {
@@ -2101,6 +2128,7 @@ export default {
     }
 
     // 3. Saatlik son dakika ve taze haber taraması
+    if (!(await cronKilitAl(env, "son_dakika", 900))) return;
     await fetch(url, {
       method: "POST",
       headers: {

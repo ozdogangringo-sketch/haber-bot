@@ -59,4 +59,14 @@ async function dene(ad, kayitlar) {
   }
   await piyasa("piyasa 07:20 UTC", "2026-09-07T07:20:00Z");
   await piyasa("piyasa 15:20 UTC", "2026-09-07T15:20:00Z");
+
+  // MÜKERRER TETİKLEME KİLİDİ: Aynı saatlik cron arka arkaya iki kez çağrıldığında
+  // yalnızca 1 kez dispatch edilmeli (Cloudflare at-least-once engeli)
+  const cMukerrer = [];
+  global.fetch = async (u, o) => { cMukerrer.push(JSON.parse(o.body).event_type); return { ok: true }; };
+  const kvTekrar = sahteKV({});
+  const envTekrar = { GITHUB_PAT: "x", GITHUB_REPO: "a/b", PLANLAR: kvTekrar };
+  await W.scheduled({ cron: "12 2,5-20,23 * * *" }, envTekrar, {});
+  await W.scheduled({ cron: "12 2,5-20,23 * * *" }, envTekrar, {});
+  console.log(`  ${"mükerrer saatlik cron engeli".padEnd(34)} dispatch=${cMukerrer.length === 1 ? "1 (TEK ✓)" : cMukerrer.length + " (MÜKERRER ⛔)"}`);
 })();

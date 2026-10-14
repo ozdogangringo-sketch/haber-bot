@@ -3770,6 +3770,9 @@ def test_planli_yayin_cloudflareden_tetikleniyor() -> None:
     denetle("piyasa_bulteni/kapanis" in _satir("piyasa 15:20"),
             "15:20 UTC → kapanış bülteni",
             "birleşik cron iki slotta da aynı modu gönderiyor")
+    denetle("1 (TEK ✓)" in _satir("mükerrer saatlik cron engeli"),
+            "Cloudflare worker mükerrer cron çağrılarını engelliyor",
+            "aynı zaman diliminde mükerrer dispatch engellenemedi")
 
 
 def test_sansur_yildizi_cizime_kadar_yasiyor() -> None:
