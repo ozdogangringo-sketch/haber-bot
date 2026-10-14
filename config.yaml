@@ -230,13 +230,11 @@ genel:
 #  API anahtarı BURADA DEĞİL, .env dosyasında (GEMINI_API_KEY).
 # =========================================================
 gemini:
-  # Denenmiş modeller (14 Ağu 2026):
-  #   gemini-3.6-flash  → iyi kalite, ~10 sn, kararlı            [seçili]
+  # Modeller (Ekim 2026):
+  #   gemini-3.8-flash  → en yüksek editoryal kalite, güçlü Türkçe, hızlı, kararlı [seçili]
+  #   gemini-3.6-flash  → kararlı yedek model
   #   gemini-3.5-flash  → benzer kalite, biraz daha kısa cümleler
-  #   gemini-3.7-flash  → en yeni AMA gerçek boyutlu isteklerde
-  #                       3 denemenin 2'sinde 503 "yoğunluk" verdi.
-  #                       Talep yatışırsa denenebilir.
-  model: "gemini-3.6-flash"
+  model: "gemini-3.8-flash"
 
   # Birincil model 503/429 verirse buna düşer.
   #
@@ -249,7 +247,7 @@ gemini:
   #
   # Kota dolduğu gün maliyeti: haber başına 3 başarısız deneme (~12 sn).
   # Katlanılır — yanlış kalıcı yapılandırmadan iyidir.
-  yedek_model: "gemini-3.5-flash"
+  yedek_model: "gemini-3.6-flash"
 
   # 0 = hep aynı cevap, 1 = daha yaratıcı.
   # Haber metninde yaratıcılık istemiyoruz ama tamamen robotik de olmasın.

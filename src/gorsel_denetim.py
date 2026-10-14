@@ -138,7 +138,7 @@ def gorseli_denetle(foto: Image.Image, baslik: str, konu: str = "",
         return None
 
     g = (ayarlar or {}).get("gemini", {}) or {}
-    model = g.get("model", "gemini-3.6-flash")
+    model = g.get("model", "gemini-3.8-flash")
     zaman_asimi = g.get("zaman_asimi", 90)
 
     try:

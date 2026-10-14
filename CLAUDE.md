@@ -1961,8 +1961,8 @@ mesajında gösterilmeli ki kullanıcı karşılaştırabilsin.
 
 Diğer notlar:
 - Model `config.yaml` → `gemini.model`. Koda gömülü değil, değiştirmek tek satır.
-- Seçim: `gemini-3.6-flash` (birincil), `gemini-3.5-flash` (yedek).
-  `gemini-3.7-flash` gerçek boyutlu isteklerde 3 denemenin 2'sinde 503 verdi.
+- Seçim: `gemini-3.8-flash` (birincil), `gemini-3.6-flash` (yedek).
+  14 Eki 2026'da 3.6/3.7'nin yoğunlukta (503) takıldığı anlarda 3.8-flash sıfır hatayla başarıyla sonuç verdi.
 - JSON çıktı `responseSchema` ile zorlanıyor — düz metin dönme sorunu yok.
 - Anahtar URL'ye değil `x-goog-api-key` başlığına konuyor (loga sızmasın).
 - 503/429/500/502/504'te bekleyip tekrar deniyor, sonra yedek modele geçiyor.
