@@ -268,6 +268,27 @@ def son_dakika_caption(
             govde = h_dict["slayt_ozet"].strip()
         elif h_dict.get("ozet_orj"):
             govde = h_dict["ozet_orj"].strip()
+
+    # Eğer govde daha önce oluşturulmuş tam bir caption ise (örn. veritabanına
+    # son_dakika_caption çıktısı yazılmışsa), içindeki başlık, sana etkisi,
+    # soru, kaynak, atıf ve etiketleri temizleyip yalnızca ana gövdeyi al (mükerrerliği önler).
+    if govde and ("📌" in govde or "💡" in govde or "Kaynak:" in govde):
+        temiz_parcalar = []
+        for p in govde.split("\n\n"):
+            p_strip = p.strip()
+            if not p_strip:
+                continue
+            if p_strip.startswith("🔴") or p_strip.startswith("📌"):
+                continue
+            if p_strip.startswith("💡") or p_strip.startswith("💬"):
+                continue
+            if p_strip.startswith("Kaynak:") or p_strip.startswith("Foto:") or p_strip.startswith("Temsili görseller:"):
+                continue
+            if all(t.startswith("#") for t in p_strip.split()):
+                continue
+            temiz_parcalar.append(p_strip)
+        if temiz_parcalar:
+            govde = "\n\n".join(temiz_parcalar)
     # ⚠️ İçi boş övgü caption'a da girmesin — kullanıcı bu metni
     # kopyalayıp ELLE paylaşıyor. Her alan AYRI eleniyor: `sana_etkisi`
     # boşsa `neden_onemli` hâlâ bilgi taşıyor olabilir.

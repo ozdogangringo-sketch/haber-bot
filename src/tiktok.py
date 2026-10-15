@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -150,11 +151,14 @@ def aciklama_kur(
     metin: str,
     etiketler: list[str] | None = None,
     azami_uzunluk: int = 4000,
+    baslik: str | None = None,
 ) -> str:
     """
     TikTok fotoğraf modunun tam açıklama metnini kurar.
     Editoryal metni ve etiketleri tekrarsız (mükerrersiz) olarak 4000 karaktere kadar kurar.
     Metnin sonunda zaten etiket satırı varsa onu ayıklar ve tek bir temiz etiket bloğu üretir.
+    Eğer `baslik` verilmişse veya metin başında başlık / 📌 satırları varsa, TikTok'ta başlık
+    zaten `post_info.title` alanında gösterildiği için açıklamadan ayıklar (mükerrerlik engeli).
     """
     metin_temiz = (metin or "").strip()
 
@@ -177,6 +181,32 @@ def aciklama_kur(
         break
 
     govde = "\n".join(satirlar).rstrip()
+
+    # 1.5. TikTok Carousel'da başlık zaten ayrı 'title' alanına yazılıyor.
+    # Açıklama (description) başında başlığın (📌 ... veya '🔴 SON DAKİKA') tekrarlanmasını ayıkla.
+    if baslik or govde:
+        temiz_baslik = re.sub(r"[^\w\s]", "", (baslik or "")).strip().lower()
+        govde_satirlari = govde.splitlines()
+        kirpilmis = []
+        baslik_atlandi = False
+        for s in govde_satirlari:
+            s_str = s.strip()
+            if not baslik_atlandi:
+                if not s_str:
+                    continue
+                if s_str.startswith("🔴") or ("son dakika" in s_str.lower() and len(s_str) < 25):
+                    continue
+                if s_str.startswith("📌"):
+                    continue
+                s_norm = re.sub(r"[^\w\s]", "", s_str).strip().lower()
+                if temiz_baslik and (s_norm == temiz_baslik or s_norm.startswith(temiz_baslik)):
+                    continue
+                baslik_atlandi = True
+            kirpilmis.append(s)
+
+        yeni_govde = "\n".join(kirpilmis).strip()
+        if yeni_govde:
+            govde = yeni_govde
 
     # 2. Etiketleri birleştir ve dedupe et (sıralamayı koru)
     hedef_etiketler = []
@@ -235,8 +265,8 @@ def foto_carousel_yukle(
     # TikTok Title (Azami 90 karakter)
     temiz_baslik = (baslik or "").strip()[:90]
 
-    # TikTok Description (Azami 4000 karakter, tam editoryal açıklama ve etiketler)
-    tam_aciklama = aciklama_kur(aciklama or baslik, etiketler, azami_uzunluk=4000)
+    # TikTok Description (Azami 4000 karakter, başlık zaten title alanında olduğu için açıklamada tekrarlanmaz)
+    tam_aciklama = aciklama_kur(aciklama or baslik, etiketler, azami_uzunluk=4000, baslik=temiz_baslik)
 
     headers = {
         "Authorization": f"Bearer {token}",

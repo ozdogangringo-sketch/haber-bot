@@ -150,3 +150,19 @@ def test_foto_carousel_url_unverified_tespiti():
         assert sonuc["durum"] is False
         assert sonuc.get("url_unverified") is True
         assert "alan adı doğrulanmamış" in sonuc["hata"]
+
+
+def test_aciklama_kur_baslik_ayiklama():
+    """TikTok carousel açıklamasında başlık tekrarlanmamalı, doğrudan haber gövdesiyle başlamalıdır."""
+    baslik = "Fenerbahçe Aston Villa'ya 6-0 mağlup oldu"
+    metin = (
+        "📌 Fenerbahçe Aston Villa'ya 6-0 mağlup oldu\n\n"
+        "Sarı-lacivertliler deplasmanda ağır bir mağlubiyet aldı.\n\n"
+        "Kaynak: AA\n\n"
+        "#fenerbahçe #futbol"
+    )
+    sonuc = tiktok.aciklama_kur(metin, ["fenerbahçe", "futbol"], baslik=baslik)
+    assert not sonuc.startswith("📌")
+    assert not sonuc.startswith(baslik)
+    assert sonuc.startswith("Sarı-lacivertliler deplasmanda ağır bir mağlubiyet aldı.")
+    assert "#fenerbahçe #futbol" in sonuc
