@@ -685,6 +685,9 @@ def fotograftan_arkaplan(
       yerine, geniş kadrajıyla üst alana yerleştirir, arka plana yumuşak ambiyans ışıltısı verir
       ve alt metin alanına kesintisiz editoryal degrade ile eritir.
     """
+    if getattr(foto, "_arkaplan_islendi", False) and foto.size == (genislik, yukseklik):
+        return foto.copy()
+
     foto = ImageOps.exif_transpose(foto).convert("RGB")
     f_genislik, f_yukseklik = foto.size
     foto_oran = f_genislik / f_yukseklik
@@ -752,6 +755,7 @@ def fotograftan_arkaplan(
 
     # 4. Kristal netleştirme
     res = canvas.filter(ImageFilter.UnsharpMask(radius=1.2, percent=105, threshold=2))
+    res._arkaplan_islendi = True
     return res
 
 
@@ -1146,7 +1150,15 @@ def yaziyi_bas(
     # Son slayt Call-To-Action (CTA) etkileşim rozeti
     if son_slayt:
         cta_font = _font(24, EKSEN_KUCUK)
-        cta_metin = "★ Günün özetini kaçırmamak için kaydet & takip et"
+        kat_kucuk = (kategori or "").lower()
+        if kat_kucuk == "ekonomi":
+            cta_metin = "★ Piyasa ve ekonomi özetlerini kaçırmamak için kaydet & takip et"
+        elif kat_kucuk in ("teknoloji", "bilim"):
+            cta_metin = "★ Teknoloji ve bilim gündemini kaçırmamak için kaydet & takip et"
+        elif kat_kucuk == "spor":
+            cta_metin = "★ Spor gündemini ve analizleri kaçırmamak için kaydet & takip et"
+        else:
+            cta_metin = "★ Günün özetini kaçırmamak için kaydet & takip et"
         ciz.text((kenar, alt_bilgi_y - 36), cta_metin, font=cta_font, fill=(226, 170, 88))
 
     # Kaynak adı — şeffaflık ve gazetecilik atfı
@@ -1970,6 +1982,7 @@ def detay_sayfalara_bol(
     sirada_ne_var: str | None = None,
     trend_karti: Image.Image | None = None,
     sana_etkisi: str | None = None,
+    etkilesim_sorusu: str | None = None,
 ) -> list[list[dict]]:
     """
     Detay metnini paragraflara ayırıp sayfalara dağıtır.
@@ -2123,7 +2136,32 @@ def detay_sayfalara_bol(
             ikisi = bloklar[0]["yukseklik"] + PARAGRAF_ARASI + bloklar[1]["yukseklik"]
 
     # Sayfalara estetik ve dengeli dağıt (yetim blok korumalı)
-    return _sayfalari_dengeli_bol(bloklar, kullanilabilir, AZAMI_DETAY_SAYFA, PARAGRAF_ARASI)
+    sayfalar = _sayfalari_dengeli_bol(bloklar, kullanilabilir, AZAMI_DETAY_SAYFA, PARAGRAF_ARASI)
+
+    # Kapanış slaytında dikey alan müsaitse (yeni sayfa açtırmadan) etkileşim sorusunu ekle
+    if etkilesim_sorusu and etkilesim_sorusu.strip() and sayfalar and sayfalar[-1]:
+        soru_temiz = etkilesim_sorusu.replace("**", "").strip()
+        if "?" in soru_temiz:
+            eq_punto = DETAY_PUNTO - 3
+            eq_font = _font(eq_punto, EKSEN_OZET)
+            eq_metin = f"**SİZCE?** — {soru_temiz}"
+            eq_satirlar = _satirlara_bol(eq_metin, eq_font, alan, olcu)
+            eq_yuk = int(eq_punto * 1.5) * len(eq_satirlar)
+            son_sayfa = sayfalar[-1]
+            mevcut_yuk = (
+                sum(b.get("yukseklik", 0) for b in son_sayfa)
+                + PARAGRAF_ARASI * max(0, len(son_sayfa) - 1)
+            )
+            if mevcut_yuk + PARAGRAF_ARASI + eq_yuk <= kullanilabilir - 24:
+                son_sayfa.append({
+                    "tip": "etkilesim_sorusu",
+                    "metin": eq_metin,
+                    "satirlar": eq_satirlar,
+                    "spot": False,
+                    "yukseklik": eq_yuk,
+                })
+
+    return sayfalar
 
 
 def detay_slayti(
@@ -2237,11 +2275,11 @@ def detay_slayti(
                          font=_font(28, EKSEN_KUCUK), fill=(198, 206, 222))
             y += 54
 
-        elif tip in ("neden_onemli", "sirada_ne_var", "sana_etkisi"):
+        elif tip in ("neden_onemli", "sirada_ne_var", "sana_etkisi", "etkilesim_sorusu"):
             if tip == "sana_etkisi":
                 kenar_renk = (16, 185, 129)  # Parlak Zümrüt Yeşili (Emerald)
                 varsayilan_renk = (220, 252, 231)
-            elif tip == "neden_onemli":
+            elif tip in ("neden_onemli", "etkilesim_sorusu"):
                 kenar_renk = (226, 170, 88)  # Sıcak Kehribar (Amber)
                 varsayilan_renk = (226, 232, 240)
             else:

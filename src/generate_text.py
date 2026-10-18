@@ -327,6 +327,13 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
               özet  "Rüşvet ve imar usulsüzlüğü iddialarıyla..."
      Kanca, başlık ve özet ÜÇÜ DE farklı bir şey söylemeli.
 
+  (6) ÜÇ YÜKSEK ETKİLEŞİMLİ KALIPLARDAN BİRİNİ SEÇ; KURU YER/KURUM ADI YAZMA:
+     • Somut Yaptırım / Kişisel Etki: "EHLİYETİNE 60 GÜN EL KONDU", "GARANTİ SÜRESİ DE KISALDI"
+     • Beklenmedik Kırılma / İkincil Olay: "14 MECLİS ÜYESİ DE AYRILDI", "PİLOT SON ANDA FIRLATTI"
+     • İkincil Çarpıcı Veri (başlıkta sayı yoksa): "HAZİNENİN KAYBI 280 MİLYAR ₺", "12 GEMİYE EL KONDU"
+        KÖTÜ  "ATATÜRK MAHALLESİNDE MEYDANA GELDİ" (kuru sokak/ilçe adı merak uyandırmaz)
+        KÖTÜ  "GENEL MÜDÜRLÜK RESMİ YAZI GÖNDERDİ" (bürokratik dolgu)
+
 - vurgu_sayi / vurgu_etiket: Başlıkta GEÇMEYEN ikinci en çarpıcı sayı ve etiketi (örn: "2.352 yıl" / "istenen ceza"). Yoksa boş bırak.
 
   ⚠️ ÖLÇÜLMÜŞ KÖTÜ ÖRNEKLER (5 Eyl 2026, gerçek çıktılar):
@@ -865,7 +872,7 @@ def tek_haber_uret(haber, ayarlar: dict, mod: str = "normal") -> tuple[dict, str
     if not govde and haber.get("makale_metni"):
         # Veritabanından veya kardeş kaynaklardan derlenmiş gövdeyi kullan
         govde = haber["makale_metni"]
-    if mod in ("kaynak_arastir", "detaylandir") or not govde or len(govde) < 150:
+    if mod in ("kaynak_arastir", "detaylandir") or not govde or len(govde) < 650:
         ek_baglam = olay_baglami_cek(haber["baslik_orj"])
         if ek_baglam:
             govde = f"{govde or ''}\n\n[GÜNCEL BASIN DETAYLARI & ÇOKLU KAYNAK BAĞLAMI]:\n{ek_baglam}"

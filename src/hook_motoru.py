@@ -84,7 +84,9 @@ def _bant_yogunlugu(edges, x0: int, y0: int, x1: int, y1: int) -> float:
     return ImageStat.Stat(edges.crop((x0, y0, x1, y1))).mean[0]
 
 
-def uygun_alan_tespit_et(gorsel, baslik_ust: int, hook_h: int = 240) -> tuple[str, int]:
+def uygun_alan_tespit_et(
+    gorsel, baslik_ust: int, hook_h: int = 240, ozne_tipi: str = ""
+) -> tuple[str, int]:
     """
     Kancayı fotoğrafın EN MÜSAİT alanına yerleştirir.
 
@@ -133,8 +135,18 @@ def uygun_alan_tespit_et(gorsel, baslik_ust: int, hook_h: int = 240) -> tuple[st
         if not adaylar:
             return "zemin", varsayilan_y
 
-        olculen = [(_bant_yogunlugu(edges, SAG_PAY, y, sag, y + hook_h), y)
-                   for y in adaylar]
+        # Portre ('kisi') fotoğraflarında baş/yüz bölgesi çoğunlukla y=480..680
+        # bandında yer alır. Altta müsait alan varsa yüzün üstüne binmemesi için
+        # üst-orta banda hafif bir ceza puanı eklenir.
+        kisi_modu = (ozne_tipi or "").strip().lower() == "kisi" and en_alt >= 680
+        olculen = [
+            (
+                _bant_yogunlugu(edges, SAG_PAY, y, sag, y + hook_h)
+                + (3.5 if (kisi_modu and y < 680) else 0.0),
+                y,
+            )
+            for y in adaylar
+        ]
         en_dusuk = min(t[0] for t in olculen)
 
         # ⚠️ BERABERLİK PAYI: düz/gradyanlı bir zeminde onlarca adayın
@@ -584,66 +596,30 @@ def hook_olustur(haber: dict) -> dict | None:
         kicker = "● ÖĞRENCİLERİN DİKKATİNE"
     elif any(re.search(r"\b" + re.escape(w) + r"\b", metin_tum) for w in ["zam", "enflasyon", "bist", "faiz", "dolar", "euro", "petrol", "altın", "mevduat"]):
         kicker = "● PİYASA & EKONOMİ"
+    elif any(re.search(r"\b" + re.escape(w) + r"\b", metin_tum) for w in ["epdk", "doğalgaz", "elektrik", "akaryakıt", "benzin", "motorin", "botaş", "enerji"]):
+        kicker = "● ENERJİ & PİYASA"
+    elif any(re.search(r"\b" + re.escape(w) + r"\b", metin_tum) for w in ["mahkeme", "yargıtay", "danıştay", "savcılık", "iddianame", "hapis", "tahliye", "beraat", "tutuklama"]):
+        kicker = "● YARGI & HUKUK"
+    elif any(re.search(r"\b" + re.escape(w) + r"\b", metin_tum) for w in ["meteoroloji", "fırtına", "sağanak", "kar yağışı", "sarı kod", "turuncu kod", "hava durumu"]):
+        kicker = "● METEOROLOJİ & UYARI"
     elif kategori in ["teknoloji", "bilim"]:
         kicker = "● TEKNOLOJİ DÜNYASI"
     else:
         kicker = ""
 
-    # ⚠️ KODA GÖMÜLÜ "XIAOMI SUV" ÖZEL DURUMU SİLİNDİ (9 Eyl 2026).
-    # Haberde ne yazarsa yazsın sabit "750 mm · SU GEÇİŞ DERİNLİĞİ" ve
-    # "SUDA BATMAYAN KAMP ARACI" basıyordu. ÖLÇÜLDÜ: kaynağında 400 mm
-    # geçen uydurma bir Xiaomi SUV haberi verildiğinde slayta yine 750
-    # yazdı — yani kaynakta OLMAYAN bir teknik veri yayınlanıyordu.
-    # ⚠️ Bu, projede DÖRDÜNCÜ kez görülen uydurma-rakam kusuru:
-    # `/menu` düğmesindeki sahte TCMB faizi · piyasa sayfa 1 ve sayfa 2
-    # varsayılanları · ısı haritası varsayılanları. Kural aynı:
-    # KAYNAKTA YAZMAYAN SAYI SLAYTA BASILMAZ. Somut veri gerekiyorsa
-    # `vurgu_sayi` alanından gelmeli — o alan makale metninden üretiliyor
-    # ve `dogrula` denetiminden geçiyor.
+    baslik_ham = haber.get("ig_baslik") or haber.get("baslik_orj") or ""
 
-    # 3. ÖNCELİK: Gemini kanca alanı (gövdeden gelen kilit detay)
-    # ⚠️ ASIL ÇÖZÜM BU (9 Eyl 2026).
-    # `kanca` alanı makale GÖVDESİNDEN, başlıkta geçmeyen bir ayrıntı
-    # olarak üretiliyor (bkz. generate_text.PROMPT). Şema onu zorunlu
-    # değil yapıyor — boşsa uydurma veri yerine pas geçilir.
-    # ⚠️ `vurgu_sayi` bu alanı EZMEMELİDİR: Gemini neredeyse her habere
-    # vurgu_sayi ürettiği için, stat_punch önceden bu alanı gasp edip
-    # başlıkla çakışarak kancayı tamamen bastırıyordu (10 Eyl link vakası).
-    kanca = (haber.get("kanca") or "").strip()
-    if kanca:
-        t1, t2 = _dengeli_bol(tr_upper(kanca).split())
-        if not t2:
-            t2 = tr_upper(haber.get("gorsel_konu") or "GÜNDEM")
-        # ⚠️ A KURALI — KULLANICI KARARI: kanca başlığı tekrarlıyorsa HİÇ
-        # ÇİZİLMEZ. Bilgi eklemeyen bir kanca gürültüdür.
-        if _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
-            return {
-                "format": "minimal_vurgu",
-                "kicker": kicker,
-                "t1": t1,
-                "t2": t2,
-            }
-
-    # 4. Sayısal Vurgu Varsa (stat_punch) — yalnızca kanca yoksa ve başlıkta sayı yoksa
+    # Sayısal vurgu doğrulama kapıları (B Kuralı + Yıl/Tarih + Zayıf Vurgu)
     v_sayi = haber.get("vurgu_sayi")
     v_etiket = haber.get("vurgu_etiket")
-
-    # ⚠️ B KURALI — KULLANICI KARARI (9 Eyl 2026):
-    # *"başlıkta rakam varsa zaten kancada gerek yok"*. Başlık rakamı
-    # zaten duyurmuşsa kanca ikinci bir rakamla yarışmamalı; rakamsız
-    # formata düşüyor. iPhone vakası: başlık **en ucuz** modeli
-    # (72.999) anlatırken kanca **en pahalıyı** (335.999) basıyordu.
-    if v_sayi and _baslikta_sayi_var_mi(haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+    if v_sayi and _baslikta_sayi_var_mi(baslik_ham):
         v_sayi = None
-
-    # ⚠️ ZAYIF VURGU KAPISI — SLAYT TARAFIYLA AYNI KURAL (18 Eyl 2026).
-    # Kanca tarafında ÖNCEDEN HİÇBİR KAPI YOKTU: ne yıl/tarih denetimi
-    # ne de zayıf rakam denetimi. Aynı `vurgu_sayi` slaytta elenip
-    # kancada basılabiliyordu — projenin en sık hatası ("aynı kural iki
-    # yerde yaşıyor, biri unutuluyor"). Kural artık tek kapıda.
+    if v_sayi and re.fullmatch(r"(19|20)\d{2}(\s*-\s*(19|20)\d{2})?", str(v_sayi).strip()):
+        v_sayi = None
     if v_sayi and dogrula.vurgu_zayif_mi(v_sayi, v_etiket):
         v_sayi = None
 
+    num_part, unit_part = "", ""
     if v_sayi:
         v_sayi_str = str(v_sayi).strip()
         m = re.match(r"^([%0-9\.\,\-]+)\s*(.*)$", v_sayi_str)
@@ -654,11 +630,58 @@ def hook_olustur(haber: dict) -> dict | None:
             num_part = v_sayi_str
             unit_part = ""
 
+    # 3. ÖNCELİK: Gemini kanca alanı (gövdeden gelen kilit detay)
+    kanca = (haber.get("kanca") or "").strip()
+    if kanca:
+        t1, t2 = _dengeli_bol(tr_upper(kanca).split())
+        if not t2:
+            t2 = tr_upper(haber.get("gorsel_konu") or "GÜNDEM")
+        # ⚠️ A KURALI — KULLANICI KARARI: kanca başlığı tekrarlıyorsa HİÇ
+        # ÇİZİLMEZ. Bilgi eklemeyen bir kanca gürültüdür.
+        if _basliktan_farkli_mi(t1, t2, baslik_ham):
+            # Başlıkta ve kancada rakam yoksa, doğrulanmış güçlü vurgu_sayi ile stat_punch üret
+            if (
+                v_sayi
+                and num_part
+                and v_etiket
+                and not _baslikta_sayi_var_mi(kanca)
+                and _basliktan_farkli_mi(t1, t2, str(v_etiket))
+            ):
+                return {
+                    "format": "stat_punch",
+                    "num_txt": num_part,
+                    "unit_txt": unit_part,
+                    "lbl_txt": tr_upper(str(v_etiket)),
+                    "t1": t1,
+                    "t2": t2,
+                }
+            return {
+                "format": "minimal_vurgu",
+                "kicker": kicker,
+                "t1": t1,
+                "t2": t2,
+            }
+
+    # 4. Sayısal Vurgu Varsa (stat_punch) — kanca yoksa ve başlıkta sayı yoksa
+    if not kanca and v_sayi and num_part:
+        if v_etiket and len(str(v_etiket).split()) >= 2:
+            t1_v, t2_v = _dengeli_bol(tr_upper(str(v_etiket)).split())
+            if t2_v and _basliktan_farkli_mi(t1_v, t2_v, baslik_ham):
+                ust_lbl = kicker.replace("● ", "").strip() if kicker else "KİLİT VERİ"
+                return {
+                    "format": "stat_punch",
+                    "num_txt": num_part,
+                    "unit_txt": unit_part,
+                    "lbl_txt": tr_upper(ust_lbl),
+                    "t1": t1_v,
+                    "t2": t2_v,
+                }
+
         t1, t2 = _basliktan_hook_metinleri(
-            haber.get("ig_baslik") or haber.get("baslik_orj") or "",
+            baslik_ham,
             haber.get("gorsel_konu") or ""
         )
-        if _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+        if _basliktan_farkli_mi(t1, t2, baslik_ham):
             return {
                 "format": "stat_punch",
                 "num_txt": num_part,
@@ -669,17 +692,14 @@ def hook_olustur(haber: dict) -> dict | None:
             }
 
     # 5. Kancasız Eski Kayıtlar İçin Başlıktan Türetme (Yedek)
-    # Alan boş gelen ESKİ kayıtlar (1h dersi — kaynağı düzeltmek geçmiş
-    # kayıtları düzeltmiyor) yine eski yoldan geçiyor ve A kuralı
-    # onları zaten eliyor.
     if not kanca:
         t1, t2 = _basliktan_hook_metinleri(
-            haber.get("ig_baslik") or haber.get("baslik_orj") or "",
+            baslik_ham,
             haber.get("gorsel_konu") or ""
         )
         if not t2:
             t2 = tr_upper(haber.get("gorsel_konu") or "GÜNDEM")
-        if _basliktan_farkli_mi(t1, t2, haber.get("ig_baslik") or haber.get("baslik_orj") or ""):
+        if _basliktan_farkli_mi(t1, t2, baslik_ham):
             return {
                 "format": "minimal_vurgu",
                 "kicker": kicker,
@@ -737,7 +757,8 @@ def hook_uygula(
         return gorsel
 
     # Akıllı negatif alan tespiti (asla pas geçilmez, güvenli koordinat döner)
-    konum, y = uygun_alan_tespit_et(gorsel, baslik_ust)
+    ozne_tipi = str(haber.get("gorsel_ozne_tipi") or "") if isinstance(haber, dict) else ""
+    konum, y = uygun_alan_tespit_et(gorsel, baslik_ust, ozne_tipi=ozne_tipi)
     if y is None:
         y = max(400, baslik_ust - 190)
 

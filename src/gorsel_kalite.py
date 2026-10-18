@@ -62,6 +62,8 @@ def netlik_puani(img: Image.Image) -> float:
     """
     Pillow tabanlı Laplacian kenar varyansı ile görselin gerçek netlik ve keskinliğini ölçer.
     Yapay olarak büyütülmüş, bulanık veya aşırı sıkıştırılmış görseller düşük puan alır.
+    Dar alan derinlikli (bokeh arka planlı) basın portrelerinde net özneyi korumak için
+    genel varyans ile merkez/üst-merkez odak bölgelerinin keskinliğini birlikte değerlendirir.
     """
     try:
         w, h = img.size
@@ -74,7 +76,22 @@ def netlik_puani(img: Image.Image) -> float:
         gray = test_img.convert("L")
         edges = gray.filter(ImageFilter.FIND_EDGES)
         stat = ImageStat.Stat(edges)
-        varyans = stat.var[0] if stat.var else 0.0
+        varyans = float(stat.var[0]) if stat.var else 0.0
+
+        tw, th = edges.size
+        if tw >= 90 and th >= 90:
+            gw, gh = tw // 3, th // 3
+            odak_puanlari = []
+            for r in (0, 1):
+                for c in (0, 1, 2):
+                    hucre = edges.crop((c * gw, r * gh, (c + 1) * gw, (r + 1) * gh))
+                    h_stat = ImageStat.Stat(hucre)
+                    h_var = float(h_stat.var[0]) if h_stat.var else 0.0
+                    katsayi = 0.68 if c == 1 else 0.55
+                    odak_puanlari.append(h_var * katsayi)
+            if odak_puanlari:
+                varyans = max(varyans, max(odak_puanlari))
+
         return float(varyans)
     except Exception as e:
         log.debug("Netlik puanı hesaplanamadı: %s", e)

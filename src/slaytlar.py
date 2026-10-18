@@ -1161,8 +1161,16 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     # 17 Ağu 2026'da yayınlanan story'de tam olarak bu oldu.
     atlanacak, haber_gorseli_atla = _secimi_uygula(
         haber, atlanacak, haber_gorseli_atla)
+    story_bg_ayarlar = {
+        **ayarlar,
+        "gorsel": {
+            **g,
+            "genislik": make_image.STORY_GENISLIK,
+            "yukseklik": make_image.STORY_YUKSEKLIK,
+        },
+    }
     ham_arkaplan, katman, atif = arkaplan_sec(
-        haber, ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
+        haber, story_bg_ayarlar, zorla_ai=zorla_ai, atlanacak=atlanacak,
         haber_gorseli_atla=haber_gorseli_atla, con=con,
         gorsel_modu=gorsel_modu)
 
@@ -1264,6 +1272,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         sirada_ne_var=_alan(haber, "sirada_ne_var"),
         trend_karti=trend_karti,
         sana_etkisi=dogrula.ovguyu_ele(_alan(haber, "sana_etkisi")),
+        etkilesim_sorusu=dogrula.ovguyu_ele(_alan(haber, "etkilesim_sorusu")),
     )
 
     # --- %100 SAF NATIVE 9:16 (1080x1920) ÜRETİM (4:5 tamamen kaldırıldı) ---

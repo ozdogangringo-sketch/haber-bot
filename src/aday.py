@@ -338,8 +338,9 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     # kelime sayılıyordu ve aynı PFDK kararının iki haberi tek tura
     # girdi (20 Ağu 2026).
     for onceki_k, onceki_i in baglam._secilenler:
-        if (len(secim.ortak_kelime(kelimeler, onceki_k)) >= baglam.liste_esigi
-                and secim.ortak_kelime(isimler, onceki_i)):
+        ortak_k = secim.ortak_kelime(kelimeler, onceki_k)
+        ortak_i = secim.ortak_kelime(isimler, onceki_i)
+        if (len(ortak_k) >= baglam.liste_esigi and ortak_i) or len(ortak_k) >= baglam.gecmis_esik:
             return False, "bu seçimde aynı olay zaten var"
 
     # 5) Son günlerde YAYINLANMIŞ veya ONAYDA OLAN bir olayın tekrarı mı?
