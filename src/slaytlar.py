@@ -711,7 +711,12 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                 log.warning("gerçek mod kardeş haber görseli hatası: %s", e)
 
         # 2. Öncelik: Kardeş haberlerden bulunamazsa veya kardeşler tükendiyse filtrelenmiş web editoryal araması
-        web_offset = max(0, atlanacak - len(kardesler)) if kardesler else atlanacak
+        # Kardeş adayı başarısız olup buraya düştüyse (atlanacak < len(kardesler)),
+        # web_offset=0'a çakılıp aynı görseli tekrarlamaması için doğrudan atlanacak kullanılır.
+        if kardesler and atlanacak >= len(kardesler):
+            web_offset = atlanacak - len(kardesler)
+        else:
+            web_offset = atlanacak
         try:
             web_sonuc = fetch_web_image.haber_icin_fotograf(
                 haber, atlanacak=web_offset)

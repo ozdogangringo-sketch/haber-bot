@@ -371,8 +371,19 @@ def _satirlara_bol(metin: str, font, azami_genislik: int, ciz) -> list[str]:
                 if w:
                     tokens.append((w, True))
         else:
-            for w in part.split():
-                if w:
+            kelimeler_p = part.split()
+            if not kelimeler_p:
+                continue
+            # **dolar**, veya **TCMB**'nin gibi bold kapanışına bitişik noktalama/ek varsa
+            # önceki kelimeye yapıştır ki virgül alt satırın başına tek başına düşmesin.
+            baslangic_idx = 0
+            if tokens and not part[0].isspace():
+                tokens[-1] = (tokens[-1][0] + kelimeler_p[0], tokens[-1][1])
+                baslangic_idx = 1
+            for w in kelimeler_p[baslangic_idx:]:
+                if w in {",", ".", ";", ":", "!", "?", ")", "]"} and tokens:
+                    tokens[-1] = (tokens[-1][0] + w, tokens[-1][1])
+                elif w:
                     tokens.append((w, False))
 
     if not tokens:

@@ -230,11 +230,12 @@ def ciz_stat_punch(
     # ⚠️ İKİ AŞAMALI SIĞDIRMA (9 Eyl 2026) — eskiden hiç yoktu.
     # Sağ bloğa en az `SAG_BLOK_ASGARI` piksel kalmalı; kalmıyorsa önce
     # RAKAM puntosu küçültülüyor (sol blok daralır), sonra sağ blok
-    # satırları ortak bir puntoya sığdırılıyor, o da yetmezse kırpılıyor.
-    SAG_BLOK_ASGARI = 400
+    # satırları ortak bir puntoya sığdırılıyor, o da yetmezse 3 satıra bölünür.
+    SAG_BLOK_ASGARI = 460
     f_num = _font(105, 900.0)
     for num_punto in range(105, 55, -5):
         f_num = _font(num_punto, 900.0)
+        f_unit = _font(28 if num_punto <= 85 else 34, 800.0)
         w_num_d = f_num.getbbox(num_txt)[2] - f_num.getbbox(num_txt)[0]
         w_unit_d = (f_unit.getbbox(unit_txt)[2] - f_unit.getbbox(unit_txt)[0]) if unit_txt else 0
         w_lbl_d = (f_lbl.getbbox(lbl_txt)[2] - f_lbl.getbbox(lbl_txt)[0]) if lbl_txt else 0
@@ -255,6 +256,19 @@ def ciz_stat_punch(
     sag_x = sep_x + 26
 
     sag_alan = max(160, (TUVAL_GENISLIK - SAG_PAY) - sag_x)
+    # 2 satırlık kanca 28 puntoda sağ alana sığmıyorsa (… ile kırpılacaksa),
+    # 3 dengeli satıra böl ki kelimeler kesilmeden tam okunsun.
+    f_28 = _font(28, 900.0)
+    if len(satirlar) == 2 and any((f_28.getbbox(s)[2] - f_28.getbbox(s)[0]) > sag_alan for s in satirlar):
+        tum_kelimeler = " ".join(satirlar).split()
+        if len(tum_kelimeler) >= 4:
+            k1 = max(1, round(len(tum_kelimeler) / 3))
+            k2 = max(k1 + 1, round(2 * len(tum_kelimeler) / 3))
+            satirlar = [
+                " ".join(tum_kelimeler[:k1]),
+                " ".join(tum_kelimeler[k1:k2]),
+                " ".join(tum_kelimeler[k2:]),
+            ]
     f_t = _sigdiran_font(satirlar, 44, sag_alan)
     satirlar = [_kirp(sat, f_t, sag_alan) for sat in satirlar]
 
@@ -280,15 +294,17 @@ def ciz_stat_punch(
     if unit_txt:
         draw.text((x + w_num + 10, y + 26), unit_txt, font=f_unit, fill=renk)
     if lbl_txt:
-        draw.text((x + 2, y + 115), lbl_txt, font=f_lbl, fill=GRAY)
+        # Virgüllü sayılarda (örn. 158,4) virgül kuyruğunun alt etikete değmemesi için dinamik y
+        lbl_y = max(y + 115, y + 10 + bb_num[3] + 10)
+        draw.text((x + 2, lbl_y), lbl_txt, font=f_lbl, fill=GRAY)
 
     # Dikey ayraç
-    h_cizgi = 146 if len(satirlar) <= 2 else 162
+    h_cizgi = 146 if len(satirlar) <= 2 else max(162, 16 + len(satirlar) * satir_adim)
     draw.line([(sep_x, y + 16), (sep_x, y + h_cizgi)], fill=(255, 255, 255, 75), width=2)
 
     # Sağ blok satırları
     for i, s in enumerate(satirlar):
-        satir_rengi = renk if i == 1 else WHITE
+        satir_rengi = renk if i >= 1 else WHITE
         draw.text((sag_x, y + 10 + i * satir_adim), s, font=f_t, fill=satir_rengi)
 
     return out

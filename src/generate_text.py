@@ -867,14 +867,22 @@ def tek_haber_uret(haber, ayarlar: dict, mod: str = "normal") -> tuple[dict, str
     """
     g = ayarlar["gemini"]
 
-    # Önce makalenin gövdesini çekmeyi dene
+    # Önce makalenin gövdesini çekmeyi dene; veritabanında zenginleştirilmiş
+    # kardeş kaynak metni varsa kısa ajans spotunun onu ezmesine izin verme.
     govde = makale_metni_cek(haber["link"], haber["baslik_orj"])
-    if not govde and haber.get("makale_metni"):
-        # Veritabanından veya kardeş kaynaklardan derlenmiş gövdeyi kullan
-        govde = haber["makale_metni"]
+    kayitli_govde = (
+        haber["makale_metni"]
+        if (hasattr(haber, "keys") and "makale_metni" in haber.keys())
+        else (haber.get("makale_metni") if isinstance(haber, dict) else None)
+    )
+    if kayitli_govde:
+        if not govde or len(kayitli_govde) > len(govde):
+            govde = kayitli_govde
+        elif "[ÇOKLU AJANS" in kayitli_govde and "[ÇOKLU AJANS" not in govde:
+            govde = f"{govde}\n\n{kayitli_govde}"
     if mod in ("kaynak_arastir", "detaylandir") or not govde or len(govde) < 650:
         ek_baglam = olay_baglami_cek(haber["baslik_orj"])
-        if ek_baglam:
+        if ek_baglam and ek_baglam[:120] not in (govde or ""):
             govde = f"{govde or ''}\n\n[GÜNCEL BASIN DETAYLARI & ÇOKLU KAYNAK BAĞLAMI]:\n{ek_baglam}"
 
     tam_metin_var = bool(govde)

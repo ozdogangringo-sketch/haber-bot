@@ -6029,6 +6029,83 @@ def test_uzaktan_tazele_canli_dosyaya_dokunmaz() -> None:
         shutil.rmtree(kok, ignore_errors=True)
 
 
+def test_deep_dive_iyilestirmeleri() -> None:
+    """
+    18 Eki 2026 Deep-Dive (Faz 1 & Faz 2) mimari iyileştirmelerinin sözleşmesi:
+      1) `_secilenler` aynı tur içi mükerrer denetiminde özel isim yoksa
+         `baglam.gecmis_esik` ile ortak kelime sayısına bakmalı (`True` sabiti değil).
+      2) `stat_punch` somut rakamlı kısa başlıklarda devreye girmeli ve portre
+         (`ozne_tipi == 'kisi'`) fotoğraflarında yüz bölgesi korunmalı.
+      3) `netlik_puani` bokeh (arka planı flu, öznesi net) basın portrelerini
+         3x3 odak netliğiyle korumalı.
+      4) `fotograftan_arkaplan` aynı görsel üzerinde iki kez çalışmamalı (`_arkaplan_islendi`).
+      5) `metin_yenile` (`sqlite3.Row` -> `dict`) ve `tek_haber_uret` zenginleştirilmiş
+         `makale_metni`ni kısa özetle ezmemeli; `foto_degistir_islemi` görsel parmak iziyle
+         mükerrer adayları elemeli.
+    """
+    sys.path.insert(0, str(KOK))
+    from PIL import Image, ImageDraw
+    from src import aday, hook_motoru, gorsel_kalite as gk, make_image as mi, slaytlar as sl
+
+    # 1) Aynı paket içi mükerrer denetimi (özel isimsiz başlıklar)
+    aday_kaynak = (KOK / "src/aday.py").read_text(encoding="utf-8")
+    denetle("len(ortak_k) >= baglam.gecmis_esik" in aday_kaynak,
+            "aday.py: aynı paket içi mükerrerde özel isimsiz başlıklar gecmis_esik ile denetleniyor")
+
+    # 2) stat_punch aktivasyonu ve portre yüz koruma
+    ornek_haber = {
+        "baslik_orj": "Merkez Bankası toplam rezervleri tüm zamanların rekorunu kırdı",
+        "ig_baslik": "Merkez Bankası rezervleri tarihi zirveye yerleşti",
+        "kanca": "Net döviz pozisyonu kur korumalı çıkışını hızlandıracak",
+        "vurgu_sayi": "158,4 MİLYAR $",
+        "vurgu_etiket": "TOPLAM REZERV",
+        "kategori": "ekonomi",
+        "onem_puani": 8,
+    }
+    hk = hook_motoru.hook_olustur(ornek_haber)
+    denetle(hk is not None and hk.get("format") == "stat_punch" and "158" in hk.get("num_txt", ""),
+            "hook_motoru: vurgu_sayi + kanca ile stat_punch aktif",
+            f"hk={hk}")
+
+    # Portre yüz koruma: üst yarı çok sakin değilse (ör. 110 skor) kisi'de 'zemin' seçilmeli
+    portre = Image.new("L", (1080, 1920), 120)
+    d = ImageDraw.Draw(portre)
+    for y in range(400, 900, 6):
+        d.line([(0, y), (1080, y)], fill=40 if (y // 6) % 2 == 0 else 200, width=2)
+    konum = hook_motoru.uygun_alan_tespit_et(portre.convert("RGB"), 1150, ozne_tipi="kisi")
+    denetle(isinstance(konum, tuple) and konum[0] == "zemin",
+            "hook_motoru: portre (kisi) görselinde üst yarıda yüz bölgesi korunuyor",
+            f"konum={konum}")
+
+    # 3) Bokeh portre netlik denetimi (arka plan düz/flu, merkez keskin)
+    bokeh = Image.new("RGB", (1200, 800), (30, 35, 45))
+    bd = ImageDraw.Draw(bokeh)
+    for x in range(420, 780, 4):
+        bd.line([(x, 200), (x, 520)], fill=(235, 235, 240) if (x // 4) % 2 == 0 else (20, 20, 25), width=2)
+    puan = gk.netlik_puani(bokeh)
+    denetle(puan >= gk.ASGARI_NETLIK_PUANI,
+            "gorsel_kalite: merkezi net bokeh portresi netlik kapısından geçiyor",
+            f"netlik_puani={puan:.1f} < {gk.ASGARI_NETLIK_PUANI}")
+
+    # 4) Çift fotograftan_arkaplan engeli
+    ham = Image.new("RGB", (800, 600), (80, 120, 160))
+    islendi = mi.fotograftan_arkaplan(ham, 1080, 1920)
+    denetle(getattr(islendi, "_arkaplan_islendi", False) is True,
+            "make_image: fotograftan_arkaplan çıktısı _arkaplan_islendi bayrağı taşıyor")
+
+    # 5) Etkileşim sorusu son detay slaytına ekleniyor & metin/foto yenileme korumaları
+    sl_kaynak = (KOK / "src/slaytlar.py").read_text(encoding="utf-8")
+    mi_kaynak = (KOK / "src/make_image.py").read_text(encoding="utf-8")
+    denetle("etkilesim_sorusu" in sl_kaynak and "SİZCE?" in mi_kaynak,
+            "slaytlar.py & make_image.py: kapanış detay slaytında etkileşim sorusu ('SİZCE?') destekleniyor")
+    gt_kaynak = (KOK / "src/generate_text.py").read_text(encoding="utf-8")
+    denetle("kayitli_govde" in gt_kaynak and "ÇOKLU AJANS" in gt_kaynak,
+            "generate_text.py: tek_haber_uret zenginleştirilmiş makale_metni'ni koruyor")
+    oi_kaynak = (KOK / "scripts/onay_isle.py").read_text(encoding="utf-8")
+    denetle("[dict(h) for h in haberler]" in oi_kaynak and "gorulen_imzalar" in oi_kaynak,
+            "onay_isle.py: metin_yenile Row->dict çeviriyor ve foto_degistir_islemi görsel parmak izi kullanıyor")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -6127,6 +6204,7 @@ def main() -> int:
         test_db_kaydi_canli_dosyaya_dokunmaz,
         test_db_kaydi_yarista_tekrar_deniyor_ve_ezmiyor,
         test_uzaktan_tazele_canli_dosyaya_dokunmaz,
+        test_deep_dive_iyilestirmeleri,
     ):
         try:
             test()

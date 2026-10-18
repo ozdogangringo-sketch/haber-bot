@@ -2153,6 +2153,8 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id, mod: str = "normal") -> int:
     )
     con.commit()
 
+    haberler = [dict(h) for h in haberler]
+
     if mod in ("kaynak_arastir", "detaylandir") and con is not None:
         for h in haberler:
             try:
@@ -2177,8 +2179,7 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id, mod: str = "normal") -> int:
                         except Exception:
                             pass
                 if ek_metinler:
-                    h_dict = dict(h)
-                    mevcut = h_dict.get("makale_metni") or h_dict.get("ozet_orj") or ""
+                    mevcut = h.get("makale_metni") or h.get("ozet_orj") or ""
                     yeni_govde = (
                         mevcut
                         + "\n\n[ÇOKLU AJANS / KARDEŞ KAYNAK DETAYLARI]:\n"
@@ -2189,8 +2190,7 @@ def metin_yenile(con, ayarlar, haberler, mesaj_id, mod: str = "normal") -> int:
                         (yeni_govde[:15000], h["id"]),
                     )
                     con.commit()
-                    if isinstance(h, dict):
-                        h["makale_metni"] = yeni_govde[:15000]
+                    h["makale_metni"] = yeni_govde[:15000]
             except Exception as e:                    # noqa: BLE001
                 log.warning("kaynak araştırma / detaylandırma zenginleştirme hatası: %s", e)
 
@@ -2369,14 +2369,20 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
         )
 
         adaylar = []
-        for ek in range(adet):
+        gorulen_imzalar = set()
+        tarama_limiti = adet if mod == "ai" else adet + 2
+        son_denenen_ofset = deneme
+        for ek in range(tarama_limiti):
+            if len(adaylar) >= adet:
+                break
+            son_denenen_ofset = deneme + ek
             if bilgi_id:
                 telegram_bot.durum_guncelle(
                     bilgi_id,
                     baslik_duz,
-                    ek + 1,
+                    len(adaylar) + 1,
                     adet,
-                    f"Aday #{ek + 1}/{adet} taranıyor ve hazırlanıyor…",
+                    f"Aday #{len(adaylar) + 1}/{adet} taranıyor ve hazırlanıyor…",
                 )
             try:
                 zorla_ai = (mod == "ai")
@@ -2388,6 +2394,18 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
                 if mod == "gercek" and sonuclar[0].get("katman") not in ("haber", "web_haber", "duckduckgo", "web"):
                     log.info("gerçek mod: '%s' katmanı elendi, sadece gerçek haber/basın karesi kabul edilir", sonuclar[0].get("katman"))
                     continue
+                # Yüklemeden önce kapak görselinin 16x16 görsel imzasını denetle;
+                # aynı fotoğraf iki farklı ofsetten geldiyse R2'ye yüklemeden atla.
+                try:
+                    from PIL import Image as _PILImage
+                    with _PILImage.open(sonuclar[0]["yol"]) as _im_k:
+                        imza = _im_k.convert("L").resize((16, 16)).tobytes()
+                    if imza in gorulen_imzalar:
+                        log.info("alternatif #%d önceki adayla aynı görsel imzasına sahip, atlanıyor", deneme + ek)
+                        continue
+                    gorulen_imzalar.add(imza)
+                except Exception:
+                    pass
                 # Detay sayfaları yeni görselin ambiyans/zemin rengiyle baştan çizilir;
                 # bu nedenle her adayın hem kapağı hem detay sayfaları eksiksiz yüklenir.
                 yuklemeler = upload_image.hepsini_yukle(
@@ -2428,7 +2446,7 @@ def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basa
             "UPDATE haberler SET gorsel_adaylari = ?, gorsel_deneme = ? "
             "WHERE id = ?",
             (json.dumps(adaylar, ensure_ascii=False),
-             adaylar[-1]["deneme"], h["id"]),
+             max(son_denenen_ofset, adaylar[-1]["deneme"]), h["id"]),
         )
         con.commit()
 
