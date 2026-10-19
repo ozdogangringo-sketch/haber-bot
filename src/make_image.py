@@ -876,7 +876,7 @@ def yaziyi_bas(
         )
         ozet_yuksekligi = ozet_satir_y * len(ozet_satirlari)
 
-    ozet_ust = alt_bilgi_y - (66 if son_slayt else 44) - ozet_yuksekligi
+    ozet_ust = alt_bilgi_y - (66 if (son_slayt or yukseklik >= 1800) else 44) - ozet_yuksekligi
     baslik_ust = ozet_ust - (26 if ozet else 0) - satir_yuksekligi * len(satirlar)
 
     # --- 2) Perde: Standart kurumsal kategori renk şeridi (özet ve alt bilgiyi tam opak korur) ---
@@ -949,11 +949,12 @@ def yaziyi_bas(
             cta_metin = "★ Günün özetini kaçırmamak için kaydet & takip et"
         ciz.text((kenar, alt_bilgi_y - 36), cta_metin, font=cta_font, fill=(226, 170, 88))
     elif yukseklik >= 1800:
-        # Kapak Slaytı (1080x1920): Carousel akışında detay slaytlarına geçişi artıran kaydırma köprüsü
-        sw_metin = "Detaylar ve etkileri →"
+        # Kapak Slaytı (1080x1920): Carousel akışında detay slaytlarına geçişi artıran kaydırma köprüsü (ortalanmış)
+        sw_metin = "Detaylar sonraki sayfada →"
         sw_font = _font(24, EKSEN_KUCUK)
         sw_gen = ciz.textlength(sw_metin, font=sw_font)
-        ciz.text((genislik - kenar - sw_gen, alt_bilgi_y - 36), sw_metin, font=sw_font, fill=(226, 170, 88))
+        sw_x = (genislik - sw_gen) // 2
+        ciz.text((sw_x, alt_bilgi_y - 36), sw_metin, font=sw_font, fill=(226, 170, 88))
 
     # Kaynak adı — şeffaflık ve gazetecilik atfı
     _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
