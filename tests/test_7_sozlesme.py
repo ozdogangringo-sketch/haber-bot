@@ -6114,6 +6114,19 @@ def test_deep_dive_iyilestirmeleri() -> None:
     from src import ses as sesmod
     denetle(len(sesmod.KAPANIS_VARYANTLARI) == 3 and all(p.exists() and p.stat().st_size > 500 for p in sesmod.KAPANIS_VARYANTLARI),
             "ses.py: 3 adet kalıcı kapanış varyantı assets/audio içinde mevcut")
+    denetle(sesmod.ANLATIM_ONCESI_SN <= 0.25 and sesmod.ANLATIM_SONRASI_SN <= 0.6,
+            "ses.py: 1.22x seslendirme için kanca giriş ve geçiş süreleri dinamik optimize edilmiş")
+
+    # 7) Sosyal medya metrik takip ve geri besleme (Feedback Loop)
+    from src import metrikler as metrikmod
+    denetle(callable(metrikmod.kanca_ogrenme_konteksti) and callable(metrikmod.instagram_metrikleri_guncelle),
+            "metrikler.py: algoritma geri besleme ve kanca öğrenme fonksiyonları tanımlı")
+    from src import db as dbmod
+    denetle("erisim" in dbmod.EK_KOLONLAR and "kaydetme" in dbmod.EK_KOLONLAR and "paylasim" in dbmod.EK_KOLONLAR,
+            "db.py: EK_KOLONLAR tablosunda sosyal medya etkileşim metrikleri mevcut")
+    cap_kaynak = (KOK / "src/caption.py").read_text(encoding="utf-8")
+    denetle("len(urller) - 1" in cap_kaynak and "hedef_adet" in cap_kaynak,
+            "caption.py: tekil çoklu slayt haberleri için 1-e-1 eşleşen Threads/X flood halkaları üretiliyor")
 
 
 def main() -> int:

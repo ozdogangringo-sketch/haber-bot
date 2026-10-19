@@ -42,9 +42,9 @@ CIKTI = KOK / "data" / "output"
 FON_MUZIGI = KOK / "assets" / "audio" / "haber_fon.mp3"
 YEDEK_SES_ID = "J17lijyP1BHYcM7ld0Rg"  # Adam — config.yaml'da ses yoksa yedek
 
-ANLATIM_ONCESI_SN = 0.4   # slayt açıldıktan sonra sesin başlaması
-ANLATIM_SONRASI_SN = 0.8  # ses bittikten sonra geçişe kadar nefes
-CAGRI_ARASI_SN = 0.6
+ANLATIM_ONCESI_SN = 0.2   # slayt açıldıktan sonra sesin başlaması (kanca anında girer, sessizlik yok)
+ANLATIM_SONRASI_SN = 0.5  # ses bittikten sonra geçişe kadar nefes (1.22x hızla dinamik tempo)
+CAGRI_ARASI_SN = 0.35     # kapanış çağrısı öncesi doğal nefes payı
 GECIS_SN = 0.5
 
 

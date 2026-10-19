@@ -257,6 +257,13 @@ EK_KOLONLAR = {
     "vurgu_etiket": "TEXT",
     "alinti": "TEXT",
     "alinti_sahibi": "TEXT",
+    # --- Sosyal Medya Algoritma ve Etkileşim Metrikleri (Faz 3) ---
+    "erisim": "INTEGER DEFAULT 0",
+    "kaydetme": "INTEGER DEFAULT 0",
+    "paylasim": "INTEGER DEFAULT 0",
+    "yorum": "INTEGER DEFAULT 0",
+    "begeni": "INTEGER DEFAULT 0",
+    "metrik_zamani": "TEXT",
 }
 
 
@@ -287,20 +294,25 @@ def baglan():
     return con
 
 
-def kur():
+def kur(con=None):
     """
     Tabloları yoksa yaratır, varsa eksik kolonları ekler.
     Her çalıştırmada güvenle çağrılabilir — mevcut veriye dokunmaz.
+    `con` verilirse o bağlantıyı kullanır, verilmezse varsayılan DB_YOLU'na bağlanır.
     """
-    with baglan() as con:
-        con.executescript(SEMA)
-
-        # --- otomatik migration ---
-        mevcut = {s["name"] for s in con.execute("PRAGMA table_info(haberler)")}
+    def _uygula(c):
+        c.executescript(SEMA)
+        mevcut = {s["name"] for s in c.execute("PRAGMA table_info(haberler)")}
         for kolon, tanim in EK_KOLONLAR.items():
             if kolon not in mevcut:
-                con.execute(f"ALTER TABLE haberler ADD COLUMN {kolon} {tanim}")
-        con.commit()
+                c.execute(f"ALTER TABLE haberler ADD COLUMN {kolon} {tanim}")
+        c.commit()
+
+    if con is not None:
+        _uygula(con)
+    else:
+        with baglan() as c:
+            _uygula(c)
 
 
 def ayar_oku(con, anahtar: str, varsayilan=None):

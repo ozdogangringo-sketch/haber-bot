@@ -193,7 +193,7 @@ class TestZamanlama(unittest.TestCase):
 
     def test_kapak_ses_bitene_kadar_cagri_sonda(self):
         y, cagri = self._uret()
-        self.assertEqual(y["sureler"][0], 10.7)  # 0.4 + 9 + 0.8 + 0.5
+        self.assertEqual(y["sureler"][0], round(ses.ANLATIM_ONCESI_SN + 9 + ses.ANLATIM_SONRASI_SN + ses.GECIS_SN, 2))
         self.assertEqual(y["parcalar"][0][1], ses.ANLATIM_ONCESI_SN)
         cagri_bas = y["parcalar"][-1][1]
         self.assertEqual(y["parcalar"][-1][0], cagri)

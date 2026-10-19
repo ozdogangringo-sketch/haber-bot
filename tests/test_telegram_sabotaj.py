@@ -551,21 +551,24 @@ def test_sabotaj_34_foto_degistir_sadece_kapak_yukler():
         yuklenen_dosyalar.extend(yollar)
         return [{"url": f"http://img.com/{str(y).split('/')[-1]}"} for y in yollar]
 
-    sahte_slaytlar = [
-        {"yol": "/tmp/slayt1.jpg", "katman": "duckduckgo", "atif": "Reuters"},
-        {"yol": "/tmp/slayt2.jpg", "katman": "detay", "atif": ""},
-    ]
+    def sahte_uret(*args, **kwargs):
+        idx = len(yuklenen_dosyalar) // 2 + 1
+        return [
+            {"yol": f"/tmp/slayt{idx}.jpg", "katman": "duckduckgo", "atif": "Reuters"},
+            {"yol": f"/tmp/detay{idx}.jpg", "katman": "detay", "atif": ""},
+        ]
 
     with patch("src.telegram_bot.mesaj_gonder"), \
+         patch("src.telegram_bot.slaytlari_gonder", return_value=[801, 802]), \
          patch("src.telegram_bot.durum_guncelle"), \
-         patch("src.slaytlar.son_dakika_uret", return_value=sahte_slaytlar), \
+         patch("src.slaytlar.son_dakika_uret", side_effect=sahte_uret), \
          patch("src.upload_image.hepsini_yukle", side_effect=sahte_yukle), \
          patch("scripts.onay_isle._gorsel_adayini_uygula", return_value=0):
         sonuc = onay_isle.foto_degistir_islemi(con, ayarlar, [haber], mesaj_id=100, mod="gercek")
         assert sonuc == 0
         # 2 aday x 2 slayt (1 kapak + 1 detay) = 4 dosya yüklenmeli (detay sayfaları bayat kalmamalı)
         assert len(yuklenen_dosyalar) == 4
-        assert any("slayt2.jpg" in str(y) for y in yuklenen_dosyalar)
+        assert any("detay" in str(y) for y in yuklenen_dosyalar)
     print("  ✓ Sabotaj 34: foto_degistir kapak ve detay slaytlarını birlikte günceller")
 
 
@@ -623,10 +626,11 @@ def test_sabotaj_37_foto_degistir_durum_guncelleme_ve_silme():
     silinenler = []
 
     with patch("src.telegram_bot.mesaj_gonder", return_value=777), \
+         patch("src.telegram_bot.slaytlari_gonder", return_value=[801, 802]), \
          patch("src.telegram_bot.durum_guncelle", side_effect=lambda m, b, a, t, d="": cagrilar.append(a)), \
          patch("src.telegram_bot.mesaj_sil", side_effect=lambda m: silinenler.append(m) or True), \
-         patch("src.slaytlar.son_dakika_uret", return_value=[{"yol": "/tmp/s1.jpg", "katman": "web", "atif": "A"}]), \
-         patch("src.upload_image.hepsini_yukle", return_value=[{"url": "http://img.com/yeni.jpg"}]), \
+         patch("src.slaytlar.son_dakika_uret", side_effect=lambda *a, **k: [{"yol": f"/tmp/s{len(cagrilar)}.jpg", "katman": "web", "atif": "A"}]), \
+         patch("src.upload_image.hepsini_yukle", side_effect=lambda yollar, ayarlar=None: [{"url": f"http://img.com/yeni_{len(cagrilar)}.jpg"}]), \
          patch("scripts.onay_isle._gorsel_adayini_uygula", return_value=0):
         onay_isle.foto_degistir_islemi(con, {}, [haber], mod="gercek", mesaj_id=100)
         assert len(cagrilar) == 3

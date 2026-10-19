@@ -184,6 +184,16 @@ def rapor_kur(con, ayarlar: dict, repo: str) -> str:
         satirlar.append("📤 SON 24 SAAT — yayın yok")
     satirlar.append("")
 
+    # --- Sosyal Medya Algoritma ve Etkileşim Metrikleri (Faz 3) ---
+    try:
+        from src import metrikler
+        metrik_satirlari = metrikler.rapor_satirlari_getir(con, gun=7)
+        if metrik_satirlari:
+            satirlar.extend(metrik_satirlari)
+            satirlar.append("")
+    except Exception as e:
+        log.warning("rapor kurarken metrik okunamadı: %s", e)
+
     # --- Havuz ---
     sayim = dict(con.execute(
         "SELECT durum, COUNT(*) FROM haberler GROUP BY durum").fetchall())
@@ -344,6 +354,13 @@ def main() -> int:
     db.kur()
     con = db.baglan()
     ayar.uygula(con, ayarlar)
+
+    if not kuru:
+        try:
+            from src import metrikler
+            metrikler.instagram_metrikleri_guncelle(con, ayarlar)
+        except Exception as e_m:
+            log.warning("Instagram metrik güncelleme hatası: %s", e_m)
 
     metin = rapor_kur(con, ayarlar, repo)
 

@@ -742,14 +742,15 @@ def twitter_zincir_metinleri(
     ilk_h = dict(haberler[0])
     tur_turu = ilk_h.get("tur", "")
 
-    # 1. Durum: Son Dakika çoklu slayt Flood'u
-    if son_dakika or bool(ilk_h.get("son_dakika")):
+    # 1. Durum: Tekil haber çoklu slayt Flood'u (Son Dakika veya 2+ slaytlı tekil haber)
+    if son_dakika or bool(ilk_h.get("son_dakika")) or (len(haberler) == 1 and ((urller and len(urller) > 1) or ilk_h.get("detay_metni"))):
         baslik = (ilk_h.get("ig_baslik") or ilk_h.get("baslik_orj") or "").strip()
         ozet = (ilk_h.get("slayt_ozet") or "").strip()
         kaynak = kaynak_gosterim_adi(ilk_h.get("kaynak", ""), ayarlar or {})
+        on_ek = "🚨 SON DAKİKA | " if (son_dakika or bool(ilk_h.get("son_dakika"))) else "📰 "
 
         # 1. Tweet: Manşet & Ana Özet (1. Slayt Görseli ile eşleşir)
-        tweet1 = f"🚨 SON DAKİKA | {baslik}\n\n📌 {ozet}"
+        tweet1 = f"{on_ek}{baslik}\n\n📌 {ozet}" if ozet else f"{on_ek}{baslik}"
         if kaynak:
             tweet1 += f"\n\nKaynak: {kaynak}"
         tweet1 += "\n\n🧵 Ayrıntılar zincirimizde 👇"
@@ -757,15 +758,29 @@ def twitter_zincir_metinleri(
             tweet1 = tweet1[:277] + "…"
         halkalar.append(tweet1)
 
-        # 2..N Tweet: Varsa geniş ayrıntı sayfaları (2..N slayt görselleriyle eşleşir)
-        detay = (ilk_h.get("ig_caption") or "").strip()
-        if detay and len(detay) > 80:
-            paragraflar = [p.strip() for p in detay.split("\n\n") if len(p.strip()) > 30]
-            for p in paragraflar[:2]:
-                tw_detay = f"🔍 Detay:\n\n{p}"
-                if len(tw_detay) > 280:
-                    tw_detay = tw_detay[:277] + "…"
-                halkalar.append(tw_detay)
+        # 2..N Tweet: Geniş ayrıntı sayfaları (2..N slayt görselleriyle eşleşir)
+        detay = (ilk_h.get("detay_metni") or ilk_h.get("ig_caption") or "").strip()
+        paragraflar = [p.strip() for p in detay.split("\n\n") if len(p.strip()) > 20]
+
+        hedef_adet = max(1, len(urller) - 1) if urller else max(1, len(paragraflar))
+        for idx in range(hedef_adet):
+            if idx < len(paragraflar):
+                p = paragraflar[idx]
+                if idx == hedef_adet - 1 and ilk_h.get("sana_etkisi"):
+                    se = ilk_h["sana_etkisi"].strip()
+                    if len(f"{p}\n\n💡 {se}") <= 240:
+                        p = f"{p}\n\n💡 {se}"
+            elif idx == len(paragraflar) and ilk_h.get("sana_etkisi"):
+                p = f"💡 Sana Etkisi:\n\n{ilk_h['sana_etkisi'].strip()}"
+            elif ilk_h.get("etkilesim_sorusu"):
+                p = f"💬 Sizce?\n\n{ilk_h['etkilesim_sorusu'].strip()}"
+            else:
+                break
+
+            tw_detay = f"🔍 Detay ({idx + 1}):\n\n{p}"
+            if len(tw_detay) > 280:
+                tw_detay = tw_detay[:277] + "…"
+            halkalar.append(tw_detay)
 
         return [filtre.markdown_temizle(h) for h in halkalar]
 

@@ -334,6 +334,8 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
         KÖTÜ  "ATATÜRK MAHALLESİNDE MEYDANA GELDİ" (kuru sokak/ilçe adı merak uyandırmaz)
         KÖTÜ  "GENEL MÜDÜRLÜK RESMİ YAZI GÖNDERDİ" (bürokratik dolgu)
 
+{ogrenilen_kancalar}
+
 - vurgu_sayi / vurgu_etiket: Başlıkta GEÇMEYEN ikinci en çarpıcı sayı ve etiketi (örn: "2.352 yıl" / "istenen ceza"). Yoksa boş bırak.
 
   ⚠️ ÖLÇÜLMÜŞ KÖTÜ ÖRNEKLER (5 Eyl 2026, gerçek çıktılar):
@@ -661,9 +663,17 @@ def _anahtarlar() -> list[tuple[str, str]]:
 
 
 def prompt_kur(kaynak: str, baslik: str, metin: str, tam_metin_var: bool,
-               mod: str = "normal") -> str:
+               mod: str = "normal", con=None) -> str:
     """Modele gidecek metni hazırlar."""
+    kanca_ornekleri = ""
+    try:
+        from . import metrikler
+        kanca_ornekleri = metrikler.kanca_ogrenme_konteksti(con)
+    except Exception:
+        pass
+
     return PROMPT.format(
+        ogrenilen_kancalar=(kanca_ornekleri + "\n\n") if kanca_ornekleri else "",
         mod_talimati=MOD_TALIMATLARI.get(mod, ""),
         bilgi_uyarisi="" if tam_metin_var else AZ_BILGI_UYARISI,
         kaynak=kaynak,
