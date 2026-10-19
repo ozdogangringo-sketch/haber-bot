@@ -833,8 +833,8 @@ def test_icerik_filtresi() -> None:
     denetle(f.get("gorselde") is True,
             "içerik filtresi slayt görseline de uygulanıyor",
             "yalnızca caption'da çalışıyor")
-    sl = (KOK / "src/slaytlar.py").read_text(encoding="utf-8")
-    denetle(sl.count("_slayt_metni(haber") >= 4,
+    sl_kod = (KOK / "src/slaytlar.py").read_text(encoding="utf-8")
+    denetle(sl_kod.count("_slayt_metni(haber") >= 4,
             "slayt/story/detay başlıkları filtreden geçiyor",
             "bazı görsel metinleri ham basılıyor")
 

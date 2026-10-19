@@ -1671,8 +1671,14 @@ def story_haber(
     if arkaplan is None:
         arkaplan = arkaplan_uret_yedek(kategori, STORY_GENISLIK, STORY_YUKSEKLIK)
     else:
+        odak_x = 50
+        if isinstance(haber, dict) and haber.get("odak_x_yuzde") is not None:
+            try:
+                odak_x = int(haber["odak_x_yuzde"])
+            except (ValueError, TypeError):
+                odak_x = 50
         arkaplan = fotograftan_arkaplan(
-            arkaplan, STORY_GENISLIK, STORY_YUKSEKLIK
+            arkaplan, STORY_GENISLIK, STORY_YUKSEKLIK, odak_x_yuzde=odak_x
         )
 
     gorsel = yaziyi_bas(

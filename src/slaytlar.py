@@ -603,6 +603,17 @@ def _vision_onayi(foto, haber, ayarlar: dict, kaynak: str = "") -> tuple[bool, s
     return True, ""
 
 
+def _odak_x_al(haber) -> int:
+    """Haber kaydından yatay odak noktasını (%) okur; yoksa 50 (orta)."""
+    try:
+        val = _alan(haber, "odak_x_yuzde")
+        if val:
+            return int(val)
+    except Exception:
+        pass
+    return 50
+
+
 def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                  atlanacak: int = 0,
                  haber_gorseli_atla: bool = False,
@@ -633,6 +644,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     """
     g = ayarlar["gorsel"]
     genislik, yukseklik = g["genislik"], g["yukseklik"]
+    odak_x = _odak_x_al(haber)
 
     # --- AI: kullanıcı açıkça istediyse zinciri atla ---
     if zorla_ai:
@@ -662,7 +674,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                     foto, kayit = sonuc
                     _SON_STOK_ID.append(kayit.get("id"))
                     return (
-                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                         "pexels",
                         fetch_stock.atif_metni(kayit),
                     )
@@ -701,7 +713,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                             log.info("arka plan: gerçek mod — kardeş haber görseli (%s, %dx%d - %s)",
                                      kaynak_ad, foto.width, foto.height, secilen_link)
                             return (
-                                make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                                make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                                 "haber",
                                 f"Foto: {kaynak_ad}",
                             )
@@ -730,7 +742,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                 elif atif:
                     log.info("arka plan: gerçek mod — web editoryal (%s)", atif)
                     return (
-                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                         "web_haber",
                         atif,
                     )
@@ -754,7 +766,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                 foto = Image.open(ozel_dosya).convert("RGB")
                 log.info("arka plan: yerel özel basın görseli kullanıldı (#%s)", _alan(haber, "id"))
                 return (
-                    make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                    make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                     "haber",
                     f"Foto: {make_image.kaynak_gosterim_adi(haber['kaynak'], ayarlar)}",
                 )
@@ -764,7 +776,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
         foto, foto_kaynak = _en_iyi_haber_gorseli(haber, g, con, ayarlar=ayarlar)
         if foto is not None:
             return (
-                make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                 "haber",
                 f"Foto: {foto_kaynak}",
             )
@@ -772,7 +784,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
         foto, foto_kaynak = _haber_gorseli_alternatifi(haber, g, con, atlanacak, ayarlar=ayarlar)
         if foto is not None:
             return (
-                make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                 "haber",
                 f"Foto: {foto_kaynak}",
             )
@@ -842,7 +854,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                 uygun, sebep = _vision_onayi(foto, haber, ayarlar)
                 if uygun:
                     return (
-                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                         "commons",
                         fetch_photo.atif_metni(kayit),
                     )
@@ -872,7 +884,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                     foto, kayit = sonuc
                     _SON_STOK_ID.append(kayit.get("id"))
                     return (
-                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik),
+                        make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                         "pexels",
                         fetch_stock.atif_metni(kayit),
                     )
@@ -910,7 +922,7 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                     log.info("arka plan: internet aramasi (son çare) — %s", atif)
                     return (
                         make_image.fotograftan_arkaplan(
-                            foto, genislik, yukseklik),
+                            foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                         "web_haber",
                         atif,
                     )
