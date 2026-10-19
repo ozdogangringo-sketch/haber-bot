@@ -88,7 +88,6 @@ def ust_ve_alt_bar_bas(
 
     # 3. Alt bilgi satırı (Kaynak + Sayfa Göstergesi + 6 Sosyal İkon)
     kucuk = make_image._font(26, make_image.EKSEN_KUCUK)
-    make_image._kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
 
     story_ayarlar = {
         **ayarlar,
@@ -99,6 +98,10 @@ def ust_ve_alt_bar_bas(
             "dikey_guvenli_pay": dikey_kenar,
         },
     }
+
+    kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar") or []
+    boy = g.get("kanal_ikon_boyu", 26)
+    toplam_g = len(kanallar) * boy + (len(kanallar) - 1) * 14 if kanallar else 0
 
     if toplam_sayfa > 1:
         gosterge = f"{sayfa}/{toplam_sayfa}"
@@ -112,8 +115,12 @@ def ust_ve_alt_bar_bas(
                 "kenar_bosluk": kenar + int(gen) + 24,
             },
         }
+        ikon_sol = genislik - (kenar + int(gen) + 24) - toplam_g
+        make_image._kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=ikon_sol - 20)
         gorsel = make_image.kanal_ikonlari_bas(gorsel, gecici, alt_bilgi_y + 13)
     else:
+        ikon_sol = genislik - kenar - toplam_g
+        make_image._kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=ikon_sol - 20)
         gorsel = make_image.kanal_ikonlari_bas(gorsel, story_ayarlar, alt_bilgi_y + 13)
 
     if ulke_kodu:

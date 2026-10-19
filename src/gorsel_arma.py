@@ -218,9 +218,14 @@ def split_portre_arkaplan(
 
 
 def _kaynak_satiri_ciz(
-    ciz: ImageDraw.Draw, kenar: int, alt_bilgi_y: int, kaynak: str, arsiv_ibaresi: bool = False
-) -> None:
-    """Slaytın sol altına şık bir altın nokta ve kaynak adını yazar."""
+    ciz: ImageDraw.Draw,
+    kenar: int,
+    alt_bilgi_y: int,
+    kaynak: str,
+    arsiv_ibaresi: bool = False,
+    azami_sag_x: int | None = None,
+) -> int:
+    """Slaytın sol altına şık bir altın nokta ve kaynak adını yazar. Çizilen metnin sağ X koordinatını döner."""
     from .make_image import EKSEN_KUCUK, _buyuk_harf, _font
 
     kucuk = _font(26, EKSEN_KUCUK)
@@ -228,7 +233,21 @@ def _kaynak_satiri_ciz(
     metin = _buyuk_harf(kaynak)
     if arsiv_ibaresi:
         metin += "   ·   ARŞİV GÖRSELİ"
-    ciz.text((kenar + 18, alt_bilgi_y), metin, font=kucuk, fill=(198, 206, 222))
+
+    kaynak_x = kenar + 18
+    # Taşma ve çakışma koruması: Belirtilen azami sınıra göre güvenli kısaltma
+    if azami_sag_x is not None:
+        azami_gen = max(60, azami_sag_x - kaynak_x)
+        if ciz.textlength(metin, font=kucuk) > azami_gen:
+            if arsiv_ibaresi:
+                metin = _buyuk_harf(kaynak) + " · ARŞİV"
+            if ciz.textlength(metin, font=kucuk) > azami_gen:
+                while metin and ciz.textlength(metin + "…", font=kucuk) > azami_gen:
+                    metin = metin[:-1].rstrip()
+                metin = metin + "…"
+
+    ciz.text((kaynak_x, alt_bilgi_y), metin, font=kucuk, fill=(198, 206, 222))
+    return kaynak_x + int(ciz.textlength(metin, font=kucuk))
 
 
 def _son_dakika_rozeti(ciz, x: int, y: int) -> tuple[int, int]:

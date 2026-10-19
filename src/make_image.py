@@ -936,6 +936,17 @@ def yaziyi_bas(
             log.warning("hook çiziminde hata: %s", e)
 
     # Son slayt Call-To-Action (CTA) etkileşim rozeti veya kapak kaydırma köprüsü
+    # 4) Alt Bilgi ve Slayt Köprüsü Yerleşimi (Düşeyde Logolarla Ortalanmış & Tam Çakışma Korumalı)
+    y_merkez = alt_bilgi_y + 13
+    boy = g.get("kanal_ikon_boyu", 26)
+    kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar") or []
+    toplam_genislik = len(kanallar) * boy + (len(kanallar) - 1) * 14 if kanallar else 0
+    sag_x = genislik - kenar
+    ikonlar_sol = sag_x - toplam_genislik if kanallar else sag_x
+
+    EMNIYET_BOSLUK = 22
+
+    # Son slayt Call-To-Action (CTA) etkileşim rozeti
     if son_slayt:
         cta_font = _font(24, EKSEN_KUCUK)
         kat_kucuk = (kategori or "").lower()
@@ -948,19 +959,39 @@ def yaziyi_bas(
         else:
             cta_metin = "★ Günün özetini kaçırmamak için kaydet & takip et"
         ciz.text((kenar, alt_bilgi_y - 36), cta_metin, font=cta_font, fill=(226, 170, 88))
+        _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
     elif yukseklik >= 1800:
-        # Kapak Slaytı (1080x1920): Carousel akışında detay slaytlarına geçişi artıran kaydırma köprüsü (ortalanmış)
-        sw_metin = "Detaylar sonraki sayfada →"
-        sw_font = _font(24, EKSEN_KUCUK)
+        # Kapak Slaytı (1080x1920): Carousel akışında detay slaytlarına geçiş köprüsü
+        # Düşeyde sağdaki sosyal medya logolarıyla (y_merkez) tam ortalanır.
+        sw_metin = "Detaylar için kaydırın →"
+        sw_punto = 24
+        sw_font = _font(sw_punto, EKSEN_KUCUK)
         sw_gen = ciz.textlength(sw_metin, font=sw_font)
-        sw_x = (genislik - sw_gen) // 2
-        ciz.text((sw_x, alt_bilgi_y - 36), sw_metin, font=sw_font, fill=(226, 170, 88))
 
-    # Kaynak adı — şeffaflık ve gazetecilik atfı
-    _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
+        # İdeal tam yatay orta
+        sw_x_orta = genislik // 2
+        sw_sol = sw_x_orta - (sw_gen / 2)
+        sw_sag = sw_x_orta + (sw_gen / 2)
+
+        # Sağ güvenlik bariyeri: Sosyal medya ikonlarına ve dailybrief.co'ya taşmayı engelle
+        if sw_sag + EMNIYET_BOSLUK > ikonlar_sol:
+            sw_punto = 20
+            sw_font = _font(sw_punto, EKSEN_KUCUK)
+            sw_gen = ciz.textlength(sw_metin, font=sw_font)
+            sw_sol = sw_x_orta - (sw_gen / 2)
+            sw_sag = sw_x_orta + (sw_gen / 2)
+
+        # Sol güvenlik bariyeri: Kaynak metninin orta köprüye taşmasını kesin olarak engelle
+        azami_kaynak_sag = int(sw_sol - EMNIYET_BOSLUK)
+        _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=azami_kaynak_sag)
+
+        # Düşeyde o satırdaki logolarla (y_merkez) tam ortalanmış çizim (anchor="mm")
+        ciz.text((sw_x_orta, y_merkez - 2), sw_metin, font=sw_font, fill=(226, 170, 88), anchor="mm")
+    else:
+        _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
 
     # Sosyal kanal ikonları sağ altta: "bu içerik şu kanallarda da var".
-    gorsel = kanal_ikonlari_bas(gorsel, ayarlar, alt_bilgi_y + 13)
+    gorsel = kanal_ikonlari_bas(gorsel, ayarlar, y_merkez)
     ciz = ImageDraw.Draw(gorsel)
 
     # Sol üstte DailyBrief logosu (%50 büyütülmüş 144px)
@@ -1713,7 +1744,6 @@ def detay_slayti(
 
     # --- Alt bilgi ---
     kucuk = _font(26, EKSEN_KUCUK)
-    _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
 
     # Sayfa göstergesi: "2/3". Birden fazla detay sayfası varken
     # takipçinin nerede olduğunu bilmesi gerekiyor.
@@ -1725,8 +1755,18 @@ def detay_slayti(
         # İkonlar sayfa göstergesinin soluna kayıyor, üstüne binmesin.
         gecici = {**ayarlar, "gorsel": {**g,
                   "kenar_bosluk": kenar + int(gen) + 24}}
+        kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar") or []
+        boy = g.get("kanal_ikon_boyu", 26)
+        toplam_g = len(kanallar) * boy + (len(kanallar) - 1) * 14 if kanallar else 0
+        ikon_sol = genislik - (kenar + int(gen) + 24) - toplam_g
+        _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=ikon_sol - 20)
         gorsel = kanal_ikonlari_bas(gorsel, gecici, alt_bilgi_y + 13)
     else:
+        kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar") or []
+        boy = g.get("kanal_ikon_boyu", 26)
+        toplam_g = len(kanallar) * boy + (len(kanallar) - 1) * 14 if kanallar else 0
+        ikon_sol = genislik - kenar - toplam_g
+        _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=ikon_sol - 20)
         gorsel = kanal_ikonlari_bas(gorsel, ayarlar, alt_bilgi_y + 13)
 
     if ulke_kodu:
