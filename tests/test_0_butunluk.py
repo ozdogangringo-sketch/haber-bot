@@ -58,9 +58,14 @@ def modul_adlarini_bul(agac: ast.AST) -> dict[str, str]:
     for dugum in ast.walk(agac):
         # "from src import x" (scripts/) ve "from . import x" (src/)
         if isinstance(dugum, ast.ImportFrom):
-            if dugum.module and dugum.module.startswith("src"):
+            if dugum.module == "src":
                 for ad in dugum.names:
                     esleme[ad.asname or ad.name] = f"src.{ad.name}"
+            elif dugum.module and dugum.module.startswith("src."):
+                for ad in dugum.names:
+                    aday = f"{dugum.module}.{ad.name}"
+                    if (KOK / Path(*aday.split("."))).with_suffix(".py").exists():
+                        esleme[ad.asname or ad.name] = aday
             # ⚠️ `from scripts import X` DE SAYILMALI (4 Eyl 2026).
             # Eskiden yalnızca `src` eşleniyordu ve `onay_isle.py`
             # içindeki `from scripts import ekonomi_turu` +

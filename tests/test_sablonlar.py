@@ -227,3 +227,22 @@ def test_instagram_hibrit_carousel_video_container():
     assert medya_postlari[1].get("media_type") == "VIDEO"
     assert medya_postlari[1].get("video_url") == "https://media.dailybrief.ozbornstudio.com/haber_video.mp4"
     assert medya_postlari[2].get("image_url") == "https://media.dailybrief.ozbornstudio.com/detay.jpg"
+
+
+def test_prompt_format_keyerror_yok():
+    """generate_text.PROMPT.format(...) çağrısı süslü parantezlerden dolayı KeyError fırlatmamalı."""
+    from src import generate_text
+
+    sonuc = generate_text.PROMPT.format(
+        ogrenilen_kancalar="",
+        mod_talimati="",
+        bilgi_uyarisi="",
+        kaynak="AA",
+        baslik="Trabzonspor sahasında Beşiktaş'ı yendi",
+        metin="Süper Lig maçında Trabzonspor sahasında kazandı.",
+    )
+    assert "detay_sablonu" in sonuc
+    assert "spor_kadro" in sonuc
+
+
+
