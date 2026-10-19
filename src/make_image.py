@@ -260,12 +260,25 @@ def _buyuk_harf(metin: str) -> str:
     return metin.replace("i", "İ").replace("ı", "I").upper()
 
 
-def _font(punto: int, eksenler: list[float]) -> ImageFont.FreeTypeFont:
+_FONT_ONBELLEK: dict[tuple[int, tuple[float, ...]], ImageFont.FreeTypeFont] = {}
+
+
+def _font(punto: int, eksenler: list[float] | tuple[float, ...] | float) -> ImageFont.FreeTypeFont:
+    if isinstance(eksenler, (list, tuple)):
+        eksen_tuple = tuple(float(x) for x in eksenler)
+    else:
+        eksen_tuple = (float(eksenler),)
+    anahtar = (punto, eksen_tuple)
+    f = _FONT_ONBELLEK.get(anahtar)
+    if f is not None:
+        return f
+
     f = ImageFont.truetype(str(FONT_YOLU), punto)
     try:
-        f.set_variation_by_axes(eksenler)
+        f.set_variation_by_axes(list(eksen_tuple))
     except Exception:
         pass            # değişken font desteği yoksa varsayılan ağırlıkla devam
+    _FONT_ONBELLEK[anahtar] = f
     return f
 
 
