@@ -767,6 +767,17 @@ class TestSabotajKorumasi(unittest.TestCase):
                 # İkinci kez çevrilince asla bozulmamalı (idempotency)
                 self.assertEqual(okunusa_cevir(beklenen), beklenen)
 
+    def test_ses_icin_kesme_kaynat(self):
+        """Özel isim kesmeleri TTS için kaynaştırılır, büyük harfli kısaltmalar korunur."""
+        from src.okunus import ses_icin_kesme_kaynat
+        self.assertEqual(ses_icin_kesme_kaynat("Ahmet Aksoy'un kararı"), "Ahmet Aksoyun kararı")
+        self.assertEqual(ses_icin_kesme_kaynat("Erdoğan'ın açıklaması"), "Erdoğanın açıklaması")
+        self.assertEqual(ses_icin_kesme_kaynat("Türkiye'nin gündemi"), "Türkiyenin gündemi")
+        self.assertEqual(ses_icin_kesme_kaynat("İstanbul'da deprem"), "İstanbulda deprem")
+        self.assertEqual(ses_icin_kesme_kaynat("TBMM'de kabul edildi"), "TBMM'de kabul edildi")
+        self.assertEqual(ses_icin_kesme_kaynat("KDV'li fiyatlar"), "KDV'li fiyatlar")
+        self.assertEqual(ses_icin_kesme_kaynat("SGK'ya başvuru"), "SGK'ya başvuru")
+
 
 if __name__ == "__main__":
     unittest.main()

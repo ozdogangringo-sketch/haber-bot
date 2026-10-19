@@ -130,6 +130,16 @@ class TestSesSecimi(unittest.TestCase):
         self.assertEqual(ses.son_kullanilan_motor(), "Fish Audio")
         self.assertIn("api.fish.audio", post.call_args_list[1][0][0])
 
+    @patch.dict("os.environ", {"ELEVENLABS_API_KEY": "sahte"})
+    @patch("src.ses.requests.post")
+    def test_ozel_isim_kesme_isareti_kaynastirilir(self, post):
+        post.return_value = self._yanit(200)
+        ses.metin_seslendir("Ahmet Aksoy'un kararı Erdoğan'ın masasında.", AYARLAR, self.cikti)
+        gonderilen = post.call_args.kwargs["json"]["text"]
+        self.assertIn("Ahmet Aksoyun kararı Erdoğanın masasında.", gonderilen)
+        self.assertNotIn("Aksoy'un", gonderilen)
+        self.assertNotIn("Erdoğan'ın", gonderilen)
+
 
 class TestKaristirma(unittest.TestCase):
     def _komut(self, konusma, muzik):

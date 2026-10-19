@@ -215,8 +215,9 @@ def metin_seslendir(
         bas_etiket = bas_etiket or m_etiket.group(1).strip()
         ham_metin = m_etiket.group(2).strip()
 
-    # Okunuş, sonra tek harfin tırnağı ("A Milli Takım": düz "A" çok hızlı okunuyordu — ölçüldü)
+    # Okunuş, sonra tek harfin tırnağı ve özel isim kesme kaynaştırması ("Aksoy'un" -> "Aksoyun")
     temiz = okunus.tek_harfleri_belirginlestir(okunus.okunusa_cevir(ham_metin))
+    temiz = okunus.ses_icin_kesme_kaynat(temiz)
     if not temiz:
         return None
 

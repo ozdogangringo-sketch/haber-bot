@@ -206,6 +206,32 @@ def test_sabotaj_10_markdown_bold_ile_para_ve_unvan_kopmaz():
     print("✓ Sabotaj 10 geçti: Markdown bold etiketli para ve unvanlar kusursuz korundu.")
 
 
+def test_kapak_slayti_kaydirma_koprusu():
+    """Kapak slaytında (1080x1920) 'Detaylar ve etkileri →' swipe köprüsü güvenli alanda çizilir."""
+    from src.make_image import story_haber
+    arkaplan = Image.new("RGB", (STORY_GENISLIK, STORY_YUKSEKLIK), (20, 30, 40))
+    ayarlar = {
+        "gorsel": {
+            "genislik": STORY_GENISLIK,
+            "yukseklik": STORY_YUKSEKLIK,
+            "kenar_bosluk": 80,
+            "dikey_guvenli_pay": STORY_GUVENLI_PAY,
+            "jpeg_kalite": 90,
+            "kategori_renkleri": {},
+        },
+        "instagram": {"hesap_kullanici_adi": "dailybrief_co"},
+    }
+    img = story_haber(
+        "Kritik Zirve Sona Erdi",
+        "Liderler ortak bildiri üzerinde anlaştı.",
+        "Anadolu Ajansı",
+        ayarlar,
+        arkaplan=arkaplan,
+        son_slayt=False,
+    )
+    assert img.size == (1080, 1920)
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("10 TİPOGRAFİ VE SAYFA GEÇİŞİ SABOTAJ TESTİ BAŞLATILIYOR")
@@ -220,6 +246,7 @@ if __name__ == "__main__":
     test_sabotaj_8_sayfa_ve_belge_kisaltmalari()
     test_sabotaj_9_detay_sayfalara_bol_asla_cumle_ortasinda_kesmez()
     test_sabotaj_10_markdown_bold_ile_para_ve_unvan_kopmaz()
+    test_kapak_slayti_kaydirma_koprusu()
     print("=" * 60)
-    print("🎉 TEBRİKLER! 10 SABOTAJ TESTİNİN HEPSİ BAŞARIYLA GEÇTİ!")
+    print("🎉 TEBRİKLER! TÜM TESTLER BAŞARIYLA GEÇTİ!")
     print("=" * 60)

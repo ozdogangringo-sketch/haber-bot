@@ -1177,7 +1177,7 @@ def yaziyi_bas(
         except Exception as e:
             log.warning("hook çiziminde hata: %s", e)
 
-    # Son slayt Call-To-Action (CTA) etkileşim rozeti
+    # Son slayt Call-To-Action (CTA) etkileşim rozeti veya kapak kaydırma köprüsü
     if son_slayt:
         cta_font = _font(24, EKSEN_KUCUK)
         kat_kucuk = (kategori or "").lower()
@@ -1190,6 +1190,12 @@ def yaziyi_bas(
         else:
             cta_metin = "★ Günün özetini kaçırmamak için kaydet & takip et"
         ciz.text((kenar, alt_bilgi_y - 36), cta_metin, font=cta_font, fill=(226, 170, 88))
+    elif yukseklik >= 1800:
+        # Kapak Slaytı (1080x1920): Carousel akışında detay slaytlarına geçişi artıran kaydırma köprüsü
+        sw_metin = "Detaylar ve etkileri →"
+        sw_font = _font(24, EKSEN_KUCUK)
+        sw_gen = ciz.textlength(sw_metin, font=sw_font)
+        ciz.text((genislik - kenar - sw_gen, alt_bilgi_y - 36), sw_metin, font=sw_font, fill=(226, 170, 88))
 
     # Kaynak adı — şeffaflık ve gazetecilik atfı
     _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
