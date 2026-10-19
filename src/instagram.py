@@ -232,6 +232,10 @@ def gorselleri_4_5_yap(gorsel_urlleri: list[str], ayarlar: dict) -> list[str]:
     yeni_urller = []
     for i, u in enumerate(gorsel_urlleri):
         try:
+            if str(u).split("?")[0].lower().endswith((".mp4", ".mov")):
+                yeni_urller.append(u)
+                continue
+
             im = None
             dosya_adi = None
 
@@ -337,11 +341,15 @@ def carousel_yayinla(
     log.info("hedef @%s | kota %s/%s", hesap["username"],
              kota["kullanilan"], kota["azami"])
 
-    # --- 1) Her görsel için çocuk container ---
+    # --- 1) Her görsel/video için çocuk container ---
     cocuklar = []
     for i, url in enumerate(gorsel_urlleri, 1):
-        d = _istek("POST", f"/{_kullanici_id()}/media", ayarlar,
-                   image_url=url, is_carousel_item="true")
+        if str(url).split("?")[0].lower().endswith((".mp4", ".mov")):
+            d = _istek("POST", f"/{_kullanici_id()}/media", ayarlar,
+                       media_type="VIDEO", video_url=url, is_carousel_item="true")
+        else:
+            d = _istek("POST", f"/{_kullanici_id()}/media", ayarlar,
+                       image_url=url, is_carousel_item="true")
         cocuklar.append(d["id"])
         log.info("container %d/%d hazırlandı", i, len(gorsel_urlleri))
 

@@ -145,6 +145,12 @@ CEVAP_SEMASI = {
         "veri_karti_yon": {"type": "string"},
         # İkili aktör / Split-Screen için 2 kişinin adı (varsa)
         "gorsel_ikili": {"type": "array", "items": {"type": "string"}},
+        # Habere özel dinamik detay slaytı şablonu ve JSON verisi
+        "detay_sablonu": {
+            "type": "string",
+            "enum": ["standart", "spor_kadro", "hava_durumu", "karsilastirma", "rehber_adim", "sirali_liste"],
+        },
+        "sablon_verisi": {"type": "string"},
     },
     "required": [
         "baslik_alternatifleri", "ig_baslik", "ig_caption", "ig_hashtag", "onem_puani",
@@ -525,6 +531,18 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
   "Avrupa Birliği", "Dünya Sağlık Örgütü").
   Listede olmayan bir kuruluş için BOŞ bırak — spor kulübü, şirket,
   siyasi parti kodu YAZMA, onların logoları tescilli marka.
+
+- detay_sablonu ve sablon_verisi: Haberin içeriği aşağıdaki 5 özel görsel şablondan birine TAM UYUYORSA o şablonu seç ve `sablon_verisi` alanına geçerli bir JSON string yaz (SADECE makaledeki gerçek verileri kullan, veri uydurma). Uymuyorsa `"standart"` seç ve `sablon_verisi` alanını `""` bırak:
+    1) `"spor_kadro"` — Maç ilk 11'leri, muhtemel 11'ler veya maç kadroları açıklandığında:
+       `sablon_verisi`: `{"ev_sahibi": "Galatasaray", "deplasman": "Fenerbahçe", "skor_veya_saat": "20:00", "mac_bilgisi": "RAMS Park · Hakem: Slavko Vincic", "ev_td": "Okan Buruk", "deplasman_td": "Jose Mourinho", "ev_dizilis": "4-2-3-1", "deplasman_dizilis": "4-3-3", "ev_kadro": ["Muslera", "Kaan", "Sanchez", ...], "deplasman_kadro": ["Livakovic", "Osayi", ...], "alt_not": "Eksikler: Icardi, Jayden Oosterwolde"}`
+    2) `"hava_durumu"` — MGM yağış, fırtına, kar, sıcaklık veya sarı/turuncu/kırmızı kodlu meteoroloji uyarılarında:
+       `sablon_verisi`: `{"uyari_kodu": "turuncu", "uyari_basligi": "Marmara ve Ege İçin Kuvvetli Fırtına Uyarısı", "zaman_araligi": "Salı 06:00 - Çarşamba 18:00", "olay_tipi": "Kuvvetli Sağanak & Fırtına", "siddet_bilgisi": "60-90 km/saat", "sicaklik_bilgisi": "6-8 °C Düşüş", "etkilenen_iller": ["İstanbul", "İzmir", "Bursa", "Balıkesir", "Çanakkale", "Kocaeli"], "onlem_notu": "Çatı uçması, su baskını ve ulaşımda aksamalara karşı tedbirli olunmalı."}`
+    3) `"karsilastirma"` — Eski ve yeni fiyat, zam, maaş, vergi dilimi, harç, ceza veya tarife tablosu içeren haberlerde (en az 2 kalem varsa):
+       `sablon_verisi`: `{"tablo_basligi": "Yeni Elektrik / Köprü / Maaş Tarifesi", "sol_etiket": "KALEM", "eski_etiket": "ESKİ", "yeni_etiket": "YENİ", "satirlar": [{"kalem": "Mesken Düşük Kademe", "eski": "1,48 ₺", "yeni": "1,85 ₺", "degisim": "+%25"}, ...], "alt_not": "Yeni tarife 1 Kasım itibarıyla yürürlüğe girecek."}`
+    4) `"rehber_adim"` — Başvuru şartları, adım adım rehber, kimler yararlanabilir veya yeni yasal düzenleme maddeleri içeren haberlerde (3-5 adım/madde):
+       `sablon_verisi`: `{"rehber_basligi": "TOKİ / Destek Başvuru Şartları ve Adımları", "adimlar": [{"baslik": "Başvuru Tarihleri", "aciklama": "Başvurular 15 Ekim - 15 Kasım tarihleri arasında e-Devlet üzerinden alınacak."}, ...], "onemli_not": "Hak sahipleri noter kurasıyla belirlenecek."}`
+    5) `"sirali_liste"` — İlk 5 / Top 6 sıralama, puan durumu, en çok ihracat yapan iller/sektörler veya şirket sıralaması içeren haberlerde (en az 3 öğe):
+       `sablon_verisi`: `{"liste_basligi": "Türkiye'nin En Çok İhracat Yapan 5 İli", "ogeler": [{"ad": "İstanbul", "deger": "4,8 Milyar $", "alt_bilgi": "Toplam ihracatta %22 pay"}, ...], "alt_not": "Veriler TİM Ekim ayı raporundan alınmıştır."}`
 
 onem_puani (1-10) — Türkiye'deki ortalama bir takipçinin bu haberi
 görmek isteme derecesi. Devlet önceliği değil, TAKİPÇİ önceliği ölçüyorsun.

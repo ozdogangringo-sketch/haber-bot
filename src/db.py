@@ -266,6 +266,10 @@ EK_KOLONLAR = {
     "metrik_zamani": "TEXT",
     # --- Yatay Odak / Kadraj Konumu (0=sol, 50=orta, 100=sağ) ---
     "odak_x_yuzde": "INTEGER DEFAULT 50",
+    # --- Dinamik Özel Detay Slaytı Şablonları (src/sablonlar/) ---
+    "detay_sablonu": "TEXT DEFAULT 'standart'",
+    "sablon_verisi": "TEXT",
+    "video_url": "TEXT",
 }
 
 
@@ -440,6 +444,8 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
                veri_karti_yeni   = ?,
                veri_karti_yon    = ?,
                gorsel_ikili      = ?,
+               detay_sablonu     = COALESCE(?, detay_sablonu, 'standart'),
+               sablon_verisi     = COALESCE(?, sablon_verisi),
                makale_metni      = COALESCE(?, makale_metni),
                durum             = 'metin_hazir',
                hata_mesaji       = NULL
@@ -473,6 +479,12 @@ def metin_kaydet(con, haber_id: int, uretilen: dict, makale_metni: str | None = 
             (uretilen.get("veri_karti_yeni") or "").strip() or None,
             (uretilen.get("veri_karti_yon") or "").strip() or None,
             json.dumps(uretilen.get("gorsel_ikili", [])) if isinstance(uretilen.get("gorsel_ikili"), list) else None,
+            (uretilen.get("detay_sablonu") or "").strip().lower() or None,
+            (
+                json.dumps(uretilen["sablon_verisi"], ensure_ascii=False)
+                if isinstance(uretilen.get("sablon_verisi"), dict)
+                else ((uretilen.get("sablon_verisi") or "").strip() or None)
+            ),
             makale_metni,
             haber_id,
         ),

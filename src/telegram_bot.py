@@ -592,7 +592,8 @@ def slaytlari_gonder(
 
     medya = []
     for sira, url in enumerate(gorsel_urlleri, start=1):
-        oge = {"type": "photo", "media": url}
+        video_mu = str(url).split("?")[0].lower().endswith((".mp4", ".mov"))
+        oge = {"type": "video" if video_mu else "photo", "media": url}
         if basliklar and sira <= len(basliklar):
             temiz_b = html.escape(str(basliklar[sira - 1]).strip())
             oge["caption"] = f"<b>{sira}. {temiz_b}</b>"[:1024]
@@ -612,9 +613,10 @@ def slaytlari_gonder(
             multipart_medya = []
             try:
                 for sira, url in enumerate(gorsel_urlleri, start=1):
+                    video_mu = str(url).split("?")[0].lower().endswith((".mp4", ".mov"))
                     attach_name = f"foto_{sira}"
                     icerik_stream = None
-                    dosya_adi = f"foto_{sira}.jpg"
+                    dosya_adi = f"video_{sira}.mp4" if video_mu else f"foto_{sira}.jpg"
 
                     # 1. Öncelik: Varsa yerel dosyayı doğrudan kullan (sıfır ağ gecikmesi, sıfır indirme hatası)
                     yerel = None
@@ -657,8 +659,9 @@ def slaytlari_gonder(
                                 time.sleep(2)
 
                     if icerik_stream:
-                        files[attach_name] = (dosya_adi, icerik_stream, "image/jpeg")
-                        oge = {"type": "photo", "media": f"attach://{attach_name}"}
+                        mime = "video/mp4" if video_mu else "image/jpeg"
+                        files[attach_name] = (dosya_adi, icerik_stream, mime)
+                        oge = {"type": "video" if video_mu else "photo", "media": f"attach://{attach_name}"}
                         if basliklar and sira <= len(basliklar):
                             temiz_b = html.escape(str(basliklar[sira - 1]).strip())
                             oge["caption"] = f"<b>{sira}. {temiz_b}</b>"[:1024]

@@ -3099,7 +3099,7 @@ def test_her_dugme_workerda_karsilaniyor() -> None:
         return                                   # node yoksa atla
 
     ham = set()
-    for dosya in ("src/telegram_bot.py", "scripts/onay_isle.py"):
+    for dosya in ("src/telegram_bot.py", "scripts/onay_isle.py", "src/onay_yonetim.py"):
         metin = (KOK / dosya).read_text(encoding="utf-8")
         ham |= set(_re.findall(r'callback_data"\s*:\s*f?"([^"]+)"', metin))
 

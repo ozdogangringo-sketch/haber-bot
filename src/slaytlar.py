@@ -1350,28 +1350,76 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     yol_kapak = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
     gorsel_kapak.save(yol_kapak, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
 
-    # Slayt 2 & 3: 1080x1920 Native Detay & Analiz Slaytları
+    # Slayt 2 & 3: 1080x1920 Native Detay & Analiz Slaytları (+ Dinamik Özel Şablonlar)
     story_detay_yollari = []
-    for i, satirlar in enumerate(sayfalar, start=1):
-        story_d = make_image.story_detay(
-            _slayt_metni(haber, "ig_baslik", ayarlar),
-            detay,
-            make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
-            ayarlar,
-            arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
-            kategori=haber["kategori"] or "turkiye",
-            son_dakika=son_dakika_mi and i == 1,
-            ulke_kodu=_alan(haber, "ulke_kodu") or None,
-            ulke_adi=_alan(haber, "ulke_adi") or None,
-            satirlar=satirlar,
-            sayfa=i,
-            toplam_sayfa=len(sayfalar),
-            arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
-        )
-        ek = "" if len(sayfalar) == 1 else f"-{i}"
-        s_detay_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay{ek}.jpg"
-        story_d.save(s_detay_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
-        story_detay_yollari.append(s_detay_yol)
+    kaynak_adi = make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar)
+    detay_arkaplan = (ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None)
+    arsiv_mi = (katman in ARSIV_KATMANLARI)
+
+    # A) Habere Özel İnfografik Şablon (spor_kadro, hava_durumu, karsilastirma, rehber_adim, sirali_liste)
+    ozel_slayt = None
+    try:
+        from src import sablonlar
+        if _alan(haber, "detay_sablonu") and _alan(haber, "detay_sablonu") != "standart":
+            ozel_slayt = sablonlar.ozel_detay_slayti_uret(
+                dict(haber),
+                ayarlar,
+                kaynak=kaynak_adi,
+                arkaplan=detay_arkaplan.copy() if detay_arkaplan is not None else None,
+                sayfa=1,
+                toplam_sayfa=1 + min(len(sayfalar), 2),
+                arsiv_ibaresi=arsiv_mi,
+            )
+    except Exception as e:
+        log.warning("Özel detay şablonu üretilemedi #%s: %s", haber["id"], e)
+
+    if ozel_slayt is not None:
+        sablon_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay-sablon.jpg"
+        ozel_slayt.save(sablon_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
+        story_detay_yollari.append(sablon_yol)
+        # Özel infografik slaytı 2. slayt olduğunda metin slaytlarını en fazla 2 sayfayla sınırla
+        metin_sayfalari = sayfalar[:2]
+        toplam_d_sayfa = 1 + len(metin_sayfalari)
+        for i, satirlar in enumerate(metin_sayfalari, start=2):
+            story_d = make_image.story_detay(
+                _slayt_metni(haber, "ig_baslik", ayarlar),
+                detay,
+                kaynak_adi,
+                ayarlar,
+                arkaplan=(detay_arkaplan.copy() if detay_arkaplan is not None else None),
+                kategori=haber["kategori"] or "turkiye",
+                son_dakika=False,
+                ulke_kodu=_alan(haber, "ulke_kodu") or None,
+                ulke_adi=_alan(haber, "ulke_adi") or None,
+                satirlar=satirlar,
+                sayfa=i,
+                toplam_sayfa=toplam_d_sayfa,
+                arsiv_ibaresi=arsiv_mi,
+            )
+            s_detay_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay-{i}.jpg"
+            story_d.save(s_detay_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
+            story_detay_yollari.append(s_detay_yol)
+    else:
+        for i, satirlar in enumerate(sayfalar, start=1):
+            story_d = make_image.story_detay(
+                _slayt_metni(haber, "ig_baslik", ayarlar),
+                detay,
+                kaynak_adi,
+                ayarlar,
+                arkaplan=(detay_arkaplan.copy() if detay_arkaplan is not None else None),
+                kategori=haber["kategori"] or "turkiye",
+                son_dakika=son_dakika_mi and i == 1,
+                ulke_kodu=_alan(haber, "ulke_kodu") or None,
+                ulke_adi=_alan(haber, "ulke_adi") or None,
+                satirlar=satirlar,
+                sayfa=i,
+                toplam_sayfa=len(sayfalar),
+                arsiv_ibaresi=arsiv_mi,
+            )
+            ek = "" if len(sayfalar) == 1 else f"-{i}"
+            s_detay_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay{ek}.jpg"
+            story_d.save(s_detay_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
+            story_detay_yollari.append(s_detay_yol)
 
     log.info("son dakika %%100 native 9:16 slaytları üretildi #%s [%s + %d detay]",
              haber["id"], katman, len(story_detay_yollari))
