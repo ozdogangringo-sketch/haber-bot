@@ -123,6 +123,10 @@ def fish_audio_seslendir(
 
 
 SON_KULLANILAN_MOTOR: str = "ElevenLabs"
+KAPANIS_VARYANTLARI: List[Path] = [
+    KOK / "assets" / "audio" / f"kapanis_v4_{i}.mp3" for i in (1, 2, 3)
+]
+_KAPANIS_SAYAC: int = 0
 
 
 def son_kullanilan_motor() -> str:
@@ -130,18 +134,89 @@ def son_kullanilan_motor() -> str:
     return SON_KULLANILAN_MOTOR
 
 
+def ses_etiketi_sec(haber: Any = None) -> str:
+    """
+    ElevenLabs v4/v3 için haberin kategorisine ve içeriğine göre tek bütünlüklü
+    cümle başı performans etiketini (Audio Tag) seçer.
+    Cümle ortasında etiket değiştirilmez (ton kırılmasını önlemek için).
+    """
+    if not haber:
+        return "[serious, news anchor]"
+    h = dict(haber) if hasattr(haber, "keys") else {}
+    kategori = str(h.get("kategori") or "").lower().strip()
+    baslik = str(h.get("ig_baslik") or h.get("baslik_orj") or "").lower()
+    ozet = str(h.get("slayt_ozet") or h.get("ozet_orj") or "").lower()
+    metin = f"{baslik} {ozet}"
+
+    # Kriz, kaza, adli veya olumsuz gelişmelerde her zaman vakur/ciddi haber spikeri tonu
+    kriz_kelimeleri = (
+        "kaza", "ölü", "yaralı", "şehit", "deprem", "yangın", "saldırı",
+        "tutukla", "gözaltı", "ceza", "kriz", "iflas", "çöktü", "tehlike", "uyarı",
+    )
+    if any(k in metin for k in kriz_kelimeleri):
+        return "[serious, news anchor]"
+
+    savunma_kelimeleri = (
+        "kaan", "kızılelma", "anka", "baykar", "tusaş", "aselsan", "roketsan",
+        "hürjet", "gökbey", "siha", "iha", "teknofest", "togg", "uzay",
+    )
+    if kategori in ("teknoloji", "bilim", "spor") or any(k in metin for k in savunma_kelimeleri):
+        return "[confident, engaging]"
+
+    return "[serious, news anchor]"
+
+
+def _hizlandir_atempo(ses_yolu: Path, hiz: float) -> None:
+    """
+    ElevenLabs v4 API'de speed parametresini yok saydığı için, üretilen MP3'ü
+    FFmpeg atempo filtresiyle tonu (pitch) bozmadan hedef hıza (örn. 1.22x) getirir.
+    """
+    if not ses_yolu.exists() or abs(hiz - 1.0) <= 0.01:
+        return
+    gecici = ses_yolu.with_name(f"{ses_yolu.stem}_atempo{ses_yolu.suffix}")
+    try:
+        r = subprocess.run(
+            [
+                imageio_ffmpeg.get_ffmpeg_exe(), "-y",
+                "-i", str(ses_yolu),
+                "-filter:a", f"atempo={hiz:.2f}",
+                "-c:a", "libmp3lame", "-q:a", "2",
+                str(gecici),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if r.returncode == 0 and gecici.exists() and gecici.stat().st_size > 500:
+            gecici.replace(ses_yolu)
+        else:
+            gecici.unlink(missing_ok=True)
+    except Exception as e:
+        log.debug("atempo hızlandırma uygulanamadı (%s): %s", ses_yolu.name, e)
+        gecici.unlink(missing_ok=True)
+
+
 def metin_seslendir(
     metin: str,
     ayarlar: Optional[Dict[str, Any]] = None,
     cikti_yolu: Optional[Path] = None,
+    ton_etiketi: Optional[str] = None,
 ) -> Optional[Path]:
     """
-    Metni öncelikle ElevenLabs ile seslendirir; kota/yetki hatası durumunda
-    otomatik olarak Fish Audio S2.1 (Mazlum Kiper sesi) fallback motoruna geçer.
+    Metni öncelikle ElevenLabs (eleven_v4 + Audio Tags + 1.22x atempo) ile seslendirir;
+    kota/yetki hatası durumunda etiketsiz saf metinle Fish Audio S2.1 fallback motoruna geçer.
     """
     global SON_KULLANILAN_MOTOR
+    import re as _re
+    ham_metin = (metin or "").strip()
+    # Başta hazır [...] etiketi varsa okunuş dönüşümünden önce ayır
+    bas_etiket = ton_etiketi
+    m_etiket = _re.match(r"^(\[[^\]]+\])\s*(.*)$", ham_metin, flags=_re.DOTALL)
+    if m_etiket:
+        bas_etiket = bas_etiket or m_etiket.group(1).strip()
+        ham_metin = m_etiket.group(2).strip()
+
     # Okunuş, sonra tek harfin tırnağı ("A Milli Takım": düz "A" çok hızlı okunuyordu — ölçüldü)
-    temiz = okunus.tek_harfleri_belirginlestir(okunus.okunusa_cevir(metin or ""))
+    temiz = okunus.tek_harfleri_belirginlestir(okunus.okunusa_cevir(ham_metin))
     if not temiz:
         return None
 
@@ -152,7 +227,12 @@ def metin_seslendir(
         el_cikti = Path(cikti_yolu or CIKTI / f"ses_{os.getpid()}_{int(time.time() * 1000)}.mp3")
         el_cikti.parent.mkdir(parents=True, exist_ok=True)
         basliklar = {"xi-api-key": anahtar, "Content-Type": "application/json"}
-        govde = {"text": temiz, "model_id": _ayar(ayarlar, "model", "eleven_multilingual_v2"),
+        model_id = str(_ayar(ayarlar, "model", "eleven_v4") or "eleven_v4")
+        v4_etiketli_mi = model_id.startswith(("eleven_v4", "eleven_v3"))
+        aktif_etiket = (bas_etiket or "[serious, news anchor]").strip()
+        el_metin = f"{aktif_etiket} {temiz}" if (v4_etiketli_mi and aktif_etiket) else temiz
+        hiz = float(_ayar(ayarlar, "ayarlar.speed", 1.22) or 1.22)
+        govde = {"text": el_metin, "model_id": model_id,
                  "voice_settings": dict(_ayar(ayarlar, "ayarlar", {}) or {}), "language_code": "tr"}
         for ses_id in sesler:
             kota_bitti = False
@@ -162,7 +242,9 @@ def metin_seslendir(
                                       headers=basliklar, json=govde, timeout=45)
                     if r.status_code == 200 and len(r.content) > 500:
                         el_cikti.write_bytes(r.content)
-                        log.info("ElevenLabs seslendirme başarılı: %s (ses_id: %s, boyut: %d bayt)", el_cikti.name, ses_id, len(r.content))
+                        if v4_etiketli_mi and abs(hiz - 1.0) > 0.01:
+                            _hizlandir_atempo(el_cikti, hiz)
+                        log.info("ElevenLabs seslendirme başarılı: %s (ses_id: %s, model: %s, boyut: %d bayt)", el_cikti.name, ses_id, model_id, el_cikti.stat().st_size)
                         SON_KULLANILAN_MOTOR = "ElevenLabs"
                         return el_cikti
                     log.warning("ElevenLabs hatası (deneme %d/3) [%s]: %s", deneme, r.status_code, r.text[:120])
@@ -181,7 +263,7 @@ def metin_seslendir(
     else:
         log.info("ELEVENLABS_API_KEY yok, doğrudan Fish Audio deneniyor.")
 
-    # 2. Aşama: Fish Audio Fallback Motoru
+    # 2. Aşama: Fish Audio Fallback Motoru (etiketsiz saf Türkçe metin gönderilir)
     fish_yol = fish_audio_seslendir(temiz, ayarlar, cikti_yolu=cikti_yolu)
     if fish_yol:
         SON_KULLANILAN_MOTOR = "Fish Audio"
@@ -294,8 +376,20 @@ def sesli_video_hazirla(video_yolu: Path, konusma: Optional[Path], muzik: bool,
 
 
 def _onbellekli_seslendir(metin: str, ayarlar: Optional[Dict[str, Any]]) -> Optional[Path]:
-    """Kapanış çağrısı her videoda aynı: ses + ayar + metin aynıysa yeniden üretilmez."""
-    anahtar = hashlib.md5(repr((_ayar(ayarlar, "ses_id"), _ayar(ayarlar, "ayarlar"), metin)).encode()).hexdigest()[:16]
+    """
+    Kapanış çağrısı her videoda aynı: git'te kalıcı kayıtlı 3 varyanttan
+    (assets/audio/kapanis_v4_1..3.mp3) dönüşümlü seçer; API kredisi ve süre harcamaz.
+    """
+    global _KAPANIS_SAYAC
+    ses_id = _ayar(ayarlar, "ses_id") or "KAGDtM2gzDrjWlUp2KNe"
+    if ses_id == "KAGDtM2gzDrjWlUp2KNe" and "takipte kalın" in (metin or "").lower():
+        mevcut = [p for p in KAPANIS_VARYANTLARI if p.exists() and p.stat().st_size > 500]
+        if mevcut:
+            secilen = mevcut[_KAPANIS_SAYAC % len(mevcut)]
+            _KAPANIS_SAYAC += 1
+            return secilen
+
+    anahtar = hashlib.md5(repr((ses_id, _ayar(ayarlar, "ayarlar"), metin)).encode()).hexdigest()[:16]
     yol = CIKTI / "ses_onbellek" / f"{anahtar}.mp3"
     if yol.exists() and yol.stat().st_size > 500:
         return yol
@@ -318,9 +412,14 @@ def anlatimli_video_uret(dikey_gorseller: List[Path | str], haberler: List[Any],
         return None
     metinler = slayt_metinleri(haberler, ayarlar, n)
     sesler: List[Optional[Path]] = []
-    for metin in metinler:
+    for i, metin in enumerate(metinler):
         try:
-            sesler.append(metin_seslendir(metin, ayarlar) if metin else None)
+            if metin:
+                ilgili_haber = haberler[min(i, len(haberler) - 1)] if haberler else None
+                etiket = ses_etiketi_sec(ilgili_haber)
+                sesler.append(metin_seslendir(f"{etiket} {metin}", ayarlar))
+            else:
+                sesler.append(None)
         except Exception as e:
             log.warning("Seslendirme üretilemedi: %s", e)
             sesler.append(None)

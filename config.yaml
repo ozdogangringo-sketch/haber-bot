@@ -1210,16 +1210,16 @@ sosyal:
 # FB Reels) uygulanır. Anahtar GitHub secret'ı: ELEVENLABS_API_KEY. Ses ve ayarlar
 # kullanıcının postedm'de dinleyip seçtikleriyle aynı.
 seslendirme:
-  ses_id: "KediIz7pebzt5TaDHiiZ"        # Alex — derin, epik, güçlü bariton anlatıcı (haber/belgesel tonu)
-  yedek_ses_id: "J17lijyP1BHYcM7ld0Rg"  # Adam — tok Türkçe İstanbul spikeri (1. yedek ses)
+  ses_id: "KAGDtM2gzDrjWlUp2KNe"        # Ana haber spikeri (eleven_v4 doğal Türkçe spiker tonu)
+  yedek_ses_id: "KediIz7pebzt5TaDHiiZ"  # Alex — derin bariton anlatıcı (1. yedek ses)
   fish_voice_id: "a6d624c6b8de45d2b89eb0da9a691872"  # Mazlum Kiper — tok Türkçe spiker (Fish Audio S2.1 yedek motoru)
-  model: "eleven_multilingual_v2"
-  ayarlar:                              # Derin, net ve akıcı haber spikeri ayarı (Alex)
-    stability: 0.55
+  model: "eleven_v4"
+  ayarlar:                              # eleven_v4 doğal spiker ayarı + 1.22x akıcı tempo
+    stability: 0.5
     similarity_boost: 0.75
     style: 0.0
     use_speaker_boost: true
-    speed: 1.15
+    speed: 1.22
   hedef_lufs: -14
   fon_muzik_seviyesi: 0.35              # Arka plan fon müziği seviyesi (0.14 çok kısıktı, 0.35 dengeli haber/reels ambiyansı)
   # Tek haberli postta (son dakika) her zaman kapak: başlık + özet.

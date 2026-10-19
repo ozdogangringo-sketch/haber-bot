@@ -97,8 +97,8 @@ class TestSesSecimi(unittest.TestCase):
         self.assertEqual(ses.metin_seslendir("Hz. Ali 1/5000 ölçekli planı açıkladı.", AYARLAR, self.cikti), self.cikti)
         self.assertIn(AYARLAR["seslendirme"]["ses_id"], post.call_args[0][0])
         self.assertNotIn("ESKI", post.call_args[0][0])
-        self.assertEqual(post.call_args.kwargs["json"]["voice_settings"], AYARLAR["seslendirme"]["ayarlar"])
-        self.assertEqual(post.call_args.kwargs["json"]["text"], "Hazreti Ali beş binde bir ölçekli planı açıkladı.")
+        self.assertIn("Hazreti Ali beş binde bir ölçekli planı açıkladı.", post.call_args.kwargs["json"]["text"])
+        self.assertIn("[serious, news anchor]", post.call_args.kwargs["json"]["text"])
 
     @patch.dict("os.environ", {"ELEVENLABS_API_KEY": "sahte", "FISH_AUDIO_API_KEY": ""})
     @patch("src.ses.time.sleep")

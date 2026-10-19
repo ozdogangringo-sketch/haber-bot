@@ -46,6 +46,7 @@ data/cand/
 debug_*.jpg
 test_*.jpg
 *.mp3
+!assets/audio/*.mp3
 data/*.mp3
 
 # OAuth akışının geçici artıkları — tek seferlik yetkilendirme

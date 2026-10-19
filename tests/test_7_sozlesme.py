@@ -6105,6 +6105,16 @@ def test_deep_dive_iyilestirmeleri() -> None:
     denetle("[dict(h) for h in haberler]" in oi_kaynak and "gorulen_imzalar" in oi_kaynak,
             "onay_isle.py: metin_yenile Row->dict çeviriyor ve foto_degistir_islemi görsel parmak izi kullanıyor")
 
+    # 6) ElevenLabs eleven_v4 modeli, yeni ses ve dönen kapanış varyantları
+    cfg = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    ses_cfg = cfg.get("seslendirme") or {}
+    denetle(ses_cfg.get("model") == "eleven_v4" and ses_cfg.get("ses_id") == "KAGDtM2gzDrjWlUp2KNe",
+            "config.yaml: seslendirme eleven_v4 modeli ve KAGDtM2gzDrjWlUp2KNe sesi seçili",
+            f"model={ses_cfg.get('model')}, ses_id={ses_cfg.get('ses_id')}")
+    from src import ses as sesmod
+    denetle(len(sesmod.KAPANIS_VARYANTLARI) == 3 and all(p.exists() and p.stat().st_size > 500 for p in sesmod.KAPANIS_VARYANTLARI),
+            "ses.py: 3 adet kalıcı kapanış varyantı assets/audio içinde mevcut")
+
 
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
