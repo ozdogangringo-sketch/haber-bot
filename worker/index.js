@@ -36,6 +36,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
                   "manuel_paket", "yayinla_diger", "manuel_tamam",
                   // Fotoğraf ve metin alt menü eylemleri
                   "foto_gercek", "foto_stok", "foto_ai", "foto_orijinal",
+                  "foto_odak_sol", "foto_odak_orta", "foto_odak_sag",
                   "metin_ozetle", "metin_detaylandir", "metin_kaynak_arastir",
                   // Yönetim & Acil durum kontrolleri
                   "yonetim", "yonetim_panel", "devam_et", "saglik_testi",
@@ -114,7 +115,7 @@ const GORSEL_SEC = /^gorsel_sec:[1-9]:([1-9]|10):\d{1,12}$/;
 // komut" alıyordu. Tur takıldığında açılan panelde, kurtaracak iki
 // düğmenin ikisi de ölüydü.
 const TUR_EYLEM = /^(yayinla|iptal):\d{1,12}$/;
-const FOTO_EYLEM = /^(foto_degistir|foto_gercek|foto_stok|foto_ai):\d{1,12}$/;
+const FOTO_EYLEM = /^(foto_degistir|foto_gercek|foto_stok|foto_ai|foto_orijinal|foto_odak_sol|foto_odak_orta|foto_odak_sag):\d{1,12}$/;
 
 // Tekil post ÖNERİSİ: "hazirla:1482" — haber id'si komuta gömülü.
 // İki aşamalı akışın ikinci adımı: kontrol job'ı yalnızca başlıkları
@@ -315,6 +316,9 @@ function fotoMenusu(adet, kanallar) {
        { text: "🖼️ Stok Fotoğraf (Pexels)", callback_data: "foto_stok" }],
       [{ text: "🎨 Yapay Zeka ile Üret", callback_data: "foto_ai" },
        { text: "↩️ İlk Görsele Dön", callback_data: "foto_orijinal" }],
+      [{ text: "◀️ Sola", callback_data: "foto_odak_sol" },
+       { text: "⏺️ Ortala", callback_data: "foto_odak_orta" },
+       { text: "▶️ Sağa", callback_data: "foto_odak_sag" }],
       [{ text: "← Ana Menü", callback_data: geriCb }],
     ],
   };
@@ -531,6 +535,9 @@ const KOMUT_ADI = {
   foto_stok: "Pexels stok fotoğrafı aranıyor",
   foto_ai: "AI görseli üretiliyor",
   foto_orijinal: "Orijinal görsel geri yükleniyor",
+  foto_odak_sol: "Kadraj sola kaydırılıyor (%20)",
+  foto_odak_orta: "Kadraj ortalanıyor (%50)",
+  foto_odak_sag: "Kadraj sağa kaydırılıyor (%80)",
   ertele: "Erteleniyor",
   slayt_carpici: "Başlık daha dikkat çekici yapılıyor",
   slayt_ai: "AI görsel üretiliyor",

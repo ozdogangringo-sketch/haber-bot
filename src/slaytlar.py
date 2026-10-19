@@ -577,6 +577,12 @@ def _vision_onayi(foto, haber, ayarlar: dict, kaynak: str = "") -> tuple[bool, s
             baglam=_alan(haber, "gorsel_baglam"),
             ayarlar=ayarlar,
         )
+        if sonuc and "odak_x_yuzde" in sonuc:
+            odak_val = sonuc.get("odak_x_yuzde")
+            if isinstance(odak_val, (int, float)):
+                odak_int = max(0, min(100, int(odak_val)))
+                if isinstance(haber, dict):
+                    haber["odak_x_yuzde"] = odak_int
     except Exception as e:                            # noqa: BLE001
         log.warning("görsel denetimi patladı: %s", e)
         if kaynak in ("web_haber", "duckduckgo", "web", "internet"):
@@ -607,11 +613,22 @@ def _odak_x_al(haber) -> int:
     """Haber kaydından yatay odak noktasını (%) okur; yoksa 50 (orta)."""
     try:
         val = _alan(haber, "odak_x_yuzde")
-        if val:
-            return int(val)
+        if val is not None and str(val).strip() != "":
+            return max(0, min(100, int(val)))
     except Exception:
         pass
     return 50
+
+
+def _odak_db_kaydet(con, haber) -> None:
+    """Tespit edilen veya ayarlanan odak_x_yuzde değerini veritabanına kaydeder."""
+    if con and _alan(haber, "id") and isinstance(haber, dict) and haber.get("odak_x_yuzde") is not None:
+        try:
+            con.execute("UPDATE haberler SET odak_x_yuzde = ? WHERE id = ?",
+                        (int(haber["odak_x_yuzde"]), _alan(haber, "id")))
+            con.commit()
+        except Exception as e:                        # noqa: BLE001
+            log.debug("odak_x_yuzde DB kaydı atlandı: %s", e)
 
 
 def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
@@ -709,9 +726,11 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                     if foto is not None:
                         uygun, sebep = _vision_onayi(foto, haber, ayarlar, kaynak="kardes")
                         if uygun:
+                            odak_x = _odak_x_al(haber)
+                            _odak_db_kaydet(con, haber)
                             kaynak_ad = _kaynak_adi(con, secilen_link)
-                            log.info("arka plan: gerçek mod — kardeş haber görseli (%s, %dx%d - %s)",
-                                     kaynak_ad, foto.width, foto.height, secilen_link)
+                            log.info("arka plan: gerçek mod — kardeş haber görseli (%s, %dx%d - %s, odak=%s)",
+                                     kaynak_ad, foto.width, foto.height, secilen_link, odak_x)
                             return (
                                 make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                                 "haber",
@@ -740,7 +759,9 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
                     log.info("gerçek mod: web görseli Vision denetiminden geçemedi (%s), "
                              "kardeş/Commons'a devam ediliyor", sebep)
                 elif atif:
-                    log.info("arka plan: gerçek mod — web editoryal (%s)", atif)
+                    odak_x = _odak_x_al(haber)
+                    _odak_db_kaydet(con, haber)
+                    log.info("arka plan: gerçek mod — web editoryal (%s, odak=%s)", atif, odak_x)
                     return (
                         make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                         "web_haber",
@@ -775,6 +796,22 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
 
         foto, foto_kaynak = _en_iyi_haber_gorseli(haber, g, con, ayarlar=ayarlar)
         if foto is not None:
+            # Eğer yatay bir fotoğrafsa ve odak daha önce tespit edilmemişse Gemini Vision ile bul:
+            if _alan(haber, "odak_x_yuzde") is None and (foto.width / foto.height) > 0.8:
+                try:
+                    from . import gorsel_denetim
+                    oto_odak = gorsel_denetim.odak_noktasi_tespit_et(
+                        foto,
+                        baslik=_alan(haber, "ig_baslik") or _alan(haber, "baslik_orj"),
+                        konu=_alan(haber, "gorsel_konu"),
+                        ayarlar=ayarlar,
+                    )
+                    if isinstance(haber, dict):
+                        haber["odak_x_yuzde"] = oto_odak
+                    odak_x = oto_odak
+                    _odak_db_kaydet(con, haber)
+                except Exception as e_oto:
+                    log.debug("og:image otomatik odak tespiti atlandi: %s", e_oto)
             return (
                 make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                 "haber",
@@ -783,6 +820,8 @@ def arkaplan_sec(haber, ayarlar: dict, zorla_ai: bool = False,
     elif atlanacak > 0 and con is not None:
         foto, foto_kaynak = _haber_gorseli_alternatifi(haber, g, con, atlanacak, ayarlar=ayarlar)
         if foto is not None:
+            odak_x = _odak_x_al(haber)
+            _odak_db_kaydet(con, haber)
             return (
                 make_image.fotograftan_arkaplan(foto, genislik, yukseklik, odak_x_yuzde=odak_x),
                 "haber",

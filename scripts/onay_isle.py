@@ -2331,6 +2331,60 @@ def foto_orijinal_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int) -> i
     return _gorsel_adayini_uygula(con, ayarlar, h, aday, mesaj_id, tek_aday=True)
 
 
+def foto_odak_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, odak_yuzde: int = 50) -> int:
+    """
+    Onay bekleyen haberin fotoğraf kadrajını yatay eksende günceller (%20 sol, %50 orta, %80 sağ).
+    Yeni fotoğraf aramadan, mevcut fotoğrafı belirtilen odakla yeniden kırparak kapağı günceller.
+    """
+    if not haberler:
+        telegram_bot.mesaj_gonder("⚠️ Görseli güncellenecek haber bulunamadı.")
+        return 1
+
+    h = dict(haberler[0])
+    odak_etiket = "Sola (%20)" if odak_yuzde <= 30 else ("Sağa (%80)" if odak_yuzde >= 70 else "Merkeze (%50)")
+
+    # 1. DB ve nesne üzerinde odak_x_yuzde güncelle
+    con.execute("UPDATE haberler SET odak_x_yuzde = ? WHERE id = ?", (odak_yuzde, h["id"]))
+    con.commit()
+    h["odak_x_yuzde"] = odak_yuzde
+    if isinstance(haberler[0], dict):
+        haberler[0]["odak_x_yuzde"] = odak_yuzde
+
+    telegram_bot.mesaj_gonder(
+        f"🎯 <b>Kadraj {odak_etiket} kaydırılıyor, kapak yeniden çiziliyor…</b>",
+        html=True,
+    )
+
+    try:
+        deneme = int(h.get("gorsel_deneme") or 0)
+        sonuclar = slaytlar.son_dakika_uret(
+            h, ayarlar, con=con, atlanacak=deneme,
+            gorsel_modu="hepsi", zorla_ai=False)
+        yuklemeler = upload_image.hepsini_yukle(
+            [s["yol"] for s in sonuclar], ayarlar)
+        urller = [y["url"] for y in yuklemeler]
+    except Exception as e:                            # noqa: BLE001
+        log.warning("kadraj güncellemede görsel yeniden üretilemedi: %s", e)
+        telegram_bot.mesaj_gonder("⚠️ Kadraj güncelleme başarısız oldu.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 1
+
+    if not urller:
+        telegram_bot.mesaj_gonder("⚠️ Kadraj güncelleme başarısız oldu.")
+        menuyu_geri_koy(con, mesaj_id)
+        return 1
+
+    aday = {
+        "urller": urller,
+        "story_url": urller[0],
+        "katman": sonuclar[0].get("katman", ""),
+        "atif": sonuclar[0].get("atif", ""),
+        "deneme": deneme,
+        "tur": "son_dakika",
+    }
+    return _gorsel_adayini_uygula(con, ayarlar, h, aday, mesaj_id, tek_aday=True)
+
+
 def foto_degistir_islemi(con, ayarlar: dict, haberler: list, mesaj_id: int, basan: str = "", mod: str = "hepsi") -> int:
     """
     Onay bekleyen haberin fotoğrafını sıradaki alternatif HD görselle yeniler ve slaytları baştan çizer.
@@ -4308,7 +4362,7 @@ def main() -> int:
     # `turu_getir`, kanal seçimi hepsi kendiliğinden devreye giriyor.
     # Ayrı bir dal yazmak o kuralları İKİNCİ KEZ yazmak demekti ve bu
     # projenin en sık hatası tam olarak bu.
-    for _on in ("yayinla", "iptal", "foto_degistir", "foto_gercek", "foto_stok", "foto_ai"):
+    for _on in ("yayinla", "iptal", "foto_degistir", "foto_gercek", "foto_stok", "foto_ai", "foto_orijinal", "foto_odak_sol", "foto_odak_orta", "foto_odak_sag"):
         if komut.startswith(f"{_on}:"):
             _hedef = komut.split(":", 1)[1]
             if _hedef.isdigit():
@@ -4979,6 +5033,13 @@ def main() -> int:
             return foto_degistir_islemi(con, ayarlar, haberler, mesaj_id, basan, mod="ai")
         if komut == "foto_orijinal":
             return foto_orijinal_islemi(con, ayarlar, haberler, mesaj_id)
+        if komut in ("foto_odak_sol", "foto_odak_orta", "foto_odak_sag"):
+            odak_haritasi = {
+                "foto_odak_sol": 20,
+                "foto_odak_orta": 50,
+                "foto_odak_sag": 80,
+            }
+            return foto_odak_islemi(con, ayarlar, haberler, mesaj_id, odak_yuzde=odak_haritasi[komut])
         if komut == "metin_yenile":
             return metin_yenile(con, ayarlar, haberler, mesaj_id, mod="normal")
         if komut == "metin_ozetle":

@@ -264,6 +264,8 @@ EK_KOLONLAR = {
     "yorum": "INTEGER DEFAULT 0",
     "begeni": "INTEGER DEFAULT 0",
     "metrik_zamani": "TEXT",
+    # --- Yatay Odak / Kadraj Konumu (0=sol, 50=orta, 100=sağ) ---
+    "odak_x_yuzde": "INTEGER DEFAULT 50",
 }
 
 

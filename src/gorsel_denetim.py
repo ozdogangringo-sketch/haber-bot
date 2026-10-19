@@ -58,6 +58,10 @@ CEVAP_SEMASI = {
         "konuyu_gosteriyor_mu": {"type": "boolean"},
         "baglam_uyuyor_mu": {"type": "boolean"},
         "sebep": {"type": "string"},
+        "odak_x_yuzde": {
+            "type": "integer",
+            "description": "Fotoğraftaki ana öznenin/kişinin/odak noktasının yatay konumu (0=en sol, 50=tam orta, 100=en sağ).",
+        },
     },
     "required": ["fotografta_ne_var", "konuyu_gosteriyor_mu",
                  "baglam_uyuyor_mu", "sebep"],
@@ -93,7 +97,9 @@ Sırayla cevapla:
    sporcular) ya da Kadın/Genç takımı görünüyorsa (veya tersi) baglam_uyuyor_mu
    ve konuyu_gosteriyor_mu KESİNLİKLE false verilmelidir.
 
-4) sebep: Kararını tek kısa cümleyle açıkla."""
+4) sebep: Kararını tek kısa cümleyle açıkla.
+
+5) odak_x_yuzde: Fotoğraftaki ana öznenin (haberde geçen kişi, ana nesne veya odak noktasının) yatay eksendeki konumunu 0 ile 100 arasında bir yüzde tamsayısı olarak belirt (0 = en solda, 50 = tam ortada, 100 = en sağda). Eğer birden fazla kişi/özne varsa veya genel bir manzara/bina/harita/grafik ise 50 ver."""
 
 
 def _anahtarlar() -> list[str]:
@@ -191,3 +197,20 @@ def gorseli_denetle(foto: Image.Image, baslik: str, konu: str = "",
                     cevap.status_code, cevap.text[:160])
         return None
     return None
+
+
+def odak_noktasi_tespit_et(foto: Image.Image, baslik: str = "", konu: str = "",
+                           ayarlar: dict | None = None) -> int:
+    """
+    Haber fotoğrafındaki ana öznenin yatay odak noktasını (%) Gemini Vision ile tespit eder.
+    Hata/kota durumunda veya tespit edilemezse 50 (orta) döner.
+    """
+    try:
+        sonuc = gorseli_denetle(foto, baslik=baslik, konu=konu, ayarlar=ayarlar)
+        if sonuc and "odak_x_yuzde" in sonuc:
+            val = sonuc["odak_x_yuzde"]
+            if isinstance(val, (int, float)):
+                return max(0, min(100, int(val)))
+    except Exception as e:                            # noqa: BLE001
+        log.debug("odak noktası tespit edilemedi: %s", e)
+    return 50
