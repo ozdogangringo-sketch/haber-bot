@@ -30,12 +30,20 @@ HEDEF_GENISLIK = 1080
 HEDEF_YUKSEKLIK = 1920
 
 
+_FONT_ONBELLEK: dict[tuple[int, float], ImageFont.FreeTypeFont] = {}
+
+
 def _font(punto: int, agirlik: float = 600.0) -> ImageFont.FreeTypeFont:
+    anahtar = (punto, float(agirlik))
+    f = _FONT_ONBELLEK.get(anahtar)
+    if f is not None:
+        return f
     f = ImageFont.truetype(str(FONT_YOLU), punto)
     try:
         f.set_variation_by_axes([20.0, agirlik])
     except Exception:
         pass
+    _FONT_ONBELLEK[anahtar] = f
     return f
 
 
