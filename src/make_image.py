@@ -667,7 +667,7 @@ def _yansima_ekle(canvas: Image.Image, foto: Image.Image,
         alt = min(ust + bant, derinlik)
         t = ust / derinlik
         parca = yansima.crop((0, ust, genislik, alt))
-        yaricap = 0.6 + t * 5.0
+        yaricap = 2.0 + t * 5.0
         parcalar.append((ust, parca.filter(ImageFilter.GaussianBlur(yaricap))))
     for ust, parca in parcalar:
         yansima.paste(parca, (0, ust))
@@ -685,7 +685,7 @@ def _yansima_ekle(canvas: Image.Image, foto: Image.Image,
 
 
 def fotograftan_arkaplan(
-    foto: Image.Image, genislik: int, yukseklik: int
+    foto: Image.Image, genislik: int, yukseklik: int, odak_x_yuzde: int = 50
 ) -> Image.Image:
     """
     Ham haber veya basın fotoğrafını 1080x1920 dikey Story tuvaline akıllıca yerleştirir.
@@ -695,6 +695,7 @@ def fotograftan_arkaplan(
     - Yatay/16:9 basın fotoğraflarını (ratio > 0.8) aşırı dijital zoom ile kesip bulanıklaştırmak
       yerine, geniş kadrajıyla üst alana yerleştirir, arka plana yumuşak ambiyans ışıltısı verir
       ve alt metin alanına kesintisiz editoryal degrade ile eritir.
+    - odak_x_yuzde: Yatay kırpmada odak merkezini yüzde (0=sol, 50=orta, 100=sağ) olarak kaydırır.
     """
     if getattr(foto, "_arkaplan_islendi", False) and foto.size == (genislik, yukseklik):
         return foto.copy()
@@ -705,12 +706,16 @@ def fotograftan_arkaplan(
 
     canvas = Image.new("RGB", (genislik, yukseklik), (4, 24, 28))
 
+    # Odak kaydırma katsayısı (0.0 - 1.0)
+    odak_oran = max(0.0, min(1.0, odak_x_yuzde / 100.0))
+
     if foto_oran <= 0.78:
         # Doğal dikey portre (9:16 veya 4:5 portre)
         hedef_oran = genislik / yukseklik
         if foto_oran > hedef_oran:
             yeni_genislik = int(f_yukseklik * hedef_oran)
-            sol = (f_genislik - yeni_genislik) // 2
+            kalan_w = f_genislik - yeni_genislik
+            sol = int(kalan_w * odak_oran)
             foto_c = foto.crop((sol, 0, sol + yeni_genislik, f_yukseklik))
         else:
             yeni_yukseklik = int(f_genislik / hedef_oran)
@@ -742,7 +747,8 @@ def fotograftan_arkaplan(
         hedef_oran = genislik / hedef_alt
         if foto_oran > hedef_oran:
             yeni_w = int(f_yukseklik * hedef_oran)
-            sol_k = (f_genislik - yeni_w) // 2
+            kalan_w = f_genislik - yeni_w
+            sol_k = int(kalan_w * odak_oran)
             foto_k = foto.crop((sol_k, 0, sol_k + yeni_w, f_yukseklik))
         else:
             yeni_h = int(f_genislik / hedef_oran)

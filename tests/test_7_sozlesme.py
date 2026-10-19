@@ -6087,11 +6087,16 @@ def test_deep_dive_iyilestirmeleri() -> None:
             "gorsel_kalite: merkezi net bokeh portresi netlik kapısından geçiyor",
             f"netlik_puani={puan:.1f} < {gk.ASGARI_NETLIK_PUANI}")
 
-    # 4) Çift fotograftan_arkaplan engeli
+    # 4) Çift fotograftan_arkaplan engeli ve odak_x_yuzde desteği
     ham = Image.new("RGB", (800, 600), (80, 120, 160))
     islendi = mi.fotograftan_arkaplan(ham, 1080, 1920)
     denetle(getattr(islendi, "_arkaplan_islendi", False) is True,
             "make_image: fotograftan_arkaplan çıktısı _arkaplan_islendi bayrağı taşıyor")
+    ham_genis = Image.new("RGB", (1600, 900), (50, 60, 70))
+    sol_ark = mi.fotograftan_arkaplan(ham_genis, 1080, 1920, odak_x_yuzde=0)
+    sag_ark = mi.fotograftan_arkaplan(ham_genis, 1080, 1920, odak_x_yuzde=100)
+    denetle(sol_ark.size == (1080, 1920) and sag_ark.size == (1080, 1920),
+            "make_image: fotograftan_arkaplan odak_x_yuzde parametresini destekliyor")
 
     # 5) Etkileşim sorusu son detay slaytına ekleniyor & metin/foto yenileme korumaları
     sl_kaynak = (KOK / "src/slaytlar.py").read_text(encoding="utf-8")

@@ -142,10 +142,15 @@ def instagram_metrikleri_guncelle(con, ayarlar: Optional[Dict[str, Any]] = None,
     return {"guncellenen": guncellenen, "hata": hatalar}
 
 
+ASGARI_METRIK_ESIGI = 8  # Henüz az takipçi/gönderi varken yanlış yönlenmeyi önleyen güvenli eşik
+
+
 def en_iyi_kancalari_getir(con, limit: int = 5, kategori: Optional[str] = None) -> list[dict[str, Any]]:
     """
-    En yüksek etkileşim alan gönderileri ağırlıklı algoritmik skorla sıralar:
-    Skor = (paylaşım * 4) + (kaydetme * 3) + (yorum * 2) + beğeni + (erişim / 100)
+    En yüksek etkileşim alan gönderileri ağırlıklı algoritmik skorla sıralar.
+    Henüz yeterli veri havuzu oluşmamışsa (en az ASGARI_METRIK_ESIGI adet gerçek veri),
+    algoritmanın dar bir şablona saplanıp aşırı öğrenme (overfitting) yapmasını önlemek
+    için kanıtlanmış editoryal altın şablonları temel alır.
     """
     if con is None:
         return VARSAYILAN_ORNEK_KANCALAR[:limit]
@@ -159,7 +164,7 @@ def en_iyi_kancalari_getir(con, limit: int = 5, kategori: Optional[str] = None) 
             FROM haberler
             WHERE durum = 'yayinlandi'
               AND kanca IS NOT NULL AND TRIM(kanca) != ''
-              AND (COALESCE(paylasim, 0) > 0 OR COALESCE(kaydetme, 0) > 0 OR COALESCE(begeni, 0) > 0)
+              AND (COALESCE(paylasim, 0) > 0 OR COALESCE(kaydetme, 0) > 0)
         """
         params = []
         if kategori:
@@ -170,8 +175,14 @@ def en_iyi_kancalari_getir(con, limit: int = 5, kategori: Optional[str] = None) 
         params.append(limit)
 
         satirlar = con.execute(sql, tuple(params)).fetchall()
-        if satirlar and len(satirlar) >= 1:
+        # Yeterli istatistiki hacim varsa gerçek verileri harmanla
+        if satirlar and len(satirlar) >= ASGARI_METRIK_ESIGI:
             return [dict(s) for s in satirlar]
+        elif satirlar and len(satirlar) >= 1:
+            # Henüz az veri varken tek bir habere saplanmamak için altın standartlarla dengeli harmanla
+            gercekler = [dict(s) for s in satirlar[:1]]
+            varsayilanlar = [v for v in VARSAYILAN_ORNEK_KANCALAR if v["kanca"] != gercekler[0].get("kanca")]
+            return (gercekler + varsayilanlar)[:limit]
     except Exception as e:
         log.warning("En iyi kancalar çekilirken DB hatası: %s", e)
 
@@ -181,15 +192,15 @@ def en_iyi_kancalari_getir(con, limit: int = 5, kategori: Optional[str] = None) 
 
 def kanca_ogrenme_konteksti(con=None, limit: int = 3, kategori: Optional[str] = None) -> str:
     """
-    Gemini istemine (generate_text.py) beslenmek üzere, daha önce en çok kaydetme
-    ve paylaşım almış kanca formatlarını içeren dinamik few-shot prompt bloğu üretir.
+    Gemini istemine (generate_text.py) beslenmek üzere ilham verici kanca örnekleri üretir.
+    Modeli dar bir kalıba hapsetmemek için esnek ve yönlendirici bir editoryal rehber sunar.
     """
     ornekler = en_iyi_kancalari_getir(con, limit=limit, kategori=kategori)
     if not ornekler:
         return ""
 
     satirlar = [
-        "★ HESAPTA EN ÇOK PAYLAŞIM VE KAYDETME ALAN GERÇEK KANCA VE VURGU KALIPLARI (BUNLARI MODEL AL):",
+        "★ İLHAM VERİCİ BAŞARILI KANCA VE VURGU FORMATLARI:",
     ]
     for o in ornekler:
         b = (o.get("ig_baslik") or o.get("baslik") or "").strip()
@@ -200,7 +211,9 @@ def kanca_ogrenme_konteksti(con=None, limit: int = 3, kategori: Optional[str] = 
         satirlar.append(f'  • Başlık: "{b}" -> Kanca: "{k}"{vurgu_metni}')
 
     satirlar.append(
-        "  -> Bürokratik dolgu veya kuru ilçe/yer adları yerine 'somut kişisel etki', 'şok rakam' ve 'beklenmedik kırılma' kalıplarını uygula."
+        "  -> ESNEKLİK KURALI: Bu örnekler katı bir zorunluluk değil, ilham amaçlıdır. "
+        "Haberin kendi ciddiyetine ve konusuna en uygun stili (kişisel etki, somut yaptırım, çarpıcı sayı) "
+        "bağımsız değerlendir; tek bir kalıba saplanma."
     )
     return "\n".join(satirlar)
 

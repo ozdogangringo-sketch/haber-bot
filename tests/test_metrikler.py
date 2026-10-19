@@ -58,7 +58,7 @@ def test_en_iyi_kancalari_getir_db_skor():
 def test_kanca_ogrenme_konteksti_format():
     """Few-shot prompt bloğu beklenen başlık ve kanca formatını üretmeli."""
     metin = metrikler.kanca_ogrenme_konteksti(None, limit=2)
-    assert "EN ÇOK PAYLAŞIM VE KAYDETME ALAN" in metin
+    assert "İLHAM VERİCİ BAŞARILI KANCA" in metin
     assert "Başlık:" in metin
     assert "Kanca:" in metin
 
