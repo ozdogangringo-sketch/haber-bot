@@ -25,6 +25,9 @@ TIKTOK_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/"
 TIKTOK_INBOX_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
 TIKTOK_CREATOR_INFO_URL = "https://open.tiktokapis.com/v2/post/publish/creator_info/query/"
 TIKTOK_CONTENT_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/content/init/"
+TIKTOK_AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/"
+TIKTOK_REDIRECT_URI = "https://dailybrief.ozbornstudio.com/callback"
+TIKTOK_SCOPES = "user.info.basic,video.upload,video.publish"
 
 
 def token_yenile(con=None) -> str | None:
@@ -613,3 +616,144 @@ def saglik_testi(ayarlar: dict) -> dict[str, Any]:
             "durum": False,
             "mesaj": f"İstek hatası: {type(e).__name__}",
         }
+
+
+def auth_url_uret() -> str:
+    """TikTok OAuth 2.0 yetkilendirme bağlantısını üretir."""
+    client_key = os.getenv("TIKTOK_CLIENT_KEY", "").strip()
+    if not client_key:
+        raise ValueError("TIKTOK_CLIENT_KEY tanımlı değil!")
+    import urllib.parse
+    params = {
+        "client_key": client_key,
+        "scope": TIKTOK_SCOPES,
+        "response_type": "code",
+        "redirect_uri": TIKTOK_REDIRECT_URI,
+        "state": "dailybrief_tiktok_auth",
+    }
+    return f"{TIKTOK_AUTH_URL}?{urllib.parse.urlencode(params)}"
+
+
+def yetki_al(manuel_kod: str | None = None, con=None) -> dict[str, Any]:
+    """
+    Kullanıcının callback sayfasından kopyaladığı authorization code'u
+    kalıcı access_token ve refresh_token ile takas eder.
+    """
+    client_key = os.getenv("TIKTOK_CLIENT_KEY", "").strip()
+    client_secret = os.getenv("TIKTOK_CLIENT_SECRET", "").strip()
+    if not client_key or not client_secret:
+        raise ValueError("TIKTOK_CLIENT_KEY veya TIKTOK_CLIENT_SECRET eksik!")
+
+    code = (manuel_kod or "").strip()
+    if not code:
+        raise ValueError("TikTok authorization code belirtilmedi!")
+
+    if "code=" in code:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(code)
+        qs = urllib.parse.parse_qs(parsed.query)
+        code = qs.get("code", [code])[0]
+
+    log.info("TikTok yetkilendirme kodu erişim jetonları ile takas ediliyor...")
+    r = requests.post(
+        TIKTOK_OAUTH_TOKEN_URL,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        data={
+            "client_key": client_key,
+            "client_secret": client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": TIKTOK_REDIRECT_URI,
+        },
+        timeout=30,
+    )
+    veri = r.json()
+    if r.status_code != 200 or "access_token" not in veri:
+        raise RuntimeError(f"TikTok token takası başarısız ({r.status_code}): {veri}")
+
+    access_token = veri["access_token"]
+    refresh_token = veri.get("refresh_token")
+    open_id = veri.get("open_id")
+
+    os.environ["TIKTOK_ACCESS_TOKEN"] = access_token
+    if refresh_token:
+        os.environ["TIKTOK_REFRESH_TOKEN"] = refresh_token
+    if open_id:
+        os.environ["TIKTOK_OPEN_ID"] = open_id
+
+    # .env güncelle
+    env_yolu = Path(".env")
+    if env_yolu.exists():
+        try:
+            metin = env_yolu.read_text(encoding="utf-8")
+            if "TIKTOK_ACCESS_TOKEN=" in metin:
+                metin = re.sub(r"TIKTOK_ACCESS_TOKEN=.*", f"TIKTOK_ACCESS_TOKEN={access_token}", metin)
+            else:
+                metin += f"\nTIKTOK_ACCESS_TOKEN={access_token}\n"
+            if refresh_token:
+                if "TIKTOK_REFRESH_TOKEN=" in metin:
+                    metin = re.sub(r"TIKTOK_REFRESH_TOKEN=.*", f"TIKTOK_REFRESH_TOKEN={refresh_token}", metin)
+                else:
+                    metin += f"\nTIKTOK_REFRESH_TOKEN={refresh_token}\n"
+            if open_id:
+                if "TIKTOK_OPEN_ID=" in metin:
+                    metin = re.sub(r"TIKTOK_OPEN_ID=.*", f"TIKTOK_OPEN_ID={open_id}", metin)
+                else:
+                    metin += f"\nTIKTOK_OPEN_ID={open_id}\n"
+            env_yolu.write_text(metin, encoding="utf-8")
+        except Exception as e:
+            log.warning(".env dosyasına TikTok jetonları yazılamadı: %s", e)
+
+    # data/tiktok_token.json dosyasına da kaydet
+    token_dosyasi = Path("data/tiktok_token.json")
+    try:
+        token_dosyasi.parent.mkdir(parents=True, exist_ok=True)
+        import time
+        token_kayit = {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "open_id": open_id,
+            "scope": veri.get("scope"),
+            "expires_at": time.time() + veri.get("expires_in", 86400),
+            "refresh_expires_at": time.time() + veri.get("refresh_expires_in", 31536000),
+        }
+        token_dosyasi.write_text(json.dumps(token_kayit, indent=2), encoding="utf-8")
+    except Exception as e:
+        log.warning("data/tiktok_token.json yazılamadı: %s", e)
+
+    # DB güncelle
+    if con:
+        try:
+            con.execute(
+                "INSERT INTO ayarlar (anahtar, deger) VALUES ('tiktok_access_token', ?) "
+                "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+                (access_token,),
+            )
+            if refresh_token:
+                con.execute(
+                    "INSERT INTO ayarlar (anahtar, deger) VALUES ('tiktok_refresh_token', ?) "
+                    "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+                    (refresh_token,),
+                )
+            con.commit()
+        except Exception as e:
+            log.warning("DB'ye TikTok jetonu yazılamadı: %s", e)
+
+    log.info("✅ TikTok erişim jetonları başarıyla alındı ve kalıcı olarak kaydedildi!")
+    return veri
+
+
+if __name__ == "__main__":
+    import sys
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    kod = sys.argv[1] if len(sys.argv) > 1 else None
+    if kod:
+        print(f"Girilen kod takas ediliyor: {kod}")
+        yetki_al(manuel_kod=kod)
+    else:
+        url = auth_url_uret()
+        print("\n" + "=" * 60)
+        print("🔗 DAILY BRIEF TIKTOK GİRİŞ BAĞLANTISI:")
+        print(url)
+        print("=" * 60 + "\n")
+
