@@ -167,8 +167,22 @@ def spor_kadro_slayti_ciz(
     # Content ASLA 505'ten önce başlayamaz (sıfır çakışma garantisi).
     y_ust = dikey_kenar + 175  # = 505 px
 
-    # 1. TEMEL TUVAL — Derin Gece Stadyumu (Gece Zümrüt & Derin Petrol)
-    gorsel = stadyum_zemini_olustur(genislik, yukseklik)
+    # 1. TEMEL TUVAL — Monokrom Lüks Siyah & Krom
+    gorsel = Image.new("RGB", (genislik, yukseklik), (8, 8, 10))
+    z_draw_k = ImageDraw.Draw(gorsel)
+    for y_idx in range(yukseklik):
+        oran = y_idx / yukseklik
+        r = int(14 + (6 - 14) * oran)
+        g = int(14 + (6 - 14) * oran)
+        b = int(18 + (8 - 18) * oran)
+        z_draw_k.line([(0, y_idx), (genislik, y_idx)], fill=(r, g, b))
+
+    # Platin ışıltı
+    isik_k = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    ik_draw = ImageDraw.Draw(isik_k)
+    ik_draw.ellipse([genislik // 2 - 380, 400, genislik // 2 + 380, 1100], fill=(255, 255, 255, 18))
+    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), isik_k.filter(ImageFilter.GaussianBlur(90))).convert("RGB")
+
     ciz = ImageDraw.Draw(gorsel, "RGBA")
 
     alan_w = genislik - 2 * kenar
@@ -177,37 +191,35 @@ def spor_kadro_slayti_ciz(
     alt_not = (veri.get("alt_not") or veri.get("eksikler") or "").strip()
 
     # =========================================================================
-    # BÖLÜM 1: MAÇ SKORBOARD BANNERI (DERİN SLATE CAM & 1PX METALİK BORDER)
+    # BÖLÜM 1: MAÇ SKORBOARD BANNERI (NET OKUNAN KRİSTAL BAŞLIK VE LOGOLAR)
     # =========================================================================
     banner_h = 120
-    ciz.rounded_rectangle([kenar, y, genislik - kenar, y + banner_h], radius=16, fill=(12, 20, 28, 235), outline=(255, 255, 255, 25), width=1)
-    ciz.rounded_rectangle([kenar + 16, y + 1, genislik - kenar - 16, y + 2], radius=1, fill=(255, 255, 255, 50))
+    ciz.rounded_rectangle([kenar, y, genislik - kenar, y + banner_h], radius=16, fill=(14, 14, 18, 245), outline=(255, 255, 255, 45), width=1)
+    ciz.rounded_rectangle([kenar + 16, y + 1, genislik - kenar - 16, y + 2], radius=1, fill=(255, 255, 255, 90))
 
-    # Turnuva
+    # Turnuva / Lig Kapsülü (Net, parlak ve yüksek kontrastlı)
     turnuva = (veri.get("turnuva") or veri.get("lig") or "KARŞILAŞMA").strip().upper()
-    f_lig = make_image._font(15, make_image.EKSEN_BASLIK)
+    f_lig = make_image._font(16, make_image.EKSEN_BASLIK)
     lig_w = ciz.textlength(turnuva, font=f_lig)
-    ciz.text(((genislik - lig_w) / 2, y + 12), turnuva, font=f_lig, fill=(148, 163, 184))
+    ciz.rounded_rectangle([(genislik - lig_w) / 2 - 16, y + 10, (genislik + lig_w) / 2 + 16, y + 32], radius=11, fill=(255, 255, 255, 25), outline=(255, 255, 255, 70), width=1)
+    ciz.text(((genislik - lig_w) / 2, y + 12), turnuva, font=f_lig, fill=(255, 255, 255))
 
     # Ortada Karşılaşma Saati / Skor Rozeti
     skor_saat = (veri.get("skor_veya_saat") or veri.get("saat") or "20:00").strip()
     f_saat = make_image._font(24, make_image.EKSEN_BASLIK)
     saat_w = ciz.textlength(skor_saat, font=f_saat)
-    rw = max(90, int(saat_w + 28))
+    rw = max(96, int(saat_w + 28))
     rx1 = (genislik - rw) // 2
     rx2 = rx1 + rw
-    ry1 = y + 36
+    ry1 = y + 38
     ry2 = ry1 + 38
 
-    ciz.rounded_rectangle([rx1, ry1, rx2, ry2], radius=10, fill=(16, 185, 129, 30), outline=(16, 185, 129, 120), width=1)
-    ciz.text(((genislik - saat_w) / 2, ry1 + 7), skor_saat, font=f_saat, fill=(52, 211, 153))
+    ciz.rounded_rectangle([rx1, ry1, rx2, ry2], radius=10, fill=(255, 255, 255, 30), outline=(255, 255, 255, 120), width=1)
+    ciz.text(((genislik - saat_w) / 2, ry1 + 7), skor_saat, font=f_saat, fill=(255, 255, 255))
 
     # Kulüp Mini Armaları (38x38 px)
     mini_ev_logo = fetch_kulup_logo.kulup_logosu_al(ev_ad, boyut=38) if ev_ad else None
     mini_dep_logo = fetch_kulup_logo.kulup_logosu_al(dep_ad, boyut=38) if dep_ad else None
-
-    ev_renk = (245, 158, 11)   # Sıcak Kehribar (Ev Sahibi)
-    dep_renk = (56, 189, 248)  # Siber Turkuaz (Deplasman)
 
     if ev_ad and dep_ad:
         # Ev Sahibi (Sol)
@@ -216,7 +228,7 @@ def spor_kadro_slayti_ciz(
             gorsel.paste(mini_ev_logo, (ev_sol_x, ry1), mask=mini_ev_logo)
             ev_ad_x = ev_sol_x + 46
         else:
-            ciz.rounded_rectangle([ev_sol_x, ry1 + 6, ev_sol_x + 4, ry1 + 32], radius=2, fill=ev_renk)
+            ciz.rounded_rectangle([ev_sol_x, ry1 + 6, ev_sol_x + 4, ry1 + 32], radius=2, fill=(255, 255, 255))
             ev_ad_x = ev_sol_x + 14
 
         azami_takim_g = (rx1 - ev_ad_x) - 14
@@ -229,13 +241,13 @@ def spor_kadro_slayti_ciz(
             gorsel.paste(mini_dep_logo, (dep_sag_x - 38, ry1), mask=mini_dep_logo)
             dep_ad_sag_sinir = dep_sag_x - 46
         else:
-            ciz.rounded_rectangle([dep_sag_x - 4, ry1 + 6, dep_sag_x, ry1 + 32], radius=2, fill=dep_renk)
+            ciz.rounded_rectangle([dep_sag_x - 4, ry1 + 6, dep_sag_x, ry1 + 32], radius=2, fill=(203, 213, 225))
             dep_ad_sag_sinir = dep_sag_x - 14
 
         azami_dep_g = (dep_ad_sag_sinir - rx2) - 14
         dep_ad_ciz, f_dep = _takim_adi_sigdir(ciz, dep_ad, azami_dep_g)
         dep_tw = ciz.textlength(dep_ad_ciz, font=f_dep)
-        ciz.text((dep_ad_sag_sinir - dep_tw, ry1 + 5), dep_ad_ciz, font=f_dep, fill=(255, 255, 255))
+        ciz.text((dep_ad_sag_sinir - dep_tw, ry1 + 5), dep_ad_ciz, font=f_dep, fill=(241, 245, 249))
     else:
         tek_ad = make_image._buyuk_harf((ev_ad or dep_ad or "İLK 11 KADROSU"))
         tek_ciz, f_tek = _takim_adi_sigdir(ciz, tek_ad, alan_w - 48)
@@ -244,15 +256,15 @@ def spor_kadro_slayti_ciz(
     # Alt satır: Stadyum & Hakem & Yayın
     mac_bilgi = (veri.get("mac_bilgisi") or veri.get("stat_hakem") or veri.get("stadyum_saat") or "").strip()
     if mac_bilgi:
-        ciz.line([kenar + 20, y + 84, genislik - kenar - 20, y + 84], fill=(255, 255, 255, 14), width=1)
-        f_info = make_image._font(16, make_image.EKSEN_KUCUK)
+        ciz.line([kenar + 20, y + 84, genislik - kenar - 20, y + 84], fill=(255, 255, 255, 25), width=1)
+        f_info = make_image._font(16, make_image.EKSEN_BASLIK)
         info_w = ciz.textlength(mac_bilgi, font=f_info)
-        ciz.text(((genislik - info_w) / 2, y + 93), mac_bilgi, font=f_info, fill=(148, 163, 184))
+        ciz.text(((genislik - info_w) / 2, y + 93), mac_bilgi, font=f_info, fill=(226, 232, 240))
 
     y += banner_h + 12
 
     # =========================================================================
-    # BÖLÜM 2: TEK PARÇA BİRLEŞİK TAKTİK SAHA KARTI (DARK SLATE GLASS)
+    # BÖLÜM 2: TEK PARÇA BİRLEŞİK TAKTİK SAHA KARTI & BOLD FUTBOLCU İSİMLERİ
     # =========================================================================
     iki_takim = len(ev_kadro) >= 5 and len(dep_kadro) >= 5
     has_yedek = bool(ev_yedekler or dep_yedekler)
@@ -262,40 +274,40 @@ def spor_kadro_slayti_ciz(
     kulube_h = 150 if has_yedek else 0
     saha_h = kalan_alan - alt_not_h - (kulube_h + (12 if kulube_h else 0)) - (12 if alt_not_h else 0)
 
-    # Ana Birleşik Saha Kutusu (Koyu Slate Glass + İnce Beyaz Bevel)
-    ciz.rounded_rectangle([kenar, y, genislik - kenar, y + saha_h], radius=18, fill=(10, 18, 25, 240), outline=(255, 255, 255, 22), width=1)
-    ciz.rounded_rectangle([kenar + 16, y + 1, genislik - kenar - 16, y + 2], radius=1, fill=(255, 255, 255, 45))
+    # Ana Birleşik Saha Kutusu (Koyu Monokrom Lüks + İnce Krom Bevel)
+    ciz.rounded_rectangle([kenar, y, genislik - kenar, y + saha_h], radius=18, fill=(14, 14, 18, 245), outline=(255, 255, 255, 45), width=1)
+    ciz.rounded_rectangle([kenar + 16, y + 1, genislik - kenar - 16, y + 2], radius=1, fill=(255, 255, 255, 80))
 
     orta_x = genislik // 2
 
     if iki_takim:
         # Ortadaki Zarif Saha Ayrım Çizgisi ve Santra Dairesi
-        ciz.line([orta_x, y + 16, orta_x, y + saha_h - 16], fill=(255, 255, 255, 18), width=1)
+        ciz.line([orta_x, y + 16, orta_x, y + saha_h - 16], fill=(255, 255, 255, 25), width=1)
         santra_y = y + saha_h // 2
-        ciz.ellipse([orta_x - 36, santra_y - 36, orta_x + 36, santra_y + 36], outline=(255, 255, 255, 14), width=1)
+        ciz.ellipse([orta_x - 36, santra_y - 36, orta_x + 36, santra_y + 36], outline=(255, 255, 255, 25), width=1)
 
         sutun_verileri = [
-            (ev_ad, veri.get("ev_dizilis", "4-2-3-1"), veri.get("ev_td", ""), [_oyuncu_coz(x, i + 1) for i, x in enumerate(ev_kadro[:11])], ev_renk, kenar + 16, orta_x - 12),
-            (dep_ad, veri.get("dep_dizilis", "4-3-3"), veri.get("dep_td", ""), [_oyuncu_coz(x, i + 1) for i, x in enumerate(dep_kadro[:11])], dep_renk, orta_x + 12, genislik - kenar - 16),
+            (ev_ad, veri.get("ev_dizilis", "4-2-3-1"), veri.get("ev_td", ""), [_oyuncu_coz(x, i + 1) for i, x in enumerate(ev_kadro[:11])], (255, 255, 255), kenar + 16, orta_x - 12),
+            (dep_ad, veri.get("dep_dizilis", "4-3-3"), veri.get("dep_td", ""), [_oyuncu_coz(x, i + 1) for i, x in enumerate(dep_kadro[:11])], (241, 245, 249), orta_x + 12, genislik - kenar - 16),
         ]
     else:
         aktif = ev_kadro if len(ev_kadro) >= 5 else dep_kadro
         yari = (len(aktif) + 1) // 2
-        ciz.line([orta_x, y + 16, orta_x, y + saha_h - 16], fill=(255, 255, 255, 18), width=1)
+        ciz.line([orta_x, y + 16, orta_x, y + saha_h - 16], fill=(255, 255, 255, 25), width=1)
         sutun_verileri = [
-            ("SAVUNMA & ORTA SAHA", veri.get("ev_dizilis", ""), veri.get("ev_td", ""), [_oyuncu_coz(x, i + 1) for i, x in enumerate(aktif[:yari])], (16, 185, 129), kenar + 16, orta_x - 12),
-            ("HÜCUM HATTI", "", "", [_oyuncu_coz(x, yari + i + 1) for i, x in enumerate(aktif[yari:11])], (16, 185, 129), orta_x + 12, genislik - kenar - 16),
+            ("SAVUNMA & ORTA SAHA", veri.get("ev_dizilis", ""), veri.get("ev_td", ""), [_oyuncu_coz(x, i + 1) for i, x in enumerate(aktif[:yari])], (255, 255, 255), kenar + 16, orta_x - 12),
+            ("HÜCUM HATTI", "", "", [_oyuncu_coz(x, yari + i + 1) for i, x in enumerate(aktif[yari:11])], (241, 245, 249), orta_x + 12, genislik - kenar - 16),
         ]
 
     for c_i, (t_ad, t_diz, t_td, oyuncular, col_renk, c_x1, c_x2) in enumerate(sutun_verileri):
         f_diz = make_image._font(16, make_image.EKSEN_BASLIK)
-        f_td = make_image._font(15, make_image.EKSEN_KUCUK)
+        f_td = make_image._font(15, make_image.EKSEN_BASLIK)
 
         # Formasyon Rozeti
         if t_diz:
             diz_w = ciz.textlength(t_diz, font=f_diz)
-            ciz.rounded_rectangle([c_x1, y + 12, c_x1 + diz_w + 16, y + 34], radius=6, fill=(*col_renk, 25), outline=(*col_renk, 90), width=1)
-            ciz.text((c_x1 + 8, y + 14), t_diz, font=f_diz, fill=col_renk)
+            ciz.rounded_rectangle([c_x1, y + 12, c_x1 + diz_w + 16, y + 34], radius=6, fill=(255, 255, 255, 25), outline=(255, 255, 255, 90), width=1)
+            ciz.text((c_x1 + 8, y + 14), t_diz, font=f_diz, fill=(255, 255, 255))
             td_x = c_x1 + diz_w + 24
         else:
             td_x = c_x1 + 4
@@ -303,70 +315,71 @@ def spor_kadro_slayti_ciz(
         # TD
         if t_td:
             td_txt = f"TD: {t_td}"
-            ciz.text((td_x, y + 15), td_txt, font=f_td, fill=(203, 213, 225))
+            ciz.text((td_x, y + 15), td_txt, font=f_td, fill=(226, 232, 240))
 
         # İnce yatay ayırıcı
-        ciz.line([c_x1, y + 42, c_x2, y + 42], fill=(255, 255, 255, 14), width=1)
+        ciz.line([c_x1, y + 42, c_x2, y + 42], fill=(255, 255, 255, 20), width=1)
 
-        # 11 Oyuncu Satırı (Tabular Hizalı)
+        # 11 Oyuncu Satırı (DOĞUKAN İSTEĞİ: FUTBOLCU İSİMLERİ BOLD!)
         oy_y = y + 48
         adet = max(1, len(oyuncular))
         satir_h = (saha_h - 56) // adet
         f_no = make_image._font(19, make_image.EKSEN_BASLIK)
-        f_ad = make_image._font(20, make_image.EKSEN_OZET)
+        # ⚠️ İSİMLER ARTIK EXTRA BOLD!
+        f_ad_bold = make_image._font(20, make_image.EKSEN_BASLIK)
         f_badge = make_image._font(13, make_image.EKSEN_BASLIK)
 
         for o_idx, p in enumerate(oyuncular):
-            # İnce zebra satır (Hafif saydam koyu gri)
+            # İnce zebra satır
             if o_idx % 2 == 1:
-                ciz.rounded_rectangle([c_x1, oy_y - 2, c_x2, oy_y + satir_h - 4], radius=4, fill=(255, 255, 255, 8))
+                ciz.rounded_rectangle([c_x1, oy_y - 2, c_x2, oy_y + satir_h - 4], radius=4, fill=(255, 255, 255, 12))
 
             # Forma Numarası: Tabular (sağa hizalı blok)
             no_txt = str(p["no"])
             no_w = ciz.textlength(no_txt, font=f_no)
             no_x_sag = c_x1 + 28
-            ciz.text((no_x_sag - no_w, oy_y + 4), no_txt, font=f_no, fill=col_renk)
+            ciz.text((no_x_sag - no_w, oy_y + 4), no_txt, font=f_no, fill=(255, 255, 255))
 
             # Sağdaki Rozetler (KATI KURAL: Satırın en sağında yer alır)
             sag_x = c_x2 - 6
             if p["kaptan"]:
-                ciz.rounded_rectangle([sag_x - 22, oy_y + 4, sag_x, oy_y + 24], radius=4, fill=(245, 158, 11, 40), outline=(245, 158, 11, 140), width=1)
-                ciz.text((sag_x - 16, oy_y + 6), "K", font=f_badge, fill=(252, 211, 77))
+                ciz.rounded_rectangle([sag_x - 22, oy_y + 4, sag_x, oy_y + 24], radius=4, fill=(255, 255, 255, 35), outline=(255, 255, 255, 140), width=1)
+                ciz.text((sag_x - 16, oy_y + 6), "K", font=f_badge, fill=(255, 255, 255))
                 sag_x -= 28
 
             if p["kaleci"]:
-                ciz.rounded_rectangle([sag_x - 30, oy_y + 4, sag_x, oy_y + 24], radius=4, fill=(16, 185, 129, 40), outline=(16, 185, 129, 140), width=1)
-                ciz.text((sag_x - 24, oy_y + 6), "KL", font=f_badge, fill=(110, 231, 183))
+                ciz.rounded_rectangle([sag_x - 30, oy_y + 4, sag_x, oy_y + 24], radius=4, fill=(255, 255, 255, 35), outline=(255, 255, 255, 140), width=1)
+                ciz.text((sag_x - 24, oy_y + 6), "KL", font=f_badge, fill=(255, 255, 255))
                 sag_x -= 36
 
-            # Oyuncu Adı
+            # Oyuncu Adı (BOLD VE KRİSTAL BEYAZ)
             ad_x = c_x1 + 38
             max_ad_w = sag_x - ad_x - 6
-            ad_sig = _ad_akilli_sigdir(ciz, p["ad"], f_ad, max_ad_w)
-            ciz.text((ad_x, oy_y + 3), ad_sig, font=f_ad, fill=(255, 255, 255))
+            ad_sig = _ad_akilli_sigdir(ciz, p["ad"], f_ad_bold, max_ad_w)
+            ciz.text((ad_x, oy_y + 3), ad_sig, font=f_ad_bold, fill=(255, 255, 255))
 
             oy_y += satir_h
 
     y += saha_h + 12
 
     # =========================================================================
-    # BÖLÜM 3: YEDEK KULÜBESİ (DARK SLATE GLASS)
+    # BÖLÜM 3: YEDEK KULÜBESİ (BOLD İSİMLER)
     # =========================================================================
     if kulube_h:
-        ciz.rounded_rectangle([kenar, y, genislik - kenar, y + kulube_h], radius=14, fill=(10, 18, 25, 240), outline=(255, 255, 255, 20), width=1)
+        ciz.rounded_rectangle([kenar, y, genislik - kenar, y + kulube_h], radius=14, fill=(14, 14, 18, 245), outline=(255, 255, 255, 45), width=1)
 
         f_kb = make_image._font(15, make_image.EKSEN_BASLIK)
-        ciz.text((kenar + 18, y + 10), "YEDEK KULÜBESİ", font=f_kb, fill=(148, 163, 184))
+        ciz.text((kenar + 18, y + 10), "YEDEK KULÜBESİ", font=f_kb, fill=(255, 255, 255))
 
         # İki takım yedek akışı
-        ciz.line([orta_x, y + 30, orta_x, y + kulube_h - 10], fill=(255, 255, 255, 15), width=1)
+        ciz.line([orta_x, y + 30, orta_x, y + kulube_h - 10], fill=(255, 255, 255, 20), width=1)
 
-        f_ydk = make_image._font(16, make_image.EKSEN_OZET)
+        f_ydk_bold = make_image._font(16, make_image.EKSEN_BASLIK)
         f_yno = make_image._font(14, make_image.EKSEN_BASLIK)
 
-        for t_idx, (ydk_list, k_x1, k_x2, k_renk) in enumerate([
-            (ev_yedekler, kenar + 16, orta_x - 12, ev_renk),
-            (dep_yedekler, orta_x + 12, genislik - kenar - 16, dep_renk),
+        for t_idx, (ydk_list, k_x1, k_x2) in enumerate([
+            (ev_yedekler, kenar + 16, orta_x - 12),
+            (dep_yedekler, orta_x + 12, genislik - kenar - 16),
         ]):
             sub_w = (k_x2 - k_x1 - 10) // 2
             for i, yp in enumerate(ydk_list[:8]):
@@ -376,14 +389,14 @@ def spor_kadro_slayti_ciz(
                 py = y + 34 + srow * 26
 
                 # Forma no (tabular)
-                ciz.text((px, py + 1), str(yp["no"]), font=f_yno, fill=k_renk)
+                ciz.text((px, py + 1), str(yp["no"]), font=f_yno, fill=(255, 255, 255))
 
                 # İsim + (KL) sonda
                 ad_txt = yp["ad"]
                 if yp["kaleci"]:
                     ad_txt += " (KL)"
-                ad_sig = _ad_akilli_sigdir(ciz, ad_txt, f_ydk, sub_w - 28)
-                ciz.text((px + 24, py), ad_sig, font=f_ydk, fill=(226, 232, 240))
+                ad_sig = _ad_akilli_sigdir(ciz, ad_txt, f_ydk_bold, sub_w - 28)
+                ciz.text((px + 24, py), ad_sig, font=f_ydk_bold, fill=(241, 245, 249))
 
         y += kulube_h + 12
 
@@ -391,15 +404,15 @@ def spor_kadro_slayti_ciz(
     # BÖLÜM 4: EKSİKLER & MAÇ NOTU (DISCIPLINED STATUS LINE)
     # =========================================================================
     if alt_not:
-        ciz.rounded_rectangle([kenar, y, genislik - kenar, y_alt], radius=12, fill=(12, 20, 28, 235), outline=(245, 158, 11, 70), width=1)
-        ciz.rounded_rectangle([kenar, y, kenar + 5, y_alt], radius=2, fill=(245, 158, 11))
+        ciz.rounded_rectangle([kenar, y, genislik - kenar, y_alt], radius=12, fill=(14, 14, 18, 245), outline=(255, 255, 255, 50), width=1)
+        ciz.rounded_rectangle([kenar, y, kenar + 5, y_alt], radius=2, fill=(255, 255, 255))
 
-        f_not = make_image._font(18, make_image.EKSEN_OZET)
+        f_not = make_image._font(18, make_image.EKSEN_BASLIK)
         alt_not_temiz = re.sub(r"[\u2600-\u27bf\U0001f300-\U0001f9ff⚠️📌🔴🚨★⭐⚽]", "", alt_not).strip()
         not_satirlar = metin_kutuya_sar(ciz, alt_not_temiz, f_not, alan_w - 36, maks_satir=2)
         ny = y + (y_alt - y - len(not_satirlar) * 22) // 2
         for ns in not_satirlar:
-            ciz.text((kenar + 18, ny), ns, font=f_not, fill=(241, 245, 249))
+            ciz.text((kenar + 18, ny), ns, font=f_not, fill=(255, 255, 255))
             ny += 22
 
     return ust_ve_alt_bar_bas(
@@ -407,7 +420,7 @@ def spor_kadro_slayti_ciz(
         ayarlar=ayarlar,
         kaynak=kaynak,
         rozet_metni="MAÇ KADROLARI & İLK 11",
-        rozet_renk=(16, 185, 129),
+        rozet_renk=(255, 255, 255),
         ulke_kodu=haber.get("ulke_kodu") or None,
         ulke_adi=haber.get("ulke_adi") or None,
         sayfa=sayfa,

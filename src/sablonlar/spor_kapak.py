@@ -89,19 +89,18 @@ def spor_kapak_slayti_ciz(
     skor_saat = (veri.get("skor_veya_saat") or veri.get("saat") or "20:00").strip()
     mac_bilgi = (veri.get("mac_bilgisi") or veri.get("stat_hakem") or veri.get("stadyum_saat") or "").strip()
 
-    # 1. TEMEL TUVAL — Canlı Çim ve Projektör Zemin
-    gorsel = stadyum_zemini_olustur(genislik, yukseklik)
+    # 1. TEMEL TUVAL — VIP 3: Split Clash Arena (İki Kulübün Renk Atmosferi & Çim Zemin)
+    gorsel = Image.new("RGB", (genislik, yukseklik), (6, 14, 20))
 
-    # Volumetrik Nova & Projektör Işıkları
-    isik = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
-    i_draw = ImageDraw.Draw(isik)
-    # Sol GS Kehribar Flare
-    i_draw.ellipse([0, 480, 560, 1060], fill=(245, 158, 11, 75))
-    i_draw.polygon([(0, 0), (340, 0), (500, 950), (0, 800)], fill=(245, 158, 11, 30))
-    # Sağ FB Safir Flare
-    i_draw.ellipse([520, 480, 1080, 1060], fill=(56, 189, 248, 75))
-    i_draw.polygon([(740, 0), (1080, 0), (1080, 800), (580, 950)], fill=(6, 182, 212, 30))
-    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), isik.filter(ImageFilter.GaussianBlur(70))).convert("RGB")
+    # Split Arena Diyagonal Atmosfer (Sol: Ev Sahibi / Sağ: Deplasman)
+    split = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    s_draw = ImageDraw.Draw(split)
+    s_draw.polygon([(0, 0), (genislik // 2 + 100, 0), (genislik // 2 - 100, 1150), (0, 1150)], fill=(130, 24, 24, 95))
+    s_draw.polygon([(genislik // 2 + 100, 0), (genislik, 0), (genislik, 1150), (genislik // 2 - 100, 1150)], fill=(10, 48, 120, 95))
+    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), split.filter(ImageFilter.GaussianBlur(70))).convert("RGB")
+
+    ciz_split = ImageDraw.Draw(gorsel, "RGBA")
+    ciz_split.line([(genislik // 2 + 80, dikey_kenar + 120), (genislik // 2 - 80, dikey_kenar + 680)], fill=(255, 255, 255, 55), width=2)
 
     # =========================================================================
     # GÖRSEL ALANI: 380px DEVASA RESMİ 3D KULÜP ARMALARI & MAÇ MERKEZİ
@@ -117,9 +116,9 @@ def spor_kapak_slayti_ciz(
     # 3D Derinlik Gölgeleri
     golge = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
     g_draw = ImageDraw.Draw(golge)
-    g_draw.ellipse([sol_x - 12, y_arma + arma_boyutu - 45, sol_x + arma_boyutu + 12, y_arma + arma_boyutu + 50], fill=(0, 0, 0, 235))
-    g_draw.ellipse([sag_x - 12, y_arma + arma_boyutu - 45, sag_x + arma_boyutu + 12, y_arma + arma_boyutu + 50], fill=(0, 0, 0, 235))
-    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), golge.filter(ImageFilter.GaussianBlur(26))).convert("RGB")
+    g_draw.ellipse([sol_x - 12, y_arma + 25, sol_x + arma_boyutu + 12, y_arma + arma_boyutu + 45], fill=(0, 0, 0, 230))
+    g_draw.ellipse([sag_x - 12, y_arma + 25, sag_x + arma_boyutu + 12, y_arma + arma_boyutu + 45], fill=(0, 0, 0, 230))
+    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), golge.filter(ImageFilter.GaussianBlur(24))).convert("RGB")
 
     if logo_ev:
         gorsel.paste(logo_ev, (sol_x, y_arma), mask=logo_ev)
@@ -139,23 +138,17 @@ def spor_kapak_slayti_ciz(
 
     ciz = ImageDraw.Draw(gorsel, "RGBA")
 
-    # Merkez 3D Cam Faset Kapsülü (VS + Saat)
+    # Merkez Daire 'VS 20:00' Madalyon Rozeti
     mx = genislik // 2
     my = y_arma + arma_boyutu // 2
-    cw = 176
-    ch = 146
-    ciz.rounded_rectangle([mx - cw // 2, my - ch // 2, mx + cw // 2, my + ch // 2], radius=26, fill=(6, 18, 22, 245), outline=(255, 255, 255, 70), width=2)
-    ciz.rounded_rectangle([mx - cw // 2 + 6, my - ch // 2 + 6, mx + cw // 2 - 6, my + ch // 2 - 6], radius=20, outline=(16, 185, 129, 140), width=1)
+    rc = 68
+    ciz.ellipse([mx - rc, my - rc, mx + rc, my + rc], fill=(8, 18, 26, 250), outline=(255, 255, 255, 80), width=2)
+    ciz.ellipse([mx - rc + 6, my - rc + 6, mx + rc - 6, my + rc - 6], outline=(245, 158, 11, 140), width=1)
 
-    f_lig = make_image._font(14, make_image.EKSEN_BASLIK)
-    lig_txt = turnuva if len(turnuva) <= 18 else "SÜPER LİG"
-    ciz.text(((genislik - ciz.textlength(lig_txt, font=f_lig)) / 2, my - ch // 2 + 16), lig_txt, font=f_lig, fill=(245, 158, 11))
-
-    f_vs = make_image._font(44, make_image.EKSEN_BASLIK)
-    ciz.text(((genislik - ciz.textlength("VS", font=f_vs)) / 2, my - 26), "VS", font=f_vs, fill=(255, 255, 255))
-
-    f_saat = make_image._font(23, make_image.EKSEN_BASLIK)
-    ciz.text(((genislik - ciz.textlength(skor_saat, font=f_saat)) / 2, my + 34), skor_saat, font=f_saat, fill=(52, 211, 153))
+    f_vs = make_image._font(40, make_image.EKSEN_BASLIK)
+    f_saat = make_image._font(20, make_image.EKSEN_BASLIK)
+    ciz.text(((genislik - ciz.textlength("VS", font=f_vs)) / 2, my - 38), "VS", font=f_vs, fill=(255, 255, 255))
+    ciz.text(((genislik - ciz.textlength(skor_saat, font=f_saat)) / 2, my + 10), skor_saat, font=f_saat, fill=(245, 158, 11))
 
     # Armaların Altındaki Takım İsimleri
     f_isim = make_image._font(32, make_image.EKSEN_BASLIK)
@@ -171,8 +164,8 @@ def spor_kapak_slayti_ciz(
     if mac_bilgi:
         f_info = make_image._font(18, make_image.EKSEN_BASLIK)
         iw = ciz.textlength(mac_bilgi, font=f_info)
-        ciz.rounded_rectangle([(genislik - iw) / 2 - 22, isim_y + 48, (genislik + iw) / 2 + 22, isim_y + 88], radius=20, fill=(6, 22, 26, 235), outline=(255, 255, 255, 30), width=1)
-        ciz.text(((genislik - iw) / 2, isim_y + 57), mac_bilgi, font=f_info, fill=(167, 243, 208))
+        ciz.rounded_rectangle([(genislik - iw) / 2 - 22, isim_y + 48, (genislik + iw) / 2 + 22, isim_y + 88], radius=20, fill=(6, 20, 28, 230), outline=(255, 255, 255, 30), width=1)
+        ciz.text(((genislik - iw) / 2, isim_y + 57), mac_bilgi, font=f_info, fill=(226, 232, 240))
 
     # =========================================================================
     # DAILY BRIEF RESMİ METİN & TİPOGRAFİ MOTORU (make_image.yaziyi_bas)
