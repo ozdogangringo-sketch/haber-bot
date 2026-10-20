@@ -245,4 +245,102 @@ def test_prompt_format_keyerror_yok():
     assert "spor_kadro" in sonuc
 
 
+def test_spor_kadro_oyuncu_ve_yedek_cozucu():
+    """spor_kadro'da kaptan ve kaleci etiketleri isimden temizlenmeli ve sonda yer almalı."""
+    from src.sablonlar.spor_kadro import _oyuncu_coz, _yedekleri_coz
+
+    # 1. Başta veya sonda KL / K / Forma no
+    p1 = _oyuncu_coz("1 Fernando Muslera (KL) (K)", 1)
+    assert p1["no"] == "1"
+    assert p1["ad"] == "Fernando Muslera"
+    assert p1["kaleci"] is True
+    assert p1["kaptan"] is True
+
+    # 2. Sonda C veya Kaptan
+    p2 = _oyuncu_coz("10 Dusan Tadic [C]", 10)
+    assert p2["no"] == "10"
+    assert p2["ad"] == "Dusan Tadic"
+    assert p2["kaptan"] is True
+    assert p2["kaleci"] is False
+
+    # 3. Yedekler listesi ve virgüllü string
+    yedekler_str = "12 Günay Güvenç (KL), 8 Kerem Demirbay, 44 Michy Batshuayi"
+    cozulen = _yedekleri_coz(yedekler_str)
+    assert len(cozulen) == 3
+    assert cozulen[0]["ad"] == "Günay Güvenç"
+    assert cozulen[0]["kaleci"] is True
+    assert cozulen[1]["ad"] == "Kerem Demirbay"
+
+
+def test_spor_kadro_sabotaj_ve_tek_takim():
+    """Çok uzun isimler ve tek takım kadrosu 1080x1920 tuvalde hatasız ve taşmasız çizilmeli."""
+    haber = {
+        "id": 999,
+        "kategori": "spor",
+        "kaynak": "beIN Sports",
+        "ulke_kodu": "TR",
+        "detay_sablonu": "spor_kadro",
+        "sablon_verisi": json.dumps({
+            "turnuva": "İngiltere Premier Lig • 30. Hafta Derbisi",
+            "ev_sahibi": "Wolverhampton Wanderers",
+            "deplasman": "Brighton & Hove Albion",
+            "skor_veya_saat": "18:30",
+            "mac_bilgisi": "Molineux Stadium · Hakem: Anthony Taylor",
+            "ev_td": "Gary O'Neil",
+            "dep_td": "Fabian Hürzeler",
+            "ev_kadro": [
+                "1 Jose Sa (KL)",
+                "22 Nelson Semedo",
+                "15 Craig Dawson",
+                "24 Toti Gomes",
+                "3 Rayan Ait-Nouri",
+                "5 Mario Lemina (K)",
+                "8 Joao Gomes",
+                "27 Jean-Ricner Bellegarde",
+                "7 Andre Trindade",
+                "11 Hwang Hee-chan",
+                "9 Jorgen Strand Larsen",
+            ],
+            "dep_kadro": [
+                "1 Bart Verbruggen (KL)",
+                "34 Joel Veltman",
+                "29 Jan Paul van Hecke",
+                "5 Lewis Dunk (K)",
+                "30 Pervis Estupinan",
+                "20 Carlos Baleba",
+                "41 Jack Hinshelwood",
+                "22 Kaoru Mitoma",
+                "14 Georginio Rutter",
+                "11 Simon Adingra",
+                "18 Danny Welbeck",
+            ],
+            "ev_yedekler": [
+                "25 Daniel Bentley (KL)",
+                "2 Matt Doherty",
+                "4 Santiago Bueno",
+                "20 Tommy Doyle",
+                "19 Rodrigo Gomes",
+                "29 Goncalo Guedes",
+                "21 Pablo Sarabia",
+                "26 Carlos Forbs",
+            ],
+            "dep_yedekler": [
+                "23 Jason Steele (KL)",
+                "2 Tariq Lamptey",
+                "3 Igor Julio",
+                "27 Mats Wieffer",
+                "8 Brajan Gruda",
+                "10 Julio Enciso",
+                "24 Simon Adingra",
+                "28 Evan Ferguson",
+            ],
+            "alt_not": "Eksikler: Pedro Neto, Sasa Kalajdzic (WOL) / Solly March, Matt O'Riley (BHA)",
+        }, ensure_ascii=False),
+    }
+    im = sablonlar.ozel_detay_slayti_uret(haber, ORNEK_AYARLAR, sayfa=2, toplam_sayfa=3)
+    assert isinstance(im, Image.Image)
+    assert im.size == (1080, 1920)
+
+
+
 

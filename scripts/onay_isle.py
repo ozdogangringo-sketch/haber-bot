@@ -274,11 +274,22 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_tt_video = False
         paylas_tt = bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
 
+    # Kadro / İlk 11 infografikleri yoğun okuma kartıdır (22 oyuncu + yedekler).
+    # Reels / Shorts / TikTok dikey video olarak okunamaz; yalnızca Carousel / çoklu gönderi olarak yayınlanır.
+    if any(h.get("detay_sablonu") == "spor_kadro" for h in haberler):
+        paylas_reels = False
+        paylas_tt_video = False
+        paylas_yt = False
+        paylas_fb_reels = False
+        log.info("spor_kadro şablonu tespit edildi: video kanalları kapatıldı, yalnızca Carousel gönderi kanalları aktif.")
+
     # "🎙️ Sesli Yayınla" (2026-09-26, postedm'den): Worker kanal listesine ses_muzikli /
     # ses_muziksiz ekler; planlı yayında da yayin_kanallari ile taşınır. Seslendirme
     # yalnızca video kanallarına (Reels, TikTok, Shorts, FB Reels) uygulanır.
     ses_kumesi = {k.strip().lower() for k in (secili or "").split(",")}
     ses_modu = "muzikli" if "ses_muzikli" in ses_kumesi else ("muziksiz" if "ses_muziksiz" in ses_kumesi else None)
+    if any(h.get("detay_sablonu") == "spor_kadro" for h in haberler):
+        ses_modu = None
     ses_notu = ""
     ses_sonucu: dict = {}
     ses_sonucu_yt: dict = {}
