@@ -89,19 +89,6 @@ def spor_kapak_slayti_ciz(
     skor_saat = (veri.get("skor_veya_saat") or veri.get("saat") or "20:00").strip()
     mac_bilgi = (veri.get("mac_bilgisi") or veri.get("stat_hakem") or veri.get("stadyum_saat") or "").strip()
 
-    # 1. TEMEL TUVAL — VIP 3: Split Clash Arena (İki Kulübün Renk Atmosferi & Çim Zemin)
-    gorsel = Image.new("RGB", (genislik, yukseklik), (6, 14, 20))
-
-    # Split Arena Diyagonal Atmosfer (Sol: Ev Sahibi / Sağ: Deplasman)
-    split = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
-    s_draw = ImageDraw.Draw(split)
-    s_draw.polygon([(0, 0), (genislik // 2 + 100, 0), (genislik // 2 - 100, 1150), (0, 1150)], fill=(130, 24, 24, 95))
-    s_draw.polygon([(genislik // 2 + 100, 0), (genislik, 0), (genislik, 1150), (genislik // 2 - 100, 1150)], fill=(10, 48, 120, 95))
-    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), split.filter(ImageFilter.GaussianBlur(70))).convert("RGB")
-
-    ciz_split = ImageDraw.Draw(gorsel, "RGBA")
-    ciz_split.line([(genislik // 2 + 80, dikey_kenar + 120), (genislik // 2 - 80, dikey_kenar + 680)], fill=(255, 255, 255, 55), width=2)
-
     # =========================================================================
     # GÖRSEL ALANI: 380px DEVASA RESMİ 3D KULÜP ARMALARI & MAÇ MERKEZİ
     # =========================================================================
@@ -112,6 +99,33 @@ def spor_kapak_slayti_ciz(
 
     logo_ev = fetch_kulup_logo.kulup_logosu_al(ev_ad, boyut=arma_boyutu)
     logo_dep = fetch_kulup_logo.kulup_logosu_al(dep_ad, boyut=arma_boyutu)
+
+    # Doğukan İsteği: Kapaktaki iki renk stadyum atmosferi takımların kendi renklerinden oluşur
+    ev_renkler = fetch_kulup_logo.kulup_renkleri_al(ev_ad, logo_ev)
+    dep_renkler = fetch_kulup_logo.kulup_renkleri_al(dep_ad, logo_dep)
+
+    ev_atmo = ev_renkler.get("atmosphere", (119, 13, 44))
+    dep_atmo = dep_renkler.get("atmosphere", (20, 20, 28))
+
+    # 1. TEMEL TUVAL — VIP 3: Split Clash Arena (İki Kulübün Özgün Renk Atmosferi)
+    gorsel = Image.new("RGB", (genislik, yukseklik), (6, 12, 18))
+
+    # Split Arena Diyagonal Atmosfer (Sol: Ev Sahibi Kulüp Rengi / Sağ: Deplasman Kulüp Rengi)
+    split = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    s_draw = ImageDraw.Draw(split)
+    s_draw.polygon([(0, 0), (genislik // 2 + 100, 0), (genislik // 2 - 100, 1150), (0, 1150)], fill=(ev_atmo[0], ev_atmo[1], ev_atmo[2], 115))
+    s_draw.polygon([(genislik // 2 + 100, 0), (genislik, 0), (genislik, 1150), (genislik // 2 - 100, 1150)], fill=(dep_atmo[0], dep_atmo[1], dep_atmo[2], 115))
+    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), split.filter(ImageFilter.GaussianBlur(80))).convert("RGB")
+
+    # Armaların Arkasındaki Volümetrik Kulüp Parıltısı (Hale)
+    hale = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    h_draw = ImageDraw.Draw(hale)
+    h_draw.ellipse([sol_x - 30, y_arma - 30, sol_x + arma_boyutu + 30, y_arma + arma_boyutu + 30], fill=(ev_atmo[0], ev_atmo[1], ev_atmo[2], 75))
+    h_draw.ellipse([sag_x - 30, y_arma - 30, sag_x + arma_boyutu + 30, y_arma + arma_boyutu + 30], fill=(dep_atmo[0], dep_atmo[1], dep_atmo[2], 75))
+    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), hale.filter(ImageFilter.GaussianBlur(55))).convert("RGB")
+
+    ciz_split = ImageDraw.Draw(gorsel, "RGBA")
+    ciz_split.line([(genislik // 2 + 80, dikey_kenar + 120), (genislik // 2 - 80, dikey_kenar + 680)], fill=(255, 255, 255, 55), width=2)
 
     # 3D Derinlik Gölgeleri
     golge = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
