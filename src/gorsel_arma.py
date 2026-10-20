@@ -230,7 +230,7 @@ def _kaynak_satiri_ciz(
 
     kucuk = _font(26, EKSEN_KUCUK)
     ciz.ellipse([kenar, alt_bilgi_y + 8, kenar + 8, alt_bilgi_y + 16], fill=(226, 170, 88))
-    metin = _buyuk_harf(kaynak)
+    metin = _buyuk_harf(kaynak).replace("DAİLY", "DAILY").replace("BRİEF", "BRIEF")
     if arsiv_ibaresi:
         metin += "   ·   ARŞİV GÖRSELİ"
 

@@ -192,22 +192,17 @@ def mac_kadrosunu_cek(fixture_id: int) -> dict | None:
     ev_dizilis = ev_lineup.get("formation") or "4-2-3-1"
     dep_dizilis = dep_lineup.get("formation") or "4-3-3"
 
-    # Alt not
-    status_short = fixture_info.get("status", {}).get("short", "NS")
-    if status_short in ("FT", "AET", "PEN"):
-        g_ev = fix_data.get("goals", {}).get("home", 0)
-        g_dep = fix_data.get("goals", {}).get("away", 0)
-        alt_not = f"Karşılaşma Sonucu: {ev_ad} {g_ev} - {g_dep} {dep_ad}"
-        skor_saat = f"{g_ev} - {g_dep}"
-    else:
-        alt_not = f"Karşılaşma saat {saat_tr}'de başlayacak. Resmi kadrolar ve yedek kulübeleri açıklandı."
-        skor_saat = saat_tr
+    # Kadro şablonu bir "MAÇ ÖNÜ" duyurusudur; merkez rozette ve metinde HER ZAMAN
+    # karşılaşmanın başlama saati (örn: 20:00) yer alır (asla maç skoru yazılmaz).
+    alt_not = f"Karşılaşma saat {saat_tr}'de başlayacak. Resmi ilk 11'ler ve yedek kulübeleri açıklandı."
+    skor_saat = saat_tr
 
     sablon_verisi = {
         "turnuva": turnuva,
         "ev_sahibi": ev_ad,
         "deplasman": dep_ad,
         "skor_veya_saat": skor_saat,
+        "saat": saat_tr,
         "mac_bilgisi": mac_bilgisi,
         "ev_td": ev_td,
         "deplasman_td": dep_td,

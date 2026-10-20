@@ -160,7 +160,9 @@ def spor_kadro_slayti_ciz(
     kenar = 64
     dikey_kenar = make_image.STORY_GUVENLI_PAY  # 330
     alt_bilgi_y = yukseklik - dikey_kenar - 34
-    y_alt = alt_bilgi_y - 20
+    # Sosyal medya ikonları (alt_bilgi_y + 13) ve dailybrief.co (y=1533) ile
+    # sıfır çakışma ve ferah nefes payı için alt sınır 68px yukarı çekildi:
+    y_alt = alt_bilgi_y - 68
 
     # ⚠️ KATI GÜVENLİ ALAN KURALI:
     # Daily Brief 3D logosu Y=330'da başlar, 144px boyutuyla Y=484'te biter.
@@ -270,9 +272,9 @@ def spor_kadro_slayti_ciz(
     has_yedek = bool(ev_yedekler or dep_yedekler)
 
     kalan_alan = y_alt - y
-    alt_not_h = 80 if alt_not else 0
-    kulube_h = 150 if has_yedek else 0
-    saha_h = kalan_alan - alt_not_h - (kulube_h + (12 if kulube_h else 0)) - (12 if alt_not_h else 0)
+    alt_not_h = 68 if alt_not else 0
+    kulube_h = 138 if has_yedek else 0
+    saha_h = kalan_alan - alt_not_h - (kulube_h + (10 if kulube_h else 0)) - (10 if alt_not_h else 0)
 
     # Ana Birleşik Saha Kutusu (Koyu Monokrom Lüks + İnce Krom Bevel)
     ciz.rounded_rectangle([kenar, y, genislik - kenar, y + saha_h], radius=18, fill=(14, 14, 18, 245), outline=(255, 255, 255, 45), width=1)
@@ -374,8 +376,8 @@ def spor_kadro_slayti_ciz(
         # İki takım yedek akışı
         ciz.line([orta_x, y + 30, orta_x, y + kulube_h - 10], fill=(255, 255, 255, 20), width=1)
 
-        f_ydk_bold = make_image._font(16, make_image.EKSEN_BASLIK)
-        f_yno = make_image._font(14, make_image.EKSEN_BASLIK)
+        f_ydk_bold = make_image._font(15, make_image.EKSEN_BASLIK)
+        f_yno = make_image._font(13, make_image.EKSEN_BASLIK)
 
         for t_idx, (ydk_list, k_x1, k_x2) in enumerate([
             (ev_yedekler, kenar + 16, orta_x - 12),
@@ -386,7 +388,7 @@ def spor_kadro_slayti_ciz(
                 scol = i % 2
                 srow = i // 2
                 px = k_x1 + scol * (sub_w + 10)
-                py = y + 34 + srow * 26
+                py = y + 32 + srow * 24
 
                 # Forma no (tabular)
                 ciz.text((px, py + 1), str(yp["no"]), font=f_yno, fill=(255, 255, 255))
@@ -398,7 +400,7 @@ def spor_kadro_slayti_ciz(
                 ad_sig = _ad_akilli_sigdir(ciz, ad_txt, f_ydk_bold, sub_w - 28)
                 ciz.text((px + 24, py), ad_sig, font=f_ydk_bold, fill=(241, 245, 249))
 
-        y += kulube_h + 12
+        y += kulube_h + 10
 
     # =========================================================================
     # BÖLÜM 4: EKSİKLER & MAÇ NOTU (DISCIPLINED STATUS LINE)
@@ -407,19 +409,19 @@ def spor_kadro_slayti_ciz(
         ciz.rounded_rectangle([kenar, y, genislik - kenar, y_alt], radius=12, fill=(14, 14, 18, 245), outline=(255, 255, 255, 50), width=1)
         ciz.rounded_rectangle([kenar, y, kenar + 5, y_alt], radius=2, fill=(255, 255, 255))
 
-        f_not = make_image._font(18, make_image.EKSEN_BASLIK)
+        f_not = make_image._font(17, make_image.EKSEN_BASLIK)
         alt_not_temiz = re.sub(r"[\u2600-\u27bf\U0001f300-\U0001f9ff⚠️📌🔴🚨★⭐⚽]", "", alt_not).strip()
         not_satirlar = metin_kutuya_sar(ciz, alt_not_temiz, f_not, alan_w - 36, maks_satir=2)
-        ny = y + (y_alt - y - len(not_satirlar) * 22) // 2
+        ny = y + (y_alt - y - len(not_satirlar) * 20) // 2
         for ns in not_satirlar:
             ciz.text((kenar + 18, ny), ns, font=f_not, fill=(255, 255, 255))
-            ny += 22
+            ny += 20
 
     return ust_ve_alt_bar_bas(
         gorsel,
         ayarlar=ayarlar,
         kaynak=kaynak,
-        rozet_metni="MAÇ KADROLARI & İLK 11",
+        rozet_metni="",  # 144px 3D logo tek başına tertemiz kalsın (içi boş beyaz kutu kalktı)
         rozet_renk=(255, 255, 255),
         ulke_kodu=haber.get("ulke_kodu") or None,
         ulke_adi=haber.get("ulke_adi") or None,
