@@ -961,10 +961,12 @@ def yaziyi_bas(
         ciz.text((kenar, alt_bilgi_y - 36), cta_metin, font=cta_font, fill=(226, 170, 88))
         _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi)
     elif yukseklik >= 1800:
-        # Kapak Slaytı (1080x1920): Carousel akışında detay slaytlarına geçiş köprüsü
+        # Kapak Slaytı (1080x1920): Carousel akışında detay slaytlarına geçiş oku
+        # Metin olmadan yalnızca şık bir "→" oku kullanılır; hem Carousel'de kaydırma yönünü
+        # gösterir hem de Reels/TikTok/Shorts video formatında gereksiz metin karmaşası yaratmaz.
         # Düşeyde sağdaki sosyal medya logolarıyla (y_merkez) tam ortalanır.
-        sw_metin = "Detaylar için kaydırın →"
-        sw_punto = 24
+        sw_metin = "→"
+        sw_punto = 30
         sw_font = _font(sw_punto, EKSEN_KUCUK)
         sw_gen = ciz.textlength(sw_metin, font=sw_font)
 
@@ -975,13 +977,13 @@ def yaziyi_bas(
 
         # Sağ güvenlik bariyeri: Sosyal medya ikonlarına ve dailybrief.co'ya taşmayı engelle
         if sw_sag + EMNIYET_BOSLUK > ikonlar_sol:
-            sw_punto = 20
+            sw_punto = 24
             sw_font = _font(sw_punto, EKSEN_KUCUK)
             sw_gen = ciz.textlength(sw_metin, font=sw_font)
             sw_sol = sw_x_orta - (sw_gen / 2)
             sw_sag = sw_x_orta + (sw_gen / 2)
 
-        # Sol güvenlik bariyeri: Kaynak metninin orta köprüye taşmasını kesin olarak engelle
+        # Sol güvenlik bariyeri: Kaynak metninin orta oka taşmasını kesin olarak engelle
         azami_kaynak_sag = int(sw_sol - EMNIYET_BOSLUK)
         _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=azami_kaynak_sag)
 
