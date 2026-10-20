@@ -500,11 +500,31 @@
                     <span>Target: Creator Profile</span>
                 </div>
                 <div class="video-box">
-                    <video controls playsinline preload="metadata" poster="/logo.webp">
+                    <video controls playsinline preload="metadata" poster="/assets/sample_poster.png">
                         <source src="/assets/sample.mp4" type="video/mp4">
                         Your browser does not support the video tag.
                     </video>
                 </div>
+
+                <div class="player-meta" style="margin-top: 16px; background: rgba(7, 34, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px 18px; font-size: 13px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">
+                        <span style="color: var(--text-muted);">Content Type:</span>
+                        <strong style="color: var(--text-main);">Son Dakika &amp; Meteoroloji Bülteni (9:16 Dikey)</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">
+                        <span style="color: var(--text-muted);">Source &amp; Data:</span>
+                        <strong style="color: var(--text-main);">İstanbul Valiliği, Meteoroloji &amp; Sözcü Gündem</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">
+                        <span style="color: var(--text-muted);">Narration Voice:</span>
+                        <strong style="color: var(--gold);">Adam (ElevenLabs Stüdyo Spikeri)</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: var(--text-muted);">Publishing Target:</span>
+                        <strong style="color: #FE2C55;">TikTok Direct Post (v2)</strong>
+                    </div>
+                </div>
+
                 <div style="margin-top: 16px;">
                     <button id="btn-publish-tiktok" type="button" style="width: 100%; justify-content: center; font-size: 15px; padding: 14px 20px; cursor: pointer; border: none; font-weight: 700; border-radius: 12px; background: #FE2C55; color: #fff; display: flex; align-items: center; gap: 10px; transition: all 0.2s ease;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.85.12V9.32a6.34 6.34 0 0 0-.85-.06A6.34 6.34 0 0 0 3 15.6a6.34 6.34 0 0 0 10.82 4.48 6.27 6.27 0 0 0 1.93-4.55V8.58a8.28 8.28 0 0 0 4.84 1.56V6.69h-1z"/></svg>
@@ -523,21 +543,22 @@
             </div>
             
             <div class="showcase-info">
-                <h3>Editorial 9:16 Video Production Pipeline</h3>
+                <h3>Verified News &amp; Meteorology Bulletin Pipeline</h3>
                 <p>
-                    Every publication undergoes strict human editorial oversight via our secure management portal before dispatch. 
-                    The rendering engine outputs 1080x1920 (9:16) 30 FPS MP4 video with balanced typography, verified source attribution, 
-                    and synchronized narration.
+                    Sample Bulletin: <strong>İstanbul Valiliği'nden fırtına uyarısı: Rüzgar hızı 80 km/s'ye ulaşacak</strong>. 
+                    Every publication undergoes strict human editorial oversight via our creator studio before dispatch. 
+                    The rendering engine outputs broadcast-grade 1080x1920 (9:16) 30 FPS MP4 video with balanced typography, verified source attribution, 
+                    and synchronized ElevenLabs studio narration.
                 </p>
                 
                 <ul class="spec-list">
                     <li class="spec-item">
                         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                        <span>Verified public wire services &amp; market data (BIST, FED, Central Banks).</span>
+                        <span>Verified public wire services, official statements &amp; meteorological data.</span>
                     </li>
                     <li class="spec-item">
                         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                        <span>Zero hallucination guarantee — every card features explicit source citation.</span>
+                        <span>Zero hallucination guarantee — every bulletin features explicit source attribution.</span>
                     </li>
                     <li class="spec-item">
                         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
@@ -545,8 +566,8 @@
                     </li>
                 </ul>
                 
-                <a href="https://www.tiktok.com/@dailybrief.co" target="_blank" rel="noopener" class="btn-secondary">
-                    <span>Visit @dailybrief.co on TikTok &rarr;</span>
+                <a href="#scopes" class="btn-secondary">
+                    <span>Inspect API Permissions &rarr;</span>
                 </a>
             </div>
         </div>
