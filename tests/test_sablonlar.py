@@ -74,6 +74,33 @@ def test_spor_kadro_sablonu_1080x1920():
     assert im.size == (1080, 1920)
 
 
+def test_spor_kapak_sablonu_1080x1920():
+    haber = {
+        "id": 101,
+        "kategori": "spor",
+        "kaynak": "TRT Spor",
+        "ulke_kodu": "TR",
+        "ig_baslik": "DEV DERBİDE İLK 11'LER BELLİ OLDU",
+        "spot": "Galatasaray ve Bayern Münih Şampiyonlar Ligi maçı öncesi ilk 11'ler açıklandı.",
+        "detay_sablonu": "spor_kadro",
+        "sablon_verisi": json.dumps({
+            "turnuva": "UEFA Şampiyonlar Ligi",
+            "stadyum_saat": "RAMS Park • 22:00",
+            "ev_sahibi": "Galatasaray",
+            "deplasman": "Bayern Münih",
+            "ev_td": "Okan Buruk",
+            "dep_td": "Vincent Kompany",
+            "maddeler": [
+                ("ZİRVE YARIŞI", "Liderlik için sahada."),
+                ("GOLCÜLER", "Osimhen ve Kane sahada."),
+            ],
+        }, ensure_ascii=False),
+    }
+    im = sablonlar.ozel_kapak_slayti_uret(haber, ORNEK_AYARLAR, sayfa=1, toplam_sayfa=3)
+    assert isinstance(im, Image.Image)
+    assert im.size == (1080, 1920)
+
+
 def test_hava_durumu_sablonu_1080x1920():
     haber = {
         "id": 102,

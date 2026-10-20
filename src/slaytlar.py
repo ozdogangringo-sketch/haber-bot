@@ -1332,21 +1332,39 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
     )
 
     # --- %100 SAF NATIVE 9:16 (1080x1920) ÜRETİM (4:5 tamamen kaldırıldı) ---
-    # Slayt 1: 1080x1920 Native Kapak Slaytı
-    gorsel_kapak = make_image.story_haber(
-        _slayt_metni(haber, "ig_baslik", ayarlar),
-        _slayt_metni(haber, "slayt_ozet", ayarlar),
-        make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
-        ayarlar,
-        arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
-        kategori=haber["kategori"] or "turkiye",
-        son_dakika=son_dakika_mi,
-        ulke_kodu=_alan(haber, "ulke_kodu") or None,
-        ulke_adi=_alan(haber, "ulke_adi") or None,
-        veri_karti=veri_karti,
-        arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
-        haber=dict(haber),
-    )
+    # Slayt 1: 1080x1920 Native Kapak Slaytı (Spor Kadro için Armalı Maç Günü Kapağı)
+    gorsel_kapak = None
+    if _alan(haber, "detay_sablonu") == "spor_kadro":
+        try:
+            from src import sablonlar
+            toplam_slayt_sayisi = 1 + (1 if bool(_alan(haber, "detay_sablonu")) else 0) + min(len(sayfalar), 1)
+            gorsel_kapak = sablonlar.ozel_kapak_slayti_uret(
+                dict(haber),
+                ayarlar,
+                kaynak=make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
+                arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
+                arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
+                sayfa=1,
+                toplam_sayfa=toplam_slayt_sayisi,
+            )
+        except Exception as e:
+            log.warning("Özel spor kapak şablonu üretilemedi #%s: %s", haber.get("id"), e)
+
+    if gorsel_kapak is None:
+        gorsel_kapak = make_image.story_haber(
+            _slayt_metni(haber, "ig_baslik", ayarlar),
+            _slayt_metni(haber, "slayt_ozet", ayarlar),
+            make_image.kaynak_gosterim_adi(haber["kaynak"], ayarlar),
+            ayarlar,
+            arkaplan=(ham_arkaplan.copy() if katman in FOTOGRAFLI_KATMANLAR else None),
+            kategori=haber["kategori"] or "turkiye",
+            son_dakika=son_dakika_mi,
+            ulke_kodu=_alan(haber, "ulke_kodu") or None,
+            ulke_adi=_alan(haber, "ulke_adi") or None,
+            veri_karti=veri_karti,
+            arsiv_ibaresi=(katman in ARSIV_KATMANLARI),
+            haber=dict(haber),
+        )
     yol_kapak = make_image.CIKTI_KLASORU / f"story-{haber['id']}.jpg"
     gorsel_kapak.save(yol_kapak, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
 
@@ -1358,6 +1376,9 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
 
     # A) Habere Özel İnfografik Şablon (spor_kadro, hava_durumu, karsilastirma, rehber_adim, sirali_liste)
     ozel_slayt = None
+    metin_sayfalari = sayfalar[:1] if _alan(haber, "detay_sablonu") == "spor_kadro" else sayfalar[:2]
+    toplam_genel_sayfa = 1 + 1 + len(metin_sayfalari)
+
     try:
         from src import sablonlar
         if _alan(haber, "detay_sablonu") and _alan(haber, "detay_sablonu") != "standart":
@@ -1366,8 +1387,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
                 ayarlar,
                 kaynak=kaynak_adi,
                 arkaplan=detay_arkaplan.copy() if detay_arkaplan is not None else None,
-                sayfa=1,
-                toplam_sayfa=1 + min(len(sayfalar), 2),
+                sayfa=2,
+                toplam_sayfa=toplam_genel_sayfa,
                 arsiv_ibaresi=arsiv_mi,
             )
     except Exception as e:
@@ -1377,10 +1398,8 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
         sablon_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay-sablon.jpg"
         ozel_slayt.save(sablon_yol, "JPEG", quality=_kalite(g, katman), subsampling=0, optimize=True)
         story_detay_yollari.append(sablon_yol)
-        # Özel infografik slaytı 2. slayt olduğunda metin slaytlarını en fazla 2 sayfayla sınırla
-        metin_sayfalari = sayfalar[:2]
-        toplam_d_sayfa = 1 + len(metin_sayfalari)
-        for i, satirlar in enumerate(metin_sayfalari, start=2):
+        # Özel infografik slaytı 2. slayt olduğunda metin slaytları 3. slayttan başlar
+        for i, satirlar in enumerate(metin_sayfalari, start=3):
             story_d = make_image.story_detay(
                 _slayt_metni(haber, "ig_baslik", ayarlar),
                 detay,
@@ -1393,7 +1412,7 @@ def son_dakika_uret(haber, ayarlar: dict, con=None,
                 ulke_adi=_alan(haber, "ulke_adi") or None,
                 satirlar=satirlar,
                 sayfa=i,
-                toplam_sayfa=toplam_d_sayfa,
+                toplam_sayfa=toplam_genel_sayfa,
                 arsiv_ibaresi=arsiv_mi,
             )
             s_detay_yol = make_image.CIKTI_KLASORU / f"story-{haber['id']}-detay-{i}.jpg"

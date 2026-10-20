@@ -30,6 +30,7 @@ from src.sablonlar.medya_video import (
 from src.sablonlar.rehber_adim import rehber_adim_slayti_ciz
 from src.sablonlar.sirali_liste import sirali_liste_slayti_ciz
 from src.sablonlar.spor_kadro import spor_kadro_slayti_ciz
+from src.sablonlar.spor_kapak import spor_kapak_slayti_ciz
 
 log = logging.getLogger(__name__)
 
@@ -113,12 +114,54 @@ def ozel_detay_slayti_uret(
         return None
 
 
+def ozel_kapak_slayti_uret(
+    haber: dict,
+    ayarlar: dict,
+    kaynak: str | None = None,
+    arkaplan: Image.Image | None = None,
+    arsiv_ibaresi: bool = False,
+    sayfa: int = 1,
+    toplam_sayfa: int = 2,
+) -> Image.Image | None:
+    """
+    Haberin türüne göre (örn: `spor_kadro` -> kulüp armalı Maç Günü Kapağı)
+    özel 1. kapak slaytı üretir. Uygun özel kapak yoksa `None` döner.
+    """
+    h = dict(haber) if not isinstance(haber, dict) else haber
+    sablon = sablon_adini_dogrula(h.get("detay_sablonu"))
+    if sablon != "spor_kadro":
+        return None
+
+    veri = sablon_verisini_coz(h.get("sablon_verisi"))
+    if not veri:
+        return None
+
+    etkin_kaynak = kaynak if kaynak is not None else str(h.get("kaynak") or "")
+    try:
+        return spor_kapak_slayti_ciz(
+            haber=h,
+            veri=veri,
+            ayarlar=ayarlar,
+            kaynak=etkin_kaynak,
+            arkaplan=arkaplan,
+            arsiv_ibaresi=arsiv_ibaresi,
+            sayfa=sayfa,
+            toplam_sayfa=toplam_sayfa,
+        )
+    except Exception as e:
+        log.warning("Özel kapak şablonu (%s) çizilemedi: %s", sablon, e)
+        return None
+
+
 __all__ = [
     "GECERLI_SABLONLAR",
     "makaleden_video_url_cikar",
     "ozel_detay_slayti_uret",
+    "ozel_kapak_slayti_uret",
     "sablon_adini_dogrula",
     "sablon_verisini_coz",
+    "spor_kadro_slayti_ciz",
+    "spor_kapak_slayti_ciz",
     "video_cercevesi_ciz",
     "video_detay_slayti_uret",
 ]
