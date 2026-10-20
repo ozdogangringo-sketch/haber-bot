@@ -74,7 +74,8 @@ def spor_kapak_slayti_ciz(
 ) -> Image.Image:
     """
     Kadro ve maç duyuruları için Daily Brief standart haber formatında,
-    yeşil çim üzerine 3D kulüp armalı kapak slaytı (1080x1920) üretir.
+    yeşil çim üzerine devasa 380px 3D kulüp armalı, volumetrik projektörlü kapak slaytı (1080x1920) üretir.
+    Metin katmanı doğrudan make_image.yaziyi_bas motoruyla (Tümce düzeni, 13px blur gölge) çizilir.
     """
     genislik = make_image.STORY_GENISLIK
     yukseklik = make_image.STORY_YUKSEKLIK
@@ -90,153 +91,118 @@ def spor_kapak_slayti_ciz(
 
     # 1. TEMEL TUVAL — Canlı Çim ve Projektör Zemin
     gorsel = stadyum_zemini_olustur(genislik, yukseklik)
-    ciz = ImageDraw.Draw(gorsel, "RGBA")
+
+    # Volumetrik Nova & Projektör Işıkları
+    isik = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    i_draw = ImageDraw.Draw(isik)
+    # Sol GS Kehribar Flare
+    i_draw.ellipse([0, 480, 560, 1060], fill=(245, 158, 11, 75))
+    i_draw.polygon([(0, 0), (340, 0), (500, 950), (0, 800)], fill=(245, 158, 11, 30))
+    # Sağ FB Safir Flare
+    i_draw.ellipse([520, 480, 1080, 1060], fill=(56, 189, 248, 75))
+    i_draw.polygon([(740, 0), (1080, 0), (1080, 800), (580, 950)], fill=(6, 182, 212, 30))
+    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), isik.filter(ImageFilter.GaussianBlur(70))).convert("RGB")
 
     # =========================================================================
-    # GÖRSEL ALANI: YEŞİL ÇİM ÜZERİNDE RESMİ 3D KULÜP ARMALARI & MAÇ MERKEZİ
+    # GÖRSEL ALANI: 380px DEVASA RESMİ 3D KULÜP ARMALARI & MAÇ MERKEZİ
     # =========================================================================
-    # Safe area üst başlangıcı (Daily Brief logosu altına 20px nefes payı)
-    y_logo_alani = dikey_kenar + 175  # = 505 px
-
-    # 1. Turnuva / Lig Kapsülü
-    f_lig = make_image._font(18, make_image.EKSEN_BASLIK)
-    lig_w = ciz.textlength(turnuva, font=f_lig)
-    ciz.rounded_rectangle(
-        [(genislik - lig_w) / 2 - 22, y_logo_alani, (genislik + lig_w) / 2 + 22, y_logo_alani + 38],
-        radius=19,
-        fill=(10, 32, 28, 220),
-        outline=(52, 211, 153, 90),
-        width=1,
-    )
-    ciz.text(((genislik - lig_w) / 2, y_logo_alani + 9), turnuva, font=f_lig, fill=(167, 243, 208))
-
-    # 2. Kulüp Armaları (210x210) & 3D Gölgeleri
-    arma_boyutu = 210
-    sol_arma_x = kenar + 60
-    sag_arma_x = genislik - kenar - 60 - arma_boyutu
-    arma_y = y_logo_alani + 56
+    y_arma = dikey_kenar + 175  # 505 px (DB logosu altına nefes payı)
+    arma_boyutu = 380
+    sol_x = 18
+    sag_x = genislik - 18 - arma_boyutu
 
     logo_ev = fetch_kulup_logo.kulup_logosu_al(ev_ad, boyut=arma_boyutu)
     logo_dep = fetch_kulup_logo.kulup_logosu_al(dep_ad, boyut=arma_boyutu)
 
+    # 3D Derinlik Gölgeleri
+    golge = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    g_draw = ImageDraw.Draw(golge)
+    g_draw.ellipse([sol_x - 12, y_arma + arma_boyutu - 45, sol_x + arma_boyutu + 12, y_arma + arma_boyutu + 50], fill=(0, 0, 0, 235))
+    g_draw.ellipse([sag_x - 12, y_arma + arma_boyutu - 45, sag_x + arma_boyutu + 12, y_arma + arma_boyutu + 50], fill=(0, 0, 0, 235))
+    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), golge.filter(ImageFilter.GaussianBlur(26))).convert("RGB")
+
     if logo_ev:
-        golge_ev = Image.new("RGBA", gorsel.size, (0, 0, 0, 0))
-        g_draw = ImageDraw.Draw(golge_ev)
-        g_draw.ellipse([sol_arma_x - 14, arma_y + 14, sol_arma_x + arma_boyutu + 14, arma_y + arma_boyutu + 38], fill=(0, 0, 0, 180))
-        gorsel = Image.alpha_composite(gorsel.convert("RGBA"), golge_ev.filter(ImageFilter.GaussianBlur(18))).convert("RGB")
-        gorsel.paste(logo_ev, (sol_arma_x, arma_y), mask=logo_ev)
+        gorsel.paste(logo_ev, (sol_x, y_arma), mask=logo_ev)
     else:
-        ciz.ellipse([sol_arma_x, arma_y, sol_arma_x + arma_boyutu, arma_y + arma_boyutu], fill=(245, 158, 11, 40), outline=(245, 158, 11), width=2)
-        f_mono = make_image._font(42, make_image.EKSEN_BASLIK)
-        ciz.text((sol_arma_x + 60, arma_y + 75), ev_ad[:3].upper(), font=f_mono, fill=(255, 255, 255))
+        ciz_tmp = ImageDraw.Draw(gorsel, "RGBA")
+        ciz_tmp.ellipse([sol_x, y_arma, sol_x + arma_boyutu, y_arma + arma_boyutu], fill=(245, 158, 11, 40), outline=(245, 158, 11), width=2)
+        f_mono = make_image._font(56, make_image.EKSEN_BASLIK)
+        ciz_tmp.text((sol_x + 100, y_arma + 140), ev_ad[:3].upper(), font=f_mono, fill=(255, 255, 255))
 
     if logo_dep:
-        golge_dep = Image.new("RGBA", gorsel.size, (0, 0, 0, 0))
-        g_draw = ImageDraw.Draw(golge_dep)
-        g_draw.ellipse([sag_arma_x - 14, arma_y + 14, sag_arma_x + arma_boyutu + 14, arma_y + arma_boyutu + 38], fill=(0, 0, 0, 180))
-        gorsel = Image.alpha_composite(gorsel.convert("RGBA"), golge_dep.filter(ImageFilter.GaussianBlur(18))).convert("RGB")
-        gorsel.paste(logo_dep, (sag_arma_x, arma_y), mask=logo_dep)
+        gorsel.paste(logo_dep, (sag_x, y_arma), mask=logo_dep)
     else:
-        ciz.ellipse([sag_arma_x, arma_y, sag_arma_x + arma_boyutu, arma_y + arma_boyutu], fill=(14, 165, 233, 40), outline=(14, 165, 233), width=2)
-        f_mono = make_image._font(42, make_image.EKSEN_BASLIK)
-        ciz.text((sag_arma_x + 60, arma_y + 75), dep_ad[:3].upper(), font=f_mono, fill=(255, 255, 255))
+        ciz_tmp = ImageDraw.Draw(gorsel, "RGBA")
+        ciz_tmp.ellipse([sag_x, y_arma, sag_x + arma_boyutu, y_arma + arma_boyutu], fill=(14, 165, 233, 40), outline=(14, 165, 233), width=2)
+        f_mono = make_image._font(56, make_image.EKSEN_BASLIK)
+        ciz_tmp.text((sag_x + 100, y_arma + 140), dep_ad[:3].upper(), font=f_mono, fill=(255, 255, 255))
 
     ciz = ImageDraw.Draw(gorsel, "RGBA")
 
-    # Ortadaki "VS" ve Maç Saati Kapsülü
-    vs_y_merkez = arma_y + arma_boyutu // 2
-    f_vs_buyuk = make_image._font(34, make_image.EKSEN_BASLIK)
-    f_vs_saat = make_image._font(20, make_image.EKSEN_BASLIK)
-    vs_w = 126
-    vs_h = 106
-    vs_x1 = (genislik - vs_w) // 2
-    vs_y1 = vs_y_merkez - vs_h // 2
-    ciz.rounded_rectangle([vs_x1, vs_y1, vs_x1 + vs_w, vs_y1 + vs_h], radius=22, fill=(8, 30, 26, 240), outline=(52, 211, 153, 140), width=2)
-    ciz.text(((genislik - ciz.textlength("VS", font=f_vs_buyuk)) / 2, vs_y1 + 15), "VS", font=f_vs_buyuk, fill=(255, 255, 255))
-    saat_metin_w = ciz.textlength(skor_saat, font=f_vs_saat)
-    ciz.text(((genislik - saat_metin_w) / 2, vs_y1 + 61), skor_saat, font=f_vs_saat, fill=(52, 211, 153))
+    # Merkez 3D Cam Faset Kapsülü (VS + Saat)
+    mx = genislik // 2
+    my = y_arma + arma_boyutu // 2
+    cw = 176
+    ch = 146
+    ciz.rounded_rectangle([mx - cw // 2, my - ch // 2, mx + cw // 2, my + ch // 2], radius=26, fill=(6, 18, 22, 245), outline=(255, 255, 255, 70), width=2)
+    ciz.rounded_rectangle([mx - cw // 2 + 6, my - ch // 2 + 6, mx + cw // 2 - 6, my + ch // 2 - 6], radius=20, outline=(16, 185, 129, 140), width=1)
+
+    f_lig = make_image._font(14, make_image.EKSEN_BASLIK)
+    lig_txt = turnuva if len(turnuva) <= 18 else "SÜPER LİG"
+    ciz.text(((genislik - ciz.textlength(lig_txt, font=f_lig)) / 2, my - ch // 2 + 16), lig_txt, font=f_lig, fill=(245, 158, 11))
+
+    f_vs = make_image._font(44, make_image.EKSEN_BASLIK)
+    ciz.text(((genislik - ciz.textlength("VS", font=f_vs)) / 2, my - 26), "VS", font=f_vs, fill=(255, 255, 255))
+
+    f_saat = make_image._font(23, make_image.EKSEN_BASLIK)
+    ciz.text(((genislik - ciz.textlength(skor_saat, font=f_saat)) / 2, my + 34), skor_saat, font=f_saat, fill=(52, 211, 153))
 
     # Armaların Altındaki Takım İsimleri
-    f_takim_kapak = make_image._font(30, make_image.EKSEN_BASLIK)
-    isim_y = arma_y + arma_boyutu + 18
-
+    f_isim = make_image._font(32, make_image.EKSEN_BASLIK)
     ev_ad_b = make_image._buyuk_harf(ev_ad)
-    ev_w = ciz.textlength(ev_ad_b, font=f_takim_kapak)
-    ciz.text((sol_arma_x + (arma_boyutu - ev_w) / 2, isim_y), ev_ad_b, font=f_takim_kapak, fill=(245, 158, 11))
-
     dep_ad_b = make_image._buyuk_harf(dep_ad)
-    dep_w = ciz.textlength(dep_ad_b, font=f_takim_kapak)
-    ciz.text((sag_arma_x + (arma_boyutu - dep_w) / 2, isim_y), dep_ad_b, font=f_takim_kapak, fill=(56, 189, 248))
+    ev_w = ciz.textlength(ev_ad_b, font=f_isim)
+    dep_w = ciz.textlength(dep_ad_b, font=f_isim)
+    isim_y = y_arma + arma_boyutu + 14
+    ciz.text((sol_x + (arma_boyutu - ev_w) / 2, isim_y), ev_ad_b, font=f_isim, fill=(245, 158, 11))
+    ciz.text((sag_x + (arma_boyutu - dep_w) / 2, isim_y), dep_ad_b, font=f_isim, fill=(56, 189, 248))
 
-    # Stadyum & Hakem Kapsülü
+    # Alt Stadyum & Hakem Telemetri Kapsülü
     if mac_bilgi:
-        f_meta = make_image._font(17, make_image.EKSEN_BASLIK)
-        meta_w = ciz.textlength(mac_bilgi, font=f_meta)
-        ciz.rounded_rectangle(
-            [(genislik - meta_w) / 2 - 20, isim_y + 46, (genislik + meta_w) / 2 + 20, isim_y + 84],
-            radius=18,
-            fill=(10, 32, 28, 220),
-            outline=(255, 255, 255, 24),
-            width=1,
-        )
-        ciz.text(((genislik - meta_w) / 2, isim_y + 55), mac_bilgi, font=f_meta, fill=(167, 243, 208))
+        f_info = make_image._font(18, make_image.EKSEN_BASLIK)
+        iw = ciz.textlength(mac_bilgi, font=f_info)
+        ciz.rounded_rectangle([(genislik - iw) / 2 - 22, isim_y + 48, (genislik + iw) / 2 + 22, isim_y + 88], radius=20, fill=(6, 22, 26, 235), outline=(255, 255, 255, 30), width=1)
+        ciz.text(((genislik - iw) / 2, isim_y + 57), mac_bilgi, font=f_info, fill=(167, 243, 208))
 
     # =========================================================================
-    # DAILY BRIEF STANDART HABER FORMATI: DİP KARARTMA (VIGNETTE) + MANŞET & SPOT
+    # DAILY BRIEF RESMİ METİN & TİPOGRAFİ MOTORU (make_image.yaziyi_bas)
     # =========================================================================
-    perde = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
-    perde_ciz = ImageDraw.Draw(perde)
-    perde_baslangic = 980
-    for py in range(perde_baslangic, yukseklik):
-        oran = (py - perde_baslangic) / (yukseklik - perde_baslangic)
-        alfa = int(255 * min(1.0, oran ** 1.3))
-        perde_ciz.line([(0, py), (genislik, py)], fill=(4, 18, 16, alfa))
-
-    gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
-    ciz = ImageDraw.Draw(gorsel, "RGBA")
-
-    # Metin Yerleşimi (Daily Brief Standardı)
-    baslik = (haber.get("ig_baslik") or haber.get("baslik_orj") or "İLK 11'LER BELLİ OLDU").strip()
+    # Başlık: Doğal Tümce Düzeni (Sentence Case), bağıran ALL-CAPS yok!
+    baslik = (haber.get("ig_baslik") or haber.get("baslik_orj") or "Dev derbide ilk 11'ler belli oldu").strip()
     spot = (haber.get("spot") or haber.get("slayt_ozet") or haber.get("ozet") or "").strip()
 
-    alan_w = genislik - 2 * kenar
+    story_ayarlar = {
+        **ayarlar,
+        "gorsel": {
+            "kenar_bosluk": 64,
+            "dikey_guvenli_pay": dikey_kenar,
+            "genislik": genislik,
+            "yukseklik": yukseklik,
+            "serit_rengi": [4, 18, 16],
+            **ayarlar.get("gorsel", {}),
+        },
+    }
 
-    # Özet / Spot
-    f_spot = make_image._font(24, make_image.EKSEN_OZET)
-    spot_satirlari = metin_kutuya_sar(ciz, spot, f_spot, alan_w, maks_satir=3) if spot else []
-    spot_satir_h = 34
-    spot_h = len(spot_satirlari) * spot_satir_h
-
-    # Başlık (44px Extra Bold — Daily Brief Standart Kapak Fontu)
-    f_baslik = make_image._font(44, make_image.EKSEN_BASLIK)
-    baslik_b = make_image._buyuk_harf(baslik)
-    baslik_satirlari = metin_kutuya_sar(ciz, baslik_b, f_baslik, alan_w, maks_satir=3)
-    baslik_satir_h = 54
-    baslik_h = len(baslik_satirlari) * baslik_satir_h
-
-    # Konumlandırma: Alt bilgi çizgisine çarpmayacak şekilde
-    spot_y = alt_bilgi_y - 48 - spot_h
-    baslik_y = spot_y - (24 if spot_h else 0) - baslik_h
-
-    # Başlığı Çiz
-    by = baslik_y
-    for bs in baslik_satirlari:
-        ciz.text((kenar, by), bs, font=f_baslik, fill=(255, 255, 255))
-        by += baslik_satir_h
-
-    # Spotu Çiz
-    sy = spot_y
-    for ss in spot_satirlari:
-        ciz.text((kenar, sy), ss, font=f_spot, fill=(226, 232, 240))
-        sy += spot_satir_h
-
-    return ust_ve_alt_bar_bas(
+    return make_image.yaziyi_bas(
         gorsel,
-        ayarlar=ayarlar,
-        kaynak=kaynak,
-        rozet_metni="MAÇ GÜNÜ",
-        rozet_renk=(16, 185, 129),
-        sayfa=sayfa,
-        toplam_sayfa=toplam_sayfa,
+        baslik,
+        make_image.kaynak_gosterim_adi(kaynak, ayarlar),
+        story_ayarlar,
+        ozet=spot or None,
         arsiv_ibaresi=arsiv_ibaresi,
+        ulke_kodu=haber.get("ulke_kodu") or None,
+        ulke_adi=haber.get("ulke_adi") or None,
+        kategori="spor",
+        son_slayt=False,
+        haber=haber,
     )
