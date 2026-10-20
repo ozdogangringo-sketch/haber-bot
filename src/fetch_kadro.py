@@ -257,7 +257,7 @@ def spor_haberi_olustur_ve_ciz(
         "paylas_video": False,
     }
 
-    hedef_klasor = cikti_dizini or (KOK / "cikis")
+    hedef_klasor = Path(cikti_dizini) if cikti_dizini else (KOK / "cikis")
     hedef_klasor.mkdir(parents=True, exist_ok=True)
 
     # 1. Kapak Slaytı
