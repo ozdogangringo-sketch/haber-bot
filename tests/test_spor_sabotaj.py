@@ -533,15 +533,17 @@ def test_sabotaj_24_olmayan_takim_veya_fikstur_id():
 # =============================================================================
 
 def test_sabotaj_25_kadro_video_kanallarindan_izole():
-    """detay_sablonu=='spor_kadro' olduğunda Reels/Shorts/TikTok dikey video kanalları kapatılmalı."""
-    haberler = [{"id": 1, "detay_sablonu": "spor_kadro", "ig_baslik": "Kadro"}]
+    """detay_sablonu=='spor_kadro' olduğunda Reels/Shorts/TikTok dikey video kanalları kapatılmalı (sqlite3.Row uyumlu)."""
+    con = gecici_db()
+    con.execute("INSERT INTO haberler (id, detay_sablonu, ig_baslik) VALUES (1, 'spor_kadro', 'Kadro')")
+    haberler = con.execute("SELECT * FROM haberler WHERE id = 1").fetchall()
     paylas_reels = True
     paylas_tt_video = True
     paylas_yt = True
     paylas_fb_reels = True
 
     # onay_isle.py mantığı:
-    if any(h.get("detay_sablonu") == "spor_kadro" for h in haberler):
+    if any(dict(h).get("detay_sablonu") == "spor_kadro" for h in haberler):
         paylas_reels = False
         paylas_tt_video = False
         paylas_yt = False
@@ -556,11 +558,13 @@ def test_sabotaj_25_kadro_video_kanallarindan_izole():
 
 def test_sabotaj_26_mac_sonu_video_ve_carousel_birlikte():
     """detay_sablonu=='spor_mac_sonu' olduğunda video kanalları açık kalmalı, sesli yayın desteklenmeli."""
-    haberler = [{"id": 2, "detay_sablonu": "spor_mac_sonu", "ig_baslik": "Maç Sonu"}]
+    con = gecici_db()
+    con.execute("INSERT INTO haberler (id, detay_sablonu, ig_baslik) VALUES (2, 'spor_mac_sonu', 'Maç Sonu')")
+    haberler = con.execute("SELECT * FROM haberler WHERE id = 2").fetchall()
     paylas_reels = True
     paylas_yt = True
 
-    if any(h.get("detay_sablonu") == "spor_kadro" for h in haberler):
+    if any(dict(h).get("detay_sablonu") == "spor_kadro" for h in haberler):
         paylas_reels = False
         paylas_yt = False
 

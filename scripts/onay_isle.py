@@ -276,7 +276,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
 
     # Kadro / İlk 11 infografikleri yoğun okuma kartıdır (22 oyuncu + yedekler).
     # Reels / Shorts / TikTok dikey video olarak okunamaz; yalnızca Carousel / çoklu gönderi olarak yayınlanır.
-    if any(h.get("detay_sablonu") == "spor_kadro" for h in haberler):
+    if any(dict(h).get("detay_sablonu") == "spor_kadro" for h in haberler):
         paylas_reels = False
         paylas_tt_video = False
         paylas_yt = False
@@ -288,7 +288,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     # yalnızca video kanallarına (Reels, TikTok, Shorts, FB Reels) uygulanır.
     ses_kumesi = {k.strip().lower() for k in (secili or "").split(",")}
     ses_modu = "muzikli" if "ses_muzikli" in ses_kumesi else ("muziksiz" if "ses_muziksiz" in ses_kumesi else None)
-    if any(h.get("detay_sablonu") == "spor_kadro" for h in haberler):
+    if any(dict(h).get("detay_sablonu") == "spor_kadro" for h in haberler):
         ses_modu = None
     ses_notu = ""
     ses_sonucu: dict = {}
@@ -1095,8 +1095,9 @@ def kanal_telafi_et(con, ayarlar: dict, haberler: list, mesaj_id: int, kanal: st
             urller.insert(0, kart_satir["deger"])
 
     for h in haberler:
-        if h.get("son_dakika") or len(haberler) == 1 or h.get("detay_url"):
-            urller.extend(_detay_urlleri(h["detay_url"]))
+        h_d = dict(h)
+        if h_d.get("son_dakika") or len(haberler) == 1 or h_d.get("detay_url"):
+            urller.extend(_detay_urlleri(h_d.get("detay_url")))
 
     # Görsellerin canlılığını ve Meta uyumluluğunu doğrula, süresi geçmiş/uguu olanları onar
     urller = _urlleri_dogrula_ve_onar(con, ayarlar, haberler, urller)

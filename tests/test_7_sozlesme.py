@@ -6181,6 +6181,14 @@ def test_spor_yonetimi_sozlesmesi() -> None:
     okunus_90 = okunus.okunusa_cevir("90+3. dakikada atılan gol")
     denetle("doksan artı üçüncü dakikada" in okunus_90, "okunus: 90+3. dakikada -> doksan artı üçüncü dakikada", f"sonuc={okunus_90}")
 
+    # 4) onay_isle yayinla sqlite3.Row nesnesiyle çağrıldığında Attribute/get hatası almaz
+    con_row = sqlite3.connect(":memory:")
+    con_row.row_factory = sqlite3.Row
+    con_row.execute("CREATE TABLE test_h (id INT, durum TEXT, detay_sablonu TEXT, yayin_kanallari TEXT, son_dakika INT, detay_url TEXT);")
+    con_row.execute("INSERT INTO test_h VALUES (1, 'onay_bekliyor', 'standart', 'ig', 0, NULL);")
+    row = con_row.execute("SELECT * FROM test_h").fetchone()
+    denetle(dict(row).get("detay_sablonu") == "standart", "onay_isle: sqlite3.Row dict() dönüşümüyle get('detay_sablonu') güvenli")
+
 
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
