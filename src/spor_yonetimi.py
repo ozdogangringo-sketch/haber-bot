@@ -254,7 +254,7 @@ def kadro_haberi_hazirla_ve_sun(
             f"🏟️ {kadro_verisi.get('mac_bilgisi', '')}\n\n"
             f"📌 <i>Bu gönderi Carousel olarak (IG, Threads, FB, X) paylaşılacaktır.</i>"
         )
-        menu = telegram_bot.yayin_zamani_menusu(2)
+        menu = telegram_bot.ana_menu(adet=2)
         onay_mesaj_id = telegram_bot.mesaj_gonder(ana_bilgi, butonlar=menu["inline_keyboard"], html=True)
         con.execute(
             "UPDATE haberler SET telegram_message_id = ? WHERE id = ?",
@@ -461,24 +461,6 @@ Sadece saf JSON döndür."""
     yuklenenler = upload_image.hepsini_yukle(detay_yollari, ayarlar)
     urller = [y["url"] for y in yuklenenler]
 
-    # ElevenLabs Seslendirmeli Dikey Video Üretimi
-    video_yolu = None
-    try:
-        from src import video, ses
-        dikey_gorseller = video.reels_dikey_gorselleri_uret(urller, haberler=[haber_kapak], ayarlar=ayarlar)
-        if dikey_gorseller:
-            ses_sonucu = {}
-            video_yolu = ses.anlatimli_video_uret(
-                dikey_gorseller,
-                [haber_kapak],
-                ayarlar,
-                muzik=True,
-                sonuc=ses_sonucu,
-            )
-            log.info("Fikstür #%s maç sonu seslendirmeli video üretildi: %s", fixture_id, video_yolu)
-    except Exception as e_v:
-        log.warning("Maç sonu sesli video üretilemedi: %s", e_v)
-
     # Veritabanı kaydı
     caption_metni = (
         f"{baslik}\n\n"
@@ -523,26 +505,17 @@ Sadece saf JSON döndür."""
     )
     con.commit()
 
-    # Telegram Onay Grubuna Sun (Video + Slaytlar + Yayın Butonları)
+    # Telegram Onay Grubuna Sun (Slaytlar + Standart Ana Menü Butonları)
     if telegrama_gonder:
-        if video_yolu and Path(video_yolu).exists():
-            try:
-                telegram_bot.video_gonder(
-                    video_yolu,
-                    aciklama=f"🎙️ <b>SESLENDİRMELİ REELS VİDEOSU</b>\n\n<b>{baslik}</b>\n\n{caption_metni[:400]}...",
-                )
-            except Exception as e_tgv:
-                log.warning("Telegram'a video iletilemedi: %s", e_tgv)
-
         telegram_bot.slaytlari_gonder(urller, basliklar=[baslik, "Maçın Özeti & Goller", "Puan Durumu"])
         ana_bilgi = (
-            f"🎙️ <b>SESLENDİRMELİ MAÇ SONU REELS & CAROUSEL ONAYI</b>\n\n"
-            f"⚽ <b>{baslik}</b>\n\n"
-            f"⏱️ Skor: {skor_str}\n"
-            f"🥅 Goller: {gol_ozeti}\n\n"
-            f"📌 <i>Bu bülten Instagram Reels, YouTube Shorts, TikTok ve 4:5 Carousel Akışına eşzamanlı gidecektir.</i>"
+            f"⚽ <b>RESMİ MAÇ SONU BÜLTENİ ONAYI</b>\n\n"
+            f"🏆 <b>{baslik}</b>\n\n"
+            f"⏱️ <b>Skor:</b> {ev_ad} {skor_str} {dep_ad}\n"
+            f"🥅 <b>Goller:</b> {gol_ozeti}\n\n"
+            f"📌 <i>Yayınla dediğinde video (Reels, Shorts, TikTok) ve 4:5 Carousel Akışı otomatik oluşturulup dağıtılacaktır.</i>"
         )
-        menu = telegram_bot.sesli_yayin_zamani_menusu(muzikli=True, adet=len(urller))
+        menu = telegram_bot.ana_menu(adet=len(urller))
         onay_mesaj_id = telegram_bot.mesaj_gonder(ana_bilgi, butonlar=menu["inline_keyboard"], html=True)
         con.execute(
             "UPDATE haberler SET telegram_message_id = ? WHERE id = ?",
