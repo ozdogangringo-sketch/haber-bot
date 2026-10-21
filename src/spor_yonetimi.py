@@ -58,8 +58,12 @@ DORT_BUYUKLER = {
 
 
 def dort_buyuk_mu(takim_adi: str) -> bool:
-    """Verilen takımın 4 Büyüklerden biri olup olmadığını doğrular."""
+    """Verilen takımın 4 Büyükler A Takımı olup olmadığını doğrular."""
     if not takim_adi:
+        return False
+    t_lower = takim_adi.lower()
+    # Altyapı, gençlik, rezerv ve kadın takımlarını hariç tut (Yalnızca A Takımı resmi maçları)
+    if any(k in t_lower for k in ("u19", "u21", "u18", "u17", "u23", "women", "kadin", "kadın", "youth", "b takimi")):
         return False
     slug = fetch_kulup_logo.takim_slug_yap(takim_adi)
     return any(b in slug or slug in b for b in ("galatasaray", "fenerbahce", "besiktas", "trabzonspor"))
@@ -78,6 +82,9 @@ def gunun_dort_buyuk_maclari(tarih: str | None = None) -> list[dict]:
     tum_maclar = fetch_kadro.gunun_maclarini_getir(tarih)
     secilenler = []
     for f in tum_maclar:
+        league_name = (f.get("league", {}).get("name") or "").lower()
+        if any(k in league_name for k in ("youth", "u19", "u21", "women", "kadin", "kadın")):
+            continue
         h_name = f.get("teams", {}).get("home", {}).get("name", "")
         a_name = f.get("teams", {}).get("away", {}).get("name", "")
         if dort_buyukler_maci_mi(h_name, a_name):
@@ -202,7 +209,7 @@ def kadro_haberi_hazirla_ve_sun(
 
     # 4. Veritabanına Kaydet
     cursor = con.execute(
-        """INSERT INTO haberler (
+        """INSERT OR REPLACE INTO haberler (
             kaynak, kategori, agirlik, baslik_orj, link, ozet_orj,
             ig_baslik, slayt_ozet, ig_caption, detay_sablonu, sablon_verisi,
             gorsel_yolu, gorsel_url, story_url, detay_url, son_dakika,
@@ -482,7 +489,7 @@ Sadece saf JSON döndür."""
     )
 
     cursor = con.execute(
-        """INSERT INTO haberler (
+        """INSERT OR REPLACE INTO haberler (
             kaynak, kategori, agirlik, baslik_orj, link, ozet_orj,
             ig_baslik, slayt_ozet, ig_caption, detay_sablonu, sablon_verisi,
             gorsel_yolu, gorsel_url, story_url, detay_url, son_dakika,

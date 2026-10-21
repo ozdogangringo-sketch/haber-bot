@@ -96,6 +96,7 @@ jobs:
       - name: Son dakika var mı?
         env:
           DURUM_MESAJ_ID: ${{ github.event.client_payload.durum_mesaj_id }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # "🎙️ Sesli Yayınla" seslendirmesi (yoksa videolar seslendirmesiz çıkar)
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}

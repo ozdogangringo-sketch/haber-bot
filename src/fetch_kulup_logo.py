@@ -62,6 +62,8 @@ POPULER_KULUPLER: dict[str, str] = {
     "psg": "Paris Saint-Germain",
     "chelsea": "Chelsea",
     "tottenham": "Tottenham",
+    "lille": "Lille",
+    "lille osc": "Lille",
 }
 
 _ONBELLEK_IMG: dict[str, Image.Image] = {}
