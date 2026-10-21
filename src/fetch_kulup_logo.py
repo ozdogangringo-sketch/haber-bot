@@ -145,25 +145,37 @@ KULUP_RENKLERI: dict[str, dict[str, tuple[int, int, int]]] = {
         "primary": (169, 4, 50),       # Karanfil Kırmızı
         "secondary": (253, 185, 19),    # Parlak Sarı/Altın
         "atmosphere": (180, 20, 50),
+        "alt_atmosphere": (205, 150, 15), # Altın Sarı Atmosfer (Kırmızı çakışmasında!)
         "number": (253, 185, 19),
+        "alt_number": (253, 185, 19),
+        "alt_primary": (245, 180, 20),
     },
     "fenerbahce": {
         "primary": (0, 45, 114),        # Derin Lacivert
         "secondary": (254, 209, 0),     # Kanarya Sarısı
         "atmosphere": (15, 55, 145),
+        "alt_atmosphere": (200, 160, 15), # Altın Sarı Atmosfer (Lacivert/Mavi çakışmasında!)
         "number": (254, 209, 0),
+        "alt_number": (254, 209, 0),
+        "alt_primary": (245, 200, 10),
     },
     "besiktas": {
         "primary": (240, 240, 248),        # Platin Beyaz / Gümüş (Dark modda asil ve net!)
         "secondary": (22, 22, 28),         # Karbon Siyah
         "atmosphere": (175, 190, 220),      # Stadyum Gece Projektör Işıltısı
+        "alt_atmosphere": (90, 110, 145),   # Karbon Projektör
         "number": (240, 240, 248),
+        "alt_number": (240, 240, 248),
+        "alt_primary": (240, 240, 248),
     },
     "trabzonspor": {
         "primary": (88, 184, 237),         # Açık Mavi (Dark modda harika parlar!)
         "secondary": (135, 15, 55),        # Bordo
         "atmosphere": (145, 18, 55),        # Bordo Gece Atmosferi
+        "alt_atmosphere": (25, 115, 195),  # Açık Mavi Atmosfer
         "number": (88, 184, 237),
+        "alt_number": (230, 45, 85),       # Bordo Numara
+        "alt_primary": (145, 18, 55),
     },
     # Süper Lig Kulüpleri
     "basaksehir": {
@@ -276,10 +288,13 @@ KULUP_RENKLERI: dict[str, dict[str, tuple[int, int, int]]] = {
     },
     # Popüler Avrupa Kulüpleri
     "lille": {
-        "primary": (210, 25, 45),
-        "secondary": (15, 30, 75),
-        "atmosphere": (190, 25, 45),
-        "number": (210, 25, 45),
+        "primary": (210, 25, 45),          # Lille Kırmızısı
+        "secondary": (25, 75, 175),         # Lille Kraliyet Mavisi
+        "atmosphere": (190, 25, 45),        # Kırmızı Stadyum Işıltısı
+        "alt_atmosphere": (22, 70, 170),    # Mavi Stadyum Işıltısı (Kırmızı çakışmasında!)
+        "number": (245, 60, 50),
+        "alt_number": (56, 145, 255),       # Parlak Mavi Numara
+        "alt_primary": (30, 85, 200),       # Mavi Vurgu Çentiği
     },
     "real_madrid": {
         "primary": (240, 240, 250),
@@ -435,3 +450,174 @@ def kulup_renkleri_al(takim_adi: str, logo_img: Image.Image | None = None) -> di
         "atmosphere": (14, 165, 233),
         "number": (14, 165, 233),
     }
+
+
+def rgb_to_hsv(rgb: tuple[int, int, int]) -> tuple[float, float, float]:
+    """RGB (0-255) değerlerini HSV (H: 0-360, S: 0-1, V: 0-1) değerlerine dönüştürür."""
+    r, g, b = [x / 255.0 for x in rgb]
+    mx = max(r, g, b)
+    mn = min(r, g, b)
+    df = mx - mn
+    if mx == mn:
+        h = 0.0
+    elif mx == r:
+        h = (60 * ((g - b) / df) + 360) % 360
+    elif mx == g:
+        h = (60 * ((b - r) / df) + 120) % 360
+    else:
+        h = (60 * ((r - g) / df) + 240) % 360
+    s = 0.0 if mx == 0 else (df / mx)
+    v = mx
+    return h, s, v
+
+
+def renk_kategorisi(rgb: tuple[int, int, int]) -> str:
+    """RGB renginin ana futbol renk ailesini döner."""
+    h, s, v = rgb_to_hsv(rgb)
+    if s < 0.22 or v < 0.15:
+        if v > 0.65:
+            return "beyaz"
+        elif v < 0.25:
+            return "siyah"
+        return "gri"
+    if h < 22 or h >= 335:
+        return "kirmizi"
+    elif 22 <= h < 48:
+        return "turuncu"
+    elif 48 <= h < 75:
+        return "sari"
+    elif 75 <= h < 165:
+        return "yesil"
+    elif 165 <= h < 195:
+        return "turkuaz"
+    elif 195 <= h < 265:
+        return "mavi"
+    elif 265 <= h < 335:
+        return "mor"
+    return "diger"
+
+
+def kulup_alternatif_tema(takim_adi: str, ana_renkler: dict) -> dict[str, tuple[int, int, int]]:
+    """
+    Kulübün renk çakışması durumunda kullanacağı alternatif temasını döner.
+    Örn: Lille kırmızı yerine maviye; Galatasaray sarıya; Fenerbahçe sarıya geçer.
+    """
+    slug = takim_slug_yap(takim_adi or "")
+    ham_kayit = None
+    if slug in KULUP_RENKLERI:
+        ham_kayit = KULUP_RENKLERI[slug]
+    else:
+        for k_slug, data in KULUP_RENKLERI.items():
+            if k_slug in slug or slug in k_slug:
+                ham_kayit = data
+                break
+
+    if ham_kayit and "alt_atmosphere" in ham_kayit:
+        return {
+            "primary": ham_kayit.get("alt_primary") or ham_kayit.get("alt_atmosphere") or ham_kayit.get("secondary"),
+            "secondary": ham_kayit.get("primary"),
+            "atmosphere": ham_kayit.get("alt_atmosphere"),
+            "number": ham_kayit.get("alt_number") or ham_kayit.get("number"),
+        }
+
+    # Dinamik alternatif tema üretimi
+    sec = ana_renkler.get("secondary", (220, 220, 220))
+    kat = renk_kategorisi(sec)
+
+    if kat in ("beyaz", "gri"):
+        atmo = (150, 175, 210)
+        num = (240, 240, 248)
+        p = (220, 225, 235)
+    elif kat == "siyah":
+        atmo = (80, 95, 120)
+        num = (210, 215, 230)
+        p = (180, 185, 200)
+    else:
+        r, g, b = sec
+        max_c = max(r, g, b)
+        if max_c < 140:
+            scale = 160 / max(max_c, 1)
+            atmo = (min(255, int(r * scale)), min(255, int(g * scale)), min(255, int(b * scale)))
+        else:
+            atmo = (r, g, b)
+        if max_c < 200:
+            scale_num = 225 / max(max_c, 1)
+            num = (min(255, int(r * scale_num)), min(255, int(g * scale_num)), min(255, int(b * scale_num)))
+        else:
+            num = (r, g, b)
+        p = atmo
+
+    return {
+        "primary": p,
+        "secondary": ana_renkler.get("primary", (180, 20, 40)),
+        "atmosphere": atmo,
+        "number": num,
+    }
+
+
+def mac_renklerini_ayarla(
+    ev_ad: str,
+    dep_ad: str,
+    logo_ev: Image.Image | None = None,
+    logo_dep: Image.Image | None = None,
+) -> tuple[dict[str, tuple[int, int, int]], dict[str, tuple[int, int, int]]]:
+    """
+    İki kulübün renklerini çakışma (renk körlüğü / tekdüzelik) denetiminden geçirerek ayarlar.
+
+    Kural (Doğukan İlkesi):
+      İki takımın da ortak bir rengi varsa (örn: her ikisi de kırmızı), her yerin aynı renkle
+      boğulmaması için alternatif renk devreye girer. Örneğin Kırmızı-Mavi (Lille) ile
+      Kırmızı-Sarı / Kırmızı-Beyaz (Galatasaray / Samsunspor) karşılaştığında; beyaz gibi
+      sönük nötr renkler yerine, Lille maviye geçerken diğer takım kırmızı kalır veya
+      Galatasaray sarıya geçer. Böylece her zaman zengin ve kontrastlı bir stadyum atmosferi oluşur.
+    """
+    ev_renkler = dict(kulup_renkleri_al(ev_ad, logo_ev))
+    dep_renkler = dict(kulup_renkleri_al(dep_ad, logo_dep))
+
+    kat_ev = renk_kategorisi(ev_renkler.get("atmosphere") or ev_renkler.get("primary"))
+    kat_dep = renk_kategorisi(dep_renkler.get("atmosphere") or dep_renkler.get("primary"))
+
+    # Eğer iki takımın atmosfer/ana rengi farklı kategorilerdeyse çakışma yoktur
+    if kat_ev != kat_dep:
+        return ev_renkler, dep_renkler
+
+    # ÇAKIŞMA TESPİT EDİLDİ (örn: ikisi de "kirmizi" veya ikisi de "mavi")
+    ev_sec = ev_renkler.get("secondary", (220, 220, 220))
+    dep_sec = dep_renkler.get("secondary", (220, 220, 220))
+
+    kat_ev_sec = renk_kategorisi(ev_sec)
+    kat_dep_sec = renk_kategorisi(dep_sec)
+
+    notr_kategoriler = {"beyaz", "siyah", "gri"}
+    ev_has_chromatic = (kat_ev_sec not in notr_kategoriler)
+    dep_has_chromatic = (kat_dep_sec not in notr_kategoriler)
+
+    if ev_has_chromatic and not dep_has_chromatic:
+        # Ev sahibinin canlı ikinci rengi var, deplasmanınki nötr (örn: Lille vs Samsunspor)
+        # Nötr renge düşmemek için Ev sahibi ikinci rengine (Mavi) geçer
+        ev_renkler = kulup_alternatif_tema(ev_ad, ev_renkler)
+    elif not ev_has_chromatic and dep_has_chromatic:
+        # Ev sahibi nötr ikinci renge sahip, deplasmanın canlı rengi var (örn: Samsunspor vs Galatasaray)
+        # Deplasman ikinci rengine (Sarı) geçer
+        dep_renkler = kulup_alternatif_tema(dep_ad, dep_renkler)
+    elif ev_has_chromatic and dep_has_chromatic:
+        # İki takımın da canlı ikinci rengi var (örn: Lille Kırmızı-Mavi vs Galatasaray Kırmızı-Sarı)
+        # Kullanıcı kuralı: İkinci rengi mavi/lacivert olan takım maviye geçer, diğeri kırmızı/sarı kalır
+        if kat_ev_sec in ("mavi", "turkuaz"):
+            ev_renkler = kulup_alternatif_tema(ev_ad, ev_renkler)
+        elif kat_dep_sec in ("mavi", "turkuaz"):
+            dep_renkler = kulup_alternatif_tema(dep_ad, dep_renkler)
+        else:
+            # Diğer durumlarda deplasman alternatif rengine geçer
+            dep_renkler = kulup_alternatif_tema(dep_ad, dep_renkler)
+    else:
+        # İkisinin de ikinci rengi nötr (örn: Samsunspor vs Sivasspor, ikisi de Kırmızı-Beyaz)
+        # Deplasman takımı şık platin/buz mavisi temaya geçer
+        dep_renkler = {
+            "primary": (220, 225, 235),
+            "secondary": dep_renkler.get("primary", (180, 20, 40)),
+            "atmosphere": (160, 185, 220),
+            "number": (240, 240, 248),
+        }
+
+    return ev_renkler, dep_renkler

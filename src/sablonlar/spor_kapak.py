@@ -100,9 +100,9 @@ def spor_kapak_slayti_ciz(
     logo_ev = fetch_kulup_logo.kulup_logosu_al(ev_ad, boyut=arma_boyutu)
     logo_dep = fetch_kulup_logo.kulup_logosu_al(dep_ad, boyut=arma_boyutu)
 
-    # Doğukan İsteği: Kapaktaki iki renk stadyum atmosferi takımların kendi renklerinden oluşur
-    ev_renkler = fetch_kulup_logo.kulup_renkleri_al(ev_ad, logo_ev)
-    dep_renkler = fetch_kulup_logo.kulup_renkleri_al(dep_ad, logo_dep)
+    # Doğukan İsteği: Kapaktaki iki renk stadyum atmosferi takımların kendi renklerinden oluşur.
+    # Ortak renk çakışmasında akıllı kontrast uzlaştırma devreye girer (örn: Kırmızı-Kırmızı çakışmasında biri maviye/sarıya geçer)
+    ev_renkler, dep_renkler = fetch_kulup_logo.mac_renklerini_ayarla(ev_ad, dep_ad, logo_ev, logo_dep)
 
     ev_atmo = ev_renkler.get("atmosphere", (119, 13, 44))
     dep_atmo = dep_renkler.get("atmosphere", (20, 20, 28))

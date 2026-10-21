@@ -173,8 +173,8 @@ def spor_kadro_slayti_ciz(
     mini_ev_logo = fetch_kulup_logo.kulup_logosu_al(ev_ad, boyut=38) if ev_ad else None
     mini_dep_logo = fetch_kulup_logo.kulup_logosu_al(dep_ad, boyut=38) if dep_ad else None
 
-    ev_renkler = fetch_kulup_logo.kulup_renkleri_al(ev_ad, mini_ev_logo)
-    dep_renkler = fetch_kulup_logo.kulup_renkleri_al(dep_ad, mini_dep_logo)
+    # Ortak renk çakışmasında akıllı kontrast uzlaştırma devreye girer
+    ev_renkler, dep_renkler = fetch_kulup_logo.mac_renklerini_ayarla(ev_ad, dep_ad, mini_ev_logo, mini_dep_logo)
 
     ev_atmo = ev_renkler.get("atmosphere", (119, 13, 44))
     dep_atmo = dep_renkler.get("atmosphere", (20, 20, 28))
