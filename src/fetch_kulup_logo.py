@@ -163,10 +163,10 @@ KULUP_RENKLERI: dict[str, dict[str, tuple[int, int, int]]] = {
         "primary": (240, 240, 248),        # Platin Beyaz / Gümüş (Dark modda asil ve net!)
         "secondary": (22, 22, 28),         # Karbon Siyah
         "atmosphere": (175, 190, 220),      # Stadyum Gece Projektör Işıltısı
-        "alt_atmosphere": (90, 110, 145),   # Karbon Projektör
+        "alt_atmosphere": (180, 25, 45),    # Armadaki Türk Bayrağı Kırmızısı (Siyah-Beyaz çakışmasında!)
         "number": (240, 240, 248),
-        "alt_number": (240, 240, 248),
-        "alt_primary": (240, 240, 248),
+        "alt_number": (245, 60, 60),       # Canlı Kırmızı Numara
+        "alt_primary": (225, 29, 72),
     },
     "trabzonspor": {
         "primary": (88, 184, 237),         # Açık Mavi (Dark modda harika parlar!)
@@ -348,7 +348,28 @@ KULUP_RENKLERI: dict[str, dict[str, tuple[int, int, int]]] = {
         "primary": (240, 240, 248),
         "secondary": (25, 25, 28),
         "atmosphere": (175, 190, 220),
+        "alt_atmosphere": (205, 155, 15),   # İkonik Juve Altını (Gold)
         "number": (240, 240, 248),
+        "alt_number": (250, 200, 20),      # Altın Numara
+        "alt_primary": (220, 175, 20),
+    },
+    "newcastle": {
+        "primary": (240, 240, 248),
+        "secondary": (20, 20, 24),
+        "atmosphere": (170, 185, 215),
+        "alt_atmosphere": (25, 95, 185),    # St James' Park Mavisi
+        "number": (240, 240, 248),
+        "alt_number": (60, 150, 255),
+        "alt_primary": (30, 110, 210),
+    },
+    "altay": {
+        "primary": (240, 240, 248),
+        "secondary": (20, 20, 25),
+        "atmosphere": (175, 185, 210),
+        "alt_atmosphere": (185, 30, 45),    # Altay Kırmızı Detayı
+        "number": (240, 240, 248),
+        "alt_number": (245, 65, 65),
+        "alt_primary": (220, 30, 45),
     },
     "ac_milan": {
         "primary": (210, 20, 30),
@@ -524,28 +545,22 @@ def kulup_alternatif_tema(takim_adi: str, ana_renkler: dict) -> dict[str, tuple[
     sec = ana_renkler.get("secondary", (220, 220, 220))
     kat = renk_kategorisi(sec)
 
-    if kat in ("beyaz", "gri"):
-        atmo = (150, 175, 210)
-        num = (240, 240, 248)
-        p = (220, 225, 235)
-    elif kat == "siyah":
-        atmo = (80, 95, 120)
-        num = (210, 215, 230)
-        p = (180, 185, 200)
+    if kat in ("beyaz", "siyah", "gri"):
+        return None
+
+    r, g, b = sec
+    max_c = max(r, g, b)
+    if max_c < 140:
+        scale = 160 / max(max_c, 1)
+        atmo = (min(255, int(r * scale)), min(255, int(g * scale)), min(255, int(b * scale)))
     else:
-        r, g, b = sec
-        max_c = max(r, g, b)
-        if max_c < 140:
-            scale = 160 / max(max_c, 1)
-            atmo = (min(255, int(r * scale)), min(255, int(g * scale)), min(255, int(b * scale)))
-        else:
-            atmo = (r, g, b)
-        if max_c < 200:
-            scale_num = 225 / max(max_c, 1)
-            num = (min(255, int(r * scale_num)), min(255, int(g * scale_num)), min(255, int(b * scale_num)))
-        else:
-            num = (r, g, b)
-        p = atmo
+        atmo = (r, g, b)
+    if max_c < 200:
+        scale_num = 225 / max(max_c, 1)
+        num = (min(255, int(r * scale_num)), min(255, int(g * scale_num)), min(255, int(b * scale_num)))
+    else:
+        num = (r, g, b)
+    p = atmo
 
     return {
         "primary": p,
@@ -581,6 +596,49 @@ def mac_renklerini_ayarla(
     if kat_ev != kat_dep:
         return ev_renkler, dep_renkler
 
+    notr_kategoriler = {"beyaz", "siyah", "gri"}
+
+    # ÖZEL DURUM: İKİ TAKIM DA SİYAH-BEYAZ / MONOKROM (örn: Beşiktaş vs Juventus / Altay / Newcastle / PAOK)
+    if kat_ev in notr_kategoriler and kat_dep in notr_kategoriler:
+        ev_alt = kulup_alternatif_tema(ev_ad, ev_renkler)
+        dep_alt = kulup_alternatif_tema(dep_ad, dep_renkler)
+
+        ev_has_alt = bool(ev_alt and renk_kategorisi(ev_alt["atmosphere"]) not in notr_kategoriler)
+        dep_has_alt = bool(dep_alt and renk_kategorisi(dep_alt["atmosphere"]) not in notr_kategoriler)
+
+        if ev_has_alt and not dep_has_alt:
+            ev_renkler = ev_alt  # Ev sahibi kulüp miras rengine (örn: BJK Türk bayrağı Kırmızısı) geçer
+        elif not ev_has_alt and dep_has_alt:
+            dep_renkler = dep_alt  # Deplasman kulüp miras rengine (örn: Juve Altın/Gold) geçer
+        elif ev_has_alt and dep_has_alt:
+            # İkisinin de miras vurgusu var ama aynı renk ailesindeyse (örn: ikisi de kırmızı):
+            if renk_kategorisi(ev_alt["atmosphere"]) == renk_kategorisi(dep_alt["atmosphere"]):
+                ev_renkler = ev_alt
+                dep_renkler = {
+                    "primary": (225, 175, 30),
+                    "secondary": (20, 20, 25),
+                    "atmosphere": (195, 150, 25),  # Sıcak Şampiyonlar Altını
+                    "number": (250, 205, 40),
+                }
+            else:
+                ev_renkler = ev_alt
+                dep_renkler = dep_alt
+        else:
+            # İkisinde de 3. renk yoksa: UEFA VIP Standardı (Platin Gümüş vs Şampiyonlar Altını)
+            ev_renkler = {
+                "primary": (240, 240, 248),
+                "secondary": (20, 20, 25),
+                "atmosphere": (175, 190, 220), # Soğuk Platin Projektör
+                "number": (255, 255, 255),
+            }
+            dep_renkler = {
+                "primary": (225, 175, 30),
+                "secondary": (20, 20, 25),
+                "atmosphere": (195, 150, 25), # Sıcak Şampiyonlar Altını
+                "number": (250, 205, 40),
+            }
+        return ev_renkler, dep_renkler
+
     # ÇAKIŞMA TESPİT EDİLDİ (örn: ikisi de "kirmizi" veya ikisi de "mavi")
     ev_sec = ev_renkler.get("secondary", (220, 220, 220))
     dep_sec = dep_renkler.get("secondary", (220, 220, 220))
@@ -588,7 +646,6 @@ def mac_renklerini_ayarla(
     kat_ev_sec = renk_kategorisi(ev_sec)
     kat_dep_sec = renk_kategorisi(dep_sec)
 
-    notr_kategoriler = {"beyaz", "siyah", "gri"}
     ev_has_chromatic = (kat_ev_sec not in notr_kategoriler)
     dep_has_chromatic = (kat_dep_sec not in notr_kategoriler)
 
