@@ -81,6 +81,12 @@ MESAJSIZ_KOMUTLAR: set[str] = {
     "ekonomi_yayinla",
     "piyasa_onizle",
 
+    # 4 Büyükler Spor ve Maç Otomasyonu
+    "spor",
+    "kadro",
+    "macsonu",
+    "maclar",
+
     # OzBorn Studio uygulamasından gelenler (7 Eki 2026). Telegram'da bu
     # ikisi bir mesaja bağlı (öneri listesi / ayar paneli); uygulamada o
     # mesaj yok. İşleyiciler mesaj yoksa gruba YENİ mesaj yazıyor.
@@ -122,6 +128,7 @@ KOMUT_MENUSU: list[dict[str, str]] = [
     {"command": "bulten", "description": "📰 Kahve bülteni derle"},
     {"command": "haftalik", "description": "📰 Haftalık pazar özeti"},
     {"command": "sonpostlar", "description": "📰 Son yayınlanan postlar"},
+    {"command": "spor", "description": "📰 4 Büyükler canlı maç durumu"},
 
     # ── 📈 PİYASA & MAKRO ─────────────────────────────────────────
     {"command": "piyasa", "description": "📈 Canlı borsa, döviz, altın tablosu"},

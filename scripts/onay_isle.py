@@ -3610,6 +3610,71 @@ def main() -> int:
         return ayar_degistir(con, ayarlar, komut.split(":", 1)[1],
                              mesaj_id, basan)
 
+    if komut in ("spor", "maclar"):
+        from src import spor_yonetimi
+        rapor = spor_yonetimi.spor_durumu_raporu(con, ayarlar)
+        telegram_bot.mesaj_gonder(rapor, html=True)
+        return 0
+
+    if komut.startswith("kadro:") or komut == "kadro":
+        from src import spor_yonetimi
+        param = komut.split(":", 1)[1].strip() if ":" in komut else ""
+        fixture_id = None
+        if param.isdigit():
+            fixture_id = int(param)
+        else:
+            gunun_maclari = spor_yonetimi.gunun_dort_buyuk_maclari()
+            if param:
+                for m in gunun_maclari:
+                    h = m.get("teams", {}).get("home", {}).get("name", "").lower()
+                    a = m.get("teams", {}).get("away", {}).get("name", "").lower()
+                    if param.lower() in h or param.lower() in a:
+                        fixture_id = m.get("fixture", {}).get("id")
+                        break
+            elif gunun_maclari:
+                fixture_id = gunun_maclari[0].get("fixture", {}).get("id")
+
+        if not fixture_id:
+            telegram_bot.mesaj_gonder("⚠️ <b>Kadro bulunamadı:</b> Belirtilen takımın bugün resmi bir maçı bulunmuyor veya maç ID'si geçersiz.", html=True)
+            return 0
+
+        telegram_bot.mesaj_gonder(f"⏳ <b>#{fixture_id} Maç Kadrosu taranıyor ve Carousel hazırlanıyor...</b>", html=True)
+        sonuc = spor_yonetimi.kadro_haberi_hazirla_ve_sun(fixture_id, con, ayarlar, telegrama_gonder=True)
+        if not sonuc:
+            telegram_bot.mesaj_gonder(f"ℹ️ <b>#{fixture_id} için henüz kadro açıklanmamış veya zaten hazırlanmış.</b>", html=True)
+        return 0
+
+    if komut.startswith("macsonu:") or komut == "macsonu":
+        from src import spor_yonetimi
+        param = komut.split(":", 1)[1].strip() if ":" in komut else ""
+        fixture_id = None
+        if param.isdigit():
+            fixture_id = int(param)
+        else:
+            gunun_maclari = spor_yonetimi.gunun_dort_buyuk_maclari()
+            if param:
+                for m in gunun_maclari:
+                    h = m.get("teams", {}).get("home", {}).get("name", "").lower()
+                    a = m.get("teams", {}).get("away", {}).get("name", "").lower()
+                    if param.lower() in h or param.lower() in a:
+                        fixture_id = m.get("fixture", {}).get("id")
+                        break
+            elif gunun_maclari:
+                for m in gunun_maclari:
+                    if m.get("fixture", {}).get("status", {}).get("short") in ("FT", "AET", "PEN"):
+                        fixture_id = m.get("fixture", {}).get("id")
+                        break
+
+        if not fixture_id:
+            telegram_bot.mesaj_gonder("⚠️ <b>Maç bulunamadı:</b> Belirtilen takımın bugün tamamlanmış bir maçı bulunmuyor veya maç ID'si geçersiz.", html=True)
+            return 0
+
+        telegram_bot.mesaj_gonder(f"⏳ <b>#{fixture_id} Maç Sonu seslendirmeli bülteni hazırlanıyor...</b>", html=True)
+        sonuc = spor_yonetimi.mac_sonu_haberi_hazirla_ve_sun(fixture_id, con, ayarlar, telegrama_gonder=True)
+        if not sonuc:
+            telegram_bot.mesaj_gonder(f"ℹ️ <b>#{fixture_id} için 15 dakika bekleme süresi henüz dolmamış veya bülten zaten hazırlanmış.</b>", html=True)
+        return 0
+
     # ⚠️ MESAJSIZ KOMUT BURAYA GELMEMELİ. Geldiyse yukarıdaki dalların
     # hiçbirine uymamış demektir — yani `MESAJSIZ_KOMUTLAR` listesine
     # eklenmiş ama işleyicisi yazılmamış. Eskiden akış devam ediyor,

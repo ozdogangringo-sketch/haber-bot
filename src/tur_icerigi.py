@@ -106,8 +106,9 @@ def slaytlar(con, haberler: list, mesaj_id) -> list[tuple[str, str]]:
             liste.insert(0, (kart["deger"], "Piyasa ısı haritası"))
 
     for h in haberler:
-        if h["son_dakika"]:
-            ayrintilar = detay_urlleri(h["detay_url"])
+        h_d = dict(h)
+        if h_d.get("son_dakika") or h_d.get("detay_url"):
+            ayrintilar = detay_urlleri(h_d.get("detay_url"))
             for sira, url in enumerate(ayrintilar, start=1):
                 etiket = "Ayrıntı" if len(ayrintilar) == 1 else f"Ayrıntı {sira}/{len(ayrintilar)}"
                 liste.append((url, etiket))
@@ -124,11 +125,14 @@ def yayin_metni(haberler: list, ayarlar: dict) -> str:
     Instagram'a gidecek açıklama metni — onay ekranında gösterilen metin de bu.
 
     Ekonomi turunun metni üretimde hazırlanıp `ig_caption`'a yazılıyor;
+    spor postlarında özel formatlı caption doğrudan korunuyor;
     tek haberli ve son dakika postu kendi biçimini kullanıyor; çok haberli
     tur numaralı manşet listesi.
     """
     ilk = dict(haberler[0]) if haberler else {}
     if ilk.get("tur") == "ekonomi" and ilk.get("ig_caption"):
+        metin = ilk["ig_caption"]
+    elif ilk.get("detay_sablonu") in ("spor_kadro", "spor_mac_sonu") and ilk.get("ig_caption"):
         metin = ilk["ig_caption"]
     elif haberler[0]["son_dakika"] or len(haberler) == 1:
         metin = caption.son_dakika_caption(haberler[0], katman_bilgisi(haberler), ayarlar)

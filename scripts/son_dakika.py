@@ -43,7 +43,7 @@ from src import (                                  # noqa: E402
     aday, ayar, caption, db, db_senkron, hata_bildir, dogrula, facebook,
     fetch_kadro, fetch_kulup_logo, fetch_news, instagram,
     make_image, otomatik_onay, threads,
-    secim, slaytlar, telegram_bot, tur_icerigi, upload_image, yonetim,
+    secim, slaytlar, spor_yonetimi, telegram_bot, tur_icerigi, upload_image, yonetim,
 )
 from src import generate_text                      # noqa: E402
 from src.generate_text import metinleri_uret       # noqa: E402
@@ -1209,6 +1209,15 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
                         except Exception as e:
                             log.error("Piyasa kapanış bülteni telafi yayını hatası: %s", e)
 
+        # --- 3.6) 4 Büyükler Spor Maç Takip Motoru (Maç Önü Kadro Carousel & Maç Sonu 15 Dk Reels) ---
+        if not zorla_haber_id:
+            try:
+                spor_rapor = spor_yonetimi.otomatik_spor_taramasi(con, ayarlar, telegrama_gonder=(not kuru))
+                if spor_rapor.get("kadro_hazirlanan") or spor_rapor.get("mac_sonu_hazirlanan"):
+                    log.info("Spor otomasyonu: %s", spor_rapor)
+            except Exception as e_spor:
+                log.warning("Spor maç takip taramasında hata: %s", e_spor)
+
         # --- 4) Taze haber çek, sonra aday ara ---
         if not zorla_haber_id and durum_id:
             telegram_bot.durum_guncelle(durum_id, "Taze Haber Taraması", 1, 4, "RSS kaynakları (AA, TRT, Bloomberg, Reuters) taranıyor…")
@@ -1364,5 +1373,13 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
 
 
 if __name__ == "__main__":
+    if "--spor" in sys.argv:
+        from src import spor_yonetimi
+        con = db.baglan()
+        ayarlar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+        res = spor_yonetimi.otomatik_spor_taramasi(con, ayarlar, telegrama_gonder=("--kuru" not in sys.argv))
+        print("Spor taraması sonucu:", res)
+        con.close()
+        sys.exit(0)
     populer_mi = "--populer" in sys.argv
     raise SystemExit(main(populer=populer_mi))

@@ -823,6 +823,13 @@ _ROMEN_SINIFLANDIRICI = (
 
 
 def _siralar(metin: str) -> str:
+    # Futbol uzatma dakikaları: "90+3." -> "doksan artı üçüncü", "45+2." -> "kırk beş artı ikinci"
+    def _uzatma_coz(m):
+        n1 = sayi_yazi(int(m.group(1)))
+        n2 = sira_yazi(int(m.group(2)))
+        return f"{n1} artı {n2}"
+    metin = re.sub(r"(\d+)\+(\d+)\.?(?=[ \t]+(?:dakika|dk)[a-zçğıöşü]*\b)", _uzatma_coz, metin)
+
     # Yalnızca noktalı ve ardından bir isim gelen Romen rakamı: tek "V" bir harf olabilir
     # Ardından büyük harfli bir isim gelmeli ("II. Etap"): tek harf artık olduğu gibi
     # kaldığı için "X. iki yüz…" gibi bir cümle sonu da Romen rakamı sanılıyordu

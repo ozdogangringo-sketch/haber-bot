@@ -1383,7 +1383,8 @@ export default {
                 "• /tur — 10 haberlik gündem turu hazırla\n" +
                 "• /bulten — Taze haberlerden kahve bülteni derle\n" +
                 "• /haftalik — Haftalık pazar özeti\n" +
-                "• /sonpostlar — Son yayınlanan postlar ve linkleri\n\n" +
+                "• /sonpostlar — Son yayınlanan postlar ve linkleri\n" +
+                "• /spor — 4 Büyükler canlı maç &amp; skor durumu\n\n" +
 
                 "<b>📈 PİYASA &amp; MAKRO</b>\n" +
                 "• /piyasa — Canlı borsa, döviz, altın, kripto tablosu\n" +
@@ -1605,7 +1606,7 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/kota", "/rapor", "/kullanim", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/populer", "/popüler", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar"].includes(komutMetni)) {
+        if (["/durum", "/kota", "/rapor", "/kullanim", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/populer", "/popüler", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar", "/spor"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
             if (komut === "rapor" || komut === "kullanim" || komut === "kota") {
                 const parcalar = msj.text.trim().split(/\s+/);
@@ -1647,6 +1648,8 @@ export default {
                                 ? "🔥 Popüler & merak edilen haber önerileri taranıyor…"
                                 : komut === "piyasa"
                                   ? "📈 Canlı piyasa ve borsa verileri çekiliyor…"
+                                : komut === "spor"
+                                  ? "⚽ 4 Büyükler canlı maç ve skor durumu sorgulanıyor…"
                                 : komut === "saglik_testi"
                                   ? "🩺 Sosyal medya API bağlantıları test ediliyor…"
                                   : komut === "bulten"

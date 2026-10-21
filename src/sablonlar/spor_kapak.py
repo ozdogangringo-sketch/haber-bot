@@ -157,12 +157,21 @@ def spor_kapak_slayti_ciz(
     my = y_arma + arma_boyutu // 2
     rc = 68
     ciz.ellipse([mx - rc, my - rc, mx + rc, my + rc], fill=(8, 18, 26, 250), outline=(255, 255, 255, 80), width=2)
-    ciz.ellipse([mx - rc + 6, my - rc + 6, mx + rc - 6, my + rc - 6], outline=(245, 158, 11, 140), width=1)
-
-    f_vs = make_image._font(40, make_image.EKSEN_BASLIK)
-    f_saat = make_image._font(20, make_image.EKSEN_BASLIK)
-    ciz.text(((genislik - ciz.textlength("VS", font=f_vs)) / 2, my - 38), "VS", font=f_vs, fill=(255, 255, 255))
-    ciz.text(((genislik - ciz.textlength(skor_saat, font=f_saat)) / 2, my + 10), skor_saat, font=f_saat, fill=(245, 158, 11))
+    mac_sonu = bool(veri.get("mac_sonu")) or ("-" in skor_saat and ":" not in skor_saat)
+    if mac_sonu:
+        f_ust = make_image._font(24, [24.0, 750.0])
+        f_alt = make_image._font(34, [34.0, 800.0])
+        ust_txt = "MS"
+        alt_txt = skor_saat
+        ciz.ellipse([mx - rc + 6, my - rc + 6, mx + rc - 6, my + rc - 6], outline=(16, 185, 129, 180), width=1)
+        ciz.text(((genislik - ciz.textlength(ust_txt, font=f_ust)) / 2, my - 36), ust_txt, font=f_ust, fill=(16, 185, 129))
+        ciz.text(((genislik - ciz.textlength(alt_txt, font=f_alt)) / 2, my - 2), alt_txt, font=f_alt, fill=(255, 255, 255))
+    else:
+        ciz.ellipse([mx - rc + 6, my - rc + 6, mx + rc - 6, my + rc - 6], outline=(245, 158, 11, 140), width=1)
+        f_vs = make_image._font(40, make_image.EKSEN_BASLIK)
+        f_saat = make_image._font(20, make_image.EKSEN_BASLIK)
+        ciz.text(((genislik - ciz.textlength("VS", font=f_vs)) / 2, my - 38), "VS", font=f_vs, fill=(255, 255, 255))
+        ciz.text(((genislik - ciz.textlength(skor_saat, font=f_saat)) / 2, my + 10), skor_saat, font=f_saat, fill=(245, 158, 11))
 
     # Armaların Altındaki Takım İsimleri (Dinamik Kulüp Vurgu Renkleri)
     f_isim = make_image._font(30, [30.0, 750.0])

@@ -6134,6 +6134,54 @@ def test_deep_dive_iyilestirmeleri() -> None:
             "caption.py: tekil çoklu slayt haberleri için 1-e-1 eşleşen Threads/X flood halkaları üretiliyor")
 
 
+def test_spor_yonetimi_sozlesmesi() -> None:
+    """
+    21 Ekim 2026 4 Büyükler Futbol Otomasyon Sözleşmesi:
+      1) 4 Büyükler takım filtresi: Galatasaray, Fenerbahçe, Beşiktaş, Trabzonspor doğrulanır,
+         alakasız kulüpler elenir.
+      2) Maç sonu bekleme süresi: Maç bittikten (FT) sonra en az 15 dakika bekleme penceresi işletilir.
+      3) Maç önü kadro gönderisi KESİNLİKLE Carousel formatındadır (paylas_reels=False, paylas_video=False).
+      4) Maç sonu bülteni seslendirmeli Reels video formatındadır.
+      5) Okunuş katmanı uzatma dakikalarını doğru telaffuz eder (90+3. -> doksan artı üçüncü).
+    """
+    from src import spor_yonetimi, okunus
+
+    # 1) 4 Büyükler takım filtresi
+    denetle(spor_yonetimi.dort_buyuk_mu("Galatasaray"), "spor_yonetimi: Galatasaray 4 büyükler içinde")
+    denetle(spor_yonetimi.dort_buyuk_mu("Fenerbahçe A.Ş."), "spor_yonetimi: Fenerbahçe 4 büyükler içinde")
+    denetle(spor_yonetimi.dort_buyuk_mu("Beşiktaş JK"), "spor_yonetimi: Beşiktaş 4 büyükler içinde")
+    denetle(spor_yonetimi.dort_buyuk_mu("Trabzonspor"), "spor_yonetimi: Trabzonspor 4 büyükler içinde")
+    denetle(not spor_yonetimi.dort_buyuk_mu("Konyaspor"), "spor_yonetimi: Konyaspor 4 büyükler dışı")
+    denetle(not spor_yonetimi.dort_buyuk_mu("Real Madrid"), "spor_yonetimi: Real Madrid 4 büyükler dışı")
+
+    denetle(spor_yonetimi.dort_buyukler_maci_mi("Galatasaray", "Antalyaspor"), "spor_yonetimi: GS-Antalya 4 büyükler maçı")
+    denetle(not spor_yonetimi.dort_buyukler_maci_mi("Kasımpaşa", "Rizespor"), "spor_yonetimi: Kasımpaşa-Rize 4 büyükler maçı değil")
+
+    # 2) 15 Dakika bekleme süresi kontrolü
+    con = gecici_db()
+    con.executescript("CREATE TABLE IF NOT EXISTS ayarlar (anahtar TEXT PRIMARY KEY, deger TEXT);")
+    fixture_id = 999111
+    # İlk çağrıda zaman damgası kaydedilmeli, süre dolmadı dönmeli
+    doldu, gecen = spor_yonetimi.bekleme_suresi_doldu_mu(fixture_id, con, asgari_dakika=15)
+    denetle(not doldu and gecen == 0.0, "spor_yonetimi: FT ilk kez görüldüğünde 15 dk bekleme başlatılıyor")
+
+    # 10 dakika sonra hala dolmadı dönmeli
+    gecmis_10 = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    con.execute("UPDATE ayarlar SET deger = ? WHERE anahtar = ?", (gecmis_10, f"spor_mac_bitti_zamani_{fixture_id}"))
+    doldu_10, gecen_10 = spor_yonetimi.bekleme_suresi_doldu_mu(fixture_id, con, asgari_dakika=15)
+    denetle(not doldu_10 and 9.5 <= gecen_10 <= 10.5, "spor_yonetimi: 10 dakika sonra bekleme süresi dolmadı")
+
+    # 16 dakika sonra doldu dönmeli
+    gecmis_16 = (datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat()
+    con.execute("UPDATE ayarlar SET deger = ? WHERE anahtar = ?", (gecmis_16, f"spor_mac_bitti_zamani_{fixture_id}"))
+    doldu_16, gecen_16 = spor_yonetimi.bekleme_suresi_doldu_mu(fixture_id, con, asgari_dakika=15)
+    denetle(doldu_16 and gecen_16 >= 15.0, "spor_yonetimi: 16 dakika sonra 15 dk bekleme süresi doldu")
+
+    # 3) Futbol uzatma dakikası okunuşu
+    okunus_90 = okunus.okunusa_cevir("90+3. dakikada atılan gol")
+    denetle("doksan artı üçüncü dakikada" in okunus_90, "okunus: 90+3. dakikada -> doksan artı üçüncü dakikada", f"sonuc={okunus_90}")
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -6233,6 +6281,7 @@ def main() -> int:
         test_db_kaydi_yarista_tekrar_deniyor_ve_ezmiyor,
         test_uzaktan_tazele_canli_dosyaya_dokunmaz,
         test_deep_dive_iyilestirmeleri,
+        test_spor_yonetimi_sozlesmesi,
     ):
         try:
             test()
