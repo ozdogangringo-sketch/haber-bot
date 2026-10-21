@@ -1171,10 +1171,11 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
             bugun_str = tr_simdi.date().isoformat()
 
             if hafta_ici:
-                # 10:00 - 10:20 ve 18:00 - 18:30 arası bülten yayın anı: öneri gönderilmez
-                if (saat == 10 and dakika < 20) or (saat == 18 and dakika < 30):
+                # 10:00 - 10:20 arası açılış bülteni yayın anı: öneri gönderilmez
+                # (Kullanıcı kararı: Akşam piyasa kapanış bülteni kaldırıldı, öneri kısıtı yok)
+                if (saat == 10 and dakika < 20):
                     log.info(
-                        "Hafta içi Piyasa Bülteni saat dilimi (%02d:%02d TR) — saatlik öneri piyasa bültenine öncelik tanımak için atlanıyor.",
+                        "Hafta içi Piyasa Açılış Bülteni saat dilimi (%02d:%02d TR) — saatlik öneri bültene öncelik tanımak için atlanıyor.",
                         saat, dakika
                     )
                     return 0
@@ -1193,21 +1194,6 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
                             sys.argv = eski_argv
                         except Exception as e:
                             log.error("Piyasa bülteni telafi yayını hatası: %s", e)
-
-                # Akşam bülteni geciktiyse veya eksik kaldıysa (18:30 - 20:00 TR) otomatik telafi et
-                if (saat == 18 and dakika >= 30) or (saat == 19 and dakika <= 55):
-                    anahtar_kapanis = f"piyasa_bulteni_kapanis_{bugun_str}"
-                    zaten_kapanis = con.execute("SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_kapanis,)).fetchone()
-                    if not zaten_kapanis:
-                        log.warning("Akşam Piyasa Kapanış Bülteni henüz tamamlanmamış! Otomatik telafi yayını başlatılıyor...")
-                        try:
-                            from scripts import piyasa_otomatik
-                            eski_argv = sys.argv
-                            sys.argv = ["piyasa_otomatik.py", "--mod", "kapanis"]
-                            piyasa_otomatik.main()
-                            sys.argv = eski_argv
-                        except Exception as e:
-                            log.error("Piyasa kapanış bülteni telafi yayını hatası: %s", e)
 
         # --- 3.6) 4 Büyükler Spor Maç Takip Motoru (Maç Önü Kadro Carousel & Maç Sonu 15 Dk Reels) ---
         if not zorla_haber_id:

@@ -2147,17 +2147,12 @@ export default {
     // tetikleyicisi de duruyor; ortak dakikada (20) toplanınca bir
     // slot boşaldı ve davranış korundu.
     //
-    // ⚠️ CRON DİZGİSİ ARTIK HANGİ BÜLTEN OLDUĞUNU SÖYLEMİYOR — ayrım
-    // SAATTEN yapılıyor. `scheduledTime` tercih ediliyor: tetiklemenin
-    // PLANLANAN anı, worker'ın uyandığı an değil. Yan faydası, testin
-    // saati enjekte edip iki modu da ağa çıkmadan sınayabilmesi.
-    //
-    // ⚠️ Yanlış mod gönderilse bile `piyasa_otomatik.py` saat
-    // penceresini ayrıca denetliyor (açılış 09:55-11:30, kapanış
-    // 18:15-20:00 TR) — yani bu ayrım tek savunma katmanı değil.
-    if (event.cron === "20 7,15 * * 1-5") {
+    // 2. Piyasa Açılış Bülteni (Hafta içi 10:20 TR / 07:20 UTC)
+    // ⚠️ Kapanış bülteni kullanıcı kararıyla kaldırıldı. Yalnızca sabah açılış bülteni aktif.
+    if (event.cron === "20 7 * * 1-5" || event.cron === "20 7,15 * * 1-5") {
       const saatUTC = new Date(event.scheduledTime ?? Date.now()).getUTCHours();
       const mod = saatUTC < 12 ? "acilis" : "kapanis";
+      if (mod === "kapanis") return; // Kullanıcı kararı: Kapanış bülteni kaldırıldı
       if (!(await cronKilitAl(env, `piyasa_${mod}`, 1800))) return;
       await fetch(url, {
         method: "POST",

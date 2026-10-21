@@ -194,6 +194,12 @@ def main() -> int:
             con.close()
             return 0
 
+    # Kullanıcı kararı: Piyasa kapanış bülteni otomatik yayından kaldırıldı (yalnızca açılış bülteni aktiftir)
+    if mod == "kapanis" and not args.zorla:
+        log.info("Piyasa kapanış bülteni yayından kaldırıldı (yalnızca açılış bülteni aktiftir).")
+        con.close()
+        return 0
+
     # 3. Mükerrer Bülten Kilidi (Günde 1 kez açılış, 1 kez kapanış & 30 dk çalışma cooldown'ı)
     anahtar_bulten = f"piyasa_bulteni_{mod}_{bugun_str}"
     zaten_var = con.execute(

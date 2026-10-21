@@ -3717,11 +3717,11 @@ def test_planli_yayin_cloudflareden_tetikleniyor() -> None:
             "yalnızca uyarı olarak söylüyor — ayrıca aynı hesaptaki "
             "ezan botunun deploy'unu da kilitler")
 
-    # ⚠️ Saat listesi virgülle yazılabiliyor; iki piyasa cron'u ortak
-    # dakikada (20) birleştirildi ve bir slot boşaldı.
-    denetle('"20 7,15 * * 1-5"' in kod,
-            "piyasa açılış+kapanış tek cron satırında",
-            "iki ayrı satır hesap bütçesini aşırıyor")
+    # ⚠️ Piyasa bülteni: yalnızca sabah açılış bülteni aktif (20 7 * * 1-5).
+    # Kapanış bülteni kullanıcı kararıyla kaldırıldı.
+    denetle('"20 7 * * 1-5"' in kod,
+            "piyasa açılış bülteni tek cron satırında",
+            "kapanış bülteni kaldırıldı, yalnızca sabah açılış cron'u olmalı")
 
     yml = (KOK / ".github/workflows/son-dakika.yml").read_text(encoding="utf-8")
     denetle("planli_yayin" in yml,
@@ -3766,10 +3766,10 @@ def test_planli_yayin_cloudflareden_tetikleniyor() -> None:
 
     denetle("piyasa_bulteni/acilis" in _satir("piyasa 07:20"),
             "07:20 UTC → açılış bülteni",
-            "birleşik cron yanlış mod gönderiyor, açılış bülteni çıkmaz")
-    denetle("piyasa_bulteni/kapanis" in _satir("piyasa 15:20"),
-            "15:20 UTC → kapanış bülteni",
-            "birleşik cron iki slotta da aynı modu gönderiyor")
+            "cron yanlış mod gönderiyor, açılış bülteni çıkmaz")
+    denetle("YOK" in _satir("piyasa 15:20"),
+            "15:20 UTC → kapanış bülteni kaldırıldı (dispatch yok)",
+            "kapanış bülteni tetiklenmemeli")
     denetle("1 (TEK ✓)" in _satir("mükerrer saatlik cron engeli"),
             "Cloudflare worker mükerrer cron çağrılarını engelliyor",
             "aynı zaman diliminde mükerrer dispatch engellenemedi")

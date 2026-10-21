@@ -37,14 +37,14 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 - **YAYIN MODELİ (SAATLİK TEKLİ HABERLER & GÜNLÜK PİYASA BÜLTENİ):**
   * Akşam çoklu haber turları kaldırılmıştır.
   * Gün boyu 1'er saat aralıklarla Telegram'a **en taze 5 haber önerisi** düşer; seçilen haber varsayılan olarak **3-4 ferah sayfa (1 Kapak + 2-3 Detay/Analiz Slaytı - 1080x1920)** olarak üretilir.
-  * Hafta içi sabah (TR 10:08) ve akşam (TR 18:20) fiks **Canlı Borsa & Piyasa Bülteni** (%100 Native 1080x1920 Story ve Akış) otomatik paylaşılır.
+  * Hafta içi sabah (TR 10:20 / UTC 07:20) fiks **Canlı Borsa & Piyasa Açılış Bülteni** (%100 Native 1080x1920 Story ve Akış) otomatik paylaşılır (Kapanış bülteni kullanıcı kararıyla kaldırılmıştır).
 
 ---
 
 ## 2. Sistem Mimarisi & Kesintisiz 3 Katmanlı Tetikleme
 
 ```
-[Cloudflare Edge Cron Triggers] (10:08 TR Açılış, 18:20 TR Kapanış, Saatlik Akış)
+[Cloudflare Edge Cron Triggers] (10:20 TR Açılış, Saatlik Akış)
        │ (0 Gecikme, 99.99% Uptime — worker/index.js)
        ▼
 [GitHub Actions repository_dispatch] ──► [piyasa-bulteni.yml / son-dakika.yml / yayinla.yml]
@@ -82,7 +82,7 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 - **Kesin Saat Pencereleri:** Açılış bülteni penceresi **09:55 - 11:30 TR**, Kapanış bülteni penceresi **18:15 - 20:00 TR** aralığındadır. Bu saatler dışında sistem otomatik yayınlamayı reddeder.
 
 ### B. Cloudflare Edge Cron & Çok Katmanlı Güvenlik Mimarisi
-- **Cloudflare Edge Cron:** `worker/wrangler.toml` ve `worker/index.js` üzerinden `8 7 * * 1-5` (10:08 TR) ve `20 15 * * 1-5` (18:20 TR) cron'ları doğrudan Cloudflare Edge ağında çalışarak GitHub REST API `repository_dispatch` ile piyasa bültenini ve saatlik haber akışını sıfır gecikmeyle tetikler. GitHub Actions'ın kendi gecikmeli `schedule:` cron'ları tamamen kaldırılmıştır.
+- **Cloudflare Edge Cron:** `worker/wrangler.toml` ve `worker/index.js` üzerinden `20 7 * * 1-5` (10:20 TR) cron'u doğrudan Cloudflare Edge ağında çalışarak GitHub REST API `repository_dispatch` ile piyasa açılış bültenini ve saatlik haber akışını sıfır gecikmeyle tetikler (kapanış bülteni yayından kaldırılmıştır). GitHub Actions'ın kendi gecikmeli `schedule:` cron'ları tamamen kaldırılmıştır.
 - **Saatlik `son_dakika` Emniyet Ağı:** Hafta içi sabah 10:15 - 11:30 arasında bülten gecikirse, saat başı çalışan `son_dakika.py` motoru durumu fark edip piyasa bültenini anında yayına alır.
 - **Telegram `/piyasa` ve `/ekonomi` Butonları:** Telegram'dan anlık olarak "🚀 Canlı Bülteni Şimdi Yayınla" ve "🖼️ 1080x1920 Slaytları Önizle" butonlarıyla bülten tetiklenebilir.
 - **Özel Event Ayrımı:** `/sondakika` komutu `son_dakika_calistir` event'i ile doğrudan `son-dakika.yml` workflow'unu tetikler.
@@ -244,7 +244,7 @@ Bu dosya projeyi devralan yapay zeka oturumu ve geliştiriciler içindir.
 | `src/tiktok.py` | TikTok Content Posting API v2 üzerinden dikey video yükleme. |
 | `src/fetch_news.py` | 20+ RSS kaynağından haberleri çekme, parse etme ve SQLite veritabanına aktarma. |
 | `src/generate_text.py` | Gemini Flash modelleri ile başlık, özet, detay metni ve önem puanı üretimi. |
-| `scripts/piyasa_otomatik.py`| Hafta içi 10:08 ve 18:20 %100 Native 1080x1920 Piyasa Bülteni yayınlama scripti. |
+| `scripts/piyasa_otomatik.py`| Hafta içi 10:20 %100 Native 1080x1920 Piyasa Açılış Bülteni yayınlama scripti (kapanış bülteni kaldırıldı). |
 | `scripts/son_dakika.py` | Saatlik 5'li haber önerisi ve otomatik piyasa bülteni telafi güvenlik ağı scripti. |
 | `scripts/onay_isle.py` | Telegram onay, buton ve komut işleme facade router'ı. |
 

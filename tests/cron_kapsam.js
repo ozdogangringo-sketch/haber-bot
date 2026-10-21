@@ -41,10 +41,8 @@ async function dene(ad, kayitlar) {
   await W.scheduled({ cron: "12 5-20 * * *" }, { GITHUB_PAT: "x", GITHUB_REPO: "a/b" }, {});
   console.log(`  ${"eski saatlik cron".padEnd(34)} dispatch=${c2.join(",") || "YOK ⛔"}`);
 
-  // PİYASA: iki bülten TEK cron'da — ayrım cron dizgisinden değil
-  // SAATTEN yapılıyor. scheduledTime enjekte edilerek her iki slot da
-  // ağa çıkmadan sınanıyor. ⚠️ Bu denetim olmasaydı birleştirme
-  // sessizce iki kez "acilis" üretebilirdi.
+  // PİYASA: Yalnızca sabah açılış bülteni aktif (20 7 * * 1-5).
+  // Kapanış bülteni kullanıcı kararıyla kaldırıldı.
   async function piyasa(ad, isoZaman) {
     const c = [];
     global.fetch = async (u, o) => {
@@ -53,9 +51,9 @@ async function dene(ad, kayitlar) {
       return { ok: true };
     };
     await W.scheduled(
-      { cron: "20 7,15 * * 1-5", scheduledTime: Date.parse(isoZaman) },
+      { cron: "20 7 * * 1-5", scheduledTime: Date.parse(isoZaman) },
       { GITHUB_PAT: "x", GITHUB_REPO: "a/b" }, {});
-    console.log(`  ${ad.padEnd(34)} dispatch=${c.join(",") || "YOK ⛔"}`);
+    console.log(`  ${ad.padEnd(34)} dispatch=${c.join(",") || "YOK (Kaldırıldı ✓)"}`);
   }
   await piyasa("piyasa 07:20 UTC", "2026-09-07T07:20:00Z");
   await piyasa("piyasa 15:20 UTC", "2026-09-07T15:20:00Z");
