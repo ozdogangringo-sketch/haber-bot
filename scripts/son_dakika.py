@@ -40,7 +40,8 @@ sys.path.insert(0, str(KOK))
 import yaml                                       # noqa: E402
 
 from src import (                                  # noqa: E402
-    aday, ayar, caption, db, db_senkron, hata_bildir, dogrula, facebook, fetch_news, instagram,
+    aday, ayar, caption, db, db_senkron, hata_bildir, dogrula, facebook,
+    fetch_kadro, fetch_kulup_logo, fetch_news, instagram,
     make_image, otomatik_onay, threads,
     secim, slaytlar, telegram_bot, tur_icerigi, upload_image, yonetim,
 )

@@ -164,15 +164,19 @@ def spor_kapak_slayti_ciz(
     ciz.text(((genislik - ciz.textlength("VS", font=f_vs)) / 2, my - 38), "VS", font=f_vs, fill=(255, 255, 255))
     ciz.text(((genislik - ciz.textlength(skor_saat, font=f_saat)) / 2, my + 10), skor_saat, font=f_saat, fill=(245, 158, 11))
 
-    # Armaların Altındaki Takım İsimleri
-    f_isim = make_image._font(32, make_image.EKSEN_BASLIK)
+    # Armaların Altındaki Takım İsimleri (Dinamik Kulüp Vurgu Renkleri)
+    f_isim = make_image._font(30, [30.0, 750.0])
     ev_ad_b = make_image._buyuk_harf(ev_ad)
     dep_ad_b = make_image._buyuk_harf(dep_ad)
     ev_w = ciz.textlength(ev_ad_b, font=f_isim)
     dep_w = ciz.textlength(dep_ad_b, font=f_isim)
     isim_y = y_arma + arma_boyutu + 14
-    ciz.text((sol_x + (arma_boyutu - ev_w) / 2, isim_y), ev_ad_b, font=f_isim, fill=(245, 158, 11))
-    ciz.text((sag_x + (arma_boyutu - dep_w) / 2, isim_y), dep_ad_b, font=f_isim, fill=(56, 189, 248))
+
+    ev_vurgu = ev_renkler.get("number") or ev_renkler.get("primary") or (255, 255, 255)
+    dep_vurgu = dep_renkler.get("number") or dep_renkler.get("primary") or (255, 255, 255)
+
+    ciz.text((sol_x + (arma_boyutu - ev_w) / 2, isim_y), ev_ad_b, font=f_isim, fill=ev_vurgu)
+    ciz.text((sag_x + (arma_boyutu - dep_w) / 2, isim_y), dep_ad_b, font=f_isim, fill=dep_vurgu)
 
     # Alt Stadyum & Hakem Telemetri Kapsülü
     if mac_bilgi:
@@ -188,16 +192,19 @@ def spor_kapak_slayti_ciz(
     baslik = (haber.get("ig_baslik") or haber.get("baslik_orj") or "Dev derbide ilk 11'ler belli oldu").strip()
     spot = (haber.get("spot") or haber.get("slayt_ozet") or haber.get("ozet") or "").strip()
 
+    gorsel_ayarlar = dict(ayarlar.get("gorsel", {}))
+    gorsel_ayarlar.update({
+        "kenar_bosluk": 64,
+        "dikey_guvenli_pay": dikey_kenar,
+        "genislik": genislik,
+        "yukseklik": yukseklik,
+        "serit_rengi": [4, 18, 16],
+        "kanca_ciz": False,  # ⚠️ Spor maç kapağında editoryal kanca/kicker çizilmez!
+    })
+
     story_ayarlar = {
         **ayarlar,
-        "gorsel": {
-            "kenar_bosluk": 64,
-            "dikey_guvenli_pay": dikey_kenar,
-            "genislik": genislik,
-            "yukseklik": yukseklik,
-            "serit_rengi": [4, 18, 16],
-            **ayarlar.get("gorsel", {}),
-        },
+        "gorsel": gorsel_ayarlar,
     }
 
     return make_image.yaziyi_bas(

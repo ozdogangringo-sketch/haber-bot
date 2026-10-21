@@ -152,15 +152,15 @@ KULUP_RENKLERI: dict[str, dict[str, tuple[int, int, int]]] = {
         "number": (254, 209, 0),
     },
     "besiktas": {
-        "primary": (22, 22, 28),        # Asil Siyah / Karbon
-        "secondary": (240, 240, 248),   # Platin Beyaz / Gümüş
-        "atmosphere": (140, 145, 165),
-        "number": (255, 255, 255),
+        "primary": (240, 240, 248),        # Platin Beyaz / Gümüş (Dark modda asil ve net!)
+        "secondary": (22, 22, 28),         # Karbon Siyah
+        "atmosphere": (175, 190, 220),      # Stadyum Gece Projektör Işıltısı
+        "number": (240, 240, 248),
     },
     "trabzonspor": {
-        "primary": (119, 13, 44),       # Bordo
-        "secondary": (88, 184, 237),    # Açık Mavi
-        "atmosphere": (130, 15, 50),
+        "primary": (88, 184, 237),         # Açık Mavi (Dark modda harika parlar!)
+        "secondary": (135, 15, 55),        # Bordo
+        "atmosphere": (145, 18, 55),        # Bordo Gece Atmosferi
         "number": (88, 184, 237),
     },
     # Süper Lig Kulüpleri
@@ -328,10 +328,10 @@ KULUP_RENKLERI: dict[str, dict[str, tuple[int, int, int]]] = {
         "number": (88, 184, 237),
     },
     "juventus": {
-        "primary": (25, 25, 28),
-        "secondary": (245, 245, 250),
-        "atmosphere": (140, 145, 160),
-        "number": (255, 255, 255),
+        "primary": (240, 240, 248),
+        "secondary": (25, 25, 28),
+        "atmosphere": (175, 190, 220),
+        "number": (240, 240, 248),
     },
     "ac_milan": {
         "primary": (210, 20, 30),

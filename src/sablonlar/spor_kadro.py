@@ -99,11 +99,11 @@ def _ad_akilli_sigdir(ciz: ImageDraw.Draw, tam_ad: str, font, max_gen: int) -> s
 def _takim_adi_sigdir(ciz: ImageDraw.Draw, ham_ad: str, max_gen: int) -> tuple[str, any]:
     """Takım adını puntoları adaptif küçülterek skor rozetine çarpmayacak şekilde sığdırır."""
     ad = make_image._buyuk_harf(ham_ad.strip())
-    for punto in (28, 25, 22, 19):
-        f = make_image._font(punto, make_image.EKSEN_BASLIK)
+    for punto in (26, 24, 22, 19):
+        f = make_image._font(punto, [float(punto), 750.0])
         if ciz.textlength(ad, font=f) <= max_gen:
             return ad, f
-    f = make_image._font(18, make_image.EKSEN_BASLIK)
+    f = make_image._font(18, [18.0, 750.0])
     while ad and ciz.textlength(ad + "…", font=f) > max_gen:
         ad = ad[:-1].rstrip()
     return (ad + "…" if ad else ham_ad[:14]), f
@@ -250,8 +250,11 @@ def spor_kadro_slayti_ciz(
             ev_ad_x = ev_sol_x + 12
 
         azami_takim_g = (rx1 - ev_ad_x) - 18
-        ev_ad_ciz, f_ev = _takim_adi_sigdir(ciz, ev_ad.upper(), azami_takim_g)
-        ciz.text((ev_ad_x, ry1 + 7), ev_ad_ciz, font=f_ev, fill=(255, 255, 255))
+        ev_ad_ciz, f_ev = _takim_adi_sigdir(ciz, ev_ad, azami_takim_g)
+        bbox_ev = ciz.textbbox((0, 0), ev_ad_ciz, font=f_ev)
+        th_ev = bbox_ev[3] - bbox_ev[1]
+        ty_ev = (ry1 - 3 + ry2 + 3 - th_ev) // 2 - bbox_ev[1]
+        ciz.text((ev_ad_x, ty_ev), ev_ad_ciz, font=f_ev, fill=(255, 255, 255))
 
         # Deplasman Kapsülü (Lüks Füme Cam + Sağ Kulüp Neon Çizgisi)
         ciz.rounded_rectangle([rx2 + 10, ry1 - 3, genislik - kenar - 8, ry2 + 3], radius=10, fill=(18, 22, 30, 220), outline=(dep_p[0], dep_p[1], dep_p[2], 120), width=1)
@@ -266,13 +269,19 @@ def spor_kadro_slayti_ciz(
             dep_ad_sag_sinir = dep_sag_x - 12
 
         azami_dep_g = (dep_ad_sag_sinir - rx2) - 18
-        dep_ad_ciz, f_dep = _takim_adi_sigdir(ciz, dep_ad.upper(), azami_dep_g)
+        dep_ad_ciz, f_dep = _takim_adi_sigdir(ciz, dep_ad, azami_dep_g)
         dep_tw = ciz.textlength(dep_ad_ciz, font=f_dep)
-        ciz.text((dep_ad_sag_sinir - dep_tw, ry1 + 7), dep_ad_ciz, font=f_dep, fill=(255, 255, 255))
+        bbox_dep = ciz.textbbox((0, 0), dep_ad_ciz, font=f_dep)
+        th_dep = bbox_dep[3] - bbox_dep[1]
+        ty_dep = (ry1 - 3 + ry2 + 3 - th_dep) // 2 - bbox_dep[1]
+        ciz.text((dep_ad_sag_sinir - dep_tw, ty_dep), dep_ad_ciz, font=f_dep, fill=(255, 255, 255))
     else:
         tek_ad = make_image._buyuk_harf((ev_ad or dep_ad or "İLK 11 KADROSU"))
         tek_ciz, f_tek = _takim_adi_sigdir(ciz, tek_ad, alan_w - 48)
-        ciz.text((kenar + 24, ry1 + 7), tek_ciz, font=f_tek, fill=(255, 255, 255))
+        bbox_tek = ciz.textbbox((0, 0), tek_ciz, font=f_tek)
+        th_tek = bbox_tek[3] - bbox_tek[1]
+        ty_tek = (ry1 - 3 + ry2 + 3 - th_tek) // 2 - bbox_tek[1]
+        ciz.text((kenar + 24, ty_tek), tek_ciz, font=f_tek, fill=(255, 255, 255))
 
     # Alt satır: Stadyum & Hakem & Yayın
     mac_bilgi = (veri.get("mac_bilgisi") or veri.get("stat_hakem") or veri.get("stadyum_saat") or "").strip()
