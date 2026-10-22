@@ -263,7 +263,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_tt_video = ("tiktok_video" in k_set or "tt_video" in k_set or "v" in k_set) and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
         paylas_tt = ("tiktok" in k_set or "tt" in k_set or "k" in k_set) and not paylas_tt_video and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
     else:
-        paylas_reels = False
+        paylas_reels = True
         paylas_ig = True
         paylas_story = True
         paylas_fb = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))

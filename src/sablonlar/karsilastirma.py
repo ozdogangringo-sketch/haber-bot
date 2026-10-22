@@ -3,8 +3,8 @@ karsilastirma.py — Eski vs Yeni / Zam / Tarife / Vergi / Maaş Karşılaştır
 
 1080x1920 tuvalde (STORY_GUVENLI_PAY = 330 merkezi 4:5 güvenli alanında):
   - Üstte Tablo Başlığı ve Sütun Etiketleri (Kalem | Eski | Yeni | Değişim)
-  - Ortada 3-6 Satırlık Lüks Karşılaştırma Kartları (Eski -> Yeni okları ve renkli değişim rozetleri)
-  - Altta Yürürlük Tarihi / Önemli Not Şeridi
+  - Ortada 2-6 Satırlık Lüks Karşılaştırma Kartları (Eski -> Yeni okları ve renkli değişim rozetleri)
+  - Altta Kompakt Yürürlük Tarihi / Önemli Not Şeridi (Asla dikey esnetilmez, metinle orantılı boyutta kalır)
 """
 
 from __future__ import annotations
@@ -41,9 +41,9 @@ def karsilastirma_slayti_ciz(
 
     satirlar = satirlar[:6]
     tablo_basligi = (veri.get("tablo_basligi") or veri.get("baslik") or haber.get("ig_baslik") or "ESKİ VE YENİ TABLO KARŞILAŞTIRMASI").strip()
-    sol_etiket = make_image._buyuk_harf((veri.get("kalem_etiket") or "KALEM / KATEGORİ").strip())
-    eski_etiket = make_image._buyuk_harf((veri.get("eski_etiket") or veri.get("sol_etiket") or "ESKİ").strip())
-    yeni_etiket = make_image._buyuk_harf((veri.get("yeni_etiket") or veri.get("sag_etiket") or "YENİ").strip())
+    sol_etiket = make_image._buyuk_harf((veri.get("kalem_etiket") or veri.get("sol_etiket") or "KALEM / KATEGORİ").strip())
+    eski_etiket = make_image._buyuk_harf((veri.get("eski_etiket") or "ESKİ").strip())
+    yeni_etiket = make_image._buyuk_harf((veri.get("yeni_etiket") or "YENİ").strip())
     alt_not = (veri.get("alt_not") or haber.get("sana_etkisi") or "").strip()
 
     gorsel, kenar, dikey_kenar, y_ust, y_alt = temel_tuval_olustur(
@@ -54,14 +54,41 @@ def karsilastirma_slayti_ciz(
     )
     genislik = make_image.STORY_GENISLIK
     alan_g = genislik - 2 * kenar
-    y = y_ust + 8
+    alan_h = y_alt - y_ust
+
+    # --- ALT NOT ÖLÇÜSÜ (Kompakt & Metinle Orantılı) ---
+    ciz_olcum = ImageDraw.Draw(gorsel, "RGBA")
+    f_not = make_image._font(24, make_image.EKSEN_OZET)
+    not_satirlar = metin_kutuya_sar(ciz_olcum, alt_not, f_not, alan_g - 52, maks_satir=3) if alt_not else []
+    alt_not_h = max(74, min(126, 38 + len(not_satirlar) * 32)) if not_satirlar else 0
+
+    ust_h = 114
+    sutun_h = 34
+    adet = len(satirlar)
+    gap = 18 if adet <= 3 else (16 if adet <= 4 else 12)
+
+    # Satır sayısına göre optimize edilmiş kart yükseklikleri
+    if adet == 2:
+        satir_h = 185
+    elif adet == 3:
+        satir_h = 160
+    elif adet == 4:
+        satir_h = 138
+    elif adet == 5:
+        satir_h = 118
+    else:
+        satir_h = 100
+
+    # 4:5 Güvenli Alanında Dikey Ortalama / Dengeleme
+    toplam_icerik = ust_h + 16 + sutun_h + 12 + (adet * satir_h + (adet - 1) * gap) + (20 + alt_not_h if alt_not_h else 0)
+    y_offset_extra = max(8, (alan_h - toplam_icerik) // 2)
+    y = y_ust + y_offset_extra
 
     # --- 1. TABLO ÜST BAŞLIK KARTI ---
-    ust_h = 118
     gorsel = cam_kart_ciz(
         gorsel,
         (kenar, y, genislik - kenar, y + ust_h),
-        dolgu=(10, 26, 44, 232),
+        dolgu=(10, 26, 44, 235),
         kenarlik=(226, 170, 88, 95),
         yaricap=20,
         sol_centik=(226, 170, 88),
@@ -74,28 +101,22 @@ def karsilastirma_slayti_ciz(
         ciz.text((kenar + 28, ty), s, font=f_tbas, fill=(255, 255, 255))
         ty += 38
 
-    y += ust_h + 18
+    y += ust_h + 16
 
     # --- 2. SÜTUN BAŞLIKLARI BARI ---
     f_sutun = make_image._font(20, make_image.EKSEN_BASLIK)
     ciz.text((kenar + 24, y), sol_etiket[:24], font=f_sutun, fill=(148, 163, 184))
-    eski_x = kenar + int(alan_g * 0.48)
-    yeni_x = kenar + int(alan_g * 0.69)
+    eski_x = kenar + int(alan_g * 0.44)
+    yeni_x = kenar + int(alan_g * 0.66)
     ciz.text((eski_x, y), eski_etiket[:14], font=f_sutun, fill=(148, 163, 184))
     ciz.text((yeni_x, y), yeni_etiket[:14], font=f_sutun, fill=(226, 170, 88))
-    y += 36
+    y += sutun_h + 10
 
     # --- 3. KARŞILAŞTIRMA SATIRLARI ---
-    alt_not_pay = 116 if alt_not else 0
-    kalan_h = y_alt - y - alt_not_pay
-    adet = len(satirlar)
-    gap = 14
-    satir_h = min(132, max(86, (kalan_h - (adet - 1) * gap) // adet))
-
-    f_kalem = make_image._font(26, make_image.EKSEN_BASLIK)
-    f_eski = make_image._font(25, make_image.EKSEN_OZET)
-    f_yeni = make_image._font(28, make_image.EKSEN_BASLIK)
-    f_deg = make_image._font(21, make_image.EKSEN_BASLIK)
+    f_kalem = make_image._font(28 if adet <= 3 else 25, make_image.EKSEN_BASLIK)
+    f_eski = make_image._font(26 if adet <= 3 else 24, make_image.EKSEN_OZET)
+    f_yeni = make_image._font(32 if adet <= 3 else 28, make_image.EKSEN_BASLIK)
+    f_deg = make_image._font(22 if adet <= 3 else 20, make_image.EKSEN_BASLIK)
 
     for idx, s in enumerate(satirlar):
         sy1 = y + idx * (satir_h + gap)
@@ -117,13 +138,13 @@ def karsilastirma_slayti_ciz(
         degisim = str(s.get("degisim") or "").replace("**", "").strip()
 
         # Sol: Kalem adı
-        k_satir = metin_kutuya_sar(ciz, kalem_metni, f_kalem, int(alan_g * 0.42), maks_satir=2)
-        ky = sy1 + (satir_h - len(k_satir) * 32) // 2
+        k_satir = metin_kutuya_sar(ciz, kalem_metni, f_kalem, int(alan_g * 0.40), maks_satir=2)
+        ky = sy1 + (satir_h - len(k_satir) * 34) // 2
         for ks in k_satir:
             ciz.text((kenar + 24, ky), ks, font=f_kalem, fill=(241, 245, 249))
-            ky += 32
+            ky += 34
 
-        orta_y = sy1 + (satir_h - 32) // 2
+        orta_y = sy1 + (satir_h - 34) // 2
 
         # Orta: Eski değer + ok
         ciz.text((eski_x, orta_y + 2), eski_deger[:16], font=f_eski, fill=(148, 163, 184))
@@ -137,35 +158,34 @@ def karsilastirma_slayti_ciz(
         if degisim:
             negatif = degisim.startswith("-") or "indirim" in degisim.casefold() or "düşüş" in degisim.casefold()
             d_renk = (16, 185, 129) if not negatif else (239, 68, 68)
-            dw = int(ciz.textlength(degisim[:12], font=f_deg)) + 24
-            dx1 = genislik - kenar - dw - 18
-            dy1 = sy1 + (satir_h - 42) // 2
+            dw = int(ciz.textlength(degisim[:12], font=f_deg)) + 26
+            dh = 44 if adet <= 3 else 38
+            dx1 = genislik - kenar - dw - 20
+            dy1 = sy1 + (satir_h - dh) // 2
             ciz.rounded_rectangle(
-                [dx1, dy1, dx1 + dw, dy1 + 42],
+                [dx1, dy1, dx1 + dw, dy1 + dh],
                 radius=10,
                 fill=(*d_renk, 38),
                 outline=(*d_renk, 110),
                 width=1,
             )
-            ciz.text((dx1 + 12, dy1 + 8), degisim[:12], font=f_deg, fill=d_renk)
+            ciz.text((dx1 + 13, dy1 + 7), degisim[:12], font=f_deg, fill=d_renk)
 
-    y += adet * satir_h + max(0, adet - 1) * gap + 18
+    y += adet * satir_h + max(0, adet - 1) * gap + 20
 
-    # --- 4. ALT BİLGİ / YÜRÜRLÜK NOTU ---
-    if alt_not and y + 70 <= y_alt:
+    # --- 4. ALT BİLGİ / YÜRÜRLÜK NOTU (Kompakt ve Orantılı Boyut) ---
+    if not_satirlar and alt_not_h > 0 and y + alt_not_h <= y_alt + 30:
         gorsel = cam_kart_ciz(
             gorsel,
-            (kenar, y, genislik - kenar, y_alt),
+            (kenar, y, genislik - kenar, y + alt_not_h),
             dolgu=(10, 28, 36, 228),
-            kenarlik=(16, 185, 129, 80),
+            kenarlik=(16, 185, 129, 85),
             yaricap=16,
             sol_centik=(16, 185, 129),
         )
         ciz = ImageDraw.Draw(gorsel, "RGBA")
-        f_not = make_image._font(24, make_image.EKSEN_OZET)
-        not_satir = metin_kutuya_sar(ciz, alt_not, f_not, alan_g - 48, maks_satir=2)
-        ny = y + ((y_alt - y) - len(not_satir) * 32) // 2
-        for ns in not_satir:
+        ny = y + (alt_not_h - len(not_satirlar) * 32) // 2
+        for ns in not_satirlar:
             ciz.text((kenar + 24, ny), ns, font=f_not, fill=(220, 252, 231))
             ny += 32
 

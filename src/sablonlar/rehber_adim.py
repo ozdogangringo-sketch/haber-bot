@@ -54,10 +54,33 @@ def rehber_adim_slayti_ciz(
     )
     genislik = make_image.STORY_GENISLIK
     alan_g = genislik - 2 * kenar
-    y = y_ust + 8
+    alan_h = y_alt - y_ust
+
+    # --- ALT NOT ÖLÇÜSÜ (Kompakt & Metinle Orantılı) ---
+    ciz_olcum = ImageDraw.Draw(gorsel, "RGBA")
+    f_not = make_image._font(24, make_image.EKSEN_OZET)
+    not_satir = metin_kutuya_sar(ciz_olcum, onemli_not, f_not, alan_g - 48, maks_satir=3) if onemli_not else []
+    alt_not_h = max(74, min(120, 36 + len(not_satir) * 32)) if not_satir else 0
+
+    ust_h = 114
+    adet = len(adimlar)
+    gap = 18 if adet <= 3 else (16 if adet <= 4 else 14)
+
+    if adet == 2:
+        kart_h = 190
+    elif adet == 3:
+        kart_h = 160
+    elif adet == 4:
+        kart_h = 135
+    else:
+        kart_h = 112
+
+    # 4:5 Güvenli Alanında Dikey Ortalama / Dengeleme
+    toplam_icerik = ust_h + 22 + (adet * kart_h + (adet - 1) * gap) + (18 + alt_not_h if alt_not_h else 0)
+    y_offset_extra = max(8, (alan_h - toplam_icerik) // 2)
+    y = y_ust + y_offset_extra
 
     # --- 1. ÜST REHBER BAŞLIK KARTI ---
-    ust_h = 114
     gorsel = cam_kart_ciz(
         gorsel,
         (kenar, y, genislik - kenar, y + ust_h),
@@ -77,12 +100,6 @@ def rehber_adim_slayti_ciz(
     y += ust_h + 22
 
     # --- 2. ADIM KARTLARI + SOL ZAMAN ÇİZGİSİ ---
-    not_pay = 116 if onemli_not else 0
-    kalan_h = y_alt - y - not_pay
-    adet = len(adimlar)
-    gap = 16
-    kart_h = min(172, max(112, (kalan_h - (adet - 1) * gap) // adet))
-
     # Sol dikey bağlantı çizgisi
     ciz = ImageDraw.Draw(gorsel, "RGBA")
     cizgi_x = kenar + 42
@@ -154,20 +171,18 @@ def rehber_adim_slayti_ciz(
 
     y += adet * kart_h + max(0, adet - 1) * gap + 18
 
-    # --- 3. ALT ÖNEMLİ NOT KUTUSU ---
-    if onemli_not and y + 70 <= y_alt:
+    # --- 3. ALT ÖNEMLİ NOT KUTUSU (Kompakt ve Orantılı Boyut) ---
+    if not_satir and alt_not_h > 0 and y + alt_not_h <= y_alt + 30:
         gorsel = cam_kart_ciz(
             gorsel,
-            (kenar, y, genislik - kenar, y_alt),
+            (kenar, y, genislik - kenar, y + alt_not_h),
             dolgu=(10, 30, 34, 228),
             kenarlik=(16, 185, 129, 85),
             yaricap=16,
             sol_centik=(16, 185, 129),
         )
         ciz = ImageDraw.Draw(gorsel, "RGBA")
-        f_not = make_image._font(24, make_image.EKSEN_OZET)
-        not_satir = metin_kutuya_sar(ciz, onemli_not, f_not, alan_g - 48, maks_satir=2)
-        ny = y + ((y_alt - y) - len(not_satir) * 32) // 2
+        ny = y + (alt_not_h - len(not_satir) * 32) // 2
         for ns in not_satir:
             ciz.text((kenar + 24, ny), ns, font=f_not, fill=(220, 252, 231))
             ny += 32

@@ -252,8 +252,8 @@ function kanalButonlariSatirlari(kanallar) {
   const varMi = (k) => {
     if (Array.isArray(kanallar)) return kanallar.includes(k) || kanallar.includes(KANAL_KODLARI[k]);
     if (kanallar && typeof kanallar === "object") return Boolean(kanallar[k]);
-    if (k === "reels" || k === "tiktok_video") return false; // Varsayılan kapalı (Reels, IG post ile; TT Video, TT Foto ile çakışmasın)
-    return true; // IG, Story, Threads, FB, X, YT, TT varsayılan AKTİF
+    if (k === "tiktok_video") return false; // Yalnızca TT Video varsayılan kapalı (TT Carousel ile çakışmasın)
+    return true; // IG, Reels, Story, Threads, FB, X, YT, TT varsayılan AKTİF
   };
   return [
     [
@@ -1881,12 +1881,6 @@ export default {
 
           if (buKanal === hedefKanal) {
             kopya.text = (hedefYeniSecili ? "✅ " : "⬜ ") + kopya.text.slice(1).trim();
-          } else if (hedefKanal === "reels" && hedefYeniSecili && buKanal === "ig") {
-            // Reels AÇILDIYSA -> IG MUTLAKA KAPANIR
-            kopya.text = "⬜ IG";
-          } else if (hedefKanal === "ig" && hedefYeniSecili && buKanal === "reels") {
-            // IG AÇILDIYSA -> Reels MUTLAKA KAPANIR
-            kopya.text = "⬜ Reels";
           } else if (hedefKanal === "tiktok_video" && hedefYeniSecili && buKanal === "tiktok") {
             // TikTok Video AÇILDIYSA -> TT (Carousel) MUTLAKA KAPANIR
             kopya.text = "⬜ TT";
