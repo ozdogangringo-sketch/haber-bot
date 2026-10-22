@@ -264,7 +264,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         paylas_tt = ("tiktok" in k_set or "tt" in k_set or "k" in k_set) and not paylas_tt_video and bool((ayarlar.get("sosyal", {}) or {}).get("tiktoka_da_at"))
     else:
         paylas_reels = True
-        paylas_ig = True
+        paylas_ig = False  # Reels varsayılan aktif olduğu için IG post (carousel) kapalı
         paylas_story = True
         paylas_fb = bool((ayarlar.get("sosyal", {}) or {}).get("facebooka_da_at"))
         paylas_fb_reels = paylas_fb and bool((ayarlar.get("sosyal", {}) or {}).get("facebook_reelse_de_at", True))
@@ -362,6 +362,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
     yt_url = None
     tt_notu = ""
     tt_publish_id = None
+    aciklama_iletildi = False
 
     story_url = next((h["story_url"] for h in haberler if h["story_url"]), None)
     if not story_url and urller:
@@ -496,6 +497,7 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                     f"<pre>{temiz_metin_tg}</pre>",
                     html=True,
                 )
+                aciklama_iletildi = True
                 log.info("Telegram'a video ve açıklama iletildi")
         except Exception as e_tg_all:
             log.warning("Telegram video/açıklama bloğunda hata: %s", e_tg_all)
@@ -989,6 +991,21 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
                   "callback_data": f"yayin_kontrol:{mesaj_id}"}]]
         ),
     )
+
+    # ⚠️ KOPYALANABİLİR AÇIKLAMA METNİ HER DURUMDA TELEGRAM'A İLETİLİR (GEMINI.md Kuralı)
+    if not aciklama_iletildi:
+        try:
+            aciklama_metni_tg = caption.aciklamayi_kur(metin, haberler, kanal=("reels" if paylas_reels else "instagram"), ayarlar=ayarlar)
+            temiz_aciklama_tg = html_lib.escape(aciklama_metni_tg.strip())
+            telegram_bot.mesaj_gonder(
+                "📝 <b>Açıklama Metni (Kopyalamak için dokunun):</b>\n"
+                f"<pre>{temiz_aciklama_tg}</pre>",
+                html=True,
+            )
+            log.info("Telegram'a kopyalanabilir açıklama metni iletildi")
+        except Exception as e_aciklama_tg:
+            log.warning("Telegram'a açıklama metni iletilemedi: %s", e_aciklama_tg)
+
     return 0
 
 

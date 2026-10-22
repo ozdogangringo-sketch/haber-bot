@@ -37,17 +37,22 @@ AYARLAR = {
 
 
 def test_01_reels_varsayilan_secili():
-    """Tüm akışlarda Reels kutucuğu varsayılan olarak SEÇİLİ gelmelidir."""
+    """Tüm akışlarda Reels kutucuğu varsayılan olarak SEÇİLİ, IG Carousel ise kapalı gelmelidir."""
     assert telegram_bot.VARSAYILAN_KANAL_SECIMI.get("reels") is True, "VARSAYILAN_KANAL_SECIMI['reels'] True olmalı"
+    assert telegram_bot.VARSAYILAN_KANAL_SECIMI.get("ig") is False, "VARSAYILAN_KANAL_SECIMI['ig'] False olmalı (Reels seçiliyken IG kapalı)"
     butonlar = telegram_bot.kanal_butonlari()
     reels_btn = None
+    ig_btn = None
     for satir in butonlar:
         for b in satir:
             if b.get("callback_data") == "kanal:reels":
                 reels_btn = b
-                break
+            elif b.get("callback_data") == "kanal:ig":
+                ig_btn = b
     assert reels_btn is not None, "Reels butonu bulunamadı"
     assert reels_btn["text"].startswith("✅"), f"Reels butonu varsayılan seçili değil: {reels_btn['text']}"
+    assert ig_btn is not None, "IG butonu bulunamadı"
+    assert ig_btn["text"].startswith("⬜"), f"IG butonu varsayılan kapalı değil: {ig_btn['text']}"
 
 
 def test_02_karsilastirma_faiz_3_satir_ve_kompakt_alt_kutu():
@@ -179,10 +184,11 @@ def test_09_rehber_adim_kompakt_alt_kutu():
 
 
 def test_10_worker_reels_varsayilan_ayari():
-    """worker/index.js dosyası Reels kanalını varsayılan olarak açık tutmalıdır."""
+    """worker/index.js dosyası Reels kanalını varsayılan açık, IG kanalını ise kapalı tutmalı ve karşılıklı dışlamalıdır."""
     worker_js = Path("worker/index.js").read_text(encoding="utf-8")
-    assert 'if (k === "tiktok_video") return false;' in worker_js, "Worker'da k === 'tiktok_video' dışında false olmamalı"
-    assert 'if (k === "reels" || k === "tiktok_video") return false;' not in worker_js, "Worker'da reels varsayılan kapalı kalmamalı"
+    assert 'if (k === "ig" || k === "tiktok_video") return false;' in worker_js, "Worker'da IG ve TT Video varsayılan false olmalı"
+    assert 'hedefKanal === "reels" && hedefYeniSecili && buKanal === "ig"' in worker_js, "Reels açıldığında IG kapanmalı"
+    assert 'hedefKanal === "ig" && hedefYeniSecili && buKanal === "reels"' in worker_js, "IG açıldığında Reels kapanmalı"
 
 
 if __name__ == "__main__":
