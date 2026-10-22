@@ -39,7 +39,11 @@ def temel_tuval_olustur(
         perde = Image.new("RGBA", (genislik, yukseklik), (p_r, p_g, p_b, 232))
         gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
     else:
-        gorsel = make_image.arkaplan_uret_yedek(kategori, genislik, yukseklik, g)
+        # Fotoğraf yoksa sarımsı/bronz gradyan yerine her zaman lüks derin petrol/lacivert ton
+        p_r, p_g, p_b = tema_alt_renk if tema_alt_renk else (4, 16, 26)
+        gorsel = make_image.arkaplan_uret_yedek("turkiye", genislik, yukseklik, g)
+        perde = Image.new("RGBA", (genislik, yukseklik), (p_r, p_g, p_b, 238))
+        gorsel = Image.alpha_composite(gorsel.convert("RGBA"), perde).convert("RGB")
 
     y_icerik_ust = dikey_kenar + 122
     alt_bilgi_y = yukseklik - dikey_kenar - 34
