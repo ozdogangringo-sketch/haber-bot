@@ -19,12 +19,13 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 import requests
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 from src import make_image
 from src.sablonlar.ortak import (
     cam_kart_ciz,
     metin_kutuya_sar,
+    nokta_matrisi_ciz,
     temel_tuval_olustur,
     ust_ve_alt_bar_bas,
 )
@@ -32,6 +33,30 @@ from src.sablonlar.ortak import (
 log = logging.getLogger(__name__)
 
 _REKLAM_KELIMELERI = ("doubleclick", "googlesyndication", "adservice", "taboola", "outbrain", "preroll", " pixel")
+
+
+def video_boyutunu_al(video_yolu: str | Path) -> tuple[int, int] | None:
+    """ffprobe ile video dosyasının gerçek (genişlik, yükseklik) piksel boyutunu döndürür."""
+    if not shutil.which("ffprobe"):
+        return None
+    try:
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "csv=p=0:s=x",
+            str(video_yolu),
+        ]
+        sonuc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if sonuc.returncode == 0 and "x" in sonuc.stdout:
+            parcalar = sonuc.stdout.strip().split("x")
+            if len(parcalar) >= 2:
+                w, h = int(parcalar[0]), int(parcalar[1])
+                if w > 0 and h > 0:
+                    return (w, h)
+    except Exception as e:
+        log.warning("video boyutu ffprobe ile okunamadı: %s", e)
+    return None
 
 
 def makaleden_video_url_cikar(html_metni: str, sayfa_url: str = "") -> str | None:
@@ -75,87 +100,262 @@ def video_cercevesi_ciz(
     sayfa: int = 1,
     toplam_sayfa: int = 2,
     arsiv_ibaresi: bool = False,
+    video_boyut: tuple[int, int] | None = None,
+    medya_turu: str = "video",
 ) -> tuple[Image.Image, tuple[int, int, int, int]]:
     """
-    1080x1920 tuval üzerinde video oynatma penceresi olan Daily Brief çerçevesini çizer.
+    1080x1920 tuval üzerinde kutucuksuz, geçişli ve şık tipografili video/fotoğraf çerçevesi üretir.
+    Kaba kart kutuları yerine akıcı ambiyans ışıltısı, 3D difüzyon gölgesi ve zarif dikey çentik kullanır.
     Döner: `(cerceve_gorseli, (vx1, vy1, vx2, vy2))`
     """
-    gorsel, kenar, dikey_kenar, y_ust, y_alt = temel_tuval_olustur(
-        ayarlar,
-        kategori=haber.get("kategori") or "turkiye",
-        arkaplan=arkaplan,
-        tema_alt_renk=(4, 14, 24),
-    )
     genislik = make_image.STORY_GENISLIK
+    yukseklik = make_image.STORY_YUKSEKLIK
+    kenar = ayarlar.get("gorsel", {}).get("kenar_bosluk", 64)
+    dikey_kenar = ayarlar.get("gorsel", {}).get("dikey_guvenli_pay", make_image.STORY_GUVENLI_PAY)
+    y_ust = dikey_kenar
+    y_alt = yukseklik - dikey_kenar
     alan_g = genislik - 2 * kenar
-    y = y_ust + 8
 
-    # Üstte haber başlığı kartı
-    baslik = (haber.get("ig_baslik") or haber.get("baslik_orj") or "Görüntülü Haber Detayı").strip()
-    ust_h = 116
-    gorsel = cam_kart_ciz(
-        gorsel,
-        (kenar, y, genislik - kenar, y + ust_h),
-        dolgu=(10, 24, 42, 232),
-        kenarlik=(239, 68, 68, 95),
-        yaricap=20,
-        sol_centik=(239, 68, 68),
-    )
-    ciz = ImageDraw.Draw(gorsel)
-    f_bas = make_image._font(28, make_image.EKSEN_BASLIK)
-    b_satirlar = metin_kutuya_sar(ciz, baslik, f_bas, alan_g - 52, maks_satir=2)
-    by = y + (ust_h - len(b_satirlar) * 36) // 2
-    for s in b_satirlar:
-        ciz.text((kenar + 28, by), s, font=f_bas, fill=(255, 255, 255))
-        by += 36
+    is_gorsel = (medya_turu == "gorsel")
 
-    y += ust_h + 22
+    # 1. TEMEL ZEMİN & AMBİYANS IŞILTISI (GEÇİŞLİ)
+    tema_koyu = (4, 16, 26)
+    canvas = Image.new("RGB", (genislik, yukseklik), tema_koyu)
 
-    # Ortada video penceresi alanı (944 x 680 px)
-    alt_not = (haber.get("slayt_ozet") or haber.get("sana_etkisi") or "").strip()
-    not_pay = 112 if alt_not else 0
-    v_yuk = y_alt - y - not_pay
-    vx1, vy1, vx2, vy2 = kenar, y, genislik - kenar, y + v_yuk
+    if arkaplan is not None:
+        try:
+            bg_rgb = arkaplan.convert("RGB")
+            ambiyans = bg_rgb.resize((genislik, yukseklik), Image.BILINEAR)
+            ambiyans = ambiyans.filter(ImageFilter.GaussianBlur(radius=75))
+            amb_perde = Image.new("RGBA", (genislik, yukseklik), (4, 14, 22, 218))
+            ambiyans = Image.alpha_composite(ambiyans.convert("RGBA"), amb_perde).convert("RGB")
+            canvas.paste(ambiyans, (0, 0))
+        except Exception as e:
+            log.warning("Ambiyans zemin üretilemedi: %s", e)
 
-    gorsel = cam_kart_ciz(
-        gorsel,
-        (vx1 - 6, vy1 - 6, vx2 + 6, vy2 + 6),
-        dolgu=(4, 10, 18, 255),
-        kenarlik=(6, 182, 212, 110),
-        yaricap=20,
-    )
+    # Üst ve alt güvenli pay degrade karartması (Story & 4:5 Feed uyumu)
+    vignette = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    v_ciz = ImageDraw.Draw(vignette)
+    for y in range(0, y_ust + 30):
+        a = int(220 * (1.0 - (y / (y_ust + 30))) ** 1.5)
+        v_ciz.line([(0, y), (genislik, y)], fill=(2, 8, 14, a))
+    for y in range(y_alt - 30, yukseklik):
+        a = int(240 * ((y - (y_alt - 30)) / (yukseklik - (y_alt - 30))) ** 1.5)
+        v_ciz.line([(0, y), (genislik, y)], fill=(2, 8, 14, a))
+    canvas = Image.alpha_composite(canvas.convert("RGBA"), vignette).convert("RGB")
 
-    if alt_not:
-        ny1 = vy2 + 18
-        gorsel = cam_kart_ciz(
-            gorsel,
-            (kenar, ny1, genislik - kenar, y_alt),
-            dolgu=(10, 26, 40, 228),
-            kenarlik=(6, 182, 212, 75),
-            yaricap=16,
-            sol_centik=(6, 182, 212),
-        )
-        ciz = ImageDraw.Draw(gorsel)
-        f_not = make_image._font(24, make_image.EKSEN_OZET)
-        not_satir = metin_kutuya_sar(ciz, alt_not, f_not, alan_g - 48, maks_satir=2)
-        nty = ny1 + ((y_alt - ny1) - len(not_satir) * 32) // 2
-        for ns in not_satir:
-            ciz.text((kenar + 24, nty), ns, font=f_not, fill=(226, 232, 240))
-            nty += 32
+    # 2. METİN VE GÖRSEL YÜKSEKLİĞİ ÖLÇÜMÜ (4:5 GÜVENLİ ALAN VE SIFIR TAŞMA GARANTİSİ)
+    # Üst sınır: 144px logo (y=314..458). İçerik KESİNLİKLE y >= 474 başlar.
+    # Alt sınır: Alt bilgi çubuğu (y=1556). İçerik KESİNLİKLE y <= 1515 biter.
+    y_icerik_min = 474
+    y_icerik_max = 1515
+    kullanilabilir_toplam_h = y_icerik_max - y_icerik_min  # 1041 px
 
-    gorsel = ust_ve_alt_bar_bas(
-        gorsel,
+    baslik = (haber.get("ig_baslik") or haber.get("baslik_orj") or "").strip()
+    alt_not = (haber.get("slayt_ozet") or haber.get("detay_metni") or haber.get("sana_etkisi") or "").strip()
+
+    ciz_olcum = ImageDraw.Draw(canvas)
+    f_bas = make_image._font(34, make_image.EKSEN_BASLIK)
+    bas_satirlar = make_image._satirlara_bol(baslik, f_bas, alan_g, ciz_olcum) if baslik else []
+    if len(bas_satirlar) > 3:
+        bas_satirlar = bas_satirlar[:3]
+        if not bas_satirlar[2].endswith("..."):
+            bas_satirlar[2] = bas_satirlar[2].rstrip(". ") + "..."
+    bas_satir_h = 42
+    bas_toplam_h = len(bas_satirlar) * bas_satir_h
+
+    # Video / Fotoğraf en-boy oranı (Sıfır ve negatif bölme korumalı)
+    vb = video_boyut or haber.get("video_boyut")
+    if vb and isinstance(vb, (list, tuple)) and len(vb) >= 2 and vb[0] > 0 and vb[1] > 0:
+        ar = float(vb[0]) / float(vb[1])
+    else:
+        ar = 16.0 / 9.0
+
+    # Metne yer bırakmak için görsel tavan yüksekliği
+    metin_min_h = bas_toplam_h + 32  # Başlık ve görsel arası boşluk
+    maks_foto_h = max(200, kullanilabilir_toplam_h - metin_min_h - 40)
+
+    # En-boy oranına göre orantılı boyut hesapla
+    if ar >= 1.2:
+        kutu_w = alan_g
+        kutu_h = int(kutu_w / ar)
+        if kutu_h > maks_foto_h:
+            kutu_h = maks_foto_h
+            kutu_w = int(kutu_h * ar)
+    elif ar <= 0.8:
+        kutu_h = min(maks_foto_h, 620)
+        kutu_w = int(kutu_h * ar)
+    else:
+        kutu_w = min(alan_g, 700)
+        kutu_h = int(kutu_w / ar)
+        if kutu_h > maks_foto_h:
+            kutu_h = maks_foto_h
+            kutu_w = int(kutu_h * ar)
+
+    kutu_w = max(240, min(alan_g, (kutu_w // 2) * 2))
+    kutu_h = max(180, min(maks_foto_h, (kutu_h // 2) * 2))
+
+    # Kalan alana göre açıklama metnini bütçele (Alt bara taşma SIFIRLANDI)
+    f_ozet = make_image._font(24, make_image.EKSEN_OZET)
+    ozet_satir_h = 34
+    kalan_metin_h = y_icerik_max - (y_icerik_min + kutu_h + 32 + bas_toplam_h + 20)
+
+    if alt_not and kalan_metin_h >= 34:
+        ozet_satirlar = make_image._satirlara_bol(alt_not, f_ozet, alan_g - 28, ciz_olcum)
+        maks_ozet_satir = max(1, kalan_metin_h // ozet_satir_h)
+        if len(ozet_satirlar) > maks_ozet_satir:
+            ozet_satirlar = ozet_satirlar[:maks_ozet_satir]
+            if ozet_satirlar and not ozet_satirlar[-1].endswith("..."):
+                ozet_satirlar[-1] = ozet_satirlar[-1].rstrip(". ") + "..."
+        ozet_toplam_h = len(ozet_satirlar) * ozet_satir_h
+    else:
+        ozet_satirlar = []
+        ozet_toplam_h = 0
+
+    metin_toplam_h = bas_toplam_h + (20 if ozet_toplam_h else 0) + ozet_toplam_h
+    toplam_icerik_h = kutu_h + 32 + metin_toplam_h
+    kalan_dikey_bosluk = max(0, kullanilabilir_toplam_h - toplam_icerik_h)
+
+    # Dikeyde 4:5 merkezi güvenli alanda kusursuz hizalama
+    baslangic_y = y_icerik_min + (kalan_dikey_bosluk // 2)
+
+    vx1 = kenar + (alan_g - kutu_w) // 2
+    fy1 = baslangic_y
+    vx2 = vx1 + kutu_w
+    vy2 = fy1 + kutu_h
+
+    # 3. YUMUŞAK DİFÜZYON GÖLGESİ (KUTU DEĞİL, 3D DERİNLİK)
+    golge_katmani = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    g_ciz = ImageDraw.Draw(golge_katmani)
+    g_ciz.rounded_rectangle([vx1 - 4, fy1 + 8, vx2 + 4, vy2 + 20], radius=24, fill=(0, 0, 0, 180))
+    golge_katmani = golge_katmani.filter(ImageFilter.GaussianBlur(radius=24))
+    canvas = Image.alpha_composite(canvas.convert("RGBA"), golge_katmani).convert("RGB")
+
+    # İnce lüks 1px kenarlık
+    rim = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    r_ciz = ImageDraw.Draw(rim)
+    r_ciz.rounded_rectangle([vx1, fy1, vx2, vy2], radius=20, outline=(255, 255, 255, 38), width=1)
+    canvas = Image.alpha_composite(canvas.convert("RGBA"), rim).convert("RGB")
+
+    # 4. KUTUCUKSUZ ŞIK EDİTORYAL TİPOGRAFİ (BAŞLIK & AÇIKLAMA)
+    metin_y = vy2 + 32
+
+    # Başlık: Doğrudan tuval üzerine difüzyon gölgesiyle
+    b_golge = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
+    bg_ciz = ImageDraw.Draw(b_golge)
+    by_g = metin_y
+    for s in bas_satirlar:
+        bg_ciz.text((kenar, by_g + 2), s.replace("**", ""), font=f_bas, fill=(0, 0, 0, 220))
+        by_g += bas_satir_h
+    b_golge = b_golge.filter(ImageFilter.GaussianBlur(8))
+    canvas = Image.alpha_composite(canvas.convert("RGBA"), b_golge).convert("RGB")
+    ciz = ImageDraw.Draw(canvas, "RGBA")
+
+    by = metin_y
+    for s in bas_satirlar:
+        ciz.text((kenar, by), s.replace("**", ""), font=f_bas, fill=(255, 255, 255))
+        by += bas_satir_h
+
+    # Detay / Arka plan açıklaması (Zarif dikey çentikli, kutucuksuz editoryal paragraf)
+    if ozet_satirlar:
+        metin_y = by + 20
+        centik_h = len(ozet_satirlar) * ozet_satir_h
+        centik_renk = (226, 170, 88) if is_gorsel else (6, 182, 212)
+        ciz.rounded_rectangle([kenar, metin_y + 4, kenar + 4, metin_y + centik_h - 2], radius=2, fill=centik_renk)
+
+        oy = metin_y
+        for s in ozet_satirlar:
+            ciz.text((kenar + 20, oy), s.replace("**", ""), font=f_ozet, fill=(226, 232, 240))
+            oy += ozet_satir_h
+
+    # 5. ÜST VE ALT KURUMSAL BARLAR (ust_ve_alt_bar_bas)
+    rozet_txt = (haber.get("rozet_metni") or "HABERİN GÖRÜNTÜSÜ").strip() if is_gorsel else "VİDEO HABER DETAYI"
+    rozet_renk = (226, 170, 88) if is_gorsel else (239, 68, 68)
+
+    canvas = ust_ve_alt_bar_bas(
+        canvas,
         ayarlar=ayarlar,
         kaynak=kaynak,
-        rozet_metni="GÖRÜNTÜLÜ HABER DETAYI",
-        rozet_renk=(239, 68, 68),
+        rozet_metni=rozet_txt,
+        rozet_renk=rozet_renk,
         ulke_kodu=haber.get("ulke_kodu") or None,
         ulke_adi=haber.get("ulke_adi") or None,
         sayfa=sayfa,
         toplam_sayfa=toplam_sayfa,
         arsiv_ibaresi=arsiv_ibaresi,
     )
-    return gorsel, (vx1, vy1, vx2, vy2)
+
+    return canvas, (vx1, fy1, vx2, vy2)
+
+
+def gorsel_detay_slayti_uret(
+    haber: dict,
+    gorsel_kaynak: Image.Image | str | Path,
+    ayarlar: dict,
+    kaynak: str,
+    arkaplan: Image.Image | None = None,
+    sayfa: int = 1,
+    toplam_sayfa: int = 2,
+    arsiv_ibaresi: bool = False,
+) -> Image.Image | None:
+    """
+    Haberin sıcak görüntüsünü (olay yeri fotoğrafı, belge, uydu görüntüsü, basın fotoğrafı vb.)
+    gerçek en/boy oranına göre kutucuksuz, geçişli ve şık tipografili Daily Brief formatında üretir.
+    """
+    from src.gorsel_kalite import kristal_netlestir
+
+    if isinstance(gorsel_kaynak, (str, Path)):
+        p = Path(gorsel_kaynak)
+        if not p.exists() or p.stat().st_size == 0:
+            return None
+        try:
+            foto = Image.open(p).convert("RGB")
+        except Exception as e:
+            log.warning("Görsel açılamadı (%s): %s", p, e)
+            return None
+    elif isinstance(gorsel_kaynak, Image.Image):
+        try:
+            foto = gorsel_kaynak.convert("RGB")
+        except Exception as e:
+            log.warning("Görsel dönüştürülemedi: %s", e)
+            return None
+    else:
+        return None
+
+    if foto.width <= 0 or foto.height <= 0:
+        return None
+
+    # Arka plan belirtilmemişse fotoğrafın kendisinden ambiyans zemin üret
+    zemin_foto = arkaplan if arkaplan is not None else foto
+
+    cerceve, (vx1, vy1, vx2, vy2) = video_cercevesi_ciz(
+        haber=haber,
+        ayarlar=ayarlar,
+        kaynak=kaynak,
+        arkaplan=zemin_foto,
+        sayfa=sayfa,
+        toplam_sayfa=toplam_sayfa,
+        arsiv_ibaresi=arsiv_ibaresi,
+        video_boyut=foto.size,
+        medya_turu="gorsel",
+    )
+    vw = vx2 - vx1
+    vh = vy2 - vy1
+
+    # Fotoğrafı pencereye tam oturt ve kristal keskinleştir
+    foto_fit = foto.resize((vw, vh), Image.LANCZOS)
+    try:
+        foto_fit = kristal_netlestir(foto_fit)
+    except Exception:
+        pass
+
+    # Yuvarlak köşeli maske ile yapıştır (kutucuksuz, organik geçiş)
+    maske = Image.new("L", (vw, vh), 0)
+    m_ciz = ImageDraw.Draw(maske)
+    m_ciz.rounded_rectangle([0, 0, vw, vh], radius=20, fill=255)
+    cerceve.paste(foto_fit, (vx1, vy1), maske)
+
+    return cerceve
 
 
 def video_detay_slayti_uret(
@@ -180,16 +380,8 @@ def video_detay_slayti_uret(
     haber_id = haber.get("id") or "ozel"
     cikti_yolu = make_image.CIKTI_KLASORU / f"story-{haber_id}-detay-video.mp4"
 
-    cerceve, (vx1, vy1, vx2, vy2) = video_cercevesi_ciz(
-        haber, ayarlar, kaynak, arkaplan=arkaplan, sayfa=sayfa, toplam_sayfa=toplam_sayfa
-    )
-    vw = ((vx2 - vx1) // 2) * 2
-    vh = ((vy2 - vy1) // 2) * 2
-
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        bg_yolu = tmp_path / "cerceve.jpg"
-        cerceve.save(bg_yolu, "JPEG", quality=95)
 
         girdi_video = Path(str(video_kaynak))
         if str(video_kaynak).startswith(("http://", "https://")):
@@ -212,6 +404,17 @@ def video_detay_slayti_uret(
 
         if not girdi_video.exists() or girdi_video.stat().st_size < 1024:
             return None
+
+        # Gerçek video en/boy oranına göre orantılı dinamik çerçeve üret
+        vb = video_boyutunu_al(girdi_video)
+        cerceve, (vx1, vy1, vx2, vy2) = video_cercevesi_ciz(
+            haber, ayarlar, kaynak, arkaplan=arkaplan, sayfa=sayfa, toplam_sayfa=toplam_sayfa, video_boyut=vb
+        )
+        vw = ((vx2 - vx1) // 2) * 2
+        vh = ((vy2 - vy1) // 2) * 2
+
+        bg_yolu = tmp_path / "cerceve.jpg"
+        cerceve.save(bg_yolu, "JPEG", quality=95)
 
         filtre_kompleks = (
             f"[1:v]scale={vw}:{vh}:force_original_aspect_ratio=decrease,"

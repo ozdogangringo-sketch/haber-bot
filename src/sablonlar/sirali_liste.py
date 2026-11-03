@@ -16,6 +16,7 @@ from src import make_image
 from src.sablonlar.ortak import (
     cam_kart_ciz,
     metin_kutuya_sar,
+    nokta_matrisi_ciz,
     temel_tuval_olustur,
     ust_ve_alt_bar_bas,
 )
@@ -70,13 +71,16 @@ def sirali_liste_slayti_ciz(
     alan_g = genislik - 2 * kenar
     alan_h = y_alt - y_ust
 
-    # --- ALT NOT ÖLÇÜSÜ (Kompakt & Metinle Orantılı) ---
+    # Siber veri nokta ızgarası (dot matrix)
+    gorsel = nokta_matrisi_ciz(gorsel, kenar, y_ust, genislik - kenar, y_alt, adim=44)
+
+    # --- ALT NOT ÖLÇÜSÜ (Kompakt & Mikro Rozetli) ---
     ciz_olcum = ImageDraw.Draw(gorsel, "RGBA")
     f_not = make_image._font(24, make_image.EKSEN_OZET)
-    not_satir = metin_kutuya_sar(ciz_olcum, alt_not, f_not, alan_g - 48, maks_satir=3) if alt_not else []
-    alt_not_h = max(74, min(120, 36 + len(not_satir) * 32)) if not_satir else 0
+    not_satir = metin_kutuya_sar(ciz_olcum, alt_not, f_not, alan_g - 48, maks_satir=2) if alt_not else []
+    alt_not_h = max(86, min(132, 48 + len(not_satir) * 32)) if not_satir else 0
 
-    ust_h = 112
+    ust_h = 118
     adet = len(ogeler)
     gap = 18 if adet <= 3 else (16 if adet <= 4 else 12)
 
@@ -85,31 +89,37 @@ def sirali_liste_slayti_ciz(
     elif adet == 4:
         kart_h = 135
     elif adet == 5:
-        kart_h = 115
+        kart_h = 118
     else:
-        kart_h = 98
+        kart_h = 100
 
     # 4:5 Güvenli Alanında Dikey Ortalama / Dengeleme
     toplam_icerik = ust_h + 20 + (adet * kart_h + (adet - 1) * gap) + (18 + alt_not_h if alt_not_h else 0)
-    y_offset_extra = max(8, (alan_h - toplam_icerik) // 2)
+    y_offset_extra = max(6, (alan_h - toplam_icerik) // 2)
     y = y_ust + y_offset_extra
 
     # --- 1. ÜST BAŞLIK KARTI ---
     gorsel = cam_kart_ciz(
         gorsel,
         (kenar, y, genislik - kenar, y + ust_h),
-        dolgu=(10, 26, 44, 232),
-        kenarlik=(245, 158, 11, 95),
+        dolgu=(10, 26, 46, 235),
+        kenarlik=(245, 158, 11, 100),
         yaricap=20,
         sol_centik=(245, 158, 11),
     )
     ciz = ImageDraw.Draw(gorsel, "RGBA")
+    f_mikro = make_image._font(17, make_image.EKSEN_KUCUK)
+    chip_txt = "📊 SIRALAMA & LİDERLİK TABLOSU"
+    cw = int(ciz.textlength(chip_txt, font=f_mikro)) + 20
+    ciz.rounded_rectangle([kenar + 28, y + 14, kenar + 28 + cw, y + 36], radius=6, fill=(245, 158, 11, 35))
+    ciz.text((kenar + 38, y + 17), chip_txt, font=f_mikro, fill=(245, 158, 11))
+
     f_lbas = make_image._font(29, make_image.EKSEN_BASLIK)
     lb_satir = metin_kutuya_sar(ciz, liste_basligi, f_lbas, alan_g - 52, maks_satir=2)
-    ly = y + (ust_h - len(lb_satir) * 36) // 2
+    ly = y + 45
     for s in lb_satir:
         ciz.text((kenar + 28, ly), s, font=f_lbas, fill=(255, 255, 255))
-        ly += 36
+        ly += 35
 
     y += ust_h + 20
 
@@ -117,7 +127,7 @@ def sirali_liste_slayti_ciz(
     sayilar = [_sayisal_deger_cikar(str(o.get("deger") or "")) for o in ogeler]
     maks_sayi = max([s for s in sayilar if s is not None] or [100.0]) or 100.0
 
-    f_sira = make_image._font(24, make_image.EKSEN_BASLIK)
+    f_sira = make_image._font(23, make_image.EKSEN_BASLIK)
     f_ad = make_image._font(27, make_image.EKSEN_BASLIK)
     f_alt = make_image._font(21, make_image.EKSEN_OZET)
     f_deger = make_image._font(29, make_image.EKSEN_BASLIK)
@@ -127,37 +137,45 @@ def sirali_liste_slayti_ciz(
         ky2 = ky1 + kart_h
 
         if idx == 0:
-            r_renk = (245, 158, 11)   # Altın (#1)
+            r_renk = (245, 158, 11)   # Altın (#1 - Lider)
+            k_dolgu = (16, 36, 62, 240)
+            k_kenar = (245, 158, 11, 140)
         elif idx == 1:
             r_renk = (203, 213, 225)  # Gümüş (#2)
+            k_dolgu = (13, 29, 50, 228)
+            k_kenar = (203, 213, 225, 95)
         elif idx == 2:
             r_renk = (217, 119, 6)    # Bronz (#3)
+            k_dolgu = (13, 29, 50, 228)
+            k_kenar = (217, 119, 6, 95)
         else:
             r_renk = (6, 182, 212)    # Siber Turkuaz
+            k_dolgu = (11, 26, 44, 220)
+            k_kenar = (6, 182, 212, 60)
 
         gorsel = cam_kart_ciz(
             gorsel,
             (kenar, ky1, genislik - kenar, ky2),
-            dolgu=(12, 28, 48, 226),
-            kenarlik=(*r_renk, 80 if idx < 3 else 45),
+            dolgu=k_dolgu,
+            kenarlik=k_kenar,
             yaricap=16,
             sol_centik=r_renk,
         )
         ciz = ImageDraw.Draw(gorsel, "RGBA")
 
-        # Sol sıra rozeti
+        # Sol sıra rozeti (#1, #2, #3...)
         rx1 = kenar + 22
         ry1 = ky1 + 18
         ciz.rounded_rectangle(
-            [rx1, ry1, rx1 + 56, ry1 + 44],
+            [rx1, ry1, rx1 + 54, ry1 + 42],
             radius=12,
-            fill=(*r_renk, 38),
+            fill=(*r_renk, 45 if idx == 0 else 30),
             outline=r_renk,
             width=2 if idx < 3 else 1,
         )
         sira_str = f"#{idx + 1}"
         sw = ciz.textlength(sira_str, font=f_sira)
-        ciz.text((rx1 + (56 - sw) / 2, ry1 + 8), sira_str, font=f_sira, fill=r_renk)
+        ciz.text((rx1 + (54 - sw) / 2, ry1 + 9), sira_str, font=f_sira, fill=r_renk)
 
         ad_metin = str(oge.get("ad") or oge.get("isim") or "").replace("**", "").strip()
         alt_bilgi = str(oge.get("alt_bilgi") or "").replace("**", "").strip()
@@ -165,21 +183,22 @@ def sirali_liste_slayti_ciz(
 
         # Sağda değer
         dw = ciz.textlength(deger_metin[:18], font=f_deger)
-        ciz.text((genislik - kenar - 24 - dw, ky1 + 20), deger_metin[:18], font=f_deger, fill=(255, 255, 255))
+        deger_renk = (254, 240, 138) if idx == 0 else (255, 255, 255)
+        ciz.text((genislik - kenar - 24 - dw, ky1 + 18), deger_metin[:18], font=f_deger, fill=deger_renk)
 
         # Solda isim ve varsa alt bilgi
-        isim_x = rx1 + 74
-        isim_w = int(alan_g - 130 - dw)
+        isim_x = rx1 + 72
+        isim_w = int(alan_g - 128 - dw)
         ad_satir = metin_kutuya_sar(ciz, ad_metin, f_ad, max(180, isim_w), maks_satir=1)
         if ad_satir:
-            ciz.text((isim_x, ky1 + 20), ad_satir[0], font=f_ad, fill=(248, 250, 252))
+            ciz.text((isim_x, ky1 + 18), ad_satir[0], font=f_ad, fill=(248, 250, 252))
         if alt_bilgi and kart_h >= 106:
-            ciz.text((isim_x, ky1 + 52), alt_bilgi[:42], font=f_alt, fill=(148, 163, 184))
+            ciz.text((isim_x, ky1 + 50), alt_bilgi[:42], font=f_alt, fill=(148, 163, 184))
 
         # Alt kısımda yatay oran çubuğu (progress bar)
         bar_x1 = isim_x
         bar_x2 = genislik - kenar - 24
-        bar_y1 = ky2 - 22
+        bar_y1 = ky2 - 20
         bar_y2 = ky2 - 12
         bar_gen = bar_x2 - bar_x1
 
@@ -191,27 +210,38 @@ def sirali_liste_slayti_ciz(
         else:
             oran_f = max(0.25, 1.0 - idx * 0.14)
 
-        ciz.rounded_rectangle([bar_x1, bar_y1, bar_x2, bar_y2], radius=5, fill=(30, 41, 59))
+        # Track (Zemin çubuğu)
+        ciz.rounded_rectangle([bar_x1, bar_y1, bar_x2, bar_y2], radius=4, fill=(18, 30, 46), outline=(255, 255, 255, 22), width=1)
         dolu_x2 = bar_x1 + int(bar_gen * oran_f)
-        ciz.rounded_rectangle([bar_x1, bar_y1, dolu_x2, bar_y2], radius=5, fill=r_renk)
+        ciz.rounded_rectangle([bar_x1, bar_y1, dolu_x2, bar_y2], radius=4, fill=r_renk)
+
+        # Parlayan odak noktası
+        if dolu_x2 > bar_x1 + 6:
+            ciz.ellipse([dolu_x2 - 4, bar_y1 - 2, dolu_x2 + 4, bar_y2 + 2], fill=(255, 255, 255))
 
     y += adet * kart_h + max(0, adet - 1) * gap + 18
 
-    # --- 3. ALT BİLGİ ŞERİDİ (Kompakt ve Orantılı Boyut) ---
+    # --- 3. ALT BİLGİ ŞERİDİ (Kompakt, Mikro Rozetli & Orantılı) ---
     if not_satir and alt_not_h > 0 and y + alt_not_h <= y_alt + 30:
         gorsel = cam_kart_ciz(
             gorsel,
             (kenar, y, genislik - kenar, y + alt_not_h),
-            dolgu=(10, 28, 38, 228),
-            kenarlik=(6, 182, 212, 80),
+            dolgu=(10, 28, 38, 230),
+            kenarlik=(6, 182, 212, 85),
             yaricap=16,
             sol_centik=(6, 182, 212),
         )
         ciz = ImageDraw.Draw(gorsel, "RGBA")
-        ny = y + (alt_not_h - len(not_satir) * 32) // 2
+        f_not_etiket = make_image._font(17, make_image.EKSEN_KUCUK)
+        not_chip = "💡 VERİ & SIRALAMA DETAYI"
+        ncw = int(ciz.textlength(not_chip, font=f_not_etiket)) + 18
+        ciz.rounded_rectangle([kenar + 24, y + 14, kenar + 24 + ncw, y + 36], radius=5, fill=(6, 182, 212, 35))
+        ciz.text((kenar + 33, y + 17), not_chip, font=f_not_etiket, fill=(6, 182, 212))
+
+        ny = y + 46
         for ns in not_satir:
             ciz.text((kenar + 24, ny), ns, font=f_not, fill=(226, 232, 240))
-            ny += 32
+            ny += 30
 
     return ust_ve_alt_bar_bas(
         gorsel,

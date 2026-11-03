@@ -18,19 +18,14 @@ from src import make_image
 from src.sablonlar.ortak import (
     cam_kart_ciz,
     metin_kutuya_sar,
+    nokta_matrisi_ciz,
     temel_tuval_olustur,
     ust_ve_alt_bar_bas,
 )
 
 
 def _nokta_matrisi_ciz(gorsel: Image.Image, x1: int, y1: int, x2: int, y2: int, adim: int = 44) -> Image.Image:
-    """Merkezi 4:5 alanına ince, şık bir siber veri nokta ızgarası çizer."""
-    katman = Image.new("RGBA", gorsel.size, (0, 0, 0, 0))
-    kc = ImageDraw.Draw(katman)
-    for x in range(x1, x2, adim):
-        for y in range(y1, y2, adim):
-            kc.ellipse([x - 1, y - 1, x + 1, y + 1], fill=(255, 255, 255, 12))
-    return Image.alpha_composite(gorsel.convert("RGBA"), katman).convert("RGB")
+    return nokta_matrisi_ciz(gorsel, x1, y1, x2, y2, adim)
 
 
 def karsilastirma_slayti_ciz(

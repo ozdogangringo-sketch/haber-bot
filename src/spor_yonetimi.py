@@ -92,6 +92,80 @@ def gunun_dort_buyuk_maclari(tarih: str | None = None) -> list[dict]:
     return secilenler
 
 
+def gunun_maclari_icin_alarmlari_kur(con: sqlite3.Connection, tarih: str | None = None) -> list[dict]:
+    """
+    Günün 4 Büyükler maçlarını tarar ve:
+      1. Maçtan tam 40 dakika öncesi için KADRO ÇALAR SAATİ'ni (plan:spor_kadro_{f_id})
+      2. Maç başlangıcından 105 dakika sonrası için MAÇ SONU ÇALAR SAATİ'ni (plan:spor_macsonu_{f_id})
+    hesaplayıp SQLite ayarlar tablosuna kaydeder.
+
+    Cloudflare Worker ve uygulama köprüsü bu alarmları KV 'env.PLANLAR'
+    çalar saatine senkronize eder.
+    """
+    maclar = gunun_dort_buyuk_maclari(tarih)
+    alarmlar = []
+    simdi = datetime.now(timezone.utc)
+
+    for f in maclar:
+        f_id = f.get("fixture", {}).get("id")
+        if not f_id:
+            continue
+        h_name = f.get("teams", {}).get("home", {}).get("name", "")
+        a_name = f.get("teams", {}).get("away", {}).get("name", "")
+        status = f.get("fixture", {}).get("status", {}).get("short", "NS")
+        mac_dt_str = f.get("fixture", {}).get("date", "")
+        if not mac_dt_str:
+            continue
+
+        try:
+            mac_dt = datetime.fromisoformat(mac_dt_str.replace("Z", "+00:00"))
+            if mac_dt.tzinfo is None:
+                mac_dt = mac_dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+
+        # 1. KADRO ALARMI: Maçtan tam 40 dakika öncesi (kullanıcı kararı)
+        kadro_zamani = mac_dt - timedelta(minutes=40)
+        anahtar_kadro = f"spor_alarm_kadro_{f_id}"
+        zaten_yayinlandi = con.execute("SELECT 1 FROM ayarlar WHERE anahtar = ?", (f"spor_kadro_{f_id}",)).fetchone()
+
+        if not zaten_yayinlandi and status in ("NS", "TBD"):
+            con.execute(
+                "INSERT INTO ayarlar (anahtar, deger) VALUES (?, ?) "
+                "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+                (anahtar_kadro, kadro_zamani.isoformat()),
+            )
+            ttl = max(3600, int((mac_dt - simdi).total_seconds()) + 7200)
+            alarmlar.append({
+                "anahtar": f"plan:spor_kadro:{f_id}",
+                "calisacak_zaman": kadro_zamani.isoformat(),
+                "ttl": ttl,
+                "tanim": f"{h_name} vs {a_name} Kadro (Maçtan 40 dk önce)",
+            })
+
+        # 2. MAÇ SONU ALARMI: Maç başlangıcından 105 dakika sonrası
+        macsonu_zamani = mac_dt + timedelta(minutes=105)
+        anahtar_macsonu = f"spor_alarm_macsonu_{f_id}"
+        zaten_macsonu = con.execute("SELECT 1 FROM ayarlar WHERE anahtar = ?", (f"spor_mac_sonu_{f_id}",)).fetchone()
+
+        if not zaten_macsonu:
+            con.execute(
+                "INSERT INTO ayarlar (anahtar, deger) VALUES (?, ?) "
+                "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger",
+                (anahtar_macsonu, macsonu_zamani.isoformat()),
+            )
+            ttl_ms = max(3600, int((macsonu_zamani - simdi).total_seconds()) + 7200)
+            alarmlar.append({
+                "anahtar": f"plan:spor_macsonu:{f_id}",
+                "calisacak_zaman": macsonu_zamani.isoformat(),
+                "ttl": ttl_ms,
+                "tanim": f"{h_name} vs {a_name} Maç Sonu (Bitiş + 15 dk)",
+            })
+
+    con.commit()
+    return alarmlar
+
+
 def bekleme_suresi_doldu_mu(fixture_id: int, con: sqlite3.Connection, asgari_dakika: int = 15) -> tuple[bool, float]:
     """
     Maç bitimi üzerinden en az `asgari_dakika` (varsayılan 15 dk) geçip geçmediğini denetler.
@@ -539,11 +613,17 @@ Sadece saf JSON döndür."""
 
 def otomatik_spor_taramasi(con: sqlite3.Connection, ayarlar: dict, telegrama_gonder: bool = True) -> dict:
     """
-    Her periyodik döngüde (saatlik veya cron ile) çalışan ana spor tarama motoru:
-      1. Günün 4 Büyükler maçlarını bulur.
-      2. Maçtan önce resmi ilk 11'ler geldiyse Kadro Carousel postunu hazırlar.
+    Her periyodik döngüde (saatlik veya 10 dakikalık cron ile) çalışan ana spor tarama motoru:
+      1. Günün 4 Büyükler maçlarını bulur ve maçtan 40 dk öncesi için çalar saat alarmlarını kurar.
+      2. Maçtan 45 dk öncesi ile başlama saati arasındaki (veya ilk 15 dk içindeki) maçların resmi kadrolarını çeker.
       3. Maç bittikten (FT) en az 15 dakika geçtiyse Maç Sonu Sesli Reels bültenini hazırlar.
     """
+    # 1. Günün maçları için 40 dk öncesi alarmları kur ve güncelle
+    try:
+        gunun_maclari_icin_alarmlari_kur(con)
+    except Exception as e_alarm:
+        log.warning("Spor maç alarmları kurulurken hata: %s", e_alarm)
+
     maclar = gunun_dort_buyuk_maclari()
     rapor = {
         "taranan_mac_sayisi": len(maclar),
@@ -556,11 +636,14 @@ def otomatik_spor_taramasi(con: sqlite3.Connection, ayarlar: dict, telegrama_gon
         log.info("Bugün 4 Büyüklerin planlanmış bir karşılaşması bulunamadı.")
         return rapor
 
+    simdi = datetime.now(timezone.utc)
+
     for f in maclar:
         f_id = f.get("fixture", {}).get("id")
         h_name = f.get("teams", {}).get("home", {}).get("name", "")
         a_name = f.get("teams", {}).get("away", {}).get("name", "")
         status = f.get("fixture", {}).get("status", {}).get("short", "NS")
+        elapsed = f.get("fixture", {}).get("status", {}).get("elapsed") or 0
 
         mac_tanim = f"#{f_id} {h_name} vs {a_name} ({status})"
 
@@ -583,23 +666,30 @@ def otomatik_spor_taramasi(con: sqlite3.Connection, ayarlar: dict, telegrama_gon
                     rapor["beklemede"].append(f"{mac_tanim} - {gecen:.1f}/15 dk")
             continue
 
-        # B) MAÇ ÖNÜ KADRO KONTROLÜ (NS / TBD)
-        if status in ("NS", "TBD"):
+        # B) MAÇ ÖNÜ KADRO KONTROLÜ (NS / TBD veya ilk yarı başlangıcı 1H <= 15 dk)
+        ilk_yari_yeni_basladi = (status == "1H" and elapsed <= 15)
+        if status in ("NS", "TBD") or ilk_yari_yeni_basladi:
             anahtar_kadro = f"spor_kadro_{f_id}"
             zaten_kadro = con.execute("SELECT deger FROM ayarlar WHERE anahtar = ?", (anahtar_kadro,)).fetchone()
             if not zaten_kadro:
-                # Başlama saatine bak (75 dakika içindeyse kadro sorgula)
+                # Başlama saatine bak (maça 45 dakika veya daha az kalmışsa sorgula)
                 mac_dt_str = f.get("fixture", {}).get("date", "")
-                zaman_uygun = True
-                if mac_dt_str:
+                zaman_uygun = False
+                if ilk_yari_yeni_basladi:
+                    zaman_uygun = True
+                elif mac_dt_str:
                     try:
                         dt = datetime.fromisoformat(mac_dt_str.replace("Z", "+00:00"))
-                        fark_dk = (dt - datetime.now(timezone.utc)).total_seconds() / 60.0
-                        # Maça 80 dakikadan fazla varsa henüz kadrolar açıklanmamıştır
-                        if fark_dk > 80:
-                            zaman_uygun = False
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        fark_dk = (dt - simdi).total_seconds() / 60.0
+                        # Maça 45 dakika veya daha az kalmışsa (hedef 40 dk) kadro sorgula
+                        if fark_dk <= 45:
+                            zaman_uygun = True
+                        else:
+                            log.info("Maça %.1f dakika var (40 dk alarmı bekleniyor): %s", fark_dk, mac_tanim)
                     except Exception:
-                        pass
+                        zaman_uygun = True
 
                 if zaman_uygun:
                     try:

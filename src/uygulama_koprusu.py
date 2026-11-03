@@ -331,6 +331,35 @@ def _kanallar(ayarlar: dict) -> list[dict]:
     } for kod, bayrak in KANAL_BAYRAKLARI.items()]
 
 
+def _spor_alarmlari(con) -> list[dict]:
+    """Aktif spor alarmlarını derler (Cloudflare KV çalar saati için)."""
+    satirlar = con.execute(
+        "SELECT anahtar, deger FROM ayarlar WHERE anahtar LIKE 'spor_alarm_%'"
+    ).fetchall()
+    sonuclar = []
+    simdi = datetime.now(timezone.utc)
+    for s in satirlar:
+        k = s["anahtar"]
+        v = s["deger"]
+        if not v:
+            continue
+        try:
+            dt = datetime.fromisoformat(v)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if (simdi - dt).total_seconds() < 10800:
+                f_id = k.split("_")[-1]
+                tur = "kadro" if "kadro" in k else "macsonu"
+                sonuclar.append({
+                    "anahtar": f"plan:spor_{tur}:{f_id}",
+                    "calisacak_zaman": dt.isoformat(),
+                    "ttl": 86400,
+                })
+        except Exception:
+            pass
+    return sonuclar
+
+
 def ozet_kur(con, ayarlar: dict) -> dict:
     """
     Uygulamanın göreceği bütün durum. Veritabanının SAF fonksiyonu.
@@ -355,6 +384,7 @@ def ozet_kur(con, ayarlar: dict) -> dict:
         "olaylar": _olaylar(),
         "ayarlar": _ayarlar(con, ayarlar),
         "havuz": con.execute("SELECT COUNT(*) FROM haberler WHERE durum = 'yeni'").fetchone()[0],
+        "spor_alarmlari": _spor_alarmlari(con),
         # Worker'ın iç alanı: eşleştirme isteğini ve "uygulamadan işlendi"
         # işaretini Telegram'da hangi gruba yazacağı. Uygulamaya verilmiyor.
         "_ic": {"telegram_sohbet": os.getenv("TELEGRAM_CHAT_ID", "").strip()},

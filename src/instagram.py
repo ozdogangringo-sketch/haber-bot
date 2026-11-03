@@ -314,16 +314,45 @@ def gorselleri_4_5_yap(gorsel_urlleri: list[str], ayarlar: dict) -> list[str]:
     return yeni_urller
 
 
+def tekli_post_yayinla(gorsel_url: str, caption: str, ayarlar: dict) -> str:
+    """
+    Instagram akışında (4:5 Feed) tekil görsel yayınlar, Instagram post id'sini döner.
+    """
+    gorseller_4_5 = gorselleri_4_5_yap([gorsel_url], ayarlar)
+    url_4_5 = gorseller_4_5[0] if gorseller_4_5 else gorsel_url
+
+    hesap = hesabi_dogrula(ayarlar)
+    kota = yayin_kotasi(ayarlar)
+    if kota["kullanilan"] >= kota["azami"]:
+        raise RuntimeError(
+            f"24 saatlik yayın kotası dolu ({kota['kullanilan']}/{kota['azami']})"
+        )
+    log.info("hedef @%s | Tekil post yayınlanıyor | kota %s/%s",
+             hesap["username"], kota["kullanilan"], kota["azami"])
+
+    temiz_caption = filtre.markdown_temizle(caption)
+    d = _istek("POST", f"/{_kullanici_id()}/media", ayarlar,
+               image_url=url_4_5, caption=temiz_caption)
+    container_id = d["id"]
+    _container_bekle(container_id, ayarlar)
+
+    d = _istek("POST", f"/{_kullanici_id()}/media_publish", ayarlar,
+               creation_id=container_id)
+    post_id = d["id"]
+    log.info("YAYINLANDI (tekil): %s", post_id)
+    return post_id
+
+
 def carousel_yayinla(
     gorsel_urlleri: list[str], caption: str, ayarlar: dict
 ) -> str:
     """
     Carousel postu yayınlar, Instagram post id'sini döner.
-
-    Yayın öncesi hesap doğrulaması ve kota kontrolü yapılıyor.
-    Instagram Akış (Feed Carousel) yalnızca 4:5 formatını kabul eder.
-    Tüm 9:16 görseller içerik tasarımı bozulmadan 4:5 güvenli alanından kırpılarak yayınlanır.
+    Tekil görsel verilirse otomatik olarak tekli_post_yayinla'ya devreder.
     """
+    if len(gorsel_urlleri) == 1:
+        return tekli_post_yayinla(gorsel_urlleri[0], caption, ayarlar)
+
     if not 2 <= len(gorsel_urlleri) <= 10:
         raise ValueError(
             f"carousel 2-10 görsel ister, {len(gorsel_urlleri)} verildi"

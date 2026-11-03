@@ -15,6 +15,7 @@ from src import make_image
 from src.sablonlar.ortak import (
     cam_kart_ciz,
     metin_kutuya_sar,
+    nokta_matrisi_ciz,
     temel_tuval_olustur,
     ust_ve_alt_bar_bas,
 )
@@ -56,13 +57,16 @@ def rehber_adim_slayti_ciz(
     alan_g = genislik - 2 * kenar
     alan_h = y_alt - y_ust
 
-    # --- ALT NOT ÖLÇÜSÜ (Kompakt & Metinle Orantılı) ---
+    # Siber veri nokta ızgarası (dot matrix)
+    gorsel = nokta_matrisi_ciz(gorsel, kenar, y_ust, genislik - kenar, y_alt, adim=44)
+
+    # --- ALT NOT ÖLÇÜSÜ (Kompakt & Mikro Rozetli) ---
     ciz_olcum = ImageDraw.Draw(gorsel, "RGBA")
     f_not = make_image._font(24, make_image.EKSEN_OZET)
-    not_satir = metin_kutuya_sar(ciz_olcum, onemli_not, f_not, alan_g - 48, maks_satir=3) if onemli_not else []
-    alt_not_h = max(74, min(120, 36 + len(not_satir) * 32)) if not_satir else 0
+    not_satir = metin_kutuya_sar(ciz_olcum, onemli_not, f_not, alan_g - 48, maks_satir=2) if onemli_not else []
+    alt_not_h = max(86, min(132, 48 + len(not_satir) * 32)) if not_satir else 0
 
-    ust_h = 114
+    ust_h = 118
     adet = len(adimlar)
     gap = 18 if adet <= 3 else (16 if adet <= 4 else 14)
 
@@ -77,48 +81,53 @@ def rehber_adim_slayti_ciz(
 
     # 4:5 Güvenli Alanında Dikey Ortalama / Dengeleme
     toplam_icerik = ust_h + 22 + (adet * kart_h + (adet - 1) * gap) + (18 + alt_not_h if alt_not_h else 0)
-    y_offset_extra = max(8, (alan_h - toplam_icerik) // 2)
+    y_offset_extra = max(6, (alan_h - toplam_icerik) // 2)
     y = y_ust + y_offset_extra
 
     # --- 1. ÜST REHBER BAŞLIK KARTI ---
     gorsel = cam_kart_ciz(
         gorsel,
         (kenar, y, genislik - kenar, y + ust_h),
-        dolgu=(9, 28, 42, 232),
-        kenarlik=(6, 182, 212, 95),
+        dolgu=(9, 28, 44, 235),
+        kenarlik=(6, 182, 212, 100),
         yaricap=20,
         sol_centik=(6, 182, 212),
     )
     ciz = ImageDraw.Draw(gorsel, "RGBA")
+    f_mikro = make_image._font(17, make_image.EKSEN_KUCUK)
+    chip_txt = "📋 ADIM ADIM UYGULAMA REHBERİ"
+    cw = int(ciz.textlength(chip_txt, font=f_mikro)) + 20
+    ciz.rounded_rectangle([kenar + 28, y + 14, kenar + 28 + cw, y + 36], radius=6, fill=(6, 182, 212, 35))
+    ciz.text((kenar + 38, y + 17), chip_txt, font=f_mikro, fill=(6, 182, 212))
+
     f_rbas = make_image._font(29, make_image.EKSEN_BASLIK)
     rb_satir = metin_kutuya_sar(ciz, rehber_basligi, f_rbas, alan_g - 52, maks_satir=2)
-    ry = y + (ust_h - len(rb_satir) * 36) // 2
+    ry = y + 45
     for s in rb_satir:
         ciz.text((kenar + 28, ry), s, font=f_rbas, fill=(255, 255, 255))
-        ry += 36
+        ry += 35
 
     y += ust_h + 22
 
     # --- 2. ADIM KARTLARI + SOL ZAMAN ÇİZGİSİ ---
-    # Sol dikey bağlantı çizgisi
-    ciz = ImageDraw.Draw(gorsel, "RGBA")
     cizgi_x = kenar + 42
-    ciz.line(
-        [cizgi_x, y + 36, cizgi_x, y + (adet - 1) * (kart_h + gap) + kart_h - 36],
-        fill=(6, 182, 212),
-        width=4,
-    )
+    # İki katmanlı parlayan dikey çizgi
+    ciz = ImageDraw.Draw(gorsel, "RGBA")
+    ciz_y1 = y + 36
+    ciz_y2 = y + (adet - 1) * (kart_h + gap) + kart_h - 36
+    ciz.line([cizgi_x, ciz_y1, cizgi_x, ciz_y2], fill=(6, 182, 212, 45), width=8)
+    ciz.line([cizgi_x, ciz_y1, cizgi_x, ciz_y2], fill=(6, 182, 212, 220), width=3)
 
     f_no = make_image._font(26, make_image.EKSEN_BASLIK)
     f_abas = make_image._font(26, make_image.EKSEN_BASLIK)
     f_aacik = make_image._font(24, make_image.EKSEN_OZET)
 
     renk_paleti = [
-        (226, 170, 88),
-        (6, 182, 212),
-        (16, 185, 129),
-        (56, 189, 248),
-        (168, 85, 247),
+        (226, 170, 88),  # Amber
+        (6, 182, 212),   # Turkuaz
+        (16, 185, 129),  # Zümrüt
+        (56, 189, 248),  # Açık Mavi
+        (168, 85, 247),  # Mor
     ]
 
     for idx, adim in enumerate(adimlar):
@@ -132,8 +141,8 @@ def rehber_adim_slayti_ciz(
         gorsel = cam_kart_ciz(
             gorsel,
             (kx1, ay1, kx2, ay2),
-            dolgu=(12, 28, 46, 226),
-            kenarlik=(*vurgu, 85),
+            dolgu=(12, 28, 48, 228),
+            kenarlik=(*vurgu, 95),
             yaricap=18,
             sol_centik=vurgu,
         )
@@ -145,7 +154,11 @@ def rehber_adim_slayti_ciz(
             [cizgi_x - 32, cy - 32, cizgi_x + 32, cy + 32],
             fill=(10, 24, 40),
             outline=vurgu,
-            width=3,
+            width=2,
+        )
+        ciz.ellipse(
+            [cizgi_x - 26, cy - 26, cizgi_x + 26, cy + 26],
+            fill=(*vurgu, 35),
         )
         no_str = f"0{idx + 1}"
         nw = ciz.textlength(no_str, font=f_no)
@@ -171,21 +184,27 @@ def rehber_adim_slayti_ciz(
 
     y += adet * kart_h + max(0, adet - 1) * gap + 18
 
-    # --- 3. ALT ÖNEMLİ NOT KUTUSU (Kompakt ve Orantılı Boyut) ---
+    # --- 3. ALT ÖNEMLİ NOT KUTUSU (Kompakt, Mikro Rozetli & Orantılı) ---
     if not_satir and alt_not_h > 0 and y + alt_not_h <= y_alt + 30:
         gorsel = cam_kart_ciz(
             gorsel,
             (kenar, y, genislik - kenar, y + alt_not_h),
-            dolgu=(10, 30, 34, 228),
-            kenarlik=(16, 185, 129, 85),
+            dolgu=(10, 30, 36, 230),
+            kenarlik=(16, 185, 129, 90),
             yaricap=16,
             sol_centik=(16, 185, 129),
         )
         ciz = ImageDraw.Draw(gorsel, "RGBA")
-        ny = y + (alt_not_h - len(not_satir) * 32) // 2
+        f_not_etiket = make_image._font(17, make_image.EKSEN_KUCUK)
+        not_chip = "📌 ÖNEMLİ DETAY & BAŞVURU SÜRECİ"
+        ncw = int(ciz.textlength(not_chip, font=f_not_etiket)) + 18
+        ciz.rounded_rectangle([kenar + 24, y + 14, kenar + 24 + ncw, y + 36], radius=5, fill=(16, 185, 129, 35))
+        ciz.text((kenar + 33, y + 17), not_chip, font=f_not_etiket, fill=(16, 185, 129))
+
+        ny = y + 46
         for ns in not_satir:
             ciz.text((kenar + 24, ny), ns, font=f_not, fill=(220, 252, 231))
-            ny += 32
+            ny += 30
 
     return ust_ve_alt_bar_bas(
         gorsel,

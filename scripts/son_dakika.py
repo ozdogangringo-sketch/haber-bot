@@ -1094,6 +1094,25 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
         planli_yayinlari_isle(con, ayarlar)
         suresi_gecmisi_iptal_et(con, ayarlar)
 
+        # --- 1.5) 4 Büyükler Spor Maç Takip Motoru (Planlı alarmlarla da tetiklenebilmesi için) ---
+        if not zorla_haber_id:
+            try:
+                spor_rapor = spor_yonetimi.otomatik_spor_taramasi(con, ayarlar, telegrama_gonder=(not kuru))
+                if spor_rapor.get("kadro_hazirlanan") or spor_rapor.get("mac_sonu_hazirlanan"):
+                    log.info("Spor otomasyonu: %s", spor_rapor)
+            except Exception as e_spor:
+                log.warning("Spor maç takip taramasında hata: %s", e_spor)
+
+        # --- 1.6) Milli ve Dini Bayram Özel Afiş Otomasyonu (Sabah TR 08:00 - 11:30) ---
+        if not zorla_haber_id and not kuru:
+            try:
+                from src import bayramlar
+                bayram_tetiklendi = bayramlar.otomatik_bayram_taramasi(con, ayarlar)
+                if bayram_tetiklendi:
+                    log.info("Bugünün bayramı için 3 öneri Telegram'a sunuldu.")
+            except Exception as e_bayram:
+                log.warning("Bayram otomatik taramasında hata: %s", e_bayram)
+
         # ⚠️ HAFİF MOD: yalnızca planlı yayınları işle ve çık.
         #
         # NEDEN (5 Eyl 2026, kullanıcı isteği): zamanlanmış yayın
@@ -1194,15 +1213,6 @@ def main(zorla_haber_id: int | None = None, elle: bool = False,
                             sys.argv = eski_argv
                         except Exception as e:
                             log.error("Piyasa bülteni telafi yayını hatası: %s", e)
-
-        # --- 3.6) 4 Büyükler Spor Maç Takip Motoru (Maç Önü Kadro Carousel & Maç Sonu 15 Dk Reels) ---
-        if not zorla_haber_id:
-            try:
-                spor_rapor = spor_yonetimi.otomatik_spor_taramasi(con, ayarlar, telegrama_gonder=(not kuru))
-                if spor_rapor.get("kadro_hazirlanan") or spor_rapor.get("mac_sonu_hazirlanan"):
-                    log.info("Spor otomasyonu: %s", spor_rapor)
-            except Exception as e_spor:
-                log.warning("Spor maç takip taramasında hata: %s", e_spor)
 
         # --- 4) Taze haber çek, sonra aday ara ---
         if not zorla_haber_id and durum_id:

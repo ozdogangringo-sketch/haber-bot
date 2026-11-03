@@ -12,12 +12,51 @@ Daily Brief Standart Haber Formatı:
 from __future__ import annotations
 
 import logging
+import re
 from PIL import Image, ImageDraw, ImageFilter
 
 from src import make_image, fetch_kulup_logo
 from src.sablonlar.ortak import ust_ve_alt_bar_bas, metin_kutuya_sar
 
 log = logging.getLogger(__name__)
+
+
+def _takim_adi_sigdir_kapak(ciz: ImageDraw.Draw, ham_ad: str, max_gen: int) -> tuple[str, any]:
+    """Armanın altındaki takım adını adaptif olarak küçültür ve sığdırır; sıfır taşma garantisi."""
+    ad = make_image._buyuk_harf(ham_ad.strip())
+    for punto in (30, 26, 24, 22, 20, 18, 16):
+        f = make_image._font(punto, [float(punto), 750.0])
+        if ciz.textlength(ad, font=f) <= max_gen:
+            return ad, f
+
+    # Kısaltma denemesi ("FUTBOL KULÜBÜ" -> "FK", "SPOR KULÜBÜ" -> "SK", "A.Ş." kaldır)
+    ad_kisa = re.sub(r"\bFUTBOL KULÜBÜ\b", "FK", ad)
+    ad_kisa = re.sub(r"\bSPOR KULÜBÜ\b", "SK", ad_kisa)
+    ad_kisa = re.sub(r"\bA\.?Ş\.?\b", "", ad_kisa).strip()
+    for punto in (22, 20, 18, 16, 15):
+        f = make_image._font(punto, [float(punto), 750.0])
+        if ciz.textlength(ad_kisa, font=f) <= max_gen:
+            return ad_kisa, f
+
+    f = make_image._font(15, [15.0, 750.0])
+    while ad_kisa and ciz.textlength(ad_kisa + "…", font=f) > max_gen:
+        ad_kisa = ad_kisa[:-1].rstrip()
+    return (ad_kisa + "…" if ad_kisa else ham_ad[:12]), f
+
+
+def _telemetri_sigdir(ciz: ImageDraw.Draw, txt: str, max_gen: int, baslangic_punto: int = 16) -> tuple[str, any]:
+    """Turnuva ve maç bilgisi gibi telemetri satırlarını taşmayacak şekilde sığdırır."""
+    for punto in (baslangic_punto, baslangic_punto - 2, baslangic_punto - 4):
+        if punto < 12:
+            break
+        f = make_image._font(punto, make_image.EKSEN_BASLIK)
+        if ciz.textlength(txt, font=f) <= max_gen:
+            return txt, f
+    f = make_image._font(12, make_image.EKSEN_BASLIK)
+    kirp = txt
+    while kirp and ciz.textlength(kirp + "…", font=f) > max_gen:
+        kirp = kirp[:-1].rstrip()
+    return (kirp + "…" if kirp else txt[:20]), f
 
 
 def stadyum_zemini_olustur(genislik: int, yukseklik: int) -> Image.Image:
@@ -74,7 +113,7 @@ def spor_kapak_slayti_ciz(
 ) -> Image.Image:
     """
     Kadro ve maç duyuruları için Daily Brief standart haber formatında,
-    yeşil çim üzerine devasa 380px 3D kulüp armalı, volumetrik projektörlü kapak slaytı (1080x1920) üretir.
+    yeşil çim üzerine devasa 360px 3D kulüp armalı, volumetrik projektörlü kapak slaytı (1080x1920) üretir.
     Metin katmanı doğrudan make_image.yaziyi_bas motoruyla (Tümce düzeni, 13px blur gölge) çizilir.
     """
     genislik = make_image.STORY_GENISLIK
@@ -90,25 +129,24 @@ def spor_kapak_slayti_ciz(
     mac_bilgi = (veri.get("mac_bilgisi") or veri.get("stat_hakem") or veri.get("stadyum_saat") or "").strip()
 
     # =========================================================================
-    # GÖRSEL ALANI: 380px DEVASA RESMİ 3D KULÜP ARMALARI & MAÇ MERKEZİ
+    # GÖRSEL ALANI: 360px DEVASA RESMİ 3D KULÜP ARMALARI & MAÇ MERKEZİ
     # =========================================================================
     y_arma = dikey_kenar + 175  # 505 px (DB logosu altına nefes payı)
-    arma_boyutu = 380
-    sol_x = 18
-    sag_x = genislik - 18 - arma_boyutu
+    arma_boyutu = 360
+    sol_x = 24
+    sag_x = genislik - 24 - arma_boyutu
 
     logo_ev = fetch_kulup_logo.kulup_logosu_al(ev_ad, boyut=arma_boyutu)
     logo_dep = fetch_kulup_logo.kulup_logosu_al(dep_ad, boyut=arma_boyutu)
 
     # Doğukan İsteği: Kapaktaki iki renk stadyum atmosferi takımların kendi renklerinden oluşur.
-    # Ortak renk çakışmasında akıllı kontrast uzlaştırma devreye girer (örn: Kırmızı-Kırmızı çakışmasında biri maviye/sarıya geçer)
     ev_renkler, dep_renkler = fetch_kulup_logo.mac_renklerini_ayarla(ev_ad, dep_ad, logo_ev, logo_dep)
 
     ev_atmo = ev_renkler.get("atmosphere", (119, 13, 44))
     dep_atmo = dep_renkler.get("atmosphere", (20, 20, 28))
 
-    # 1. TEMEL TUVAL — VIP 3: Split Clash Arena (İki Kulübün Özgün Renk Atmosferi)
-    gorsel = Image.new("RGB", (genislik, yukseklik), (6, 12, 18))
+    # 1. TEMEL TUVAL — ZENGİN STADYUM VE PROJEKTÖR ZEMİNİ + SPLIT KULÜP ATMOSFERİ
+    gorsel = stadyum_zemini_olustur(genislik, yukseklik)
 
     # Split Arena Diyagonal Atmosfer (Sol: Ev Sahibi Kulüp Rengi / Sağ: Deplasman Kulüp Rengi)
     split = Image.new("RGBA", (genislik, yukseklik), (0, 0, 0, 0))
@@ -140,7 +178,7 @@ def spor_kapak_slayti_ciz(
         ciz_tmp = ImageDraw.Draw(gorsel, "RGBA")
         ciz_tmp.ellipse([sol_x, y_arma, sol_x + arma_boyutu, y_arma + arma_boyutu], fill=(245, 158, 11, 40), outline=(245, 158, 11), width=2)
         f_mono = make_image._font(56, make_image.EKSEN_BASLIK)
-        ciz_tmp.text((sol_x + 100, y_arma + 140), ev_ad[:3].upper(), font=f_mono, fill=(255, 255, 255))
+        ciz_tmp.text((sol_x + 90, y_arma + 140), ev_ad[:3].upper(), font=f_mono, fill=(255, 255, 255))
 
     if logo_dep:
         gorsel.paste(logo_dep, (sag_x, y_arma), mask=logo_dep)
@@ -148,56 +186,66 @@ def spor_kapak_slayti_ciz(
         ciz_tmp = ImageDraw.Draw(gorsel, "RGBA")
         ciz_tmp.ellipse([sag_x, y_arma, sag_x + arma_boyutu, y_arma + arma_boyutu], fill=(14, 165, 233, 40), outline=(14, 165, 233), width=2)
         f_mono = make_image._font(56, make_image.EKSEN_BASLIK)
-        ciz_tmp.text((sag_x + 100, y_arma + 140), dep_ad[:3].upper(), font=f_mono, fill=(255, 255, 255))
+        ciz_tmp.text((sag_x + 90, y_arma + 140), dep_ad[:3].upper(), font=f_mono, fill=(255, 255, 255))
 
     ciz = ImageDraw.Draw(gorsel, "RGBA")
 
-    # Merkez Daire 'VS 20:00' Madalyon Rozeti
+    # Üst Turnuva / Lig Kapsülü (Center, Top of Match Area)
+    turnuva_ciz, f_tur = _telemetri_sigdir(ciz, turnuva, max_gen=320, baslangic_punto=16)
+    tw = ciz.textlength(turnuva_ciz, font=f_tur)
+    ciz.rounded_rectangle([(genislik - tw) // 2 - 16, y_arma + 12, (genislik + tw) // 2 + 16, y_arma + 36], radius=8, fill=(10, 14, 20, 200), outline=(255, 255, 255, 60), width=1)
+    ciz.text(((genislik - tw) // 2, y_arma + 15), turnuva_ciz, font=f_tur, fill=(255, 255, 255))
+
+    # Merkez Daire 'VS / MS' Madalyon Rozeti
     mx = genislik // 2
-    my = y_arma + arma_boyutu // 2
-    rc = 68
+    my = y_arma + arma_boyutu // 2 + 10
+    rc = 64
     ciz.ellipse([mx - rc, my - rc, mx + rc, my + rc], fill=(8, 18, 26, 250), outline=(255, 255, 255, 80), width=2)
     mac_sonu = bool(veri.get("mac_sonu")) or ("-" in skor_saat and ":" not in skor_saat)
     if mac_sonu:
-        f_ust = make_image._font(24, [24.0, 750.0])
-        f_alt = make_image._font(34, [34.0, 800.0])
+        f_ust = make_image._font(22, [22.0, 750.0])
+        f_alt = make_image._font(32, [32.0, 800.0])
         ust_txt = "MS"
         alt_txt = skor_saat
         ciz.ellipse([mx - rc + 6, my - rc + 6, mx + rc - 6, my + rc - 6], outline=(16, 185, 129, 180), width=1)
-        ciz.text(((genislik - ciz.textlength(ust_txt, font=f_ust)) / 2, my - 36), ust_txt, font=f_ust, fill=(16, 185, 129))
+        ciz.text(((genislik - ciz.textlength(ust_txt, font=f_ust)) / 2, my - 34), ust_txt, font=f_ust, fill=(16, 185, 129))
         ciz.text(((genislik - ciz.textlength(alt_txt, font=f_alt)) / 2, my - 2), alt_txt, font=f_alt, fill=(255, 255, 255))
     else:
         ciz.ellipse([mx - rc + 6, my - rc + 6, mx + rc - 6, my + rc - 6], outline=(245, 158, 11, 140), width=1)
-        f_vs = make_image._font(40, make_image.EKSEN_BASLIK)
+        f_vs = make_image._font(38, make_image.EKSEN_BASLIK)
         f_saat = make_image._font(20, make_image.EKSEN_BASLIK)
-        ciz.text(((genislik - ciz.textlength("VS", font=f_vs)) / 2, my - 38), "VS", font=f_vs, fill=(255, 255, 255))
-        ciz.text(((genislik - ciz.textlength(skor_saat, font=f_saat)) / 2, my + 10), skor_saat, font=f_saat, fill=(245, 158, 11))
+        ciz.text(((genislik - ciz.textlength("VS", font=f_vs)) / 2, my - 36), "VS", font=f_vs, fill=(255, 255, 255))
+        ciz.text(((genislik - ciz.textlength(skor_saat, font=f_saat)) / 2, my + 8), skor_saat, font=f_saat, fill=(245, 158, 11))
 
-    # Armaların Altındaki Takım İsimleri (Dinamik Kulüp Vurgu Renkleri)
-    f_isim = make_image._font(30, [30.0, 750.0])
-    ev_ad_b = make_image._buyuk_harf(ev_ad)
-    dep_ad_b = make_image._buyuk_harf(dep_ad)
-    ev_w = ciz.textlength(ev_ad_b, font=f_isim)
-    dep_w = ciz.textlength(dep_ad_b, font=f_isim)
+    # Armaların Altındaki Takım İsimleri (SIFIR TAŞMA GARANTİSİ: max_gen = 380px)
     isim_y = y_arma + arma_boyutu + 14
+    max_isim_w = arma_boyutu + 20
+
+    ev_ad_ciz, f_ev = _takim_adi_sigdir_kapak(ciz, ev_ad, max_isim_w)
+    dep_ad_ciz, f_dep = _takim_adi_sigdir_kapak(ciz, dep_ad, max_isim_w)
+
+    ev_w = ciz.textlength(ev_ad_ciz, font=f_ev)
+    dep_w = ciz.textlength(dep_ad_ciz, font=f_dep)
 
     ev_vurgu = ev_renkler.get("number") or ev_renkler.get("primary") or (255, 255, 255)
     dep_vurgu = dep_renkler.get("number") or dep_renkler.get("primary") or (255, 255, 255)
 
-    ciz.text((sol_x + (arma_boyutu - ev_w) / 2, isim_y), ev_ad_b, font=f_isim, fill=ev_vurgu)
-    ciz.text((sag_x + (arma_boyutu - dep_w) / 2, isim_y), dep_ad_b, font=f_isim, fill=dep_vurgu)
+    ev_pos_x = max(18, sol_x + (arma_boyutu - int(ev_w)) // 2)
+    dep_pos_x = min(genislik - 18 - int(dep_w), sag_x + (arma_boyutu - int(dep_w)) // 2)
 
-    # Alt Stadyum & Hakem Telemetri Kapsülü
+    ciz.text((ev_pos_x, isim_y), ev_ad_ciz, font=f_ev, fill=ev_vurgu)
+    ciz.text((dep_pos_x, isim_y), dep_ad_ciz, font=f_dep, fill=dep_vurgu)
+
+    # Alt Stadyum & Hakem Telemetri Kapsülü (SIFIR TAŞMA GARANTİSİ: max_gen = 900px)
     if mac_bilgi:
-        f_info = make_image._font(18, make_image.EKSEN_BASLIK)
-        iw = ciz.textlength(mac_bilgi, font=f_info)
-        ciz.rounded_rectangle([(genislik - iw) / 2 - 22, isim_y + 48, (genislik + iw) / 2 + 22, isim_y + 88], radius=20, fill=(6, 20, 28, 230), outline=(255, 255, 255, 30), width=1)
-        ciz.text(((genislik - iw) / 2, isim_y + 57), mac_bilgi, font=f_info, fill=(226, 232, 240))
+        txt_bilgi, f_info = _telemetri_sigdir(ciz, mac_bilgi, max_gen=900, baslangic_punto=17)
+        iw = ciz.textlength(txt_bilgi, font=f_info)
+        ciz.rounded_rectangle([(genislik - iw) // 2 - 20, isim_y + 44, (genislik + iw) // 2 + 20, isim_y + 80], radius=18, fill=(6, 20, 28, 230), outline=(255, 255, 255, 35), width=1)
+        ciz.text(((genislik - iw) // 2, isim_y + 51), txt_bilgi, font=f_info, fill=(226, 232, 240))
 
     # =========================================================================
     # DAILY BRIEF RESMİ METİN & TİPOGRAFİ MOTORU (make_image.yaziyi_bas)
     # =========================================================================
-    # Başlık: Doğal Tümce Düzeni (Sentence Case), bağıran ALL-CAPS yok!
     baslik = (haber.get("ig_baslik") or haber.get("baslik_orj") or "Dev derbide ilk 11'ler belli oldu").strip()
     spot = (haber.get("spot") or haber.get("slayt_ozet") or haber.get("ozet") or "").strip()
 
@@ -208,7 +256,7 @@ def spor_kapak_slayti_ciz(
         "genislik": genislik,
         "yukseklik": yukseklik,
         "serit_rengi": [4, 18, 16],
-        "kanca_ciz": False,  # ⚠️ Spor maç kapağında editoryal kanca/kicker çizilmez!
+        "kanca_ciz": False,
     })
 
     story_ayarlar = {

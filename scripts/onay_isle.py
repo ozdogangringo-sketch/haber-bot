@@ -3693,6 +3693,28 @@ def main() -> int:
             telegram_bot.mesaj_gonder(f"ℹ️ <b>#{fixture_id} için 15 dakika bekleme süresi henüz dolmamış veya bülten zaten hazırlanmış.</b>", html=True)
         return 0
 
+    # ── Milli ve Dini Bayram Özel Afiş Motoru ──
+    if komut in ("bayram", "bayram_oneri"):
+        from src import bayramlar
+        telegram_bot.mesaj_gonder("⏳ <b>Günün bayramı için 3 farklı lüks afiş konsepti hazırlanıyor...</b>", html=True)
+        basarili = bayramlar.telegram_onerileri_gonder(con, ayarlar)
+        if not basarili:
+            telegram_bot.mesaj_gonder(
+                "ℹ️ <b>Bugün resmi takvimde tanımlı bir milli veya dini bayram bulunamadı.</b>\n"
+                "<i>(Yaklaşan bayramlar takvimde otomatik taranır.)</i>",
+                html=True
+            )
+        return 0
+
+    if komut.startswith("bayram_sec:"):
+        try:
+            secilen_no = int(komut.split(":")[1])
+        except (ValueError, IndexError):
+            secilen_no = 1
+        from src import bayramlar
+        bayramlar.bayram_yayinla(secilen_no, con, ayarlar)
+        return 0
+
     # ⚠️ MESAJSIZ KOMUT BURAYA GELMEMELİ. Geldiyse yukarıdaki dalların
     # hiçbirine uymamış demektir — yani `MESAJSIZ_KOMUTLAR` listesine
     # eklenmiş ama işleyicisi yazılmamış. Eskiden akış devam ediyor,

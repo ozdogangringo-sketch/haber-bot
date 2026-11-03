@@ -880,38 +880,38 @@ def test_sabotaj_51_worker_kanal_senkronizasyonu():
     let k = fs.readFileSync(workerPath, 'utf8').replace(/export default[\\s\\S]*$/, '');
     const w = new Function(k + '; return { anaMenu, sesMenusu, sesliYayinZamaniMenusu, yayinZamaniMenusu, seciliKanallariCikar, kanallariKodla, kanallariCoz };')();
 
-    // 1. Initial menu: anaMenu without channels
+    // 1. Initial menu: anaMenu without channels (Reels açık, IG kapalı varsayılanı)
     const menu1 = w.anaMenu(3, null);
     const kanallar1 = w.seciliKanallariCikar(menu1.inline_keyboard);
-    if (!kanallar1.includes('ig') || kanallar1.includes('reels')) {
+    if (!kanallar1.includes('reels') || kanallar1.includes('ig')) {
       throw new Error('Initial defaults wrong: ' + JSON.stringify(kanallar1));
     }
 
     // 2. Open sesMenusu
     const menu2 = w.sesMenusu(3, kanallar1);
-    // Simulating user toggling Reels on sesMenusu:
+    // Simulating user toggling IG on and Reels off on sesMenusu:
     const klavye2 = menu2.inline_keyboard.map(satir => satir.map(b => {
       let copy = {...b};
-      if (b.callback_data === 'kanal:reels') copy.text = '✅ Reels';
-      if (b.callback_data === 'kanal:ig') copy.text = '⬜ IG';
+      if (b.callback_data === 'kanal:reels') copy.text = '⬜ Reels';
+      if (b.callback_data === 'kanal:ig') copy.text = '✅ IG';
       return copy;
     }));
     const guncelKanallar = w.seciliKanallariCikar(klavye2);
-    if (!guncelKanallar.includes('reels') || guncelKanallar.includes('ig')) {
+    if (!guncelKanallar.includes('ig') || guncelKanallar.includes('reels')) {
       throw new Error('Toggle failed: ' + JSON.stringify(guncelKanallar));
     }
 
     // 3. User clicks "Fon müzikli" -> transition to sesliYayinZamaniMenusu
     const menu3 = w.sesliYayinZamaniMenusu('muzikli', 3, guncelKanallar);
     const kanallar3 = w.seciliKanallariCikar(menu3.inline_keyboard);
-    if (!kanallar3.includes('reels') || kanallar3.includes('ig')) {
+    if (!kanallar3.includes('ig') || kanallar3.includes('reels')) {
       throw new Error('Transition lost channel toggle: ' + JSON.stringify(kanallar3));
     }
 
     // 4. Back transition to anaMenu
     const menu4 = w.anaMenu(3, kanallar3);
     const kanallar4 = w.seciliKanallariCikar(menu4.inline_keyboard);
-    if (!kanallar4.includes('reels') || kanallar4.includes('ig')) {
+    if (!kanallar4.includes('ig') || kanallar4.includes('reels')) {
       throw new Error('Back to anaMenu lost channel toggle: ' + JSON.stringify(kanallar4));
     }
 

@@ -45,6 +45,8 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
                   "bulten", "sonpostlar", "son_postlar",
                   // Tur başlık önizlemesi (iki aşamalı tur akışı)
                   "tur_onayla", "tur_yeniden",
+                  // Milli ve Dini Bayram Özel Afişleri
+                  "bayram", "bayram_oneri", "bayram_yayinla",
                   // OzBorn Studio uygulamasının "Oluştur" ekranı (7 Eki 2026). Telegram'da
                   // bunlar yazılı komut (/haftalik, /populer) ve beyaz listeyi atlayarak
                   // gidiyordu; uygulamanın komut yolu beyaz listeyi zorunlu tutuyor.
@@ -172,6 +174,7 @@ const DOSYA_EYLEM = /^(dosya|kronoloji):.+$/;
 const INCELE = /^incele:\d{1,8}$/;
 // /haber <konu> karşılığı (uygulamadan da): havuzda arar, sonucu Telegram'a yazar.
 const ARA_EYLEM = /^ara:[^\n]{2,120}$/;
+const BAYRAM_SEC = /^bayram_sec:([1-3])$/;
 
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 500) return false;
@@ -187,7 +190,7 @@ function eylemMi(veri) {
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
     || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
     || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri) || INCELE.test(veri) || ARA_EYLEM.test(veri)
-    || KOTA_KAT.test(veri);
+    || KOTA_KAT.test(veri) || BAYRAM_SEC.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -980,6 +983,18 @@ async function ozetiAl(request, env) {
       + "ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger").bind(sohbet));
   }
   await env.KOPRU.batch(yazilar);
+
+  // Spor maç alarmlarını KV çalar saatine (env.PLANLAR) kaydet (Maçtan 40 dk önce ve maç sonu)
+  if (ozet.spor_alarmlari && Array.isArray(ozet.spor_alarmlari) && env.PLANLAR) {
+    for (const alarm of ozet.spor_alarmlari) {
+      if (alarm.anahtar && alarm.calisacak_zaman) {
+        try {
+          await env.PLANLAR.put(alarm.anahtar, alarm.calisacak_zaman, { expirationTtl: alarm.ttl || 86400 });
+        } catch (e) { /* KV yazma hatası sessiz */ }
+      }
+    }
+  }
+
   return kopruCevap({ ok: true, degisti });
 }
 
@@ -1374,7 +1389,8 @@ export default {
                 "• /kronoloji &lt;konu&gt; — Olay veya dava sürecini özetle\n" +
                 "• /arastir &lt;konu&gt; — Konuyu webde araştırıp posta dönüştür\n" +
                 "• /ozel &lt;metin&gt; — Kendi duyuru metninden post üret\n" +
-                "• /incele &lt;id&gt; — Haber detayını ve puan gerekçesini incele\n\n" +
+                "• /incele &lt;id&gt; — Haber detayını ve puan gerekçesini incele\n" +
+                "• /bayram — Milli ve dini bayram afişleri\n\n" +
 
                 "<b>📰 GÜNDEM &amp; AKIŞ</b>\n" +
                 "• /sondakika — Taze haberleri tara, öneri getir\n" +
@@ -1606,7 +1622,7 @@ export default {
             return new Response("ok");
         }
 
-        if (["/durum", "/kota", "/rapor", "/kullanim", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/populer", "/popüler", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar", "/spor"].includes(komutMetni)) {
+        if (["/durum", "/kota", "/rapor", "/kullanim", "/tur", "/hazirla", "/ekonomi", "/temizle", "/guncelle", "/sondakika", "/populer", "/popüler", "/haftalik", "/pazar", "/video", "/reels", "/ayar", "/tamamla", "/arsiv", "/yonetim", "/panel", "/piyasa", "/saglik", "/durdur", "/devam", "/bulten", "/kahve", "/sonpostlar", "/spor", "/bayram"].includes(komutMetni)) {
             let komut = komutMetni.slice(1);
             if (komut === "rapor" || komut === "kullanim" || komut === "kota") {
                 const parcalar = msj.text.trim().split(/\s+/);

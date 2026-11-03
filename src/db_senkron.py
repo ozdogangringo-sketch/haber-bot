@@ -179,7 +179,10 @@ def _sqlite_db_birlestir(yerel_db_yolu: str | Path, uzak_db_yolu: str | Path,
                     gorsel_url = COALESCE(haberler.gorsel_url, r.gorsel_url),
                     story_url = COALESCE(haberler.story_url, r.story_url),
                     detay_url = COALESCE(haberler.detay_url, r.detay_url),
-                    detay_metni = COALESCE(haberler.detay_metni, r.detay_metni)
+                    detay_metni = COALESCE(haberler.detay_metni, r.detay_metni),
+                    planlanan_yayin = COALESCE(r.planlanan_yayin, haberler.planlanan_yayin),
+                    yayin_kanallari = COALESCE(r.yayin_kanallari, haberler.yayin_kanallari),
+                    telegram_message_id = COALESCE(haberler.telegram_message_id, r.telegram_message_id)
                 FROM remote_db.haberler AS r
                 WHERE haberler.id = r.id
             ''')

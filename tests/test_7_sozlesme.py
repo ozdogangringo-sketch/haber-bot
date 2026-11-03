@@ -6029,6 +6029,67 @@ def test_uzaktan_tazele_canli_dosyaya_dokunmaz() -> None:
         shutil.rmtree(kok, ignore_errors=True)
 
 
+def test_db_birlestirme_planlanan_yayini_korur() -> None:
+    """
+    3 Kasım 2026 Yarış Durumu (Race Condition) Koruması:
+    Başka bir yayın sürerken araya girip '30 dk sonra' / '60 dk sonra' planlanan
+    içeriklerin planlanan_yayin ve yayin_kanallari alanları, yayın bitişindeki
+    SQLite birleştirmesinde NULL ile ezilmemeli.
+    """
+    import tempfile
+    import shutil
+    from pathlib import Path
+    from src import db_senkron
+
+    with tempfile.TemporaryDirectory() as tmp:
+        p_yerel = Path(tmp) / 'yerel.db'
+        p_uzak = Path(tmp) / 'uzak.db'
+
+        con_real = sqlite3.connect('data/haber.db')
+        schema = con_real.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name != 'sqlite_sequence'").fetchall()
+        con_real.close()
+
+        for p in (p_yerel, p_uzak):
+            con = sqlite3.connect(p)
+            for s in schema:
+                if s[0]:
+                    con.execute(s[0])
+            con.commit()
+            con.close()
+
+        # Uzak: Kullanıcı Telegram'dan 30 dk sonra yayınla seçmiş
+        con_u = sqlite3.connect(p_uzak)
+        con_u.execute(
+            'INSERT INTO haberler (id, kaynak, kategori, baslik_orj, link, yayin_tarihi, cekilme_zamani, durum, planlanan_yayin, yayin_kanallari, ig_caption) '
+            'VALUES (1, "tr", "turkiye", "Test", "http://test", "now", "now", "onay_bekliyor", "2026-11-03T12:00:00+00:00", "reels,story", "caption")'
+        )
+        con_u.commit()
+        con_u.close()
+
+        # Yerel: Yayın koşucusunda henüz planlanmamış eski kopyası duruyor
+        con_y = sqlite3.connect(p_yerel)
+        con_y.execute(
+            'INSERT INTO haberler (id, kaynak, kategori, baslik_orj, link, yayin_tarihi, cekilme_zamani, durum, planlanan_yayin, yayin_kanallari, ig_caption) '
+            'VALUES (1, "tr", "turkiye", "Test", "http://test", "now", "now", "onay_bekliyor", NULL, NULL, "caption")'
+        )
+        con_y.commit()
+        con_y.close()
+
+        ok = db_senkron._sqlite_db_birlestir(p_yerel, p_uzak)
+        denetle(ok is True, "db birleştirme başarılı")
+
+        con_y = sqlite3.connect(p_yerel)
+        row = con_y.execute('SELECT id, durum, planlanan_yayin, yayin_kanallari FROM haberler WHERE id = 1').fetchone()
+        con_y.close()
+
+        denetle(row[2] == "2026-11-03T12:00:00+00:00",
+                "db birleştirme: uzaktaki planlanan_yayin yereldeki NULL ile ezilmiyor",
+                f"planlanan_yayin={row[2]}")
+        denetle(row[3] == "reels,story",
+                "db birleştirme: uzaktaki yayin_kanallari yereldeki NULL ile ezilmiyor",
+                f"yayin_kanallari={row[3]}")
+
+
 def test_deep_dive_iyilestirmeleri() -> None:
     """
     18 Eki 2026 Deep-Dive (Faz 1 & Faz 2) mimari iyileştirmelerinin sözleşmesi:
