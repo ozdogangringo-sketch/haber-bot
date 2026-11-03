@@ -138,18 +138,18 @@
 <body>
   <div class="auth-card" id="card">
     <div class="success-badge" id="badge">● TikTok OAuth 2.0 Connected</div>
-    <h1 id="title">Authorization Successful</h1>
-    <p id="desc">The official TikTok channel (<strong>@dailybrief.co</strong>) has been successfully authenticated for Daily Brief Media Studio.</p>
+    <h1 id="title">Creator Account Connected</h1>
+    <p id="desc">Your TikTok creator profile has been securely authenticated with <strong>Daily Brief Media Studio</strong>. You can now review your video preview, select visibility settings, and publish via Direct Post.</p>
     
-    <div class="code-box" id="codeText">Loading authorization code...</div>
+    <div class="code-box" id="codeText">Verifying OAuth 2.0 session...</div>
     
     <div class="btn-group">
-      <button class="btn" id="copyBtn" onclick="copyCode()">
-        📋 Copy Auth Code
-      </button>
-      <a href="/studio" class="btn btn-secondary">
-        &larr; Return to Studio
+      <a href="/studio#showcase" class="btn">
+        Continue to Publishing Studio &rarr;
       </a>
+      <button class="btn btn-secondary" id="copyBtn" onclick="copyCode()">
+        Copy OAuth Reference
+      </button>
     </div>
   </div>
 
@@ -185,9 +185,9 @@
     function copyCode() {
       if (code) {
         navigator.clipboard.writeText(code).then(() => {
-          copyBtn.innerText = '✅ Code Copied!';
+          copyBtn.innerText = '✓ Copied';
           setTimeout(() => {
-            copyBtn.innerText = '📋 Copy Auth Code';
+            copyBtn.innerText = 'Copy OAuth Reference';
           }, 3000);
         });
       }
