@@ -772,7 +772,7 @@ def telegram_onerileri_gonder(con=None, ayarlar=None, bayram_info: dict | None =
         f"Seçtiğiniz tasarım <b>Instagram Feed (4:5), Story (9:16), Threads, Facebook Feed ve Story</b>'de anında otomatik paylaşılacaktır."
     )
 
-    telegram_bot.butonlu_mesaj_gonder(mesaj, butonlar, html=True)
+    telegram_bot.mesaj_gonder(mesaj, butonlar=butonlar, html=True)
     log.info("Bayram önerileri Telegram grubuna başarıyla sunuldu.")
     return True
 
