@@ -534,7 +534,8 @@ def durum_bildir(con, ayarlar) -> int:
         SELECT telegram_message_id, tur, son_dakika, durum,
                MIN(gonderim_zamani) as ilk_zaman,
                COUNT(*) as slayt_sayisi,
-               GROUP_CONCAT(COALESCE(ig_baslik, baslik_orj), ' || ') as basliklar
+               GROUP_CONCAT(COALESCE(ig_baslik, baslik_orj), ' || ') as basliklar,
+               MAX(planlanan_yayin) as planlanan_yayin
         FROM haberler 
         WHERE durum IN ('onay_bekliyor', 'baslik_onayi', 'ertelendi')
            OR (telegram_message_id IS NOT NULL AND durum != 'yayinlandi')
@@ -578,6 +579,21 @@ def durum_bildir(con, ayarlar) -> int:
                 f"   • <b>Durum:</b> <code>{b['durum']}</code>\n"
                 f"   • <b>Gönderim:</b> {zaman_str}{goreceli_ek}"
             )
+
+            planlanan_str = b["planlanan_yayin"] if "planlanan_yayin" in b.keys() else None
+            if planlanan_str:
+                from datetime import datetime, timezone
+                try:
+                    plan_dt = datetime.fromisoformat(planlanan_str)
+                    simdi_utc = datetime.now(timezone.utc)
+                    fark_dk = (plan_dt - simdi_utc).total_seconds() / 60
+                    plan_tr_str = tr_format(plan_dt, "tarih_saat")
+                    if fark_dk > 0:
+                        satirlar.append(f"   • ⏰ <b>Planlanan Yayın:</b> {plan_tr_str} ({int(fark_dk)} dk kaldı)")
+                    else:
+                        satirlar.append(f"   • 🚨 <b>GECİKMİŞ PLANLI YAYIN!</b> {int(abs(fark_dk))} dk geçti ({plan_tr_str})")
+                except Exception:
+                    satirlar.append(f"   • ⏰ <b>Planlanan Yayın:</b> {planlanan_str}")
 
             if goreceli and ("dakika" in goreceli or "saat" in goreceli or "gün" in goreceli):
                 satirlar.append("   ⚠️ <i>(Uzun süredir işlem bekliyor / kilitlenmiş olabilir)</i>")

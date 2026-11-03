@@ -1542,9 +1542,13 @@ def yayin_planla(con, ayarlar, haberler, dakika: int, mesaj_id, basan,
         f"TR {tr:%H:%M} ({basan or 'bilinmiyor'}).\n"
         f"Kontrol 90 dakikada bir çalıştığı için yayın "
         f"TR {tr:%H:%M}–{(tr + timedelta(minutes=90)):%H:%M} arasında çıkar.\n"
-        "Vazgeçersen aşağıdaki düğmeyle planı iptal edebilirsin.",
+        "Vazgeçersen aşağıdaki düğmeyle planı iptal edebilir veya beklemeden yayınlayabilirsin.",
         butonlar={"inline_keyboard": [
-            [{"text": "⏹ Planı iptal et", "callback_data": "plan_iptal"}]]},
+            [
+                {"text": "🚀 Beklemeden Şimdi Yayınla", "callback_data": f"yayinla:{mesaj_id}"},
+                {"text": "⏹ Planı iptal et", "callback_data": "plan_iptal"},
+            ]
+        ]},
     )
     log.info("yayın planlandı: %s (%s dk)", an.isoformat(), dakika)
     return 0

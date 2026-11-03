@@ -174,6 +174,58 @@ def sayaci_artir(con) -> None:
 PLAN_AZAMI_GECIKME_SAAT = 4
 
 
+def planli_yayin_hatirlat(con, mesaj_id: int, baslik: str, an: datetime, gecikme_dk: int, neden: str = "gecikme") -> None:
+    """
+    Planlanan yayının saati geldiğinde/geçtiğinde veya bir aksaklık durumunda
+    Telegram grubuna hatırlatma ve doğrudan yayınlama butonu gönderir.
+    Mükerrer uyarıyı önlemek için her durum (gecikme / azami_gecikme / hata) en fazla bir kez uyarılır.
+    """
+    kilit_anahtar = f"plan_hatirlatildi_{mesaj_id}_{neden}"
+    try:
+        satir = con.execute("SELECT deger FROM ayarlar WHERE anahtar = ?", (kilit_anahtar,)).fetchone()
+        if satir:
+            return
+    except Exception:
+        pass
+
+    tr_saat = an.astimezone(timezone(timedelta(hours=3))).strftime("%H:%M")
+    if neden == "hata":
+        baslik_metin = "⚠️ <b>Planlanan Yayın Gerçekleştirilemedi!</b>"
+        aciklama = "Otomatik yayın akışında bir aksaklık oluştu, içerik askıda kaldı."
+    elif neden == "azami_gecikme":
+        baslik_metin = "⚠️ <b>Planlanan Yayın Zaman Aşımına Uğradı!</b>"
+        aciklama = f"Planlanan saat ({tr_saat}) üzerinden uzun süre geçtiği için otomatik yayın durduruldu."
+    else:
+        baslik_metin = "⏰ <b>Planlanan Yayın Hatırlatması (Askıda / Gecikti)</b>"
+        aciklama = f"Planlanan saat (TR {tr_saat}) üzerinden <b>{int(gecikme_dk)} dakika</b> geçti ancak yayın henüz tamamlanamadı."
+
+    temiz_baslik = html.escape(baslik or "Planlanan Gönderi")
+    mesaj = (
+        f"{baslik_metin}\n\n"
+        f"📰 <b>#{mesaj_id}:</b> {temiz_baslik}\n"
+        f"🕒 <b>Planlanan Saat:</b> TR {tr_saat}\n"
+        f"ℹ️ {aciklama}\n\n"
+        f"İçeriği hemen yayına almak veya iptal etmek için:"
+    )
+    butonlar = [
+        [
+            {"text": "🚀 Hemen Şimdi Yayınla", "callback_data": f"yayinla:{mesaj_id}"},
+            {"text": "🗑 İptal / Havuza At", "callback_data": f"iptal:{mesaj_id}"},
+        ]
+    ]
+    try:
+        telegram_bot.mesaj_gonder(mesaj, butonlar=butonlar, html=True)
+        con.execute(
+            "INSERT INTO ayarlar (anahtar, deger) VALUES (?, datetime('now')) "
+            "ON CONFLICT(anahtar) DO UPDATE SET deger = datetime('now')",
+            (kilit_anahtar,)
+        )
+        con.commit()
+        log.info("Planlı yayın hatırlatması Telegram'a iletildi (%s, neden=%s)", mesaj_id, neden)
+    except Exception as e:
+        log.warning("Planlı yayın hatırlatması gönderilemedi (%s): %s", mesaj_id, e)
+
+
 def planli_yayinlari_isle(con, ayarlar: dict) -> int:
     """
     Zamanı gelen planlanmış turları yayınlar.
@@ -215,17 +267,34 @@ def planli_yayinlari_isle(con, ayarlar: dict) -> int:
             con.commit()
             continue
 
+        haberler = onay_isle.turu_getir(con, mesaj_id)
+        if not haberler:
+            log.warning("planlı yayın %s: tur bulunamadı", mesaj_id)
+            con.execute("UPDATE haberler SET planlanan_yayin = NULL "
+                        "WHERE telegram_message_id = ?", (mesaj_id,))
+            con.commit()
+            continue
+
+        ilk_baslik = haberler[0]["ig_baslik"] or haberler[0]["baslik_orj"] if haberler else ""
+
         if simdi < an:
             kalan = (an - simdi).total_seconds() / 60
             log.info("planlı yayın %s: %.0f dakika var", mesaj_id, kalan)
             continue
 
         gecikme = (simdi - an).total_seconds() / 3600
+        gecikme_dk = (simdi - an).total_seconds() / 60
+
+        # Eğer yayın planlanan saatten 15 dk veya daha fazla geciktiyse hatırlatma gönder
+        if gecikme_dk >= 15:
+            planli_yayin_hatirlat(con, mesaj_id, ilk_baslik, an, gecikme_dk, neden="gecikme")
+
         if gecikme > PLAN_AZAMI_GECIKME_SAAT:
             log.warning("planlı yayın %s %.1f saat gecikmiş, iptal", mesaj_id, gecikme)
             con.execute("UPDATE haberler SET planlanan_yayin = NULL "
                         "WHERE telegram_message_id = ?", (mesaj_id,))
             con.commit()
+            planli_yayin_hatirlat(con, mesaj_id, ilk_baslik, an, gecikme_dk, neden="azami_gecikme")
             try:
                 telegram_bot.sonucu_yaz(
                     mesaj_id,
@@ -233,14 +302,6 @@ def planli_yayinlari_isle(con, ayarlar: dict) -> int:
                     "yapılmadı.\nHaber elenmedi — tur onay bekliyor.")
             except Exception as e:
                 log.warning("gecikme mesajı yazılamadı: %s", e)
-            continue
-
-        haberler = onay_isle.turu_getir(con, mesaj_id)
-        if not haberler:
-            log.warning("planlı yayın %s: tur bulunamadı", mesaj_id)
-            con.execute("UPDATE haberler SET planlanan_yayin = NULL "
-                        "WHERE telegram_message_id = ?", (mesaj_id,))
-            con.commit()
             continue
 
         log.info("planlı yayın zamanı geldi: %s", mesaj_id)
@@ -255,6 +316,7 @@ def planli_yayinlari_isle(con, ayarlar: dict) -> int:
             yayinlanan += 1
         except Exception as e:
             log.exception("planlı yayın patladı (%s)", mesaj_id)
+            planli_yayin_hatirlat(con, mesaj_id, ilk_baslik, an, gecikme_dk, neden="hata")
             try:
                 # `nerede` önemli: hata mesajındaki eylem düğmesi buna
                 # bakıyor. "son_dakika" yazmazsak "yeniden hazırla"
