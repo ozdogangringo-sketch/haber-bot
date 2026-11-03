@@ -53,7 +53,7 @@ const EYLEMLER = ["yayinla", "iptal", "metin_yenile", "foto_degistir", "ertele",
                   "haftalik", "populer"];
 // Sayı parametresi alan eylemler: "slayt_ai:3", "slayt_sil:7", "slayt_elle:3", "slayt_yukari:3" ...
 const PARAMETRELI_EYLEM =
-  /^(slayt_carpici|slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil|slayt_yukari|slayt_asagi|slayt_basa|sansur_kaldir|sansur_uygula|metin_uzat|metin_kisalt|cope_at_tekil):([1-9]|10)$/;
+  /^(slayt_carpici|slayt_ai|slayt_foto|slayt_metin|slayt_kaynak|slayt_elle|slayt_sil|slayt_yukari|slayt_asagi|slayt_basa|sansur_kaldir|sansur_uygula|metin_uzat|metin_kisalt|cope_at_tekil|bayram_sec):([1-9]|10)$/;
 
 // Kota kategori eylemleri: "kota_kat:1", "kota_kat:2", "kota_kat:menu"
 const KOTA_KAT = /^kota_kat:(1|2|menu)$/;

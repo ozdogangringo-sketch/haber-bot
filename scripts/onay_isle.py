@@ -3706,11 +3706,13 @@ def main() -> int:
             )
         return 0
 
-    if komut.startswith("bayram_sec:"):
-        try:
-            secilen_no = int(komut.split(":")[1])
-        except (ValueError, IndexError):
-            secilen_no = 1
+    if komut == "bayram_yayinla" or komut.startswith("bayram_sec:"):
+        secilen_no = 1
+        if ":" in komut:
+            try:
+                secilen_no = int(komut.split(":")[1])
+            except (ValueError, IndexError):
+                secilen_no = 1
         from src import bayramlar
         bayramlar.bayram_yayinla(secilen_no, con, ayarlar)
         return 0
