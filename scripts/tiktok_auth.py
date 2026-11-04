@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-REDIRECT_URI = "https://haber-bot-onay.ezanplus.workers.dev/tiktok-callback"
+REDIRECT_URI = "https://dailybrief.ozbornstudio.com/callback"
 SCOPES = ["user.info.basic", "video.upload", "video.publish"]
 
 
@@ -82,8 +82,8 @@ def main():
     print("🎵 TIKTOK SANDBOX PKCE YETKİLENDİRME SİHİRBAZI")
     print("=" * 65)
 
-    client_key = os.getenv("TIKTOK_CLIENT_KEY", "").strip() or "sbawe0cyh06uct6wt7"
-    client_secret = os.getenv("TIKTOK_CLIENT_SECRET", "").strip() or "md29enTkZzSgGZtFN5ICOaKR28OJsp1F"
+    client_key = os.getenv("TIKTOK_CLIENT_KEY", "").strip() or "awkfxqrn4j2m603e"
+    client_secret = os.getenv("TIKTOK_CLIENT_SECRET", "").strip()
 
     code_verifier, code_challenge = generate_pkce_pair()
 
