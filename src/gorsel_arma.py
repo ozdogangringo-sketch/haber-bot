@@ -56,7 +56,7 @@ def _bayragi_bas(
     yukseklik = ust_pay + b_yuk + (ara + yazi_yuk if metin else 0) + alt_pay
 
     uc_payi = 38
-    ic_sol, ic_sag = 22, 28
+    ic_sol, ic_sag = 22, (56 if gorsel.height >= 1800 else 28)
     genislik = uc_payi + ic_sol + icerik_gen + ic_sag
 
     x1 = gorsel.width
@@ -373,7 +373,8 @@ def kanal_ikonlari_bas(gorsel, ayarlar, y_merkez: int, renk=(150, 160, 180)):
     g = ayarlar["gorsel"]
     boy = g.get("kanal_ikon_boyu", 26)
     ara = boy + 14
-    sag_x = g["genislik"] - g["kenar_bosluk"]
+    kenar_sag = g.get("kenar_bosluk_sag", (150 if (g.get("yukseklik", 0) >= 1800 or gorsel.height >= 1800) else g.get("kenar_bosluk", 80)))
+    sag_x = g["genislik"] - kenar_sag
     toplam_genislik = len(kanallar) * boy + (len(kanallar) - 1) * 14
     sol_x = sag_x - toplam_genislik
 

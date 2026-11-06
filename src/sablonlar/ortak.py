@@ -107,23 +107,24 @@ def ust_ve_alt_bar_bas(
     boy = g.get("kanal_ikon_boyu", 26)
     toplam_g = len(kanallar) * boy + (len(kanallar) - 1) * 14 if kanallar else 0
 
+    kenar_sag = 150 if yukseklik >= 1800 else kenar
     if toplam_sayfa > 1:
         gosterge = f"{sayfa}/{toplam_sayfa}"
         gen = ciz.textlength(gosterge, font=kucuk)
-        ciz.text((genislik - kenar - gen, alt_bilgi_y), gosterge,
+        ciz.text((genislik - kenar_sag - gen, alt_bilgi_y), gosterge,
                  font=kucuk, fill=(198, 206, 222))
         gecici = {
             **story_ayarlar,
             "gorsel": {
                 **story_ayarlar["gorsel"],
-                "kenar_bosluk": kenar + int(gen) + 24,
+                "kenar_bosluk_sag": kenar_sag + int(gen) + 24,
             },
         }
-        ikon_sol = genislik - (kenar + int(gen) + 24) - toplam_g
+        ikon_sol = genislik - (kenar_sag + int(gen) + 24) - toplam_g
         make_image._kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=ikon_sol - 20)
         gorsel = make_image.kanal_ikonlari_bas(gorsel, gecici, alt_bilgi_y + 13)
     else:
-        ikon_sol = genislik - kenar - toplam_g
+        ikon_sol = genislik - kenar_sag - toplam_g
         make_image._kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=ikon_sol - 20)
         gorsel = make_image.kanal_ikonlari_bas(gorsel, story_ayarlar, alt_bilgi_y + 13)
 

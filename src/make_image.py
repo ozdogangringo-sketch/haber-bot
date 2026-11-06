@@ -845,7 +845,10 @@ def yaziyi_bas(
 
     gorsel = arkaplan.resize((genislik, yukseklik), Image.LANCZOS)
     ciz = ImageDraw.Draw(gorsel)
-    alan_genislik = genislik - 2 * kenar
+    # ⚠️ Reels ve 9:16 dikey videolarda sağ buton kolonu (Beğeni, Yorum, Paylaş, Kaydet)
+    # için sağ kenar emniyet payı (150 px).
+    kenar_sag = 150 if yukseklik >= 1800 else kenar
+    alan_genislik = genislik - kenar - kenar_sag
 
     # --- 1) Ölçüm: bloklar nereye oturacak? (alttan yukarı doğru) ---
     alt_bilgi_y = yukseklik - dikey_kenar - 34
@@ -941,7 +944,8 @@ def yaziyi_bas(
     boy = g.get("kanal_ikon_boyu", 26)
     kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar") or []
     toplam_genislik = len(kanallar) * boy + (len(kanallar) - 1) * 14 if kanallar else 0
-    sag_x = genislik - kenar
+    kenar_sag = 150 if yukseklik >= 1800 else kenar
+    sag_x = genislik - kenar_sag
     ikonlar_sol = sag_x - toplam_genislik if kanallar else sag_x
 
     EMNIYET_BOSLUK = 22
@@ -1412,7 +1416,8 @@ def detay_sayfalara_bol(
     dikey_kenar = max(kenar, g.get("dikey_guvenli_pay", STORY_GUVENLI_PAY))
 
     olcu = ImageDraw.Draw(Image.new("RGB", (genislik, yukseklik)))
-    alan = genislik - 2 * kenar - 32  # Sol çentik ve girinti payı (kenar + 24)
+    kenar_sag = 150 if yukseklik >= 1800 else kenar
+    alan = genislik - kenar - kenar_sag - 32  # Sol çentik ve girinti payı (kenar + 24)
 
     ust_blok = dikey_kenar + 120
     alt_bilgi_y = yukseklik - dikey_kenar - 34
@@ -1619,7 +1624,8 @@ def detay_slayti(
     else:
         gorsel = arkaplan_uret_yedek(kategori, genislik, yukseklik, g)
     ciz = ImageDraw.Draw(gorsel)
-    alan_genislik = genislik - 2 * kenar
+    kenar_sag = 150 if yukseklik >= 1800 else kenar
+    alan_genislik = genislik - kenar - kenar_sag
 
     # Bayrak sağ üstte duruyor; başlık oraya kadar uzarsa altında kalıyor.
     baslik_genislik = alan_genislik - (170 if ulke_kodu else 0)
@@ -1749,25 +1755,26 @@ def detay_slayti(
 
     # Sayfa göstergesi: "2/3". Birden fazla detay sayfası varken
     # takipçinin nerede olduğunu bilmesi gerekiyor.
+    kenar_sag = 150 if yukseklik >= 1800 else kenar
     if toplam_sayfa > 1:
         gosterge = f"{sayfa}/{toplam_sayfa}"
         gen = ciz.textlength(gosterge, font=kucuk)
-        ciz.text((genislik - kenar - gen, alt_bilgi_y), gosterge,
+        ciz.text((genislik - kenar_sag - gen, alt_bilgi_y), gosterge,
                  font=kucuk, fill=(198, 206, 222))
         # İkonlar sayfa göstergesinin soluna kayıyor, üstüne binmesin.
         gecici = {**ayarlar, "gorsel": {**g,
-                  "kenar_bosluk": kenar + int(gen) + 24}}
+                  "kenar_bosluk_sag": kenar_sag + int(gen) + 24}}
         kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar") or []
         boy = g.get("kanal_ikon_boyu", 26)
         toplam_g = len(kanallar) * boy + (len(kanallar) - 1) * 14 if kanallar else 0
-        ikon_sol = genislik - (kenar + int(gen) + 24) - toplam_g
+        ikon_sol = genislik - (kenar_sag + int(gen) + 24) - toplam_g
         _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=ikon_sol - 20)
         gorsel = kanal_ikonlari_bas(gorsel, gecici, alt_bilgi_y + 13)
     else:
         kanallar = (ayarlar.get("sosyal", {}) or {}).get("kanallar") or []
         boy = g.get("kanal_ikon_boyu", 26)
         toplam_g = len(kanallar) * boy + (len(kanallar) - 1) * 14 if kanallar else 0
-        ikon_sol = genislik - kenar - toplam_g
+        ikon_sol = genislik - kenar_sag - toplam_g
         _kaynak_satiri_ciz(ciz, kenar, alt_bilgi_y, kaynak, arsiv_ibaresi=arsiv_ibaresi, azami_sag_x=ikon_sol - 20)
         gorsel = kanal_ikonlari_bas(gorsel, ayarlar, alt_bilgi_y + 13)
 

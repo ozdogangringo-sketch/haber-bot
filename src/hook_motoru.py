@@ -123,7 +123,7 @@ def uygun_alan_tespit_et(
     try:
         genislik, _ = gorsel.size
         edges = gorsel.convert("L").filter(ImageFilter.FIND_EDGES)
-        sag = min(genislik - SAG_PAY, 1006)
+        sag = genislik - SAG_PAY
 
         # ⚠️ Aday aralığı fotoğrafın İÇİ, logo şeridinin ALTI.
         # ÖLÇÜLDÜ (9 Eyl 2026): logo + amber çizgi kutusu
@@ -165,8 +165,9 @@ def uygun_alan_tespit_et(
         return "zemin", varsayilan_y
 
 # Tuval ve kenar payları — hook metni bu sınırın dışına TAŞAMAZ.
+# ⚠️ SAG_PAY = 150 (Instagram Reels sağ buton kolonu güvenli marjini)
 TUVAL_GENISLIK = 1080
-SAG_PAY = 74
+SAG_PAY = 150
 
 
 def _sigdiran_font(satirlar, punto_bas: int, azami_px: int,
