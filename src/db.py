@@ -59,6 +59,33 @@ CREATE TABLE IF NOT EXISTS ayarlar (
     anahtar TEXT PRIMARY KEY,
     deger   TEXT
 );
+
+-- RED GÜNLÜĞÜ (23 Kas 2026)
+--
+-- ⚠️ NEDEN AYRI TABLO: `eski_kayitlari_temizle` yayınlanmamış her
+-- kaydı siliyor (`kayit_saklama_gun`). Reddedilen haber `durum='iptal'`
+-- oluyor ve birkaç gün sonra SİLİNİYOR — yani sistem kendi red
+-- geçmişini yok ediyordu. ÖLÇÜLDÜ (23 Kas): veritabanında yalnızca 8
+-- iptal kaydı kalmıştı ve 7'si tek bir olaydı; "insan 30 günde neyi
+-- reddetti" sorusu ancak Actions log'ları tek tek okunarak
+-- cevaplanabildi (%18,5 red oranı oradan çıktı).
+--
+-- Bu tablo temizlikten MUAF: satırlar küçük (birkaç yüz bayt) ve
+-- "otomatik yayına geçsek ne olurdu" sorusunun tek kanıtı bu.
+CREATE TABLE IF NOT EXISTS red_gunlugu (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    haber_id    INTEGER,
+    zaman       TEXT DEFAULT (datetime('now')),
+    baslik      TEXT,
+    kategori    TEXT,
+    onem_puani  INTEGER,
+    karar       TEXT,     -- 'red' | 'yayin'
+    sebep       TEXT,     -- kullanıcının seçtiği red sebebi
+    basan       TEXT,
+    golge_karar TEXT,     -- dört katman ne derdi: 'gecer' | 'reddeder'
+    golge_not   TEXT      -- hangi katman, hangi gerekçe
+);
+CREATE INDEX IF NOT EXISTS idx_red_zaman ON red_gunlugu(zaman);
 """
 
 # durum akışı:
@@ -253,6 +280,7 @@ EK_KOLONLAR = {
     # Alıntı kaynakta birebir doğrulanıyor (dogrula.alintiyi_denetle);
     # doğrulanamazsa kullanılmıyor — uydurma alıntı en ağır hata.
     "kanca": "TEXT",
+    "golge_karar": "TEXT",
     "vurgu_sayi": "TEXT",
     "vurgu_etiket": "TEXT",
     "alinti": "TEXT",
@@ -570,3 +598,64 @@ def eski_kayitlari_temizle(con, gun: int = 7) -> int:
         log.info("%s eski kayıt silindi (%s günden eski, yayınlanmamış)",
                  silinen, gun)
     return silinen
+
+# ---------------------------------------------------------------- red günlüğü
+
+RED_SEBEPLERI = {
+    "hata":     "olgusal hata / yanlış bilgi",
+    "ilgisiz":  "ilgi çekmez / sıkıcı",
+    "tekrar":   "bunu zaten paylaştık",
+    "gorsel":   "görsel kötü veya alakasız",
+    "dil":      "başlık/metin kötü",
+    "riskli":   "hassas veya riskli konu",
+}
+
+
+def red_gunlugune_yaz(con, haber, karar: str, sebep: str = "",
+                      basan: str = "", golge: tuple[str, str] | None = None) -> None:
+    """
+    Bir yayın/red kararını kalıcı günlüğe yazar.
+
+    ⚠️ NİYE AYRI TABLO: `eski_kayitlari_temizle` yayınlanmamış kaydı
+    siliyor, reddedilen haber `durum='iptal'` olup birkaç gün sonra
+    yok oluyordu — sistem kendi red geçmişini siliyordu. ÖLÇÜLDÜ
+    (23 Kas): DB'de yalnızca 8 iptal kaydı kalmıştı, 7'si tek olay;
+    30 günlük %18,5'lik red oranı ancak Actions log'ları tek tek
+    okunarak çıkarılabildi.
+
+    ⚠️ Günlük ASLA akışı bozmamalı — yazma patlarsa sessizce geçiyor.
+    """
+    try:
+        h = dict(haber) if hasattr(haber, "keys") else (haber or {})
+        gk, gn = (golge or ("", ""))
+        con.execute(
+            "INSERT INTO red_gunlugu (haber_id, baslik, kategori, onem_puani, "
+            "karar, sebep, basan, golge_karar, golge_not) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (h.get("id"), (h.get("ig_baslik") or h.get("baslik_orj") or "")[:300],
+             h.get("kategori"), h.get("onem_puani"), karar, sebep, basan, gk, gn),
+        )
+        con.commit()
+    except Exception as e:                             # noqa: BLE001
+        log.warning("red günlüğüne yazılamadı: %s", e)
+
+
+def golge_capraz_tablo(con, gun: int = 30) -> dict:
+    """
+    "Katman ne dedi / insan ne dedi" çapraz tablosu.
+
+    Otomatik yayına geçiş kararının dayanağı bu olacak: katmanların
+    insanla ne kadar örtüştüğünü ölçer. Dört hücre — katman geçirir
+    + insan yayınlar (uyum), katman reddeder + insan yayınlar (katman
+    fazla katı), katman geçirir + insan reddeder (katman kör),
+    ikisi de reddeder (uyum).
+    """
+    satirlar = con.execute(
+        "SELECT karar, golge_karar, COUNT(*) n FROM red_gunlugu "
+        f"WHERE zaman >= datetime('now','-{int(gun)} day') "
+        "GROUP BY karar, golge_karar").fetchall()
+    tablo: dict = {}
+    for r in satirlar:
+        tablo[(r[0], r[1])] = r[2]
+    return tablo
+

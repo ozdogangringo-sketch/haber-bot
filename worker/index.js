@@ -138,7 +138,7 @@ const SECILENLERI_HAZIRLA = "hazirla_secilenler";
 // 30+ saniye sürüyor ve menü açmak anında olmalı. Worker mesajın
 // butonlarını doğrudan düzenliyor.
 const MENU_GEZINME =
-  /^(slayt_menu:(\d{1,2})(?::([a-z0-9_,]+))?|geri:(\d{1,2})(?::([a-z0-9_,]+))?|slayt:([1-9]|10):(\d{1,2})(?::([a-z0-9_,]+))?|yayin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|yayin_geri:(\d{1,2})(?::([a-z0-9_,]+))?|foto_menu:(\d{1,2})(?::([a-z0-9_,]+))?|foto_geri:(\d{1,2})(?::([a-z0-9_,]+))?|metin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|metin_geri:(\d{1,2})(?::([a-z0-9_,]+))?|ses_menu:(\d{1,2})(?::([a-z0-9_,]+))?|ses_zaman:(muzikli|muziksiz):(\d{1,2})(?::([a-z0-9_,]+))?)$/;
+  /^(slayt_menu:(\d{1,2})(?::([a-z0-9_,]+))?|geri:(\d{1,2})(?::([a-z0-9_,]+))?|slayt:([1-9]|10):(\d{1,2})(?::([a-z0-9_,]+))?|yayin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|yayin_geri:(\d{1,2})(?::([a-z0-9_,]+))?|foto_menu:(\d{1,2})(?::([a-z0-9_,]+))?|foto_geri:(\d{1,2})(?::([a-z0-9_,]+))?|metin_menu:(\d{1,2})(?::([a-z0-9_,]+))?|metin_geri:(\d{1,2})(?::([a-z0-9_,]+))?|cope_menu:(\d{1,2})(?::([a-z0-9_,]+))?|ses_menu:(\d{1,2})(?::([a-z0-9_,]+))?|ses_zaman:(muzikli|muziksiz):(\d{1,2})(?::([a-z0-9_,]+))?)$/;
 
 // Yayından kaldırma. Tur id'si komuta GÖMÜLÜ ("kaldir:144") çünkü bu
 // düğme yayın sonucu mesajında duruyor ve o mesajın kendi message_id'si
@@ -176,6 +176,14 @@ const INCELE = /^incele:\d{1,8}$/;
 const ARA_EYLEM = /^ara:[^\n]{2,120}$/;
 const BAYRAM_SEC = /^bayram_sec:([1-3])$/;
 
+// ⚠️ RED SEBEBİ (23 Kas 2026, kullanıcı kararı). Önce red sebebi
+// HİÇBİR YERE yazılmıyordu ve iptal kayıtları birkaç gün içinde
+// siliniyordu — sistem kendi red geçmişini yok ediyordu. Otomatik
+// yayına geçiş kararı "insan neye hayır diyor" sorusuna bağlı:
+// "olgusal hata" ise katmanlar kısmen yakalar, "ilgisiz/sıkıcı"
+// ise HİÇBİR katman yakalamaz.
+const COPE_SEBEP = /^cope_at:(hata|ilgisiz|tekrar|gorsel|dil|riskli)$/;
+
 function eylemMi(veri) {
   if (typeof veri !== "string" || veri.length > 500) return false;
   return EYLEMLER.includes(veri) || PARAMETRELI_EYLEM.test(veri)
@@ -190,7 +198,8 @@ function eylemMi(veri) {
     || HAZIRLA.test(veri) || veri === SECILENLERI_HAZIRLA
     || DURAKLAT.test(veri) || MAKRO_EYLEM.test(veri) || LINK_EYLEM.test(veri)
     || VARLIK_EYLEM.test(veri) || DOSYA_EYLEM.test(veri) || INCELE.test(veri) || ARA_EYLEM.test(veri)
-    || KOTA_KAT.test(veri) || BAYRAM_SEC.test(veri);
+    || KOTA_KAT.test(veri) || BAYRAM_SEC.test(veri)
+    || COPE_SEBEP.test(veri);
 }
 
 // Ayar alt menüsü: seçenekler düğmeden okunuyor, geçerli değer
@@ -285,6 +294,25 @@ function kanalButonlariSatirlari(kanallar) {
 // turda kaç slayt olduğunu başka türlü bilme yolu yok.
 // ---------------------------------------------------------------------
 
+// Red sebebi alt menüsü — Worker'da YEREL açılıyor, Actions uyanmıyor.
+// Sebepler `db.RED_SEBEPLERI` ile AYNI olmak zorunda; ayrışırsa
+// kullanıcının seçtiği sebep Python tarafında boş string'e düşer.
+function copeSebepMenusu(adet, kanallar) {
+  const kStr = kanallariKodla(kanallar);
+  const geriCb = kStr ? `geri:${adet}:${kStr}` : `geri:${adet}`;
+  return {
+    inline_keyboard: [
+      [{ text: "❌ Olgusal hata / yanlış bilgi", callback_data: "cope_at:hata" }],
+      [{ text: "😐 İlgi çekmez / sıkıcı", callback_data: "cope_at:ilgisiz" },
+       { text: "🔁 Zaten paylaştık", callback_data: "cope_at:tekrar" }],
+      [{ text: "🖼 Görsel kötü/alakasız", callback_data: "cope_at:gorsel" },
+       { text: "✍️ Başlık/metin kötü", callback_data: "cope_at:dil" }],
+      [{ text: "⚠️ Hassas / riskli konu", callback_data: "cope_at:riskli" }],
+      [{ text: "↩️ Vazgeç", callback_data: geriCb }],
+    ],
+  };
+}
+
 function anaMenu(adet, kanallar) {
   const kStr = kanallariKodla(kanallar);
   const yayinCb = kStr ? `yayin_menu:${adet}:${kStr}` : `yayin_menu:${adet}`;
@@ -304,7 +332,9 @@ function anaMenu(adet, kanallar) {
       [{ text: "⏰ 1 saat ertele", callback_data: "ertele" }],
       [{ text: "📋 Tekil atma, 10'lu tura bırak", callback_data: "tura_birak" }],
       [{ text: "❌ Bu turu atla (Havuza döner)", callback_data: "iptal" },
-       { text: "🗑️ Çöpe At (Havuza dönmesin)", callback_data: "cope_at", style: "danger" }],
+       { text: "🗑️ Çöpe At (Havuza dönmesin)",
+         callback_data: kStr ? `cope_menu:${adet}:${kStr}` : `cope_menu:${adet}`,
+         style: "danger" }],
     ],
   };
 }
@@ -1942,7 +1972,7 @@ export default {
           }
 
           // Tek parametreli menüler: slayt_menu, yayin_menu, ses_menu, foto_menu, metin_menu, geri, yayin_geri, foto_geri, metin_geri
-          const mMatch = /^(slayt_menu|yayin_menu|ses_menu|foto_menu|metin_menu|geri|yayin_geri|foto_geri|metin_geri):(\d{1,2})(?::[a-z0-9_,]*)?$/.exec(cd);
+          const mMatch = /^(slayt_menu|yayin_menu|ses_menu|cope_menu|foto_menu|metin_menu|geri|yayin_geri|foto_geri|metin_geri):(\d{1,2})(?::[a-z0-9_,]*)?$/.exec(cd);
           if (mMatch) {
             btn.callback_data = guncelKStr
               ? `${mMatch[1]}:${mMatch[2]}:${guncelKStr}`
@@ -1982,6 +2012,9 @@ export default {
       } else if (kok === "yayin_menu") {
         const adet = Number(parcalar[1]);
         menu = yayinZamaniMenusu(adet, aktifKanallar);
+      } else if (kok === "cope_menu") {
+        const adet = Number(parcalar[1]);
+        menu = copeSebepMenusu(adet, aktifKanallar);
       } else if (kok === "ses_menu") {
         const adet = Number(parcalar[1]);
         menu = sesMenusu(adet, aktifKanallar);

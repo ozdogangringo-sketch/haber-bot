@@ -370,3 +370,51 @@ def otomatik_yayinlanabilir(con, haber, ayarlar: dict) -> tuple[bool, list[str]]
     gecti, not_ = katman3_llm_capraz(haber, ayarlar)
     rapor.append(f"{'✓' if gecti else '✗'} 3 çapraz denetim: {not_}")
     return gecti, rapor
+
+def golge_degerlendir(con, haber, ayarlar: dict) -> tuple[str, str]:
+    """
+    GÖLGE MOD — katmanlar bu haberi yayınlar mıydı? (yayın YAPMAZ)
+
+    ⚠️ NİYE (23 Kas 2026, kullanıcı kararı): tam otomatik yayına
+    geçmeden önce *"katman ne dedi / insan ne dedi"* çapraz tablosu
+    lazım. ÖLÇÜLDÜ: dört katman, insanın ONAYLADIĞI 50 postun yalnızca
+    **9-10'unu (%18-20)** geçiriyor; insan ise %18,5 reddediyor. İki
+    süzgeç aynı şeyi ölçmüyor — katmanlar kaynak tutarlılığını,
+    insan editoryal değeri ölçüyor. Katmanları körlemesine açmak
+    "otomatikleştirdik" değil "yayını durdurduk" sonucu verirdi.
+
+    ⚠️ KATMAN 3 (LLM) VARSAYILAN OLARAK ÇALIŞMIYOR. Her öneride bir
+    Gemini çağrısı demek ve ücretsiz kota model başına günde 20 istek;
+    bugünkü kullanım zaten ~33/gün. `golge_llm: true` ile açılır —
+    açılmazsa karar "LLM katmanı ölçülmedi" notuyla raporlanıyor.
+
+    Döner: `("gecer"|"reddeder", gerekçe)`.
+    """
+    gerekceler: list[str] = []
+    try:
+        ok1, s1 = katman1_deterministik(haber)
+        if not ok1:
+            gerekceler.append(f"K1 {s1}")
+        ok2, s2 = katman2_ikinci_kaynak(con, haber, ayarlar)
+        if not ok2:
+            gerekceler.append(f"K2 {s2}")
+        ok4, s4 = katman4_riskli_kategori(haber)
+        if not ok4:
+            gerekceler.append(f"K4 {s4}")
+
+        ok3, s3 = True, "LLM katmanı ölçülmedi (golge_llm kapalı)"
+        if (ayarlar.get("genel") or {}).get("golge_llm"):
+            ok3, s3 = katman3_llm_capraz(haber, ayarlar)
+            if not ok3:
+                gerekceler.append(f"K3 {s3}")
+    except Exception as e:                             # noqa: BLE001
+        # ⚠️ Gölge mod ASLA akışı bozmamalı: yayın kararı insanın,
+        # bu yalnızca bir gözlem. Patlarsa sessizce "ölçülemedi" de.
+        log.warning("gölge değerlendirme hatası: %s", e)
+        return "olculemedi", f"{type(e).__name__}"
+
+    if gerekceler:
+        return "reddeder", " · ".join(gerekceler)[:300]
+    ek_not = "" if (ayarlar.get("genel") or {}).get("golge_llm") else " (K3 ölçülmedi)"
+    return "gecer", f"dört katman da geçirirdi{ek_not}"
+

@@ -13,6 +13,7 @@ from pathlib import Path
 
 from src import (
     ayar,
+    db,
     db_senkron,
     facebook,
     fetch_news,
@@ -318,23 +319,57 @@ def iptal(con, haberler, mesaj_id, basan) -> int:
     return 0
 
 
-def cope_at(con, haberler: list, mesaj_id: int, basan: str = "") -> int:
+def cope_at(con, haberler: list, mesaj_id: int, basan: str = "",
+            sebep: str = "") -> int:
     """
     Turdaki/posttaki haberleri 'iptal' durumuna getirir.
     Haberler kesinlikle havuza DÖNMEZ, gelecekte hiçbir tura veya tekil posta aday olamaz.
+
+    ⚠️ SEBEP KAYDEDİLİYOR (23 Kas 2026, kullanıcı kararı). Önce red
+    sebebi HİÇBİR YERE yazılmıyordu ve `durum='iptal'` kayıtları
+    `eski_kayitlari_temizle` tarafından birkaç gün içinde siliniyordu —
+    yani sistem kendi red geçmişini yok ediyordu. ÖLÇÜLDÜ (23 Kas):
+    DB'de yalnızca 8 iptal kaydı kalmıştı ve 7'si tek bir olaydı;
+    30 günlük **%18,5**'lik red oranı ancak 362 Actions log'u tek tek
+    okunarak çıkarılabildi.
+
+    ⚠️ NİYE ÖNEMLİ: otomatik yayına geçiş kararı *"insan neye hayır
+    diyor"* sorusunun cevabına bağlı. Red "olgusal hata" ise katmanlar
+    kısmen yakalar; "ilgisiz/sıkıcı/zaten paylaştık" ise HİÇBİR katman
+    yakalamaz (katmanlar kaynak tutarlılığı ölçüyor, ilgi değil).
+    Sebep kaydedilmeden o ayrım yapılamaz.
     """
+    for h in (haberler or []):
+        db.red_gunlugune_yaz(con, h, "red", sebep=sebep, basan=basan,
+                             golge=_golge_oku(h))
     con.execute(
         "UPDATE haberler SET durum = 'iptal', telegram_message_id = NULL, "
         "atlanma_zamani = datetime('now') WHERE telegram_message_id = ?",
         (mesaj_id,),
     )
     con.commit()
+    sebep_metni = db.RED_SEBEPLERI.get(sebep, "")
     telegram_bot.sonucu_yaz(
         mesaj_id,
         f"🗑️ <b>Gönderi tamamen çöpe atıldı</b> ({basan or 'kullanıcı'}).\n"
-        f"Turdaki {len(haberler)} haber havuza dönmeyecek şekilde iptal edildi.",
+        + (f"Sebep: <b>{sebep_metni}</b>\n" if sebep_metni else "")
+        + f"Turdaki {len(haberler)} haber havuza dönmeyecek şekilde iptal edildi.",
     )
     return 0
+
+
+def _golge_oku(haber) -> tuple[str, str]:
+    """
+    Onaya sunulurken kaydedilmiş gölge kararını geri getirir.
+
+    Kayıt biçimi `"karar|gerekçe"` (bkz. `son_dakika.onaya_sun`).
+    """
+    h = dict(haber) if hasattr(haber, "keys") else (haber or {})
+    ham = str(h.get("golge_karar") or "")
+    if "|" in ham:
+        k, _, n = ham.partition("|")
+        return k, n
+    return ham, ""
 
 
 def havuzu_guncelle(con, ayarlar) -> int:

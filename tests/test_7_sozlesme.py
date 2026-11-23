@@ -6510,6 +6510,96 @@ def test_detay_iki_sayfa_ve_seslendiriliyor() -> None:
 
 
 
+def test_red_gunlugu_ve_golge_mod() -> None:
+    """
+    Red sebebi kaydediliyor mu, gölge mod yayın kararına karışıyor mu?
+
+    ⚠️ NEDEN GEREKTİ (23 Kas 2026, kullanıcı kararı). İki ölçüm:
+      • Red sebebi HİÇBİR YERE yazılmıyordu ve `durum='iptal'` kayıtları
+        `eski_kayitlari_temizle` ile birkaç günde siliniyordu — sistem
+        kendi red geçmişini yok ediyordu. DB'de yalnızca 8 iptal kaydı
+        kalmıştı (7'si tek olay); 30 günlük **%18,5** red oranı ancak
+        362 Actions log'u tek tek okunarak çıkarılabildi.
+      • Dört katman, insanın ONAYLADIĞI 50 postun yalnızca **%18-20**'sini
+        geçiriyor. Körlemesine açmak "otomatikleştirdik" değil "yayını
+        durdurduk" sonucu verirdi — önce çapraz tablo lazım.
+    """
+    sys.path.insert(0, str(KOK))
+    import sqlite3 as _sq
+    from src import db as _db, otomatik_onay as _oo
+
+    _ayar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+
+    # --- Tablo şemada var ve temizlikten muaf ---
+    _c = _sq.connect(":memory:"); _c.executescript(_db.SEMA)
+    _tablolar = {r[0] for r in _c.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    denetle("red_gunlugu" in _tablolar,
+            "red günlüğü tablosu şemada",
+            "red geçmişi 3 günde siliniyor, otomatik yayın ölçülemez")
+    _temizlik = (KOK / "src" / "db.py").read_text(encoding="utf-8")
+    _blok = _temizlik.split("def eski_kayitlari_temizle")[1].split("\ndef ")[0]
+    denetle("red_gunlugu" not in _blok,
+            "temizlik red günlüğüne dokunmuyor",
+            "günlük siliniyor — ölçümün tek kanıtı kayboluyor")
+
+    # --- Kayıt gerçekten yazılıyor ve çapraz tablo kuruluyor ---
+    _db.red_gunlugune_yaz(_c, {"id": 1, "ig_baslik": "A", "onem_puani": 8},
+                          "red", sebep="ilgisiz", basan="t",
+                          golge=("gecer", "dört katman geçirirdi"))
+    _db.red_gunlugune_yaz(_c, {"id": 2, "ig_baslik": "B", "onem_puani": 9},
+                          "yayin", basan="t", golge=("reddeder", "K4"))
+    _t = _db.golge_capraz_tablo(_c)
+    denetle(_t.get(("red", "gecer")) == 1 and _t.get(("yayin", "reddeder")) == 1,
+            "gölge çapraz tablosu dolduruluyor",
+            "katman/insan ayrışması ölçülemiyor")
+
+    # --- ⚠️ SEBEP LİSTESİ İKİ YERDE YAŞIYOR: Worker ve Python ---
+    # Ayrışırsa kullanıcının seçtiği sebep Python tarafında boş string'e
+    # düşer ve SESSİZCE kaydedilmez. Bu projenin imza hatası.
+    _w = (KOK / "worker" / "index.js").read_text(encoding="utf-8")
+    import re as _re
+    _m = _re.search(r"COPE_SEBEP = /\^cope_at:\(([a-z|]+)\)", _w)
+    denetle(_m is not None, "Worker red sebebi deseni bulundu",
+            "desen değişmiş — eşleşme denetimi yapılamıyor")
+    if _m:
+        _worker_kodlar = set(_m.group(1).split("|"))
+        denetle(_worker_kodlar == set(_db.RED_SEBEPLERI),
+                f"Worker ve Python sebep listesi aynı ({len(_worker_kodlar)} kod)",
+                f"ayrışmış — Worker: {sorted(_worker_kodlar)}, "
+                f"Python: {sorted(_db.RED_SEBEPLERI)}")
+        # Düğmeler gerçekten o kodları gönderiyor mu?
+        for _k in _db.RED_SEBEPLERI:
+            denetle(f'"cope_at:{_k}"' in _w,
+                    f"Worker düğmesi cope_at:{_k} gönderiyor",
+                    "menüde o sebep yok, kullanıcı seçemiyor")
+
+    # --- Router parametreli komutu ayrıştırıyor mu (CLAUDE.md 1v) ---
+    _oi = (KOK / "scripts" / "onay_isle.py").read_text(encoding="utf-8")
+    denetle('komut.startswith("cope_at:")' in _oi,
+            "router cope_at:<sebep> komutunu tanıyor",
+            "düz eşitlik testi parametreli komutu kaçırır (CLAUDE.md 1v)")
+
+    # --- Gölge mod yayın kararına KARIŞMIYOR ---
+    _os = (KOK / "scripts" / "son_dakika.py").read_text(encoding="utf-8")
+    _gblok = _os.split("golge_satiri = \"\"")[1].split("albom_idler")[0]
+    denetle("return" not in _gblok and "durum" not in _gblok,
+            "gölge mod yalnızca gözlem — akışı değiştirmiyor",
+            "gölge karar yayını engelliyor; kullanıcı kararı 'yalnızca gözlem'")
+
+    # --- Gölge mod PATLARSA akış durmamalı ---
+    _k2, _n2 = _oo.golge_degerlendir(None, {"ig_baslik": "x"}, _ayar)
+    denetle(_k2 in ("gecer", "reddeder", "olculemedi"),
+            f"gölge mod hata yutuyor ({_k2})",
+            "gölge mod patlayınca onay akışı da patlıyor")
+
+    # --- LLM katmanı varsayılan KAPALI (kota) ---
+    denetle((_ayar.get("genel") or {}).get("golge_llm") is False,
+            "gölge modda LLM katmanı varsayılan kapalı",
+            "her öneride Gemini çağrısı — ücretsiz kota günde 20, kullanım ~33")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -6593,6 +6683,7 @@ def main() -> int:
         test_govdesiz_haber_yayinlanmiyor,
         test_suclama_denetimi_govdesizde_de_calisiyor,
         test_detay_iki_sayfa_ve_seslendiriliyor,
+        test_red_gunlugu_ve_golge_mod,
         test_instagram_gonderileri_4_5_yayinlaniyor,
         test_threads_ve_twitter_4_5_ve_paralel_yayin,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,

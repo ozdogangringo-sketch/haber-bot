@@ -65,6 +65,27 @@ genel:
   # doğrulayamam" eşiğiyle aynı. 0 yaparak kapatılır.
   asgari_govde_karakter: 300
 
+  # ⚠️ GÖLGE MOD (23 Kas 2026, kullanıcı kararı).
+  #
+  # Dört katmanlı denetim her öneride ÇALIŞIYOR ama yayın kararını
+  # DEĞİŞTİRMİYOR — kararı yine insan veriyor. Katmanın ne diyeceği
+  # Telegram onay mesajına yazılıyor ve `red_gunlugu` tablosuna
+  # kaydediliyor.
+  #
+  # NİYE: ÖLÇÜLDÜ — katmanlar insanın ONAYLADIĞI 50 postun yalnızca
+  # %18-20'sini geçiriyor, insan ise %18,5 reddediyor. İki süzgeç
+  # aynı şeyi ölçmüyor (katmanlar kaynak tutarlılığı, insan editoryal
+  # değer). Katmanları körlemesine açmak "otomatikleştirdik" değil
+  # "yayını durdurduk" sonucu verirdi. Birkaç hafta veri biriksin,
+  # sonra `db.golge_capraz_tablo` ile karar verilsin.
+  golge_mod: true
+
+  # Gölge modda LLM çapraz denetimi (katman 3) de çalışsın mı?
+  # ⚠️ VARSAYILAN KAPALI: her öneride bir Gemini çağrısı demek ve
+  # ücretsiz kota model başına günde 20 istek; bugünkü kullanım
+  # zaten ~33/gün. Kapalıyken karar "K3 ölçülmedi" notuyla raporlanıyor.
+  golge_llm: false
+
   # Yayınlanmamış haberler kaç gün saklansın? Günlük raporda
   # temizleniyor. ⚠️ YAYINLANMIŞ haberler bundan MUAF — mükerrer
   # engeli onlara bakıyor.

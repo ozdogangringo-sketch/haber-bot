@@ -915,6 +915,14 @@ def yayinla(con, ayarlar, haberler, mesaj_id, basan, kanallar: str | None = None
         "WHERE telegram_message_id = ?",
         (post_id or reels_post_id, fb_id, fb_reel_id, th_gonderi_id, story_id, tw_gonderi_id, yt_url, tt_publish_id, mesaj_id),
     )
+    # ⚠️ GÖLGE ÇAPRAZ TABLOSU: yayın kararı da günlüğe düşmeli, yoksa
+    # tablonun yarısı boş kalır ("insan yayınladı ama katman ne derdi"
+    # hücresi otomatik yayın kararının asıl dayanağı).
+    for _h in (haberler or []):
+        _hh = dict(_h) if hasattr(_h, "keys") else (_h or {})
+        _ham = str(_hh.get("golge_karar") or "")
+        _k, _, _n = _ham.partition("|")
+        db.red_gunlugune_yaz(con, _hh, "yayin", basan=basan, golge=(_k, _n))
     con.commit()
 
     # Doğrudan canlı gönderi link butonları
@@ -3910,8 +3918,12 @@ def main() -> int:
             return tura_birak(con, haberler, mesaj_id, basan)
         if komut == "iptal":
             return iptal(con, haberler, mesaj_id, basan)
-        if komut == "cope_at":
-            return cope_at(con, haberler, mesaj_id, basan)
+        if komut == "cope_at" or komut.startswith("cope_at:"):
+            # ⚠️ ÖN EKE BAK (CLAUDE.md 1v): sebep seçimi komutu
+            # `cope_at:hata` biçiminde geliyor; düz eşitlik testi
+            # parametreli komutu kaçırır ve "MESAJ_ID eksik" ile ölür.
+            _sebep = komut.split(":", 1)[1].strip() if ":" in komut else ""
+            return cope_at(con, haberler, mesaj_id, basan, sebep=_sebep)
         if komut == "kaldir":
             return yayindan_kaldir(con, ayarlar, haberler, mesaj_id, basan)
         if komut == "ertele":

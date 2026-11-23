@@ -1011,6 +1011,24 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
         else:
             etiketler.append(f"Ayrıntı {idx}/{len(telegram_urller)-1}")
 
+    # ⚠️ GÖLGE MOD (23 Kas 2026, kullanıcı kararı): dört katman bu
+    # haberi yayınlar mıydı? YAYIN KARARI DEĞİŞMİYOR — yalnızca
+    # gözlem. ÖLÇÜLDÜ: katmanlar insanın ONAYLADIĞI 50 postun yalnızca
+    # %18-20'sini geçiriyor, insan ise %18,5 reddediyor; iki süzgeç
+    # aynı şeyi ölçmüyor. Körlemesine açmak "otomatikleştirdik" değil
+    # "yayını durdurduk" sonucu verirdi. Birkaç hafta bu satır birikince
+    # `db.golge_capraz_tablo` ile karar verilecek.
+    golge_satiri = ""
+    golge = ("", "")
+    if (ayarlar.get("genel") or {}).get("golge_mod", True):
+        try:
+            from src import otomatik_onay as _oo
+            golge = _oo.golge_degerlendir(con, taze, ayarlar)
+            simge = {"gecer": "🟢", "reddeder": "🔴"}.get(golge[0], "⚪️")
+            golge_satiri = f"\n{simge} <i>gölge: katmanlar {golge[0]} — {html.escape(golge[1][:120])}</i>"
+        except Exception as e:                         # noqa: BLE001
+            log.warning("gölge mod hatası: %s", e)
+
     albom_idler = telegram_bot.slaytlari_gonder(telegram_urller, etiketler, yerel_yollar=yerel_yollar)
     baslik_goster = html.escape(taze.get("ig_baslik") or taze.get("baslik_orj") or "")
     mesaj_id = telegram_bot.onay_iste(
@@ -1019,7 +1037,8 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
         ozet=(f"🔴 <b>SON DAKİKA ÖNERİSİ</b>  ·  puan {taze.get('onem_puani', '?')}/10\n"
               f"📰 <b>{baslik_goster}</b>\n"
               "⌛️ 24 saat boyunca onaya hazır bekler\n"
-              + ("\n".join(katman_raporu) if katman_raporu else "")),
+              + ("\n".join(katman_raporu) if katman_raporu else "")
+              + golge_satiri),
     )
 
     con.execute(
@@ -1029,6 +1048,14 @@ def onaya_sun(con, ayarlar, aday, taze, urller, story_url, metin,
         (mesaj_id, urller[0], json.dumps(urller[1:]),
          story_url, aday["id"]),
     )
+    # Gölge kararı haber kaydına yazılıyor ki `cope_at`/`yayinla`
+    # anında red günlüğüne birlikte düşsün (çapraz tablo için).
+    if golge[0]:
+        try:
+            con.execute("UPDATE haberler SET golge_karar = ? WHERE id = ?",
+                        (f"{golge[0]}|{golge[1][:200]}", aday["id"]))
+        except Exception as e:                         # noqa: BLE001
+            log.warning("gölge kararı yazılamadı: %s", e)
     sayaci_artir(con)
     con.commit()
     try:
