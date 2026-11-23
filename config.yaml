@@ -1125,6 +1125,25 @@ icerik_filtresi:
 #  PİYASA BÜLTENİ (hafta içi 10:20 ve 18:20 TR)
 # ----------------------------------------------------------------------
 piyasa:
+  # ⚠️ INSTAGRAM'DA YALNIZCA STORY (23 Kas 2026, kullanıcı kararı).
+  #
+  # ÖLÇÜLDÜ (Instagram insights, son 70 gönderi): piyasa bülteni
+  # **11 gönderi -> toplam 476 erişim, TOPLAM 1 etkileşim.** Erişimi
+  # en düşük 5 gönderinin beşi de piyasa bülteni (13-42 erişim).
+  # Kıyas: akış carousel'i ortanca 46 erişim (takipçinin %8'i),
+  # Reels ortanca 370 (%62).
+  #
+  # Yani bülten akışta yer kaplıyor, profil ızgarasını dolduruyor ve
+  # kimseye ulaşmıyor. Story'de kalması daha doğru: günlük veridir,
+  # 24 saat sonra zaten değersizleşir.
+  #
+  # true  = Instagram'a YALNIZCA story (akış gönderisi YOK)
+  # false = eski davranış (carousel + story)
+  # ⚠️ Facebook, Threads ve diğer kanallar BU AYARDAN ETKİLENMİYOR —
+  # oralarda normal yayın sürüyor (kullanıcı kararı).
+  # ⚠️ TikTok'a bülten zaten hiç gönderilmiyor.
+  instagram_yalnizca_story: true
+
   # Bültenin sonuna kaç ekonomi HABERİ slaytı eklensin? 0 = kapalı.
   #
   # ⚠️ KULLANICI İSTEĞİ (18 Eyl 2026): "ekonomi turlarımıza en az 2-3
@@ -1181,7 +1200,13 @@ sosyal:
   # X (Twitter) API v2 üzerinden de paylaşılsın mı?
   # ⚠️ .env'de TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN,
   # TWITTER_ACCESS_TOKEN_SECRET anahtarları tanımlı olmalıdır.
-  twittera_da_at: true
+  # ⚠️ KAPATILDI (23 Kas 2026) — ÖLÇÜLDÜ: 30 gündür 0/94 yayın.
+  # X API kredi bazlı ve hesapta bakiye yok; her yayında deneniyor,
+  # her yayında `402 credits depleted` ile patlıyor ve HİÇBİR job
+  # kırmızıya düşmüyor (ikincil kanal, hata yutuluyor). Yani 30
+  # gündür her gönderide boşa bir API turu atılıyor ve kimse görmüyor.
+  # Tekrar açmak için: X hesabına kredi yükle, sonra true yap.
+  twittera_da_at: false
 
   # YouTube Shorts (Data API v3) üzerinden video paylaşılsın mı?
   # ⚠️ .env'de YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN gerekiyor.
@@ -1221,7 +1246,7 @@ sosyal:
     - instagram
     - threads
     - facebook
-    - x
+    # - x   # ⚠️ kredi yok, 30 gündür 0 yayın (bkz. twittera_da_at)
     - youtube
     - tiktok
 

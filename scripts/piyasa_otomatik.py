@@ -48,6 +48,10 @@ logging.basicConfig(
 log = logging.getLogger("piyasa_otomatik")
 
 
+
+class _AkisAtlandi(Exception):
+    """Akış gönderisi bilerek atlandı — hata değil, karar."""
+
 def _haber_slaytlari_uret(con, ayarlar: dict, adet: int, mod: str | None = None) -> list[dict]:
     """
     Piyasa bülteninin sonuna eklenecek "Günün Ekonomi Gündemi" özet kartlarını üretir.
@@ -412,7 +416,18 @@ def main() -> int:
     # a) Instagram Carousel & Story
     def _is_ig():
         nonlocal post_id, baglanti
+        # ⚠️ YALNIZCA STORY (23 Kas 2026, kullanıcı kararı). ÖLÇÜLDÜ:
+        # piyasa bülteni 11 gönderide toplam 476 erişim, TOPLAM 1
+        # etkileşim — erişimi en düşük 5 gönderinin beşi de buydu.
+        # Akışta yer kaplayıp kimseye ulaşmıyordu; günlük veri zaten
+        # 24 saatte değersizleşiyor, story onun doğal yeri.
+        # Facebook/Threads etkilenmiyor, orada normal yayın sürüyor.
+        yalniz_story = bool((ayarlar.get("piyasa") or {}).get(
+            "instagram_yalnizca_story", True))
         try:
+            if yalniz_story:
+                sonuclar.append("📸 Instagram akış gönderisi atlandı (yalnızca story)")
+                raise _AkisAtlandi
             p_id = instagram.carousel_yayinla(slayt_urlleri_4_5, ig_caption, ayarlar)
             bgl = instagram.post_baglantisi(p_id, ayarlar)
             with _lock:
@@ -421,6 +436,8 @@ def main() -> int:
                 sonuclar.append("📸 Instagram Gönderisi (4:5) paylaşıldı")
                 if bgl:
                     canli_link_dugmeleri.append([{"text": "📸 Instagram'da Gör", "url": bgl}])
+        except _AkisAtlandi:
+            pass
         except Exception as e:
             log.exception("Instagram piyasa bülteni yayın hatası: %s", e)
             with _lock:
