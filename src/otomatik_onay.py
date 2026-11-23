@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 
 import requests
 from dotenv import load_dotenv
@@ -53,6 +54,38 @@ load_dotenv()
 # NOT: bu liste "bu haberleri paylaşma" demiyor — "gece OTOMATİK
 # paylaşma, sabah insana sor" diyor. Akşam turunda bu haberler normal
 # şekilde çıkıyor.
+def _tr_kucult(metin: str) -> str:
+    """
+    Türkçe küçültme — ŞAPKALI HARFLER KORUNUR.
+
+    ⚠️ NİYE AYRI BİR NORMALİZER (23 Kas 2026): bu dosya riskli kelimeleri
+    `dogrula._sadelestir` ile eşliyordu ve o fonksiyon aksanı SİLİYOR
+    (`NFKD` + combining temizliği). Sonuç ölçüldü:
+
+        _sadelestir("öldü") -> "oldu"
+        _sadelestir("ölü")  -> "olu"
+
+    Yani ölüm kelimeleri sıradan Türkçe kelimelere dönüşüyor ve
+    *"Asgari ücret zammı belli oldu"* ile *"Yeni James Bond Robert
+    Pattinson oldu"* ölüm haberi sayılıyordu. ÖLÇÜLDÜ: son 30 günün
+    **92 yayınının 27'si (%29)** metinde hiçbir ölüm ifadesi geçmediği
+    hâlde riskli-konu dalını tetikliyordu; başlıkta rakam da varsa
+    (haberlerin %78'i) gece otomatik yayından REDDEDİLİYORDU.
+
+    ⚠️ Bu, projedeki Türkçe karakter tuzağının **ALTINCI** tekrarı ve
+    ilki ki bir GÜVENLİK katmanında. Önceki beşinde çözüm "`_sadelestir`
+    kullan"dı; burada tam tersi gerekiyor — çünkü ayırt edici olan şey
+    aksanın KENDİSİ. Ders: *bir normalizer evrensel çözüm değildir;
+    neyi sildiğini sor.*
+
+    ⚠️ BEDELİ: kaynak metin şapkasız yazılmışsa ("saldiri") eşleşme
+    kaçar. Kabul edildi — bizim metinlerimizi Gemini üretiyor ve düzgün
+    Türkçe yazıyor; yanlış alarmın bedeli (her üç haberden birini
+    gereksiz reddetmek) kaçan eşleşmeden ağır.
+    """
+    return metin.replace("İ", "i").replace("I", "ı").lower()
+
+
 RISKLI_KELIMELER = (
     "öldü", "ölü", "can kaybı", "hayatını kaybetti", "yaşamını yitirdi",
     "yaralı", "cenaze", "katliam", "saldırı", "patlama", "çatışma",
@@ -263,13 +296,17 @@ def katman4_riskli_kategori(haber) -> tuple[bool, str]:
     Suçlama içeren haberlerde ise ihtiyat dili zaten katman 1'de
     (`suclama_dili_denetle`) denetleniyor.
     """
-    metin = dogrula._sadelestir(
+    # ⚠️ `_sadelestir` DEĞİL `_tr_kucult`: aksan korunmazsa "öldü" ile
+    # "oldu" aynı kelimeye düşüyor (bkz. `_tr_kucult` açıklaması).
+    metin = _tr_kucult(
         f"{haber['ig_baslik'] or ''} {haber['slayt_ozet'] or ''} "
         f"{haber['ig_caption'] or ''}"
     )
 
+    # Kelime sınırı: "ölü" aranırken "ölüm/ölüler" eşleşmeli ama
+    # başka bir kelimenin ortasına denk gelmemeli.
     bulunan = [k for k in RISKLI_KELIMELER
-               if dogrula._sadelestir(k).strip() in metin]
+               if re.search(r"\b" + re.escape(_tr_kucult(k)), metin)]
     if not bulunan:
         return True, "riskli kategori değil"
 

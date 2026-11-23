@@ -6251,6 +6251,66 @@ def test_spor_yonetimi_sozlesmesi() -> None:
     denetle(dict(row).get("detay_sablonu") == "standart", "onay_isle: sqlite3.Row dict() dönüşümüyle get('detay_sablonu') güvenli")
 
 
+def test_riskli_kelime_aksani_korunuyor() -> None:
+    """
+    Gece otomatik yayının riskli-konu katmanı "öldü" ile "oldu"yu
+    ayırabiliyor mu?
+
+    ⚠️ NEDEN GEREKTİ (23 Kas 2026): `otomatik_onay` riskli kelimeleri
+    `dogrula._sadelestir` ile eşliyordu ve o fonksiyon aksanı SİLİYOR:
+
+        _sadelestir("öldü") -> "oldu"
+        _sadelestir("ölü")  -> "olu"
+
+    Sonuç ölçüldü — son 30 günün 94 yayınından **48'i (%51)** riskli
+    sayılıyordu, oysa gerçek sayı **17 (%18)**. *"Asgari ücret zammı
+    belli oldu"* ve *"Robert Pattinson oldu"* ölüm haberi muamelesi
+    görüyordu; riskli konu + başlıkta rakam (haberlerin %78'i) = gece
+    otomatik yayından RED.
+
+    ⚠️ Projedeki Türkçe karakter tuzağının ALTINCI tekrarı, ilki ki bir
+    GÜVENLİK katmanında. Önceki beşinde çözüm *"`_sadelestir` kullan"*dı;
+    burada TAM TERSİ gerekiyordu — ayırt eden şey aksanın kendisi.
+    **Bir normalizer evrensel çözüm değildir; neyi SİLDİĞİNİ sor.**
+    """
+    sys.path.insert(0, str(KOK))
+    import re as _re
+    from src import otomatik_onay as _oo
+
+    def _tetikler(cumle: str) -> list:
+        m = _oo._tr_kucult(cumle)
+        return [k for k in _oo.RISKLI_KELIMELER
+                if _re.search(r"\b" + _re.escape(_oo._tr_kucult(k)), m)]
+
+    # --- Yanlış alarm vermemeli (ölümle ilgisi yok) ---
+    for _c in ("Asgari ücret zammı belli oldu",
+               "Yeni James Bond resmen Robert Pattinson oldu",
+               "Milli Takım B Ligi'ne düştü",
+               "Enflasyon beklentisi belli oldu"):
+        denetle(not _tetikler(_c),
+                f"ölümle ilgisiz cümle riskli sayılmıyor ({_c[:34]}…)",
+                f"aksan siliniyor, 'oldu' -> 'öldü' sanılıyor: {_tetikler(_c)}")
+
+    # --- Gerçek riskli haber HÂLÂ yakalanmalı (temizlik fazla geniş olmasın) ---
+    for _c in ("Kazada 3 kişi öldü",
+               "Depremde can kaybı 12'ye yükseldi",
+               "Fabrika patlamasında 17 işçi hayatını kaybetti",
+               "Soruşturma kapsamında tutuklandı"):
+        denetle(bool(_tetikler(_c)),
+                f"gerçek riskli haber yakalanıyor ({_c[:34]}…)",
+                "temizlik fazla geniş — güvenlik katmanı kör kaldı")
+
+    # --- Normalizer aksanı KORUYOR mu (kuralın kendisi) ---
+    denetle(_oo._tr_kucult("ÖLDÜ") == "öldü" and _oo._tr_kucult("Ölü") == "ölü",
+            "riskli kelime normalizeri şapkalı harfi koruyor",
+            "ö/ü siliniyorsa ölüm kelimeleri sıradan kelimelere düşer")
+    # ⚠️ Türkçe büyük İ/I tuzağı bu normalizerde de geçerli
+    denetle(_oo._tr_kucult("İDDİA") == "iddia",
+            "normalizer Türkçe İ'yi doğru küçültüyor",
+            "düz .lower() 'İ'yi noktalı i'ye çeviriyor, eşleşme kaçıyor")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -6330,6 +6390,7 @@ def main() -> int:
         test_hook_tuvali_tasmiyor_ve_uydurmuyor,
         test_kanca_baslikla_yarismiyor,
         test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
+        test_riskli_kelime_aksani_korunuyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
         test_threads_ve_twitter_4_5_ve_paralel_yayin,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,
