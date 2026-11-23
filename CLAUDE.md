@@ -405,6 +405,20 @@ Bunların hepsi kullanıcıyla konuşuldu ve karara bağlandı.
   adımına jeton, Worker testleri) aynı gün commit + push edildi. Ayrıntı ve sonraki işler:
   **`/Users/macbook/Dogukan/ozborn-studio/CLAUDE.md` §5, §7.A ve §7.E** (yeni özellik yol haritası).
 
+### ✅ 23 KASIM 2026 — RED SEBEBİ + GÖLGE MOD CANLIDA
+
+- **Worker sürümü:** `a8c81cc7-0683-4e13-b4cd-13c50d7434eb` (23 Kas, kullanıcı deploy etti).
+  Sorun çıkarsa `cd worker && npx wrangler rollback`.
+- **Deploy doğrulandı:** üç cron da yazıldı (`20 7 * * 1-5`, `12 2,5-20,23 * * *`, `*/10 * * * *`)
+  — CLAUDE.md'nin uyardığı sessiz yarım kalma (`code: 10072`) OLMADI. Bağlar yerinde
+  (PLANLAR KV, KOPRU D1). `webhook_kur.py --durum` → hata yok, 0 bekleyen güncelleme.
+- **Bu turda canlıya alınanlar:** `öldü`/`oldu` güvenlik düzeltmesi · gövde kapısı ·
+  suçlama denetimi genişletmesi · X kapatıldı · piyasa bülteni IG'de yalnızca story ·
+  detay 3→2 sayfa · detay sayfaları seslendiriliyor · red sebebi günlüğü · gölge mod.
+  Sözleşme testi **710 → 750**.
+- ⚠️ **Gölge mod YAYIN KARARINA KARIŞMIYOR** — yalnızca gözlem. Birkaç hafta veri
+  biriktikten sonra `db.golge_capraz_tablo` ile otomatik yayın kararı verilecek.
+
 ### 🟢 BOT YAYINDA — son güncelleme 4 Eylül 2026
 
 Tüm adımlar bitti. Sistem kendi başına çalışıyor ve **gerçek postlar
