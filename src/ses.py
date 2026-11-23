@@ -315,6 +315,33 @@ def slayt_metinleri(haberler: List[Any], ayarlar: Optional[Dict[str, Any]], slay
             metinler[i] = cumle(_slayt_metni(haberler[i], "ig_baslik", ayarlar))
         return metinler
     metinler[0] = cumle(_slayt_metni(haberler[0], "ig_baslik", ayarlar), _slayt_metni(haberler[0], "slayt_ozet", ayarlar))
+
+    # ⚠️ DETAY SAYFALARI DA OKUNUYOR (23 Kas 2026, kullanıcı isteği:
+    # *"metin azalırsa detay sayfasındakileri de okuyalım mutlaka
+    # seslendirmede"*). Önce yalnızca kapak okunuyordu ve ayrıntı
+    # sayfaları SESSİZ geçiyordu — izleyici ekranda metin görüyor ama
+    # ses susuyordu.
+    #
+    # ⚠️ NİYE ŞİMDİ GÜVENLİ: aynı gün `detay_metni` hedefi 4-5
+    # paragraftan 3'e çekildi (ölçüm: 2 sayfa 101 izlenme, 3 sayfa 60).
+    # Daha önce 4-5 paragrafı okumak videoyu belirgin uzatırdı.
+    #
+    # Paragraflar sayfalara SIRAYLA dağıtılıyor; sayfadan çok paragraf
+    # varsa son sayfa kalanları topluyor (metin sessizce DÜŞMESİN).
+    if _ayar(ayarlar, "detay_okunsun", True):
+        detay = _slayt_metni(haberler[0], "detay_metni", ayarlar)
+        paragraflar = [x.strip() for x in (detay or "").split("\n\n") if x.strip()]
+        detay_slayt = max(0, slayt_sayisi - 1)
+        if paragraflar and detay_slayt:
+            if len(paragraflar) <= detay_slayt:
+                dagitim = [[x] for x in paragraflar]
+            else:
+                # Son sayfaya artanları ver — hiçbir paragraf kaybolmasın
+                kes = detay_slayt - 1
+                dagitim = [[x] for x in paragraflar[:kes]] + [paragraflar[kes:]]
+            for i, grup in enumerate(dagitim, start=1):
+                if i < slayt_sayisi:
+                    metinler[i] = cumle(*grup)
     return metinler
 
 

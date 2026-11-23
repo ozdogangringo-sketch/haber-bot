@@ -1268,6 +1268,12 @@ seslendirme:
     style: 0.0
     use_speaker_boost: true
     speed: 1.22
+  # ⚠️ DETAY SAYFALARI SESLENDİRİLSİN Mİ (23 Kas 2026, kullanıcı isteği).
+  # Önce yalnızca kapak okunuyordu, ayrıntı sayfaları sessiz geçiyordu —
+  # izleyici ekranda metin görüyor ama ses susuyordu.
+  # Aynı gün detay_metni 4-5 paragraftan 3'e çekildiği için video
+  # belirgin uzamıyor. false = eski davranış (yalnız kapak).
+  detay_okunsun: true
   hedef_lufs: -14
   fon_muzik_seviyesi: 0.55              # Arka plan fon müziği seviyesi (konuşma esnasında da net duyulması için 0.55 + normalize=0)
   # Tek haberli postta (son dakika) her zaman kapak: başlık + özet.

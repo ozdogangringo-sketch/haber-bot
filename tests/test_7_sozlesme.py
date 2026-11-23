@@ -6442,6 +6442,74 @@ def test_suclama_denetimi_govdesizde_de_calisiyor() -> None:
 
 
 
+def test_detay_iki_sayfa_ve_seslendiriliyor() -> None:
+    """
+    Detay metni 2 sayfaya sığacak uzunlukta mı, ve o sayfalar
+    seslendirmede okunuyor mu?
+
+    ⚠️ KULLANICI SORDU (23 Kas 2026): *"içerikleri 1 veya 2 sayfaya mı
+    indirsek, süre uzunluğu mu problem oluyor"* + *"metin azalırsa
+    detay sayfasındakileri de okuyalım mutlaka seslendirmede"*.
+
+    ÖLÇÜLDÜ (YouTube Shorts, son 45 gün, 182 video — yalnızca gövdesi
+    SAĞLAM olanlar):
+
+        2 sayfa (n=85)  24 sn  ortanca 101 izlenme
+        3 sayfa (n=76)  29 sn  ortanca  60 izlenme
+
+    3'ten 2 sayfaya inmek izlenmeyi **%68 artırıyor**.
+
+    ⚠️ SÜRE TEK BAŞINA SUÇLU DEĞİL: videolar zaten kısa (ortanca 26 sn,
+    en uzunu 35). Belirleyici olan SAYFA SAYISI.
+
+    ⚠️ 1 SAYFAYA İNİLMEDİ: ham veride "kısa metin = çok izlenme"
+    görünüyordu ama kısa metinli 19 videonun **19'u da gövdesi boş**
+    kayıtlardı — korelasyon bozuk içeriğin artefaktıydı.
+    """
+    sys.path.insert(0, str(KOK))
+    import copy as _copy
+    from src import ses as _ses
+
+    # --- Prompt hedefi 2 sayfa bandında mı ---
+    _gt = (KOK / "src" / "generate_text.py").read_text(encoding="utf-8")
+    denetle("- detay_metni: 90-130 kelime, **3 PARAGRAF**" in _gt,
+            "detay_metni hedefi 3 paragraf (2 sayfa bandı)",
+            "4-5 paragraf ~900+ karakter = 3 sayfa üretiyor, izlenme %40 düşüyor")
+
+    # --- Detay sayfaları seslendirmede okunuyor mu ---
+    _tam = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    _h = {"ig_baslik": "Sürücüye ceza kesildi", "slayt_ozet": "Adli işlem başlatıldı.",
+          "detay_metni": "Birinci paragraf.\n\nİkinci paragraf.\n\nÜçüncü paragraf.",
+          "kategori": "turkiye"}
+    _m = _ses.slayt_metinleri([_h], _tam, 3)
+    denetle(bool(_m[1]) and bool(_m[2]),
+            "tek haberde detay sayfaları seslendiriliyor",
+            "ekranda metin var ama ses susuyor")
+
+    # ⚠️ HİÇBİR PARAGRAF DÜŞMEMELİ — sayfadan çok paragraf varsa
+    # son sayfa kalanları toplamalı.
+    _okunan = " ".join(x for x in _m if x)
+    for _par in ("Birinci", "İkinci", "Üçüncü"):
+        denetle(_par in _okunan,
+                f"paragraf seslendirmede kayboluyor mu ({_par})",
+                "sayfadan çok paragraf varsa metin sessizce düşüyor")
+
+    # --- Ayar gerçekten kapatabiliyor mu ---
+    _kapali = _copy.deepcopy(_tam)
+    _kapali["seslendirme"]["detay_okunsun"] = False
+    _mk = _ses.slayt_metinleri([_h], _kapali, 3)
+    denetle(_mk[1] is None and _mk[2] is None,
+            "detay_okunsun: false eski davranışa dönüyor",
+            "ayar okunmuyor, özellik kapatılamıyor")
+
+    # --- TUR davranışı DEĞİŞMEMELİ (her slayt kendi başlığını okur) ---
+    _mt = _ses.slayt_metinleri([_h, dict(_h, ig_baslik="İkinci haber")], _tam, 3)
+    denetle(_mt[1] is not None and "İkinci haber" in _mt[1],
+            "tur kipinde her slayt kendi başlığını okuyor",
+            "tur davranışı bozuldu (kullanıcı kararı 26 Eyl)")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -6524,6 +6592,7 @@ def main() -> int:
         test_riskli_kelime_aksani_korunuyor,
         test_govdesiz_haber_yayinlanmiyor,
         test_suclama_denetimi_govdesizde_de_calisiyor,
+        test_detay_iki_sayfa_ve_seslendiriliyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
         test_threads_ve_twitter_4_5_ve_paralel_yayin,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,

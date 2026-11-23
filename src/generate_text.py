@@ -208,7 +208,7 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
 
 ★ EDİTORYAL ALANLAR VE AÇIKLAMALAR ★
 - slayt_ozet: TEK cümle, en fazla 18 kelime. Başlıkta OLMAYAN ikinci en somut bilgiyi ver (oran, tarih, kim söyledi). Başlığı tekrarlama.
-- detay_metni: 120-200 kelime, **4-5 PARAGRAF**, her paragraf 28-40 kelime.
+- detay_metni: 90-130 kelime, **3 PARAGRAF**, her paragraf 30-43 kelime.
   Paragraflar arasında BOŞ SATIR bırak.
 
   ⚠️ PARAGRAF SAYISI İLE KELİME HEDEFİ UYUMLU OLMAK ZORUNDA.
@@ -217,8 +217,31 @@ Haber için arka planda 3 farklı stilde başlık üret ve `baslik_alternatifler
   istemek demekti. ÖLÇÜLDÜ (120 üretim): çıktı medyanı **76 kelime**
   oldu, 109'u hedefin dışında kaldı ve HİÇBİRİ 220'ye ulaşmadı.
   Kaynak yetersizliği değildi — 4.900 karakterlik makalelerden bile
-  57 kelime çıkıyordu. 4-5 x 28-40 = 112-200, yani hedef artık
-  gerçekten ulaşılabilir.
+  57 kelime çıkıyordu. 3 x 30-43 = 90-129, yani hedef ulaşılabilir.
+
+  ⚠️ HEDEF 4-5 PARAGRAFTAN 3'E ÇEKİLDİ (23 Kas 2026, kullanıcı
+  sordu: *"içerikleri 1 veya 2 sayfaya mı indirsek, süre uzunluğu mu
+  problem oluyor"*). ÖLÇÜLDÜ (YouTube Shorts, son 45 gün, 182 video
+  — yalnızca gövdesi SAĞLAM olanlar, bozuk içerik ayıklanarak):
+
+      detay sayfası    süre     ortanca izlenme
+      2 sayfa (n=85)   24 sn          101
+      3 sayfa (n=76)   29 sn           60
+
+  3'ten 2 sayfaya inmek izlenmeyi **%68 artırıyor**. 4-5 paragraf
+  ~900+ karakter = 3 sayfa üretiyordu; 3 paragraf 500-900 bandına,
+  yani 2 sayfaya denk geliyor.
+
+  ⚠️ SÜRE TEK BAŞINA SUÇLU DEĞİL: videolar zaten kısa (ortanca
+  **26 sn**, en uzunu 35). Kullanıcının "süre uzun" tahmini ölçümle
+  tutmadı; belirleyici olan SAYFA SAYISI.
+
+  ⚠️ 1 SAYFAYA İNİLMEDİ — veri desteklemiyor: elde yalnızca 2 örnek
+  var (ortanca 51 izlenme) ve ikisi de bozuk içerikten geliyordu.
+  Ham veride "kısa metin = çok izlenme" görünüyordu ama ÖLÇÜLDÜ:
+  kısa metinli 19 videonun **19'u da gövdesi boş** kayıtlardı — yani
+  o korelasyon bozuk içeriğin artefaktıydı. Ayıklanınca etki duruyor
+  ama zayıflıyor (85 vs 66).
 
   ⚠️ NEDEN UZUNLUK ÖNEMLİ: bu metin ayrıntı SAYFALARINI dolduruyor ve
   her sayfa ~75 kelime alacak şekilde tasarlandı. 76 kelimelik metin
