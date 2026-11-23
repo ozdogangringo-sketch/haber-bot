@@ -94,6 +94,9 @@ class Baglam:
     liste_esigi: int                   # aynı listede tekrar denetimi
     muafiyet_puani: int                # bu puanın üstü geçmiş denetiminden muaf
     atlanan_bekleme: float = 12.0       # atlanan haber kaç saat beklesin
+    # ⚠️ GÖVDE KAPISI (23 Kas 2026) — bkz. uygun_mu adım 1b.
+    # 0 = kapalı. Yalnızca YAYIN bağlamlarında (tur/tekil) uygulanıyor.
+    asgari_govde: int = 0
     # ⚠️ PAYLAŞIM MUAFİYETİ (18 Eyl 2026) — bkz. uygun_mu adım 2.
     paylasim_esigi: int = 8            # 0 = muafiyet kapalı
     paylasim_taban_onem: int = 4       # bunun altındaki haber muaf olamaz
@@ -162,6 +165,12 @@ class Baglam:
             paylasim_esigi=(g.get("paylasim_esigi", 8)
                             if ad in (TEKIL, ONERI) else 0),
             paylasim_taban_onem=g.get("paylasim_taban_onem", 4),
+            # ⚠️ ÖNERİ'DE KAPALI (0) — ZORUNLU. Öneri akışı haberleri
+            # `durum='yeni'` ve METİNSİZ değerlendiriyor; gövde o anda
+            # hiç çekilmemiş oluyor. Kapıyı oraya açmak öneri havuzunun
+            # TAMAMINI bloklardı.
+            asgari_govde=(g.get("asgari_govde_karakter", 300)
+                          if ad in (TEKIL, TUR) else 0),
             gece=gece,
         )
 
@@ -274,6 +283,38 @@ def uygun_mu(haber, baglam: Baglam) -> tuple[bool, str]:
     yas = _yas_saat(haber)
     if yas > baglam.tazelik_saat:
         return False, f"bayat ({yas:.1f} sa > {baglam.tazelik_saat} sa)"
+
+    # 1b) KAYNAK GÖVDESİ — gövdesi olmayan haber yayınlanamaz.
+    #
+    # ⚠️ KULLANICI BİLDİRDİ (23 Kas 2026): *"bazı haberlerde detay
+    # sayfasında bilgi yok, boş genel geçer metinler yazdırıyor,
+    # muhtemelen haber hakkında veri çekemediği için"*. Ölçüldü ve
+    # haklı çıktı — üstelik oran son 30 günde İKİYE KATLANMIŞ:
+    # gövdesiz yayın %6 -> %14, içi boş detay metni %7,9 -> %17.
+    #
+    # ⚠️ MODEL KUSURLU DEĞİL, TALİMATA UYUYOR. Gövde yoksa prompt'a
+    # `AZ_BILGI_UYARISI` ekleniyor ve modele aynen *"TEK CÜMLE yaz,
+    # sadece başlıkta yazanı tekrarla, detay uydurma"* deniyor.
+    # Uydurmaması DOĞRU; kusur o çıktının YAYINA KADAR GİTMESİ.
+    # Ölçüldü: gövdesiz kayıtlarda detay metninde 14 KAT az rakam,
+    # %32'sinde hiç rakam yok, metnin %38'i başlığın tekrarı.
+    #
+    # ⚠️ HABER KAYBOLMUYOR — bu kapı eleme değil ERTELEME. Ölçüldü:
+    # başarısız çekimlerin **%87,5'i GEÇİCİ** (son 30 günün 16 zayıf
+    # kaydından 14'ü bugün sorunsuz çekiliyor, biri 11.275 karakter).
+    # Haber havuzda kalıyor, gövdesi çekilebildiğinde yeniden aday
+    # oluyor. Kalıcı olarak çekilemeyen kaynak (Investing 403, silinmiş
+    # sayfa) ise zaten yayınlanmamalı.
+    #
+    # ⚠️ Bu kapı AYNI ZAMANDA bir güvenlik açığını kapatıyor:
+    # `dogrula.suclama_dili_denetle` yalnızca gövdeye bakıyor ve gövde
+    # boşsa sessizce `[]` ("temiz") dönüyor — yani iftira denetimi tam
+    # da kaynağı en zayıf haberlerde hiç çalışmıyordu.
+    if baglam.asgari_govde:
+        govde = (h.get("makale_metni") or "").strip()
+        if len(govde) < baglam.asgari_govde:
+            return False, (f"kaynak gövdesi yetersiz ({len(govde)} kr < "
+                           f"{baglam.asgari_govde}) — havuzda bekliyor")
 
     # 2) Önem eşiği
     #

@@ -42,6 +42,29 @@ genel:
   # atlanan haberlerin yarısı bir sonraki turda geri geliyordu.
   atlanan_bekleme_saat: 12
 
+  # ⚠️ KAYNAK GÖVDESİ ALT SINIRI (23 Kas 2026, kullanıcı bildirdi).
+  #
+  # Haberin kendi sayfasından çekilen metin (`makale_metni`) bu
+  # uzunluğun altındaysa haber YAYINLANMIYOR — havuzda bekliyor.
+  #
+  # NİYE: gövde yoksa prompt modele "TEK CÜMLE yaz, sadece başlıkta
+  # yazanı tekrarla, detay uydurma" diyor ve çıkan detay sayfası
+  # başlığın tekrarı oluyor. ÖLÇÜLDÜ (son 30 gün): gövdesiz yayın
+  # %14, içi boş detay metni %17 — ikisi de bir ay önce yarısıydı.
+  # O kayıtlarda detay metninde 14 KAT az rakam var, %32'sinde hiç
+  # rakam yok.
+  #
+  # ⚠️ HABER KAYBOLMUYOR, ERTELENİYOR: başarısız çekimlerin %87,5'i
+  # geçici (aynı sayfalar bugün sorunsuz iniyor). Gövde çekilebilince
+  # haber yeniden aday oluyor.
+  #
+  # ⚠️ ÖNERİ akışında UYGULANMIYOR — orada gövde henüz hiç
+  # çekilmemiş olur, kapı açılsa öneri havuzunun tamamı bloklanır.
+  #
+  # 300: katman 3'ün (LLM çapraz denetim) "kaynak çok kısa,
+  # doğrulayamam" eşiğiyle aynı. 0 yaparak kapatılır.
+  asgari_govde_karakter: 300
+
   # Yayınlanmamış haberler kaç gün saklansın? Günlük raporda
   # temizleniyor. ⚠️ YAYINLANMIŞ haberler bundan MUAF — mükerrer
   # engeli onlara bakıyor.

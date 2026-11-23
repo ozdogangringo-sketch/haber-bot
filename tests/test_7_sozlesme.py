@@ -29,6 +29,7 @@ import ast
 import re
 import sqlite3
 import sys
+import datetime as _dt
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -312,6 +313,12 @@ def _sahte_haber(**degisiklik) -> dict:
         "baslik_orj": "Ankara'da metro seferleri yarın sabaha kadar uzatıldı",
         "ig_baslik": "Ankara'da metro seferleri yarın sabaha kadar uzatıldı",
         "onem_puani": 9, "durum": "metin_hazir", "son_dakika": 0,
+        # ⚠️ GÖVDE ZORUNLU (23 Kas 2026): `aday.uygun_mu` artık kaynak
+        # gövdesi olmayan haberi eliyor. Gerçek haber o kapıya metni
+        # üretilmiş hâlde gelir, yani gövdesi vardır; fikstürün onu
+        # taşımaması testi gerçek akıştan uzaklaştırıyordu.
+        "makale_metni": ("Ankara Büyükşehir Belediyesi, metro seferlerinin "
+                         "yarın sabaha kadar uzatılacağını duyurdu. " * 6),
         "yayin_tarihi": (datetime.now(timezone.utc)
                          - timedelta(hours=1)).isoformat(),
     }
@@ -6311,6 +6318,80 @@ def test_riskli_kelime_aksani_korunuyor() -> None:
 
 
 
+def test_govdesiz_haber_yayinlanmiyor() -> None:
+    """
+    Kaynak gövdesi çekilemeyen haber yayına çıkabiliyor mu?
+
+    ⚠️ KULLANICI BİLDİRDİ (23 Kas 2026): *"bazı haberlerde detay
+    sayfasında bilgi yok, boş genel geçer metinler yazdırıyor,
+    muhtemelen haber hakkında veri çekemediği için"*. Ölçüldü, haklı —
+    ve oran son 30 günde İKİYE KATLANMIŞ (gövdesiz yayın %6→%14,
+    içi boş detay %7,9→%17).
+
+    ⚠️ MODEL KUSURLU DEĞİL: gövde yoksa `AZ_BILGI_UYARISI` modele
+    *"TEK CÜMLE yaz, sadece başlıkta yazanı tekrarla"* diyor. Kusur
+    o çıktının yayına gitmesi. Ölçüldü: engellenen kayıtların ortanca
+    detay metni **212** karakter, geçenlerinki **922**.
+
+    ⚠️ ÖNERİ BAĞLAMINDA KAPALI OLMAK ZORUNDA — orada haber
+    `durum='yeni'` ve metinsiz değerlendiriliyor, gövde hiç çekilmemiş
+    olur. Kapı açık olsaydı öneri havuzunun TAMAMI bloklanırdı.
+    """
+    sys.path.insert(0, str(KOK))
+    from src import aday as _aday
+
+    _taban = {"onem_puani": 9, "kategori": "turkiye", "atlanma_zamani": None,
+              "baslik_orj": "Bir kentte sağanak etkili oldu",
+              "ig_baslik": "Bir kentte sağanak etkili oldu",
+              "ozet_orj": "Sağanak etkili oldu.", "daha_once_yayinlandi": 0,
+              "yayin_tarihi": _dt.datetime.now(_dt.timezone.utc).isoformat()}
+
+    def _bag(ad, asgari):
+        return _aday.Baglam(ad=ad, esikler={}, varsayilan_esik=0, tazelik_saat=999,
+                            kategori_azami=None, kategori_sayaci={}, gecmis_konular=[],
+                            gecmis_esik=99, liste_esigi=99, muafiyet_puani=99,
+                            asgari_govde=asgari)
+
+    # --- Gövdesi yok -> yayın bağlamında ELENMELİ ---
+    bos = {**_taban, "makale_metni": ""}
+    uygun, sebep = _aday.uygun_mu(bos, _bag(_aday.TEKIL, 300))
+    denetle(not uygun, f"gövdesiz haber tekil yayına çıkmıyor ({sebep[:40]})",
+            "başlığın tekrarı olan detay sayfası yayınlanıyor")
+
+    # --- Gövdesi sağlam -> GEÇMELİ (kapı fazla geniş olmasın) ---
+    dolu = {**_taban, "makale_metni": "x" * 1200}
+    uygun2, sebep2 = _aday.uygun_mu(dolu, _bag(_aday.TEKIL, 300))
+    denetle(uygun2, f"gövdesi sağlam haber geçiyor ({sebep2[:40]})",
+            "kapı fazla geniş — sağlam haberler de eleniyor")
+
+    # --- ÖNERİ bağlamında kapı KAPALI olmalı ---
+    # ⚠️ ÜRETİM YOLUNDAN ölç: ilk yazımda Baglam'ı elle kurup
+    # `asgari_govde=0` veriyordum, yani kendi kurgumu sınıyordum.
+    # `kur()`a ÖNERİ'yi de ekleyen sabotaj TEMİZ GEÇTİ. Artık karar
+    # `Baglam.kur`dan okunuyor.
+    _ayar = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    _con = gecici_db()
+    _b_oneri = _aday.Baglam.kur("oneri", _ayar, _con)
+    denetle(_b_oneri.asgari_govde == 0,
+            "öneri akışında gövde kapısı kapalı",
+            "öneri havuzunun tamamı bloklanır — orada gövde hiç çekilmemiş olur")
+    _b_tekil = _aday.Baglam.kur("tekil", _ayar, _con)
+    denetle(_b_tekil.asgari_govde > 0,
+            "tekil yayında gövde kapısı açık",
+            "kapı hiçbir bağlamda devrede değil")
+
+    # --- Ayar gerçekten okunuyor mu (sabit kodlanmamış) ---
+    _ay = yaml.safe_load((KOK / "config.yaml").read_text(encoding="utf-8"))
+    denetle("asgari_govde_karakter" in (_ay.get("genel") or {}),
+            "gövde eşiği config'den okunuyor",
+            "eşik koda gömülü, değiştirilemiyor")
+    _kaynak = (KOK / "src" / "aday.py").read_text(encoding="utf-8")
+    denetle("asgari_govde_karakter" in _kaynak,
+            "aday.py ayarı gerçekten okuyor",
+            "config'de yazıyor ama kod varsayılanı kullanıyor")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -6391,6 +6472,7 @@ def main() -> int:
         test_kanca_baslikla_yarismiyor,
         test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
         test_riskli_kelime_aksani_korunuyor,
+        test_govdesiz_haber_yayinlanmiyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
         test_threads_ve_twitter_4_5_ve_paralel_yayin,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,
