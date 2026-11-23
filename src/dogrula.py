@@ -572,8 +572,23 @@ def suclama_dili_denetle(haber) -> list[str]:
 
     Ölçüldü (16 Ağu 2026): suçlama içeren 10 haberin 3'ünde ihtiyat
     düşmüştü; ikisi atıflı başlıktı (yanlış alarm), biri gerçek riskti.
+
+    ⚠️ KAYNAK GÖVDE **VE** RSS ÖZETİ (23 Kas 2026). Önce yalnızca
+    gövdeye bakıyordu ve gövde boşsa `return []` ile **sessizce
+    "temiz"** diyordu — yani iftira denetimi tam da kaynağı en zayıf,
+    dolayısıyla EN RİSKLİ haberlerde hiç çalışmıyordu. ÖLÇÜLDÜ:
+    yayınlanmış 680 kaydın **41'inde (%6)** gövde boş, son 30 günde
+    **13/92 (%14)** — oran artıyor; dördünde RSS özetinde suçlama
+    işareti var ve denetim hiç koşmamış.
+
+    ⚠️ KARDEŞ FONKSİYON BUNU ZATEN ÇÖZMÜŞTÜ: `haberi_dogrula`
+    (sayı/isim denetimi) kaynağı `[makale_metni, ozet_orj]` diye
+    kuruyor ve gerekçesi kendi docstring'inde yazılı. Düzeltme bir
+    fonksiyona uygulanmış, YANINDAKİNE uygulanmamıştı — projenin imza
+    hatası: *aynı kural iki yerde yaşıyor, biri unutuluyor.*
     """
-    kaynak = _sadelestir(haber["makale_metni"] or "")
+    parcalar = [haber["makale_metni"] or "", haber["ozet_orj"] or ""]
+    kaynak = _sadelestir(" ".join(parcalar).strip())
     if not kaynak or not any(_sadelestir(k) in kaynak for k in SUCLAMA_ISARETI):
         return []
 

@@ -6392,6 +6392,56 @@ def test_govdesiz_haber_yayinlanmiyor() -> None:
 
 
 
+def test_suclama_denetimi_govdesizde_de_calisiyor() -> None:
+    """
+    Gövdesi olmayan haberde iftira denetimi koşuyor mu?
+
+    ⚠️ NEDEN GEREKTİ (23 Kas 2026): `suclama_dili_denetle` yalnızca
+    `makale_metni`ye bakıyordu ve gövde boşsa `return []` ile
+    **sessizce "temiz"** diyordu — yani denetim tam da kaynağı en
+    zayıf, dolayısıyla EN RİSKLİ haberlerde hiç çalışmıyordu.
+    ÖLÇÜLDÜ: yayınlanmış 680 kaydın 41'inde (%6) gövde boş, son 30
+    günde 13/92 (%14).
+
+    ⚠️ KARDEŞ FONKSİYON BUNU ZATEN ÇÖZMÜŞTÜ: `haberi_dogrula` kaynağı
+    `[makale_metni, ozet_orj]` diye kuruyor ve gerekçesi docstring'inde
+    yazılı. Düzeltme bir fonksiyona uygulanmış, yanındakine
+    uygulanmamıştı — *aynı kural iki yerde yaşıyor, biri unutuluyor.*
+
+    ⚠️ DÜRÜST ÖLÇÜM: bu düzeltmenin BUGÜNKÜ görünür etkisi küçük —
+    son 60 günde yalnızca 1 kayıtta denetim artık gerçekten koşuyor
+    (ve orada uyarı çıkmıyor, çünkü üretilen metin ihtiyatlıydı =
+    doğru sonuç). Kapatılan şey bir KÖR NOKTA, mevcut bir arıza değil.
+    """
+    sys.path.insert(0, str(KOK))
+    from src import dogrula as _d
+
+    # Gövde YOK, ama RSS özetinde suçlama işareti VAR ve üretilen
+    # metin kesin dille yazılmış -> denetim uyarmalı.
+    _h = {"makale_metni": "", "ozet_orj": "Hakkında soruşturma başlatıldı ve iddialar inceleniyor.",
+          "ig_baslik": "Suç örgütü elebaşı yakalandı",
+          "ig_caption": "Suç örgütü elebaşı yakalandı.", "slayt_ozet": ""}
+    denetle(bool(_d.suclama_dili_denetle(_h)),
+            "gövdesiz haberde suçlama denetimi koşuyor",
+            "gövde boşken denetim sessizce 'temiz' diyor — iftira riski denetimsiz")
+
+    # Kaynakta hiç suçlama işareti yoksa uyarı ÇIKMAMALI (yanlış alarm)
+    _t = {"makale_metni": "", "ozet_orj": "Belediye yeni parkı hizmete açtı.",
+          "ig_baslik": "Yeni park hizmete açıldı",
+          "ig_caption": "Park açıldı.", "slayt_ozet": ""}
+    denetle(not _d.suclama_dili_denetle(_t),
+            "suçlamasız haberde yanlış alarm yok",
+            "denetim her habere uyarı basıyor")
+
+    # Kaynak kurulumu KARDEŞ fonksiyonla aynı olmalı
+    _kaynak = (KOK / "src" / "dogrula.py").read_text(encoding="utf-8")
+    _blok = _kaynak.split("def suclama_dili_denetle")[1].split("def ")[0]
+    denetle('ozet_orj' in _blok,
+            "suçlama denetimi RSS özetini de kaynağa katıyor",
+            "yalnızca gövdeye bakıyor — gövdesiz haberde kör kalır")
+
+
+
 def main() -> int:
     # ⚠️ SÖZLEŞME TESTİ AĞA ÇIKMAZ. `secim.yayinlanmis_konular` artık
     # Instagram geçmişini de okuyor (mükerrer denetimi için); testte o
@@ -6473,6 +6523,7 @@ def main() -> int:
         test_kanca_govdeden_besleniyor_ve_kurallara_uyuyor,
         test_riskli_kelime_aksani_korunuyor,
         test_govdesiz_haber_yayinlanmiyor,
+        test_suclama_denetimi_govdesizde_de_calisiyor,
         test_instagram_gonderileri_4_5_yayinlaniyor,
         test_threads_ve_twitter_4_5_ve_paralel_yayin,
         test_paylasim_muafiyeti_reklami_geciriyor_mu,
